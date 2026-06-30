@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import open from 'open';
 import pc from 'picocolors';
 import { isGitRepo, getRepoRoot } from '@diffity/git';
+import { getHost } from '../server.js';
 import { findInstanceForRepo } from '../registry.js';
 
 export function registerOpenCommand(program: Command) {
@@ -31,7 +32,7 @@ export function registerOpenCommand(program: Command) {
         urlParams.set('ref', ref);
       }
       const qs = urlParams.toString();
-      const url = `http://localhost:${existing.port}/diff${qs ? `?${qs}` : ''}`;
+      const url = `http://${getHost()}:${existing.port}/diff${qs ? `?${qs}` : ''}`;
 
       console.log(`  ${pc.green('→')} ${pc.cyan(url)}`);
       await open(url);

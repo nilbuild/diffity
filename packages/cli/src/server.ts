@@ -72,6 +72,10 @@ const MIME_TYPES: Record<string, string> = {
   '.pdf': 'application/pdf',
 };
 
+export function getHost(): string {
+  return process.env.DIFFITY_HOST?.trim() || 'localhost';
+}
+
 interface ServerOptions {
   port: number;
   portIsExplicit?: boolean;
@@ -171,7 +175,7 @@ export function startServer(options: ServerOptions): Promise<ServerResult> {
   const server = createServer(
     async (req: IncomingMessage, res: ServerResponse) => {
       try {
-        const url = new URL(req.url || '/', `http://localhost:${port}`);
+        const url = new URL(req.url || '/', `http://${getHost()}:${port}`);
         const pathname = url.pathname;
 
         res.setHeader('Access-Control-Allow-Origin', '*');

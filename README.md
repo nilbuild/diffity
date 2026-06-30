@@ -237,6 +237,18 @@ diffity list --json        # machine-readable output
 --new              Stop existing instance and start fresh
 ```
 
+## Environment variables
+
+| Variable       | Description                                                               |
+| -------------- | ------------------------------------------------------------------------- |
+| `DIFFITY_HOST` | Hostname used in the printed URL (default: `localhost`).                  |
+
+Useful when running diffity inside a VM or container and opening it from another machine:
+
+```bash
+DIFFITY_HOST=diffity.local diffity
+```
+
 ## License
 
 [PolyForm Shield 1.0.0](./LICENSE) © [Kamran Ahmed](https://x.com/kamrify)

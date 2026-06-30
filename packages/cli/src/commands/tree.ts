@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import open from 'open';
 import pc from 'picocolors';
 import { isGitRepo, getRepoRoot, getRepoName } from '@diffity/git';
-import { startServer } from '../server.js';
+import { startServer, getHost } from '../server.js';
 import { findInstanceForRepo, findAvailablePort, deregisterInstance, killInstance, checkInstanceHealth } from '../registry.js';
 
 export function registerTreeCommand(program: Command, version: string) {
@@ -42,7 +42,7 @@ export function registerTreeCommand(program: Command, version: string) {
             urlParams.set('theme', 'dark');
           }
           const qs = urlParams.toString();
-          const url = `http://localhost:${existing.port}/tree${qs ? `?${qs}` : ''}`;
+          const url = `http://${getHost()}:${existing.port}/tree${qs ? `?${qs}` : ''}`;
 
           if (!opts.quiet) {
             console.log('');
@@ -79,7 +79,7 @@ export function registerTreeCommand(program: Command, version: string) {
           urlParams.set('theme', 'dark');
         }
         const qs = urlParams.toString();
-        const url = `http://localhost:${actualPort}/tree${qs ? `?${qs}` : ''}`;
+        const url = `http://${getHost()}:${actualPort}/tree${qs ? `?${qs}` : ''}`;
 
         if (!opts.quiet) {
           console.log('');

@@ -13,7 +13,7 @@ import {
   isAuthenticated,
   detectRemote,
 } from '@diffity/github';
-import { startServer } from './server.js';
+import { startServer, getHost } from './server.js';
 import { registerAgentCommands } from './agent.js';
 import { findInstanceForRepo, findAvailablePort, deregisterInstance, killInstance, checkInstanceHealth } from './registry.js';
 import { registerOpenCommand } from './commands/open.js';
@@ -251,7 +251,7 @@ range syntax (main..feature, main...feature) also work.`)
         if (opts.unified) {
           urlParams.set('view', 'unified');
         }
-        const url = `http://localhost:${existing.port}/diff?${urlParams.toString()}`;
+        const url = `http://${getHost()}:${existing.port}/diff?${urlParams.toString()}`;
 
         if (!opts.quiet) {
           console.log('');
@@ -289,7 +289,7 @@ range syntax (main..feature, main...feature) also work.`)
       if (opts.unified) {
         urlParams.set('view', 'unified');
       }
-      const url = `http://localhost:${actualPort}/diff?${urlParams.toString()}`;
+      const url = `http://${getHost()}:${actualPort}/diff?${urlParams.toString()}`;
 
       if (!opts.quiet) {
         console.log('');
