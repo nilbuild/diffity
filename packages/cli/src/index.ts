@@ -44,6 +44,7 @@ program
   .option('--no-open', 'Do not open browser automatically')
   .option('--quiet', 'Minimal terminal output')
   .option('--dark', 'Open in dark mode (default: light)')
+  .option('--colorblind', 'Use a colorblind-safe diff palette (blue/orange)')
   .option('--unified', 'Open in unified view (default: split)')
   .option('--new', 'Stop existing instance and start fresh')
   .addHelpText('after', `
@@ -58,6 +59,7 @@ Common usage:
   $ diffity unstaged                     Only unstaged changes
   $ diffity https://github.com/owner/repo/pull/123   Review a GitHub PR
   $ diffity --dark --unified             Dark mode, unified view
+  $ diffity --colorblind                 Colorblind-safe diff palette
   $ diffity --new                        Force restart existing instance
 
 Other commands:
@@ -91,6 +93,7 @@ range syntax (main..feature, main...feature) also work.`)
           case '--no-open': opts.open = false; break;
           case '--quiet': opts.quiet = true; break;
           case '--dark': opts.dark = true; break;
+          case '--colorblind': opts.colorblind = true; break;
           case '--unified': opts.unified = true; break;
           case '--new': opts.new = true; break;
           default:
@@ -248,6 +251,9 @@ range syntax (main..feature, main...feature) also work.`)
         if (opts.dark) {
           urlParams.set('theme', 'dark');
         }
+        if (opts.colorblind) {
+          urlParams.set('colorblind', '1');
+        }
         if (opts.unified) {
           urlParams.set('view', 'unified');
         }
@@ -285,6 +291,9 @@ range syntax (main..feature, main...feature) also work.`)
       const urlParams = new URLSearchParams({ ref: effectiveRef });
       if (opts.dark) {
         urlParams.set('theme', 'dark');
+      }
+      if (opts.colorblind) {
+        urlParams.set('colorblind', '1');
       }
       if (opts.unified) {
         urlParams.set('view', 'unified');

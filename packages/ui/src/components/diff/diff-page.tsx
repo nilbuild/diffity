@@ -3,7 +3,7 @@ import { useLoaderData } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useDiff } from '../../hooks/use-diff';
 import { useInfo } from '../../hooks/use-info';
-import { useTheme } from '../../hooks/use-theme';
+import { useTheme, useColorblind } from '../../hooks/use-theme';
 import { useKeyboard } from '../../hooks/use-keyboard';
 import { useReviewThreads } from '../../hooks/use-review-threads';
 import { useCommentActions } from '../../hooks/use-comment-actions';
@@ -23,16 +23,18 @@ import type { LineSelection } from '../comments/types';
 import { isThreadResolved } from '../comments/types';
 
 export function DiffPage() {
-  const { ref: refParam, theme: initialTheme, view: initialViewMode } = useLoaderData<{
+  const { ref: refParam, theme: initialTheme, view: initialViewMode, colorblind: initialColorblind } = useLoaderData<{
     ref: string;
     theme: 'light' | 'dark' | null;
     view: 'split' | 'unified' | null;
+    colorblind: boolean;
   }>();
 
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode || 'split');
   const [hideWhitespace, setHideWhitespace] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const { theme, toggleTheme } = useTheme(initialTheme);
+  const { colorblind, toggleColorblind } = useColorblind(initialColorblind);
   const { data: diff, error } = useDiff(hideWhitespace, refParam);
   const { data: info } = useInfo(refParam);
   const [activeFile, setActiveFile] = useState<string | null>(null);
@@ -334,6 +336,8 @@ export function DiffPage() {
         onHideWhitespaceChange={setHideWhitespace}
         theme={theme}
         onToggleTheme={toggleTheme}
+        colorblind={colorblind}
+        onToggleColorblind={toggleColorblind}
         onShowHelp={() => setShowHelp(true)}
         diff={diff || undefined}
         diffRef={refParam}

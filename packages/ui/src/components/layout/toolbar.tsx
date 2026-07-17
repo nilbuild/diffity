@@ -25,6 +25,8 @@ interface ToolbarProps {
   onHideWhitespaceChange: (hide: boolean) => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  colorblind?: boolean;
+  onToggleColorblind?: () => void;
   onShowHelp: () => void;
   diff?: ParsedDiff;
   diffRef?: string;
@@ -119,6 +121,8 @@ export function Toolbar(props: ToolbarProps) {
     onHideWhitespaceChange,
     theme,
     onToggleTheme,
+    colorblind,
+    onToggleColorblind,
     onShowHelp,
     diff,
     diffRef,
@@ -183,6 +187,8 @@ export function Toolbar(props: ToolbarProps) {
         <OptionsMenu
           theme={theme}
           onToggleTheme={onToggleTheme}
+          colorblind={colorblind}
+          onToggleColorblind={onToggleColorblind}
           renderExtraItems={(close) => (
             <>
               <button

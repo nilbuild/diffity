@@ -232,6 +232,7 @@ diffity list --json        # machine-readable output
 --port <port>      Custom port (default: auto-assigned from 5391)
 --no-open          Don't open browser
 --dark             Dark mode
+--colorblind       Colorblind-safe diff palette (blue/orange)
 --unified          Unified view (default: split)
 --quiet            Minimal terminal output
 --new              Stop existing instance and start fresh

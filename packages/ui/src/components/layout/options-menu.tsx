@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { SunIcon } from '../icons/sun-icon';
 import { MoonIcon } from '../icons/moon-icon';
 import { EllipsisIcon } from '../icons/ellipsis-icon';
+import { EyeIcon } from '../icons/eye-icon';
 import { GitHubIcon } from '../icons/github-icon';
 
 export const menuItemClass = 'flex items-center gap-2.5 w-full px-3 py-1.5 text-xs text-text-secondary hover:bg-hover hover:text-text transition-colors cursor-pointer text-left';
@@ -9,11 +10,13 @@ export const menuItemClass = 'flex items-center gap-2.5 w-full px-3 py-1.5 text-
 interface OptionsMenuProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  colorblind?: boolean;
+  onToggleColorblind?: () => void;
   renderExtraItems?: (close: () => void) => ReactNode;
 }
 
 export function OptionsMenu(props: OptionsMenuProps) {
-  const { theme, onToggleTheme, renderExtraItems } = props;
+  const { theme, onToggleTheme, colorblind, onToggleColorblind, renderExtraItems } = props;
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -54,6 +57,18 @@ export function OptionsMenu(props: OptionsMenuProps) {
             {theme === 'light' ? <MoonIcon className="w-3.5 h-3.5" /> : <SunIcon className="w-3.5 h-3.5" />}
             {theme === 'light' ? 'Dark mode' : 'Light mode'}
           </button>
+          {onToggleColorblind && (
+            <button
+              className={menuItemClass}
+              onClick={() => {
+                onToggleColorblind();
+                close();
+              }}
+            >
+              <EyeIcon className="w-3.5 h-3.5" />
+              {colorblind ? 'Default colors' : 'Colorblind colors'}
+            </button>
+          )}
           <div className="border-t border-border my-1" />
           <a
             href="https://github.com/kamranahmedse/diffity"

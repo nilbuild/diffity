@@ -17,7 +17,7 @@ import {
   treeEntriesOptions,
   tourOptions,
 } from '../../queries/tree';
-import { useTheme } from '../../hooks/use-theme';
+import { useTheme, useColorblind } from '../../hooks/use-theme';
 import { useReviewThreads } from '../../hooks/use-review-threads';
 import { useCommentActions } from '../../hooks/use-comment-actions';
 import { isThreadResolved, GENERAL_THREAD_FILE_PATH } from '../comments/types';
@@ -98,9 +98,10 @@ function formatTreeThreadsForCopy(threads: CommentThread[]): string {
 export function TreePage(props: TreePageProps) {
   const { tourId, tourStepIndex: tourStepIndexProp, initialTheme } = props;
 
-  const loaderData = useLoaderData<{ theme?: 'light' | 'dark' | null }>();
+  const loaderData = useLoaderData<{ theme?: 'light' | 'dark' | null; colorblind?: boolean }>();
   const [searchParams, setSearchParams] = useRouterSearchParams();
   const navigate = useNavigate();
+  const { colorblind, toggleColorblind } = useColorblind(loaderData?.colorblind ?? null);
   const { theme, toggleTheme } = useTheme(
     initialTheme ?? loaderData?.theme ?? null,
   );
@@ -459,7 +460,7 @@ export function TreePage(props: TreePageProps) {
             onDeleteAllComments={commentActions.deleteAllThreads}
             formatForCopy={formatForCopy}
           />
-          <OptionsMenu theme={theme} onToggleTheme={toggleTheme} />
+          <OptionsMenu theme={theme} onToggleTheme={toggleTheme} colorblind={colorblind} onToggleColorblind={toggleColorblind} />
         </div>
       </div>
 

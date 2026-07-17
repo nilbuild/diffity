@@ -83,6 +83,41 @@
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
+/*
+ * Colorblind-safe palette. Remaps the red/green diff colors to a
+ * blue (additions) / orange (deletions) scheme that stays distinguishable
+ * for deuteranopia and protanopia. Applied as an orthogonal axis, so it
+ * combines with both light and dark themes. The hunk header is shifted to a
+ * neutral gray so it does not collide with the blue used for additions.
+ */
+[data-colorblind='true'] {
+  --color-diff-add-bg: #ddf4ff;
+  --color-diff-add-line: #b6e3ff;
+  --color-diff-add-word: #80ccff;
+  --color-diff-del-bg: #fff1e5;
+  --color-diff-del-line: #ffd8b5;
+  --color-diff-del-word: #ffb77c66;
+  --color-diff-hunk-bg: #eaeef2;
+  --color-diff-hunk-text: #57606a;
+
+  --color-added: #0969da;
+  --color-deleted: #bc4c00;
+}
+
+[data-colorblind='true'][data-theme='dark'] {
+  --color-diff-add-bg: rgba(96, 165, 250, 0.1);
+  --color-diff-add-line: rgba(96, 165, 250, 0.18);
+  --color-diff-add-word: rgba(96, 165, 250, 0.35);
+  --color-diff-del-bg: rgba(236, 142, 44, 0.1);
+  --color-diff-del-line: rgba(236, 142, 44, 0.18);
+  --color-diff-del-word: rgba(236, 142, 44, 0.35);
+  --color-diff-hunk-bg: rgba(163, 163, 163, 0.1);
+  --color-diff-hunk-text: #a3a3a3;
+
+  --color-added: #60a5fa;
+  --color-deleted: #ec8e2c;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) var(--color-bg-secondary);

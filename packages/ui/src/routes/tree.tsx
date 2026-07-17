@@ -10,6 +10,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const path = url.searchParams.get("path") || "";
   const type = (url.searchParams.get("type") || "dir") as "file" | "dir";
   const theme = url.searchParams.get("theme") as "light" | "dark" | null;
+  const colorblind = url.searchParams.get("colorblind") === "1";
 
   const fetches: Promise<unknown>[] = [
     queryClient.ensureQueryData(treePathsOptions()),
@@ -24,7 +25,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
   await Promise.all(fetches);
 
-  return { path, type, theme };
+  return { path, type, theme, colorblind };
 }
 
 export default function TreeRoute() {

@@ -11,13 +11,14 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const ref = url.searchParams.get("ref") || "work";
   const theme = url.searchParams.get("theme") as "light" | "dark" | null;
   const view = url.searchParams.get("view") as "split" | "unified" | null;
+  const colorblind = url.searchParams.get("colorblind") === "1";
 
   await Promise.all([
     queryClient.ensureQueryData(diffOptions(false, ref)),
     queryClient.ensureQueryData(repoInfoOptions(ref)),
   ]);
 
-  return { ref, theme, view };
+  return { ref, theme, view, colorblind };
 }
 
 export default function DiffRoute({ loaderData }: Route.ComponentProps) {

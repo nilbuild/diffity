@@ -13,6 +13,7 @@ export function registerTreeCommand(program: Command, version: string) {
     .option('--port <port>', 'Port to use')
     .option('--no-open', 'Do not open browser automatically')
     .option('--dark', 'Open in dark mode')
+    .option('--colorblind', 'Use a colorblind-safe diff palette (blue/orange)')
     .option('--quiet', 'Minimal terminal output')
     .option('--new', 'Stop existing instance and start fresh')
     .action(async (opts) => {
@@ -40,6 +41,9 @@ export function registerTreeCommand(program: Command, version: string) {
           const urlParams = new URLSearchParams();
           if (opts.dark) {
             urlParams.set('theme', 'dark');
+          }
+          if (opts.colorblind) {
+            urlParams.set('colorblind', '1');
           }
           const qs = urlParams.toString();
           const url = `http://${getHost()}:${existing.port}/tree${qs ? `?${qs}` : ''}`;
@@ -77,6 +81,9 @@ export function registerTreeCommand(program: Command, version: string) {
         const urlParams = new URLSearchParams();
         if (opts.dark) {
           urlParams.set('theme', 'dark');
+        }
+        if (opts.colorblind) {
+          urlParams.set('colorblind', '1');
         }
         const qs = urlParams.toString();
         const url = `http://${getHost()}:${actualPort}/tree${qs ? `?${qs}` : ''}`;
