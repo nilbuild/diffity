@@ -3,6 +3,8 @@ import { getDb } from './db.js';
 import { unescapeMarkdown } from './unescape.js';
 
 export type TourStatus = 'building' | 'ready';
+export type TourStepViewMode = 'code' | 'diff';
+export type TourStepSide = 'old' | 'new';
 
 export interface TourStep {
   id: string;
@@ -13,12 +15,15 @@ export interface TourStep {
   endLine: number;
   body: string;
   annotation: string;
+  viewMode: TourStepViewMode;
+  side: TourStepSide;
   createdAt: string;
 }
 
 export interface Tour {
   id: string;
   sessionId: string;
+  ref: string;
   topic: string;
   body: string;
   status: TourStatus;
@@ -33,6 +38,7 @@ interface TourRow {
   body: string;
   status: string;
   created_at: string;
+  session_ref: string;
 }
 
 interface TourStepRow {
@@ -44,6 +50,8 @@ interface TourStepRow {
   end_line: number;
   body: string;
   annotation: string;
+  view_mode: string;
+  side: string;
   created_at: string;
 }
 
@@ -57,6 +65,8 @@ function rowToTourStep(row: TourStepRow): TourStep {
     endLine: row.end_line,
     body: row.body,
     annotation: row.annotation,
+    viewMode: row.view_mode as TourStepViewMode,
+    side: row.side as TourStepSide,
     createdAt: row.created_at,
   };
 }
@@ -65,6 +75,7 @@ function rowToTour(row: TourRow, steps: TourStep[]): Tour {
   return {
     id: row.id,
     sessionId: row.session_id,
+    ref: row.session_ref,
     topic: row.topic,
     body: row.body,
     status: row.status as TourStatus,
@@ -79,6 +90,12 @@ export function createTour(sessionId: string, topic: string, body: string): Tour
   const now = new Date().toISOString();
 
   const cleanBody = unescapeMarkdown(body);
+  const session = db.prepare('SELECT ref FROM review_sessions WHERE id = ?').get(sessionId) as
+    | { ref: string }
+    | undefined;
+  if (!session) {
+    throw new Error(`Unknown review session: ${sessionId}`);
+  }
 
   db.prepare(
     'INSERT INTO tours (id, session_id, topic, body, created_at) VALUES (?, ?, ?, ?, ?)'
@@ -87,6 +104,7 @@ export function createTour(sessionId: string, topic: string, body: string): Tour
   return {
     id,
     sessionId,
+    ref: session.ref,
     topic,
     body: cleanBody,
     status: 'building',
@@ -97,7 +115,12 @@ export function createTour(sessionId: string, topic: string, body: string): Tour
 
 export function getTour(id: string): Tour | null {
   const db = getDb();
-  const row = db.prepare('SELECT * FROM tours WHERE id = ?').get(id) as TourRow | undefined;
+  const row = db.prepare(`
+    SELECT t.*, s.ref AS session_ref
+    FROM tours t
+    JOIN review_sessions s ON s.id = t.session_id
+    WHERE t.id = ?
+  `).get(id) as TourRow | undefined;
 
   if (!row) {
     return null;
@@ -121,15 +144,19 @@ export function getToursForSession(sessionId: string): Tour[] {
     s_end_line: number | null;
     s_body: string | null;
     s_annotation: string | null;
+    s_view_mode: string | null;
+    s_side: string | null;
     s_created_at: string | null;
   }
 
   const rows = db.prepare(`
-    SELECT t.*,
+    SELECT t.*, rs.ref AS session_ref,
            s.id AS s_id, s.sort_order AS s_sort_order, s.file_path AS s_file_path,
            s.start_line AS s_start_line, s.end_line AS s_end_line,
-           s.body AS s_body, s.annotation AS s_annotation, s.created_at AS s_created_at
+           s.body AS s_body, s.annotation AS s_annotation,
+           s.view_mode AS s_view_mode, s.side AS s_side, s.created_at AS s_created_at
     FROM tours t
+    JOIN review_sessions rs ON rs.id = t.session_id
     LEFT JOIN tour_steps s ON s.tour_id = t.id
     WHERE t.session_id = ?
     ORDER BY t.created_at ASC, s.sort_order ASC
@@ -152,6 +179,8 @@ export function getToursForSession(sessionId: string): Tour[] {
         endLine: row.s_end_line!,
         body: row.s_body!,
         annotation: row.s_annotation!,
+        viewMode: row.s_view_mode as TourStepViewMode,
+        side: row.s_side as TourStepSide,
         createdAt: row.s_created_at!,
       });
     }
@@ -167,6 +196,8 @@ export function addTourStep(
   endLine: number,
   body: string,
   annotation: string,
+  viewMode: TourStepViewMode = 'code',
+  side: TourStepSide = 'new',
 ): TourStep {
   const db = getDb();
   const id = randomUUID();
@@ -181,8 +212,8 @@ export function addTourStep(
   const cleanAnnotation = unescapeMarkdown(annotation);
 
   db.prepare(
-    'INSERT INTO tour_steps (id, tour_id, sort_order, file_path, start_line, end_line, body, annotation, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(id, tourId, sortOrder, filePath, startLine, endLine, cleanBody, cleanAnnotation, now);
+    'INSERT INTO tour_steps (id, tour_id, sort_order, file_path, start_line, end_line, body, annotation, view_mode, side, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(id, tourId, sortOrder, filePath, startLine, endLine, cleanBody, cleanAnnotation, viewMode, side, now);
 
   return {
     id,
@@ -193,6 +224,8 @@ export function addTourStep(
     endLine,
     body: cleanBody,
     annotation: cleanAnnotation,
+    viewMode,
+    side,
     createdAt: now,
   };
 }

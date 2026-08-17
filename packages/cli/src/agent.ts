@@ -263,12 +263,42 @@ Examples:
     .option('--end-line <n>', 'End line number (1-indexed)', parseInt)
     .option('--body <text>', 'Narrative text shown in sidebar', '')
     .option('--annotation <text>', 'Short inline annotation on highlighted code', '')
+    .option('--view <mode>', 'Step view: code or diff', 'code')
+    .option('--side <side>', 'Diff side: old or new', 'new')
     .option('--json', 'Output as JSON')
     .action((opts) => {
-      requireSession();
-      assertFileExists(opts.file);
+      if (opts.view !== 'code' && opts.view !== 'diff') {
+        throw new Error('--view must be code or diff');
+      }
+      if (opts.side !== 'old' && opts.side !== 'new') {
+        throw new Error('--side must be old or new');
+      }
+      const session = requireSession();
+      if (opts.view === 'diff') {
+        if (session.ref === '__tree__') {
+          throw new Error('--view diff requires an active diff session');
+        }
+        const diffFiles = getDiffFiles(session.ref);
+        if (!diffFiles.includes(opts.file)) {
+          throw new Error(`File "${opts.file}" is not in the current diff`);
+        }
+        if (opts.side === 'new') {
+          assertFileExists(opts.file);
+        }
+      } else {
+        assertFileExists(opts.file);
+      }
       const endLine = opts.endLine ?? opts.line;
-      const step = addTourStep(opts.tour, opts.file, opts.line, endLine, opts.body, opts.annotation);
+      const step = addTourStep(
+        opts.tour,
+        opts.file,
+        opts.line,
+        endLine,
+        opts.body,
+        opts.annotation,
+        opts.view,
+        opts.side,
+      );
       if (opts.json) {
         console.log(JSON.stringify(step, null, 2));
         return;

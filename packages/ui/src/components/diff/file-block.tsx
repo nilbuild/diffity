@@ -55,6 +55,7 @@ interface FileBlockProps {
   commentActions: CommentActions;
   onAddThread: CommentActions['addThread'];
   pendingSelection: LineSelection | null;
+  tourHighlight?: LineSelection | null;
   onPendingSelectionChange: (selection: LineSelection | null) => void;
   highlighted?: boolean;
   onHighlightEnd?: () => void;
@@ -70,7 +71,7 @@ interface GapExpansion {
 export function FileBlock(props: FileBlockProps) {
   const {
     file, viewMode, collapsed, onToggleCollapse, reviewed, onReviewedChange, highlightLine, baseRef, canRevert, onRevert,
-    threads: allThreads, commentsEnabled, commentActions, onAddThread: rawAddThread, pendingSelection, onPendingSelectionChange,
+    threads: allThreads, commentsEnabled, commentActions, onAddThread: rawAddThread, pendingSelection, tourHighlight, onPendingSelectionChange,
     highlighted, onHighlightEnd,
   } = props;
 
@@ -203,13 +204,16 @@ export function FileBlock(props: FileBlockProps) {
     if (pendingSelection && pendingSelection.filePath === filePath && pendingSelection.side === side) {
       return line >= pendingSelection.startLine && line <= pendingSelection.endLine;
     }
+    if (tourHighlight && tourHighlight.filePath === filePath && tourHighlight.side === side) {
+      return line >= tourHighlight.startLine && line <= tourHighlight.endLine;
+    }
     for (const thread of fileThreads) {
       if (thread.side === side && line >= thread.startLine && line <= thread.endLine && thread.status === 'open') {
         return true;
       }
     }
     return false;
-  }, [isLineInSelection, pendingSelection, filePath, fileThreads]);
+  }, [isLineInSelection, pendingSelection, tourHighlight, filePath, fileThreads]);
 
 
   const [syntaxMap, setSyntaxMap] = useState<Map<string, SyntaxToken[]> | undefined>(undefined);

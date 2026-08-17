@@ -25,7 +25,7 @@ When the argument is a **GitHub PR URL** (matching `github.com/owner/repo/pull/N
 
 ```
 {{binary}} agent tour-start --topic "<text>" [--body "<text>"] --json
-{{binary}} agent tour-step --tour <id> --file <path> --line <n> [--end-line <n>] --body "<text>" [--annotation "<text>"] --json
+{{binary}} agent tour-step --tour <id> --file <path> --line <n> [--end-line <n>] [--view code|diff] [--side old|new] --body "<text>" [--annotation "<text>"] --json
 {{binary}} agent tour-done --tour <id> --json
 {{binary}} list --json
 ```
@@ -143,13 +143,15 @@ The tour UI has a dedicated explanation panel. The intro (from `tour-start --bod
 
 2. **Add steps** in order. For each step:
    ```
-   {{binary}} agent tour-step --tour <id> --file <path> --line <start> --end-line <end> --body "<narrative>" --annotation "<short label>" --json
+   {{binary}} agent tour-step --tour <id> --file <path> --line <start> --end-line <end> [--view code|diff] [--side old|new] --body "<narrative>" --annotation "<short label>" --json
    ```
 
    **Writing step content:**
 
    - `--file`: Path relative to repo root (e.g. `src/server.ts`)
    - `--line` / `--end-line`: The exact line range to highlight. Keep it focused on the relevant section.
+   - `--view`: Use `diff` to show this step in the active comparison, or `code` (the default) to show the complete file. A diff step automatically falls back to code view if its starting line is not present in the diff.
+   - `--side`: For diff steps, use `new` (the default) for added, modified, and context lines. Use `old` for deleted lines.
    - `--annotation`: A short label (3-6 words) shown as the step title. Think of it as a chapter heading.
    - `--body`: The narrative shown in the explanation panel. This has generous space — use it to write thorough explanations using markdown:
 
@@ -262,6 +264,7 @@ When the user asks for a tour to **review a branch, PR, or feature before merge*
 
 **How review tours differ from feature tours:**
 - **Scope from the diff**: The reader wants to audit what's changing. Start by reading `git diff <base>...HEAD` (and relevant commits) to know the full surface area. Every meaningful change should be visited; skip only pure boilerplate.
+- **Show changed lines in context**: Add `--view diff --side new` to steps that explain added or modified lines, and `--view diff --side old` for deletions. Use code view for unchanged supporting code; Diffity also falls back to code view when a requested line is outside the active diff.
 - **Intro structure**: State the feature in a paragraph, then include a moving-parts table (area → where → purpose), a high-level flow diagram, and a short configuration-context block (env vars, new constants, behavioral defaults). The intro is where the reader builds the map they'll navigate with.
 - **One orientation step allowed**: if there's a route table, webhook switch, or other directory-of-endpoints, it can be step 1 as a menu of threads the tour will follow. Everything after that must be flow-driven.
 - **One thread at a time**: pick the most common user journey first (usually "create → activate → ongoing management"), walk it end-to-end touching foundations just-in-time, then repeat for each remaining thread. Do not interleave threads.
@@ -292,3 +295,4 @@ Before finishing, verify:
 - [ ] Repeated patterns (same guard/middleware across N files) are covered in one step, not N steps
 - [ ] Step bodies follow transition → explanation → takeaway and sit in the 150-300 word range
 - [ ] For review tours: a "Things to flag in the PR conversation" list appears in the conclusion
+- [ ] For review tours: changed-line steps use diff view with the correct old/new side

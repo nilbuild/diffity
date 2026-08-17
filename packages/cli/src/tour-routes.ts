@@ -37,9 +37,17 @@ export function handleTourRoute(req: IncomingMessage, res: ServerResponse, pathn
   const tourStepsMatch = pathname.match(/^\/api\/tours\/([^/]+)\/steps$/);
   if (tourStepsMatch && req.method === 'POST') {
     withJsonBody(res, req, 'Failed to add tour step', (body) => {
-      const { filePath, startLine, endLine, body: stepBody, annotation } = body;
+      const { filePath, startLine, endLine, body: stepBody, annotation, viewMode, side } = body;
       if (!filePath || typeof startLine !== 'number' || typeof endLine !== 'number') {
         sendError(res, 400, 'Missing required fields: filePath, startLine, endLine');
+        return;
+      }
+      if (viewMode !== undefined && viewMode !== 'code' && viewMode !== 'diff') {
+        sendError(res, 400, 'viewMode must be code or diff');
+        return;
+      }
+      if (side !== undefined && side !== 'old' && side !== 'new') {
+        sendError(res, 400, 'side must be old or new');
         return;
       }
       const step = addTourStep(
@@ -49,6 +57,8 @@ export function handleTourRoute(req: IncomingMessage, res: ServerResponse, pathn
         endLine,
         (stepBody as string) || '',
         (annotation as string) || '',
+        (viewMode as 'code' | 'diff' | undefined) ?? 'code',
+        (side as 'old' | 'new' | undefined) ?? 'new',
       );
       sendJson(res, step);
     });

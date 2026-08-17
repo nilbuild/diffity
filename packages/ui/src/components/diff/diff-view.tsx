@@ -17,6 +17,7 @@ function flashThreadElement(element: Element) {
 
 export interface DiffViewHandle {
   scrollToFile: (path: string) => void;
+  scrollToLine: (path: string, side: 'old' | 'new', line: number) => void;
   scrollToThread: (threadId: string, filePath: string) => void;
 }
 
@@ -46,6 +47,7 @@ interface DiffViewProps {
   commentActions: CommentActions;
   onAddThread: CommentActions['addThread'];
   pendingSelection: LineSelection | null;
+  tourHighlight?: LineSelection | null;
   onPendingSelectionChange: (selection: LineSelection | null) => void;
 }
 
@@ -72,7 +74,7 @@ export function DiffView(props: DiffViewProps) {
     reviewedFiles, onReviewedChange, onActiveFileChange, scrollRef,
     handle, baseRef, canRevert, onRevert,
     threads, commentsEnabled, commentActions, onAddThread,
-    pendingSelection, onPendingSelectionChange,
+    pendingSelection, tourHighlight, onPendingSelectionChange,
   } = props;
   const { highlight } = useHighlighter();
   const scrollElementRef = useRef<HTMLElement>(null);
@@ -163,6 +165,17 @@ export function DiffView(props: DiffViewProps) {
         virtualizer.scrollToIndex(index, { align: 'start' });
         settleScrollToElement(`#file-${CSS.escape(encodeURIComponent(path))}`, 'start');
       }
+    },
+    scrollToLine: (path: string, side: 'old' | 'new', line: number) => {
+      const index = diff.files.findIndex((file) => getFilePath(file) === path);
+      if (index < 0) {
+        return;
+      }
+      scrollTargetRef.current = path;
+      virtualizer.scrollToIndex(index, { align: 'start' });
+      const fileSelector = `#file-${CSS.escape(encodeURIComponent(path))}`;
+      const lineSelector = `[data-diff-side="${side}"][data-diff-line="${line}"]`;
+      settleScrollToElement(`${fileSelector} ${lineSelector}`, 'center');
     },
     scrollToThread: (threadId: string, filePath: string) => {
       const element = document.querySelector(`[data-thread-id="${threadId}"]`);
@@ -298,6 +311,7 @@ export function DiffView(props: DiffViewProps) {
                 commentActions={commentActions}
                 onAddThread={onAddThread}
                 pendingSelection={pendingSelection}
+                tourHighlight={tourHighlight}
                 onPendingSelectionChange={onPendingSelectionChange}
               />
             </div>

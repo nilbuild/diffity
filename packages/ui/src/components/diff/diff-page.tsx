@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useLoaderData } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useLoaderData, useNavigate } from 'react-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useDiff } from '../../hooks/use-diff';
 import { useInfo } from '../../hooks/use-info';
 import { useTheme } from '../../hooks/use-theme';
@@ -21,20 +21,30 @@ import { getHunkHeaders, scrollToElement } from '../../lib/dom-utils';
 import { fetchGitHubDetails, type GitHubDetails } from '../../lib/api';
 import type { LineSelection } from '../comments/types';
 import { isThreadResolved } from '../comments/types';
+import { TourPanel } from '../tree/tour-panel';
+import { tourOptions } from '../../queries/tree';
 
-export function DiffPage() {
+interface DiffPageProps {
+  tourId?: string;
+  tourStepIndex?: number;
+  initialRef?: string;
+}
+
+export function DiffPage(props: DiffPageProps = {}) {
   const { ref: refParam, theme: initialTheme, view: initialViewMode } = useLoaderData<{
     ref: string;
     theme: 'light' | 'dark' | null;
     view: 'split' | 'unified' | null;
   }>();
+  const activeRef = props.initialRef ?? refParam;
+  const navigate = useNavigate();
 
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode || 'split');
   const [hideWhitespace, setHideWhitespace] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const { theme, toggleTheme } = useTheme(initialTheme);
-  const { data: diff, error } = useDiff(hideWhitespace, refParam);
-  const { data: info } = useInfo(refParam);
+  const { data: diff, error } = useDiff(hideWhitespace, activeRef);
+  const { data: info } = useInfo(activeRef);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [reviewedFiles, setReviewedFiles] = useState<Set<string>>(new Set());
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
@@ -44,6 +54,24 @@ export function DiffPage() {
   const diffViewRef = useRef<DiffViewHandle>(null);
   const currentFileIdx = useRef(0);
   const initializedDiffRef = useRef<typeof diff>(null);
+  const tourStepIndex = props.tourStepIndex ?? 0;
+  const [tourOverrideHighlight, setTourOverrideHighlight] = useState<LineSelection | null>(null);
+  const { data: tourData } = useQuery({
+    ...tourOptions(props.tourId!),
+    enabled: !!props.tourId,
+  });
+  const currentTourStep = tourStepIndex > 0 ? tourData?.steps[tourStepIndex - 1] : undefined;
+  const tourHighlight = useMemo<LineSelection | null>(() => {
+    if (!currentTourStep) {
+      return null;
+    }
+    return tourOverrideHighlight ?? {
+      filePath: currentTourStep.filePath,
+      side: currentTourStep.side,
+      startLine: currentTourStep.startLine,
+      endLine: currentTourStep.endLine,
+    };
+  }, [currentTourStep, tourOverrideHighlight]);
 
   const reviewsEnabled = !!info?.capabilities?.reviews;
   const sessionId = info?.sessionId ?? null;
@@ -98,6 +126,32 @@ export function DiffPage() {
     }
     setCollapsedFiles(autoCollapsed);
   }, [diff]);
+
+  useEffect(() => {
+    setTourOverrideHighlight(null);
+  }, [props.tourId, tourStepIndex]);
+
+  useEffect(() => {
+    if (!tourHighlight) {
+      return;
+    }
+    setActiveFile(tourHighlight.filePath);
+    setCollapsedFiles((previous) => {
+      if (!previous.has(tourHighlight.filePath)) {
+        return previous;
+      }
+      const next = new Set(previous);
+      next.delete(tourHighlight.filePath);
+      return next;
+    });
+    requestAnimationFrame(() => {
+      diffViewRef.current?.scrollToLine(
+        tourHighlight.filePath,
+        tourHighlight.side,
+        tourHighlight.startLine,
+      );
+    });
+  }, [tourHighlight]);
 
   useEffect(() => {
     if (filesWithComments.size === 0) {
@@ -288,6 +342,22 @@ export function DiffPage() {
     setActiveFile(path);
   }, []);
 
+  const handleTourStepChange = useCallback((index: number) => {
+    if (props.tourId) {
+      navigate(`/tour/${props.tourId}/${index}`);
+    }
+  }, [navigate, props.tourId]);
+
+  const handleTourClose = useCallback(() => {
+    navigate(`/diff?ref=${encodeURIComponent(activeRef)}`);
+  }, [activeRef, navigate]);
+
+  const handleTourFileLine = useCallback((path: string, startLine: number, endLine: number) => {
+    const side = currentTourStep?.side ?? 'new';
+    setTourOverrideHighlight({ filePath: path, side, startLine, endLine });
+    diffViewRef.current?.scrollToLine(path, side, startLine);
+  }, [currentTourStep]);
+
   if (error) {
     return (
       <div className="flex flex-col min-h-screen bg-bg text-text font-sans">
@@ -336,7 +406,7 @@ export function DiffPage() {
         onToggleTheme={toggleTheme}
         onShowHelp={() => setShowHelp(true)}
         diff={diff || undefined}
-        diffRef={refParam}
+        diffRef={activeRef}
         threads={threads}
         onDeleteAllComments={commentActions.deleteAllThreads}
         onScrollToThread={handleScrollToThread}
@@ -379,9 +449,35 @@ export function DiffPage() {
             commentActions={commentActions}
             onAddThread={handleAddThread}
             pendingSelection={pendingSelection}
+            tourHighlight={tourHighlight}
             onPendingSelectionChange={setPendingSelection}
           />
         ) : null}
+        {tourData && props.tourId && (
+          <TourPanel
+            tour={tourData}
+            currentStepIndex={tourStepIndex}
+            onStepChange={handleTourStepChange}
+            onClose={handleTourClose}
+            onNavigateToFile={handleSidebarFileClick}
+            onNavigateToFileLine={handleTourFileLine}
+            onScrollToHighlight={() => {
+              if (tourHighlight) {
+                diffViewRef.current?.scrollToLine(
+                  tourHighlight.filePath,
+                  tourHighlight.side,
+                  tourHighlight.startLine,
+                );
+              }
+            }}
+            onSubHighlight={(startLine, endLine) => {
+              if (tourHighlight) {
+                setTourOverrideHighlight({ ...tourHighlight, startLine, endLine });
+              }
+            }}
+            filePaths={diff.files.map((file) => getFilePath(file))}
+          />
+        )}
       </div>
       {showHelp && <ShortcutModal onClose={() => setShowHelp(false)} />}
     </div>

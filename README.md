@@ -156,6 +156,8 @@ Each tour has an intro (step 0) with an architectural overview, followed by numb
 
 Tour steps can include **sub-highlights** — clickable focus links in the narrative that narrow the highlight to a specific sub-range within the step. Useful for walking through large functions section by section.
 
+Review tours display changed-line steps in the diff view, including old-side deleted lines. Steps that target unchanged code or a line outside the active diff automatically use the full-file code view instead.
+
 ## Learn any topic
 
 Start a project-driven learning journey for any programming language, tool, or framework. Your agent becomes a tutor — it builds teaching projects that open as guided tours in the browser, gives you challenges to complete, reviews your code with inline feedback, and adapts to your pace.

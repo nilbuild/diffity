@@ -69,12 +69,24 @@ function migrateDb(db: Database.Database): void {
       end_line INTEGER NOT NULL,
       body TEXT NOT NULL DEFAULT '',
       annotation TEXT NOT NULL DEFAULT '',
+      view_mode TEXT NOT NULL DEFAULT 'code',
+      side TEXT NOT NULL DEFAULT 'new',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_tours_session ON tours(session_id);
     CREATE INDEX IF NOT EXISTS idx_tour_steps_tour ON tour_steps(tour_id);
   `);
+
+  const tourStepColumns = new Set(
+    (db.prepare('PRAGMA table_info(tour_steps)').all() as { name: string }[]).map((column) => column.name),
+  );
+  if (!tourStepColumns.has('view_mode')) {
+    db.exec("ALTER TABLE tour_steps ADD COLUMN view_mode TEXT NOT NULL DEFAULT 'code'");
+  }
+  if (!tourStepColumns.has('side')) {
+    db.exec("ALTER TABLE tour_steps ADD COLUMN side TEXT NOT NULL DEFAULT 'new'");
+  }
 }
 
 export function closeDb(): void {

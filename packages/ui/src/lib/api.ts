@@ -261,12 +261,15 @@ export interface TourStep {
   endLine: number;
   body: string;
   annotation: string;
+  viewMode: 'code' | 'diff';
+  side: 'old' | 'new';
   createdAt: string;
 }
 
 export interface Tour {
   id: string;
   sessionId: string;
+  ref: string;
   topic: string;
   body: string;
   status: string;
