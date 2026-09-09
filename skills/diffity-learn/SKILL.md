@@ -257,7 +257,7 @@ The rule: **if concept B can't be demonstrated without concept A, they belong in
 
 **7. When they say "done"**, spawn the verify agent. The verify agent reviews the code, leaves Diffity inline comments, and writes REVIEW.md. Then open the user's code in Diffity so they see the feedback in the browser:
    ```
-   diffity open
+   diffity agent open
    ```
    In chat, keep feedback short — the detailed feedback is in the Diffity comments. Just summarize: "Passed — nice work. Check the browser for inline feedback. One thing to look at: [teaching moment from verify summary]."
 

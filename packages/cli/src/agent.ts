@@ -14,6 +14,7 @@ import {
   type Thread,
 } from './threads.js';
 import { createTour, addTourStep, updateTourStatus } from './tours.js';
+import { openInstance } from './commands/open.js';
 
 function requireSession() {
   if (!isGitRepo()) {
@@ -95,7 +96,8 @@ Examples:
   $ diffity agent general-comment --body "Overall this looks good, just a few nits"
   $ diffity agent tour-start --topic "How does auth work?" --body "Overview of the auth flow"
   $ diffity agent tour-step --tour <id> --file src/auth.ts --line 10 --body "Entry point"
-  $ diffity agent tour-done --tour <id>`);
+  $ diffity agent tour-done --tour <id>
+  $ diffity agent open`);
 
   agent
     .command('list')
@@ -236,6 +238,14 @@ Examples:
         process.exit(0);
       }
       process.stdout.write(raw);
+    });
+
+  agent
+    .command('open')
+    .description('Open the browser at the current review session (where agent comments are posted)')
+    .action(async () => {
+      const session = requireSession();
+      await openInstance(session.ref);
     });
 
   agent

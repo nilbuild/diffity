@@ -23,6 +23,7 @@ diffity agent general-comment --body "<text>"
 diffity agent resolve <id> [--summary "<text>"]
 diffity agent dismiss <id> [--reason "<text>"]
 diffity agent reply <id> --body "<text>"
+diffity agent open
 ```
 
 - `--file`, `--line`, `--body` are required for `comment`
@@ -201,11 +202,10 @@ If a repeated pattern appears across files, comment on the first occurrence and 
 
 ### Step 4: Open the browser
 
-1. Open the browser now that comments are ready:
+1. Open the browser at the session your comments went to:
    ```
-   diffity open <ref>
+   diffity agent open
    ```
-   Pass the ref argument if one was provided (e.g. `diffity open HEAD~3`). Omit it to open the default view.
 2. Tell the user the review is ready and they can check the browser. Example:
 
    > Review complete — check your browser.
