@@ -46,7 +46,7 @@ export function StatusBadge(props: { status: ThreadStatus }) {
 
 export function PendingBadge(props: { className?: string }) {
   return (
-    <Badge tone="warning" className={cn('border border-warning/40 bg-transparent', props.className)}>
+    <Badge tone="warning" className={cn('border border-dashed border-warning/50 bg-transparent', props.className)}>
       Pending
     </Badge>
   );
@@ -66,11 +66,7 @@ export function Avatar(props: { authorType: AuthorType; authorName: string; size
   return (
     <span
       title={authorName}
-      className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-full border font-semibold',
-        authorType === 'github' ? 'border-border-strong bg-active text-fg' : 'border-accent/30 bg-accent-soft text-accent',
-        box,
-      )}
+      className={cn('inline-flex shrink-0 items-center justify-center rounded-full bg-fg-subtle font-medium text-canvas', box)}
     >
       {initial}
     </span>

@@ -2,8 +2,7 @@ import { useMemo } from 'react';
 import { toast } from 'sonner';
 import { Markdown } from '@/components/markdown/Markdown';
 import { Badge, CountBadge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
-import { ChevronRightIcon, CommentIcon, ConversationIcon } from '@/components/ui/icon';
+import { ChevronRightIcon, ConversationIcon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { dayjs } from '@/lib/time';
 import { GENERAL_FILE_PATH, type Review, type ReviewVerdict, type Thread } from '@/lib/types';
@@ -43,24 +42,26 @@ export function Conversation(props: ConversationProps) {
   }, [threads, reviews]);
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-canvas font-sans">
-      <div className={cn('flex h-9 items-center gap-2 bg-panel pr-1.5 pl-2', open && 'border-b border-border')}>
+    <section className={cn('overflow-hidden rounded-lg font-sans', entries.length > 0 ? 'bg-accent/5' : 'bg-panel')}>
+      <div className="flex h-9 items-center gap-2 pr-3 pl-2">
         <button
           type="button"
           aria-expanded={open}
           onClick={onToggle}
           className="flex min-w-0 flex-1 cursor-default items-center gap-1.5 text-left"
         >
-          <ChevronRightIcon size={12} className={cn('shrink-0 text-fg-subtle transition-transform', open && 'rotate-90')} />
-          <ConversationIcon size={14} className="text-fg-muted" />
-          <span className="text-xs font-semibold text-fg">Conversation</span>
-          {entries.length > 0 && <CountBadge count={entries.length} tone="neutral" />}
+          <span className="inline-flex size-5 shrink-0 items-center justify-center">
+            <ChevronRightIcon size={12} className={cn('text-fg-subtle transition-transform', open && 'rotate-90')} />
+          </span>
+          <ConversationIcon size={14} className="text-fg-subtle" />
+          <span className="text-sm text-fg-muted">Conversation</span>
+          {entries.length > 0 && <CountBadge count={entries.length} tone="accent" />}
           {!open && entries.length === 0 && <span className="truncate text-2xs text-fg-subtle">General comments and submitted reviews</span>}
         </button>
         {!composing && (
-          <Button
-            size="sm"
-            variant="ghost"
+          <button
+            type="button"
+            className="cursor-default text-xs text-accent hover:text-accent-hover"
             onClick={() => {
               setBody('general', '');
               if (!open) {
@@ -68,15 +69,14 @@ export function Conversation(props: ConversationProps) {
               }
             }}
           >
-            <CommentIcon size={12} />
-            Comment
-          </Button>
+            Add comment
+          </button>
         )}
       </div>
       {open && (
-        <div className="flex flex-col gap-2 p-2">
+        <div className="mx-1.5 mb-1.5 flex flex-col gap-3 rounded-md bg-canvas p-3">
           {entries.length === 0 && !composing && (
-            <div className="px-1 py-1 text-xs text-fg-subtle">No general comments or reviews yet.</div>
+            <div className="py-1 text-center text-xs text-fg-subtle">No general comments or reviews yet.</div>
           )}
           {entries.map((entry) =>
             entry.kind === 'thread' ? (
@@ -86,7 +86,7 @@ export function Conversation(props: ConversationProps) {
             ),
           )}
           {composing && (
-            <div className="rounded-lg border border-border bg-raised p-2">
+            <div>
               <CommentComposer
                 draftKey="general"
                 mode="thread"
@@ -125,8 +125,8 @@ function ReviewEntry(props: { review: Review }) {
   const verdict = VERDICT[review.verdict ?? 'comment'];
   const at = review.submittedAt ?? review.createdAt;
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-raised">
-      <div className={cn('flex min-h-9 items-center gap-2 px-3 py-1.5', review.body.trim() && 'border-b border-border-subtle')}>
+    <div className="overflow-hidden rounded-lg bg-panel">
+      <div className="flex min-h-9 items-center gap-2 px-3 py-1.5">
         <Avatar authorType="user" authorName="You" size="sm" />
         <span className="min-w-0 truncate text-xs text-fg-muted">
           <span className="font-semibold text-fg">You</span> {verdict.phrase}
@@ -140,7 +140,7 @@ function ReviewEntry(props: { review: Review }) {
         </Badge>
       </div>
       {review.body.trim() && (
-        <div className="px-3 py-2">
+        <div className="mx-1.5 mb-1.5 rounded-lg bg-canvas px-3 py-2.5">
           <Markdown compact mentions>
             {review.body}
           </Markdown>

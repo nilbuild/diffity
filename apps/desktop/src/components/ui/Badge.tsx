@@ -8,12 +8,12 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const tones: Record<BadgeTone, string> = {
-  neutral: 'bg-muted text-fg-muted',
-  accent: 'bg-accent-soft text-accent',
-  success: 'bg-success/12 text-success',
-  warning: 'bg-warning/12 text-warning',
-  danger: 'bg-danger/12 text-danger',
-  info: 'bg-info/12 text-info',
+  neutral: 'bg-fg-subtle/15 text-fg-muted',
+  accent: 'bg-accent/15 text-accent',
+  success: 'bg-success/15 text-success',
+  warning: 'bg-warning/15 text-warning',
+  danger: 'bg-danger/15 text-danger',
+  info: 'bg-info/15 text-info',
 };
 
 export function Badge(props: BadgeProps) {
@@ -21,7 +21,7 @@ export function Badge(props: BadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex h-[18px] shrink-0 items-center gap-1 rounded-sm px-1.5 text-2xs leading-none font-medium whitespace-nowrap',
+        'inline-flex h-[18px] shrink-0 items-center gap-1 rounded-full px-1.5 text-2xs leading-none font-medium whitespace-nowrap',
         tones[tone],
         className,
       )}

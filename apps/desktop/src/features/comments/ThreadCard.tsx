@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Markdown } from '@/components/markdown/Markdown';
-import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
 import { Menu, type MenuEntry } from '@/components/ui/Menu';
 import { Spinner } from '@/components/ui/Spinner';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import {
-  CheckCircleIcon,
-  ChevronRightIcon,
+  CommentIcon,
   CopyIcon,
   DismissIcon,
   LinkIcon,
@@ -52,7 +50,6 @@ export function ThreadCard(props: ThreadCardProps) {
   const activity = useAgentThreadActivity(thread.id);
   const first = thread.comments[0];
   const pendingComments = thread.comments.filter((c) => c.pending).length;
-  const showBody = expanded || activity !== 'idle';
 
   const deleteThread = async () => {
     const ok = await confirmDialog({
@@ -106,66 +103,70 @@ export function ThreadCard(props: ThreadCardProps) {
     { label: 'Delete conversation…', icon: <TrashIcon size={14} />, danger: true, onSelect: () => void deleteThread() },
   ];
 
+  const count = thread.comments.length;
+
+  if (!expanded && activity === 'idle') {
+    return (
+      <div data-thread-id={thread.id} className="flex items-center gap-1 font-sans">
+        <button
+          type="button"
+          aria-expanded={false}
+          onClick={() => setExpanded(true)}
+          className={cn(
+            'inline-flex h-6 min-w-0 cursor-default items-center gap-1.5 rounded-md px-2 text-xs text-fg-subtle hover:bg-hover hover:text-fg-muted',
+            active && 'bg-hover text-fg-muted',
+            thread.pending && 'border border-dashed border-warning/60',
+          )}
+        >
+          <CommentIcon size={14} className="shrink-0" />
+          {showLocation ? <span className="truncate font-mono">{locationLabel(thread)}</span> : null}
+          <span className="shrink-0">
+            {count} {count === 1 ? 'comment' : 'comments'}
+          </span>
+          {thread.severity && <SeverityBadge severity={thread.severity} />}
+          {thread.pending ? <PendingBadge /> : <StatusBadge status={thread.status} />}
+          {!expanded && first && open && <span className="max-w-[360px] truncate text-fg-muted">{first.body}</span>}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       data-thread-id={thread.id}
       className={cn(
-        'overflow-hidden rounded-lg border bg-raised font-sans text-sm transition-colors',
-        thread.pending ? 'border-dashed border-warning/60' : 'border-border',
-        active && 'border-solid border-accent outline outline-1 outline-accent',
+        'overflow-hidden rounded-lg bg-panel font-sans text-sm transition-colors',
+        thread.pending ? 'border border-dashed border-warning/60' : 'border border-transparent',
+        active && 'border-solid border-accent',
       )}
     >
-      <div
-        className={cn(
-          'flex h-9 items-center gap-2 pr-1.5 pl-2',
-          showBody && 'border-b border-border',
-          active ? 'bg-selected' : thread.pending ? 'bg-warning/8' : 'bg-panel',
-        )}
-      >
-        <button
-          type="button"
-          aria-expanded={expanded}
-          className="flex min-w-0 flex-1 cursor-default items-center gap-1.5 text-left"
-          onClick={() => setExpanded((v) => !v)}
-        >
-          <ChevronRightIcon size={12} className={cn('shrink-0 text-fg-subtle transition-transform', expanded && 'rotate-90')} />
+      <div className="flex min-h-9 items-center gap-2 pt-1.5 pr-1.5 pb-0.5 pl-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {showLocation ? (
-            <span
-              role="link"
-              tabIndex={-1}
-              onClick={(event) => {
-                if (!onLocate) {
-                  return;
-                }
-                event.stopPropagation();
-                onLocate();
-              }}
-              className="truncate font-mono text-xs text-accent hover:underline"
+            <button
+              type="button"
+              onClick={onLocate}
+              className="cursor-default truncate font-mono text-2xs text-accent hover:underline"
             >
               {locationLabel(thread)}
-            </span>
+            </button>
           ) : (
-            <span className={cn('shrink-0 text-xs font-medium text-fg-muted', thread.filePath !== GENERAL_FILE_PATH && 'font-mono')}>{lineLabel(thread)}</span>
+            <span className="shrink-0 font-mono text-2xs text-fg-subtle">{headerLabel(thread)}</span>
           )}
           {thread.severity && <SeverityBadge severity={thread.severity} />}
           {thread.pending ? <PendingBadge /> : <StatusBadge status={thread.status} />}
           {!thread.pending && pendingComments > 0 && <PendingBadge />}
-          {!expanded && first && (
-            <span className="flex min-w-0 items-center gap-1.5">
-              <Avatar authorType={first.authorType} authorName={first.authorName} size="sm" />
-              <span className="truncate text-xs text-fg-muted">{first.body}</span>
-            </span>
-          )}
-          {!expanded && thread.comments.length > 1 && (
-            <span className="shrink-0 text-2xs text-fg-subtle">+{thread.comments.length - 1}</span>
-          )}
-        </button>
+        </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {open && !thread.pending && (
             <IconButton size="sm" label="Ask Claude" onClick={askClaude}>
               <SparklesIcon size={14} className="text-accent" />
             </IconButton>
           )}
+          {!thread.pending && (
+            <TextAction onClick={() => setStatus(open ? 'resolved' : 'open')}>{open ? 'Resolve' : 'Reopen'}</TextAction>
+          )}
+          <TextAction onClick={() => setExpanded(false)}>Collapse</TextAction>
           <Menu
             items={menu}
             trigger={(trigger) => (
@@ -176,82 +177,70 @@ export function ThreadCard(props: ThreadCardProps) {
           />
         </div>
       </div>
-      {showBody && (
-        <>
-          {expanded && (
-            <div className="divide-y divide-border-subtle">
-              {thread.comments.map((comment) => (
-                <CommentItem key={comment.id} comment={comment} actions={actions} threadPending={thread.pending} />
-              ))}
-            </div>
-          )}
-          {activity !== 'idle' && <ActivityRow activity={activity} />}
-          {expanded && (
-            <div className="border-t border-border bg-panel/60 px-3 py-2">
-              {replying ? (
-                <CommentComposer
-                  draftKey={replyKey}
-                  mode="reply"
-                  sessionId={actions.sessionId}
-                  threadPending={thread.pending}
-                  onSubmit={(input) =>
-                    actions.reply.mutateAsync({ threadId: thread.id, body: input.body, pending: input.pending }).then(() => {
-                      if (input.pending) {
-                        toast.success('Reply added to your review');
-                      }
-                    })
-                  }
-                  onCancel={() => undefined}
-                />
-              ) : (
-                <ReplyFooter
-                  open={open}
-                  pending={thread.pending}
-                  onReply={() => openReply(thread.id)}
-                  onResolve={() => setStatus('resolved')}
-                  onReopen={() => setStatus('open')}
-                />
-              )}
-            </div>
-          )}
-        </>
+      <div className="flex flex-col gap-1 px-1.5 pt-0.5 pb-1.5">
+        {thread.comments.map((comment) => (
+          <CommentItem key={comment.id} comment={comment} actions={actions} threadPending={thread.pending} />
+        ))}
+        {activity !== 'idle' && <ActivityRow activity={activity} />}
+      </div>
+      {replying ? (
+        <div className="px-1.5 pb-1.5">
+          <CommentComposer
+            draftKey={replyKey}
+            mode="reply"
+            sessionId={actions.sessionId}
+            threadPending={thread.pending}
+            onSubmit={(input) =>
+              actions.reply.mutateAsync({ threadId: thread.id, body: input.body, pending: input.pending }).then(() => {
+                if (input.pending) {
+                  toast.success('Reply added to your review');
+                }
+              })
+            }
+            onCancel={() => undefined}
+          />
+        </div>
+      ) : (
+        <div className="px-3 pb-2">
+          <button type="button" onClick={() => openReply(thread.id)} className="cursor-default text-xs text-accent hover:text-accent-hover">
+            Reply
+          </button>
+        </div>
       )}
     </div>
   );
 }
 
-function ReplyFooter(props: { open: boolean; pending: boolean; onReply: () => void; onResolve: () => void; onReopen: () => void }) {
-  const { open, pending, onReply, onResolve, onReopen } = props;
+function headerLabel(thread: Thread): string {
+  if (thread.filePath === GENERAL_FILE_PATH) {
+    return 'General';
+  }
+  if (thread.startLine === 0) {
+    return 'File';
+  }
+  if (thread.startLine === thread.endLine) {
+    return `Line ${thread.startLine}`;
+  }
+  return `Lines ${thread.startLine}–${thread.endLine}`;
+}
+
+function TextAction(props: { onClick: () => void; children: string }) {
+  const { onClick, children } = props;
   return (
-    <div className="flex items-center gap-2">
-      <Avatar authorType="user" authorName="You" size="sm" />
-      <button
-        type="button"
-        onClick={onReply}
-        className="flex h-7 min-w-0 flex-1 cursor-text items-center rounded-md border border-border bg-canvas px-2.5 text-left text-sm text-fg-subtle hover:border-border-strong"
-      >
-        Reply…
-      </button>
-      {!pending && open && (
-        <Button size="sm" variant="secondary" onClick={onResolve}>
-          <CheckCircleIcon size={12} className="text-success" />
-          Resolve
-        </Button>
-      )}
-      {!pending && !open && (
-        <Button size="sm" variant="secondary" onClick={onReopen}>
-          <UndoIcon size={12} />
-          Reopen
-        </Button>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className="h-6 cursor-default rounded-md px-1.5 text-2xs text-fg-subtle hover:bg-hover hover:text-fg-muted"
+    >
+      {children}
+    </button>
   );
 }
 
 function ActivityRow(props: { activity: 'queued' | 'working' }) {
   const { activity } = props;
   return (
-    <div className="flex items-center gap-2 border-t border-border-subtle bg-accent-soft/50 px-3 py-2 text-xs">
+    <div className="flex items-center gap-2 rounded-lg bg-canvas px-3 py-2 text-xs">
       <Avatar authorType="agent" authorName="Claude Code" size="sm" />
       <span className="font-medium text-fg">Claude Code</span>
       <span className="inline-flex items-center gap-1.5 text-fg-muted">
@@ -277,40 +266,36 @@ function CommentItem(props: { comment: Comment; actions: CommentActions; threadP
   };
 
   return (
-    <div className={cn('group flex gap-2.5 px-3 py-2.5', comment.pending && !threadPending && 'bg-warning/4')}>
-      <Avatar authorType={comment.authorType} authorName={comment.authorName} />
-      <div className="min-w-0 flex-1">
-        <div className="flex h-6 items-center gap-2">
-          <span className={cn('text-xs font-semibold', comment.authorType === 'agent' ? 'text-accent' : 'text-fg')}>
-            {authorLabel(comment.authorType, comment.authorName)}
-          </span>
-          {comment.authorType === 'agent' && <span className="rounded-sm border border-border px-1 text-2xs text-fg-subtle">bot</span>}
-          <span className="text-2xs text-fg-subtle" title={new Date(comment.createdAt).toLocaleString()}>
-            {dayjs(comment.createdAt).fromNow()}
-          </span>
-          {comment.pending && !threadPending && <PendingBadge />}
-          {!editing && comment.authorType === 'user' && (
-            <div className="ml-auto flex opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-              <IconButton size="sm" label="Edit comment" onClick={() => setBody(editKey, comment.body)}>
-                <PencilIcon size={14} />
-              </IconButton>
-              <IconButton size="sm" label="Delete comment" onClick={() => void remove()}>
-                <TrashIcon size={14} />
-              </IconButton>
-            </div>
-          )}
-        </div>
-        {editing ? (
-          <div className="mt-1">
-            <CommentComposer
-              draftKey={editKey}
-              mode="edit"
-              sessionId={null}
-              initialBody={comment.body}
-              onSubmit={(input) => actions.edit.mutateAsync({ commentId: comment.id, body: input.body })}
-              onCancel={() => undefined}
-            />
+    <div className={cn('group rounded-lg bg-canvas px-3 py-2.5', comment.pending && !threadPending && 'border border-dashed border-warning/50')}>
+      <div className="flex h-5 items-center gap-2">
+        <Avatar authorType={comment.authorType} authorName={comment.authorName} size="sm" />
+        <span className="text-xs font-semibold text-fg">{authorLabel(comment.authorType, comment.authorName)}</span>
+        {comment.authorType === 'agent' && <span className="rounded-full bg-accent/15 px-1.5 text-2xs leading-4 font-medium text-accent">bot</span>}
+        <span className="text-2xs text-fg-subtle" title={new Date(comment.createdAt).toLocaleString()}>
+          {dayjs(comment.createdAt).fromNow()}
+        </span>
+        {comment.pending && !threadPending && <PendingBadge />}
+        {!editing && comment.authorType === 'user' && (
+          <div className="ml-auto flex opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+            <IconButton size="sm" label="Edit comment" onClick={() => setBody(editKey, comment.body)}>
+              <PencilIcon size={14} />
+            </IconButton>
+            <IconButton size="sm" label="Delete comment" onClick={() => void remove()}>
+              <TrashIcon size={14} />
+            </IconButton>
           </div>
+        )}
+      </div>
+      <div className="mt-1.5 pl-7">
+        {editing ? (
+          <CommentComposer
+            draftKey={editKey}
+            mode="edit"
+            sessionId={null}
+            initialBody={comment.body}
+            onSubmit={(input) => actions.edit.mutateAsync({ commentId: comment.id, body: input.body })}
+            onCancel={() => undefined}
+          />
         ) : (
           <Markdown compact mentions className="text-fg">
             {comment.body}

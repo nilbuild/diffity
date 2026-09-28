@@ -365,7 +365,7 @@ function PermissionDiffPreview(props: { path: string; oldText: string | null; ne
           theme: DIFF_THEMES,
           unsafeCSS: SURFACE_TOKEN_CSS,
           overflow: 'wrap',
-          hunkSeparators: 'line-info',
+          hunkSeparators: 'line-info-basic',
           disableFileHeader: true,
         }}
       />

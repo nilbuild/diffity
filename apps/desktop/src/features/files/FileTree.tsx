@@ -10,7 +10,7 @@ import {
   LightbulbIcon,
   SearchIcon,
 } from '@/components/ui/icon';
-import { CountBadge } from '@/components/ui/Badge';
+import { CommentCount } from '@/features/changes/StatusBadge';
 import { Input } from '@/components/ui/Input';
 import { Kbd } from '@/components/ui/Kbd';
 import { MenuList, MenuRow } from '@/components/ui/Menu';
@@ -200,8 +200,8 @@ function TreeRowButton(props: TreeRowButtonProps) {
         onContextMenu(node.path, event.clientX, event.clientY);
       }}
       className={cn(
-        'absolute inset-x-0 flex cursor-default items-center gap-1.5 pr-3 text-left text-sm text-fg',
-        selected ? 'bg-selected font-medium before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent' : 'hover:bg-hover',
+        'absolute inset-x-0 flex cursor-default items-center gap-1.5 border-l-2 pr-3 text-left text-sm text-fg',
+        selected ? 'border-l-accent bg-active' : 'border-l-transparent hover:bg-hover',
       )}
     >
       {node.kind === 'dir' ? (
@@ -216,9 +216,7 @@ function TreeRowButton(props: TreeRowButtonProps) {
         </>
       )}
       <span className="min-w-0 flex-1 truncate">{node.name}</span>
-      {comments > 0 && (
-        <CountBadge count={comments} icon={<CommentIcon size={12} />} title={`${comments} open comments`} />
-      )}
+      {comments > 0 && <CommentCount count={comments} />}
     </button>
   );
 }

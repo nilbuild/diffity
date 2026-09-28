@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Kbd } from '@/components/ui/Kbd';
-import { SparklesIcon } from '@/components/ui/icon';
+import { Menu, type MenuEntry } from '@/components/ui/Menu';
+import { ChevronDownIcon, SparklesIcon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { mentionsAgent } from '@/lib/mentions';
 import { modKey } from '@/lib/platform';
@@ -30,41 +30,65 @@ export interface CommentComposerProps {
   initialSeverity?: Severity | null;
   placeholder?: string;
   withSeverity?: boolean;
+  label?: ReactNode;
   autoFocus?: boolean;
   onSubmit: (input: ComposerSubmit) => Promise<unknown>;
   onCancel?: () => void;
 }
 
-const toneClass = {
-  danger: 'border-danger/40 bg-danger/12 text-danger',
-  accent: 'border-accent/40 bg-accent-soft text-accent',
-  neutral: 'border-border-strong bg-muted text-fg',
-  warning: 'border-warning/40 bg-warning/12 text-warning',
+const toneDot = {
+  danger: 'bg-danger',
+  accent: 'bg-accent',
+  neutral: 'bg-fg-subtle',
+  warning: 'bg-warning',
+} as const;
+
+const toneText = {
+  danger: 'text-danger',
+  accent: 'text-accent',
+  neutral: 'text-fg',
+  warning: 'text-warning',
 } as const;
 
 export function SeverityPicker(props: { value: Severity | null; onChange: (value: Severity | null) => void }) {
   const { value, onChange } = props;
+  const items: MenuEntry[] = [
+    { heading: 'Severity' },
+    {
+      label: 'None',
+      icon: <span className="size-2 rounded-full border border-fg-subtle" />,
+      checked: value === null,
+      onSelect: () => onChange(null),
+    },
+    ...SEVERITIES.map((severity) => ({
+      label: SEVERITY_LABEL[severity],
+      icon: <span className={cn('size-2 rounded-full', toneDot[severityTone[severity]])} />,
+      checked: value === severity,
+      onSelect: () => onChange(severity),
+    })),
+  ];
   return (
-    <div className="flex items-center gap-0.5" role="radiogroup" aria-label="Severity">
-      {SEVERITIES.map((severity) => {
-        const selected = value === severity;
-        return (
-          <button
-            key={severity}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            onClick={() => onChange(selected ? null : severity)}
-            className={cn(
-              'h-[18px] cursor-default rounded-sm border px-1.5 text-2xs leading-none font-medium whitespace-nowrap',
-              selected ? toneClass[severityTone[severity]] : 'border-transparent text-fg-subtle hover:bg-hover hover:text-fg',
-            )}
-          >
-            {SEVERITY_LABEL[severity]}
-          </button>
-        );
-      })}
-    </div>
+    <Menu
+      align="start"
+      items={items}
+      trigger={(trigger) => (
+        <button
+          ref={trigger.ref}
+          type="button"
+          onClick={trigger.onClick}
+          aria-label="Severity"
+          className={cn(
+            'inline-flex h-7 cursor-default items-center gap-1.5 rounded-md px-2 text-xs hover:bg-hover',
+            trigger.open && 'bg-hover',
+            value ? cn('font-medium', toneText[severityTone[value]]) : 'text-fg-muted hover:text-fg',
+          )}
+        >
+          {value && <span className={cn('size-2 rounded-full', toneDot[severityTone[value]])} />}
+          {value ? SEVERITY_LABEL[value] : 'Severity'}
+          <ChevronDownIcon size={12} className="text-fg-subtle" />
+        </button>
+      )}
+    />
   );
 }
 
@@ -78,6 +102,7 @@ export function CommentComposer(props: CommentComposerProps) {
     initialSeverity = null,
     placeholder,
     withSeverity,
+    label,
     autoFocus = true,
     onSubmit,
     onCancel,
@@ -117,48 +142,51 @@ export function CommentComposer(props: CommentComposerProps) {
   const primaryIsReview = mode !== 'edit';
   const primaryLabel = mode === 'edit' ? 'Save' : inReview ? 'Add review comment' : 'Start a review';
 
-  return (
-    <div className="flex flex-col gap-2 font-sans">
-      <MarkdownEditor
-        value={body}
-        onChange={(value) => setBody(draftKey, value)}
-        placeholder={placeholder ?? (mode === 'reply' ? 'Reply… (type @ to mention Claude)' : 'Leave a comment… (type @ to mention Claude)')}
-        autoFocus={autoFocus}
-        minHeight={mode === 'reply' ? 56 : 72}
-        headerExtra={withSeverity ? <SeverityPicker value={severity} onChange={setSeverity} /> : null}
-        onSubmit={() => void submit(primaryIsReview)}
-        onCancel={cancel}
-      />
-      {mentions && (
-        <div className="-mt-1 inline-flex items-center gap-1 text-2xs text-accent">
-          <SparklesIcon size={12} />
-          Claude will respond when this is published
-        </div>
-      )}
-      <div className="flex flex-wrap items-center justify-end gap-1.5">
-        <span className="mr-auto inline-flex min-w-0 items-center" title={`${modKey}↵ ${primaryLabel.toLowerCase()}`}>
-          <Kbd>{modKey}↵</Kbd>
-        </span>
-        {onCancel && (
-          <Button size="sm" variant="ghost" onClick={cancel}>
-            Cancel
-          </Button>
+  const footer = (
+    <div className="flex flex-wrap items-center justify-end gap-1.5">
+      <div className="mr-auto flex min-w-0 items-center gap-1">
+        {withSeverity && <SeverityPicker value={severity} onChange={setSeverity} />}
+        {mentions && (
+          <span className="inline-flex min-w-0 items-center gap-1 px-1 text-2xs text-accent">
+            <SparklesIcon size={12} />
+            <span className="truncate">Claude responds when published</span>
+          </span>
         )}
-        {mode !== 'edit' && !threadPending && (
-          <Button size="sm" variant="secondary" disabled={empty || busy !== null} loading={busy === 'single'} onClick={() => void submit(false)}>
-            Add single comment
-          </Button>
-        )}
-        <Button
-          size="sm"
-          variant="primary"
-          disabled={empty || busy !== null}
-          loading={busy === 'review' || (mode === 'edit' && busy !== null)}
-          onClick={() => void submit(primaryIsReview)}
-        >
-          {primaryLabel}
-        </Button>
       </div>
+      {onCancel && (
+        <Button variant="ghost" onClick={cancel}>
+          Cancel
+        </Button>
+      )}
+      {mode !== 'edit' && !threadPending && (
+        <Button variant="secondary" disabled={empty || busy !== null} loading={busy === 'single'} onClick={() => void submit(false)}>
+          Add single comment
+        </Button>
+      )}
+      <Button
+        variant="primary"
+        title={`${modKey}↵`}
+        disabled={empty || busy !== null}
+        loading={busy === 'review' || (mode === 'edit' && busy !== null)}
+        onClick={() => void submit(primaryIsReview)}
+      >
+        {primaryLabel}
+      </Button>
     </div>
+  );
+
+  return (
+    <MarkdownEditor
+      className="font-sans"
+      value={body}
+      onChange={(value) => setBody(draftKey, value)}
+      label={label}
+      placeholder={placeholder ?? (mode === 'reply' ? 'Reply… (type @ to mention Claude)' : 'Leave a comment… (type @ to mention Claude)')}
+      autoFocus={autoFocus}
+      minHeight={mode === 'reply' ? 56 : 72}
+      footer={footer}
+      onSubmit={() => void submit(primaryIsReview)}
+      onCancel={cancel}
+    />
   );
 }

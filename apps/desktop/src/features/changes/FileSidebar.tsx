@@ -1,14 +1,12 @@
 import { useRef, type RefObject } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
-import { CountBadge } from '@/components/ui/Badge';
 import { IconButton } from '@/components/ui/IconButton';
 import { Input } from '@/components/ui/Input';
 import { Kbd } from '@/components/ui/Kbd';
 import { CheckIcon, CollapseAllIcon, ExpandAllIcon, CommentIcon, SearchIcon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
-import { FileTypeIcon } from '@/features/files/FileTypeIcon';
 import { useChangesStore } from './changes-store';
-import { DiffStat, FileStatusBadge } from './StatusBadge';
+import { CommentCount, DiffStat, FileStatusBadge } from './StatusBadge';
 import type { DiffEntry } from './use-diff';
 
 export interface FileSidebarProps {
@@ -118,21 +116,19 @@ function FileRow(props: FileRowProps) {
       title={path}
       onClick={() => onSelect(path)}
       className={cn(
-        'group flex h-7 w-full cursor-default items-center gap-2 px-3 text-left',
-        active ? 'relative bg-selected before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent' : 'hover:bg-hover',
+        'group flex h-7 w-full cursor-default items-center gap-1.5 border-l-2 pr-2 pl-2.5 text-left',
+        active ? 'border-l-accent bg-active' : 'border-l-transparent hover:bg-hover',
+        viewed && 'opacity-50',
       )}
     >
       <FileStatusBadge status={status} />
-      <FileTypeIcon name={name} className={cn(viewed && 'opacity-60')} />
-      <span className={cn('min-w-0 flex-1 truncate text-sm', viewed && 'text-fg-subtle')}>
-        <span className={cn('font-medium', !viewed && 'text-fg')}>{name}</span>
+      <span className={cn('min-w-0 flex-1 truncate text-sm text-fg', viewed && 'line-through')}>
+        {name}
         {dir && <span className="ml-1.5 text-2xs text-fg-subtle">{dir}</span>}
       </span>
-      {openComments > 0 && (
-        <CountBadge count={openComments} icon={<CommentIcon size={12} />} title={`${openComments} open comments`} />
-      )}
+      {openComments > 0 && <CommentCount count={openComments} />}
       {binary ? <span className="text-2xs text-fg-subtle">bin</span> : <DiffStat additions={additions} deletions={deletions} />}
-      {viewed && <CheckIcon size={12} className="shrink-0 text-success" />}
+      {viewed && <CheckIcon size={12} className="shrink-0 text-added" />}
     </button>
   );
 }

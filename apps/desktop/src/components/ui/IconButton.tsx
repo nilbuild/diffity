@@ -51,8 +51,8 @@ export function IconButton(props: IconButtonProps) {
           'inline-flex shrink-0 cursor-default items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-40',
           size === 'sm' ? 'size-6' : 'size-7',
           variant === 'primary'
-            ? 'bg-accent-solid text-accent-fg hover:bg-accent-solid/88'
-            : cn('text-fg-muted hover:bg-hover hover:text-fg', active && 'bg-accent-soft text-accent hover:bg-accent-soft hover:text-accent'),
+            ? 'bg-accent-solid text-accent-fg hover:bg-accent-solid/85'
+            : cn('text-fg-subtle hover:bg-hover hover:text-fg', active && 'bg-accent/12 text-accent hover:bg-accent/15 hover:text-accent'),
           className,
         )}
         {...rest}

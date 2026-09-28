@@ -2,7 +2,7 @@ import { useCallback, useImperativeHandle, useMemo, useRef, type ReactNode, type
 import { CodeView, type CodeViewHandle, type CodeViewItem, type CodeViewReactOptions } from '@pierre/diffs/react';
 import type { FileDiffLoadedFiles, FileDiffMetadata, SelectedLineRange } from '@pierre/diffs';
 import { useResolvedTheme } from '@/lib/theme';
-import { DIFF_THEMES, SURFACE_TOKEN_CSS, SURFACE_UNSAFE_CSS, surfaceStyleVars } from './theme';
+import { DIFF_THEMES, FILE_HEADER_HEIGHT, SURFACE_TOKEN_CSS, SURFACE_UNSAFE_CSS, surfaceStyleVars } from './theme';
 import type {
   CodeSurfaceHandle,
   LoadedFileVersions,
@@ -181,13 +181,14 @@ export function CodeSurface<T>(props: CodeSurfaceProps<T>) {
         diffStyle,
         lineDiffType: wordDiff ? 'word-alt' : 'none',
         overflow: wrap ? 'wrap' : 'scroll',
-        hunkSeparators: 'line-info',
-        diffIndicators: 'bars',
+        hunkSeparators: 'line-info-basic',
+        diffIndicators: 'classic',
         enableLineSelection: true,
         enableGutterUtility: true,
         onGutterUtilityClick,
         loadDiffFiles,
         stickyHeaders: !hideFileHeader,
+        itemMetrics: { diffHeaderHeight: FILE_HEADER_HEIGHT },
         disableFileHeader: hideFileHeader,
         unsafeCSS: hideFileHeader ? SURFACE_TOKEN_CSS : SURFACE_UNSAFE_CSS,
         layout: hideFileHeader ? { paddingTop: 8, paddingBottom: 48, gap: 0 } : { paddingTop: 12, paddingBottom: 48, gap: 12 },

@@ -18,37 +18,32 @@ import {
 } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 
-interface Kind {
-  icon: IconComponent;
-  tone: string;
-}
+const CODE = FileCodeIcon;
 
-const CODE: Kind = { icon: FileCodeIcon, tone: 'text-fg-muted' };
-
-const BY_EXT: Record<string, Kind> = {
-  ts: { icon: FileTsIcon, tone: 'text-info' },
-  tsx: { icon: FileTsIcon, tone: 'text-info' },
-  mts: { icon: FileTsIcon, tone: 'text-info' },
-  js: { icon: FileJsIcon, tone: 'text-warning' },
-  jsx: { icon: FileJsIcon, tone: 'text-warning' },
-  mjs: { icon: FileJsIcon, tone: 'text-warning' },
-  cjs: { icon: FileJsIcon, tone: 'text-warning' },
-  css: { icon: FileCssIcon, tone: 'text-accent' },
-  scss: { icon: FileCssIcon, tone: 'text-accent' },
-  html: { icon: FileHtmlIcon, tone: 'text-danger' },
-  md: { icon: FileMdIcon, tone: 'text-fg-muted' },
-  mdx: { icon: FileMdIcon, tone: 'text-fg-muted' },
-  py: { icon: FilePyIcon, tone: 'text-info' },
-  rs: { icon: FileRsIcon, tone: 'text-danger' },
-  svg: { icon: FileSvgIcon, tone: 'text-success' },
-  png: { icon: FileImageIcon, tone: 'text-success' },
-  jpg: { icon: FileImageIcon, tone: 'text-success' },
-  jpeg: { icon: FileImageIcon, tone: 'text-success' },
-  gif: { icon: FileImageIcon, tone: 'text-success' },
-  webp: { icon: FileImageIcon, tone: 'text-success' },
-  ico: { icon: FileImageIcon, tone: 'text-success' },
-  lock: { icon: FileLockIcon, tone: 'text-fg-subtle' },
-  txt: { icon: FileTextIcon, tone: 'text-fg-subtle' },
+const BY_EXT: Record<string, IconComponent> = {
+  ts: FileTsIcon,
+  tsx: FileTsIcon,
+  mts: FileTsIcon,
+  js: FileJsIcon,
+  jsx: FileJsIcon,
+  mjs: FileJsIcon,
+  cjs: FileJsIcon,
+  css: FileCssIcon,
+  scss: FileCssIcon,
+  html: FileHtmlIcon,
+  md: FileMdIcon,
+  mdx: FileMdIcon,
+  py: FilePyIcon,
+  rs: FileRsIcon,
+  svg: FileSvgIcon,
+  png: FileImageIcon,
+  jpg: FileImageIcon,
+  jpeg: FileImageIcon,
+  gif: FileImageIcon,
+  webp: FileImageIcon,
+  ico: FileImageIcon,
+  lock: FileLockIcon,
+  txt: FileTextIcon,
   json: CODE,
   toml: CODE,
   yaml: CODE,
@@ -63,27 +58,26 @@ const BY_EXT: Record<string, Kind> = {
   h: CODE,
 };
 
-export function fileKind(name: string): Kind {
+export function fileKind(name: string): IconComponent {
   const lower = name.toLowerCase();
   if (lower.endsWith('.lock') || lower === 'pnpm-lock.yaml' || lower === 'package-lock.json') {
     return BY_EXT.lock;
   }
   const dot = lower.lastIndexOf('.');
   if (dot <= 0) {
-    return { icon: FileIcon, tone: 'text-fg-subtle' };
+    return FileIcon;
   }
-  return BY_EXT[lower.slice(dot + 1)] ?? { icon: FileIcon, tone: 'text-fg-subtle' };
+  return BY_EXT[lower.slice(dot + 1)] ?? FileIcon;
 }
 
 export function FileTypeIcon(props: { name: string; size?: number; className?: string }) {
   const { name, size = 14, className } = props;
-  const kind = fileKind(name);
-  const Icon = kind.icon;
-  return <Icon size={size} className={cn('shrink-0', kind.tone, className)} />;
+  const Icon = fileKind(name);
+  return <Icon size={size} className={cn('shrink-0 text-fg-subtle', className)} />;
 }
 
 export function FolderTypeIcon(props: { open: boolean; size?: number; className?: string }) {
   const { open, size = 14, className } = props;
   const Icon = open ? FolderOpenIcon : FolderIcon;
-  return <Icon size={size} className={cn('shrink-0 text-accent/80', className)} />;
+  return <Icon size={size} className={cn('shrink-0 text-accent', className)} />;
 }

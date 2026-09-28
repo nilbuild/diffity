@@ -1,5 +1,4 @@
 import { toast } from 'sonner';
-import { CountBadge } from '@/components/ui/Badge';
 import { CheckMark } from '@/components/ui/Checkbox';
 import { IconButton } from '@/components/ui/IconButton';
 import { Menu, type MenuItem } from '@/components/ui/Menu';
@@ -18,6 +17,7 @@ import { hunkToPatch, listHunks } from '@/components/diff-surface';
 import * as api from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { agentBus } from '@/features/workspace/agent-bus';
+import { CommentCount } from './StatusBadge';
 import type { DiffEntry } from './use-diff';
 
 export function CollapseToggle(props: { collapsed: boolean; onToggle: () => void }) {
@@ -27,7 +27,7 @@ export function CollapseToggle(props: { collapsed: boolean; onToggle: () => void
       type="button"
       aria-label={collapsed ? 'Expand file' : 'Collapse file'}
       onClick={onToggle}
-      className="mr-1 inline-flex size-6 cursor-default items-center justify-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
+      className="inline-flex size-5 cursor-default items-center justify-center rounded-sm text-fg-subtle hover:bg-hover hover:text-fg"
     >
       <ChevronRightIcon size={12} className={cn('transition-transform', !collapsed && 'rotate-90')} />
     </button>
@@ -152,9 +152,7 @@ export function FileHeaderActions(props: FileHeaderActionsProps) {
   return (
     <div className="flex items-center gap-1 pl-2 font-sans" onMouseDown={(event) => event.stopPropagation()}>
       {isBig && collapsed && <span className="text-2xs text-fg-subtle">Large diff hidden</span>}
-      {openComments > 0 && (
-        <CountBadge count={openComments} icon={<CommentIcon size={12} />} title={`${openComments} open comments`} />
-      )}
+      {openComments > 0 && <CommentCount count={openComments} tone="muted" />}
       {previewable && (
         <IconButton size="sm" label={previewing ? 'Hide rich preview' : 'Show rich preview'} active={previewing} onClick={onTogglePreview}>
           <BookIcon size={14} />
@@ -167,11 +165,11 @@ export function FileHeaderActions(props: FileHeaderActionsProps) {
         title="Mark as viewed (r)"
         onClick={onToggleViewed}
         className={cn(
-          'ml-1 inline-flex h-6 cursor-default items-center gap-1.5 rounded-md border pr-2 pl-1.5 text-xs font-medium select-none transition-colors',
-          viewed ? 'border-success/40 bg-success/10 text-success' : 'border-border bg-raised text-fg-muted hover:border-border-strong hover:text-fg',
+          'ml-1 inline-flex h-6 cursor-default items-center gap-1.5 rounded-md px-1.5 text-2xs select-none transition-colors hover:bg-hover',
+          viewed ? 'text-added' : 'text-fg-subtle hover:text-fg',
         )}
       >
-        <CheckMark checked={viewed} tone="success" />
+        <CheckMark checked={viewed} tone="success" className="size-3.5" />
         Viewed
       </button>
       <Menu

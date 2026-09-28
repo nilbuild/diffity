@@ -23,8 +23,10 @@ export interface MarkdownEditorProps {
   autoFocus?: boolean;
   minHeight?: number;
   maxHeight?: number;
-  /** Rendered at the right of the Write/Preview tab strip. */
-  headerExtra?: ReactNode;
+  /** Shown at the left of the header row, e.g. "Add a comment on line 5". */
+  label?: ReactNode;
+  /** Rendered inside the box, under the text field (composer buttons). */
+  footer?: ReactNode;
   onSubmit?: () => void;
   onCancel?: () => void;
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
@@ -106,7 +108,8 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
     autoFocus = true,
     minHeight = 72,
     maxHeight = 320,
-    headerExtra,
+    label,
+    footer,
     onSubmit,
     onCancel,
     className,
@@ -190,31 +193,26 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
   };
 
   return (
-    <div
-      className={cn('flex flex-col overflow-hidden rounded-md border border-border bg-canvas focus-within:border-accent', className)}
-      onKeyDown={(event) => event.stopPropagation()}
-    >
-      <div className="flex h-8 shrink-0 items-center gap-1 border-b border-border bg-panel pr-1.5 pl-1">
+    <div className={cn('flex flex-col rounded-lg bg-muted', className)} onKeyDown={(event) => event.stopPropagation()}>
+      <div className="flex h-8 shrink-0 items-center gap-1 pr-1.5 pl-3">
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-fg-muted">{label}</span>
         <EditorTab active={tab === 'write'} onClick={() => setTab('write')}>
           Write
         </EditorTab>
         <EditorTab active={tab === 'preview'} onClick={() => setTab('preview')}>
           Preview
         </EditorTab>
-        <div className="ml-auto flex min-w-0 items-center gap-1">
-          {headerExtra}
-          <button
-            type="button"
-            title="Mention Claude"
-            aria-label="Mention Claude"
-            onClick={insertAt}
-            className="inline-flex size-6 shrink-0 cursor-default items-center justify-center rounded-md text-fg-muted hover:bg-hover hover:text-fg"
-          >
-            <AtIcon size={14} />
-          </button>
-        </div>
+        <button
+          type="button"
+          title="Mention Claude"
+          aria-label="Mention Claude"
+          onClick={insertAt}
+          className="ml-0.5 inline-flex size-6 shrink-0 cursor-default items-center justify-center rounded-md text-fg-subtle hover:bg-hover hover:text-fg"
+        >
+          <AtIcon size={14} />
+        </button>
       </div>
-      <div className="relative">
+      <div className="relative mx-1.5 mb-1.5 overflow-hidden rounded-md bg-canvas">
         {tab === 'write' ? (
           <textarea
             ref={ref}
@@ -250,7 +248,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
                 onCancel?.();
               }
             }}
-            className="selectable block w-full resize-none bg-transparent px-2.5 py-2 text-sm text-fg outline-none placeholder:text-fg-subtle"
+            className="selectable block w-full resize-none bg-transparent px-3 py-2 text-sm text-fg outline-none placeholder:text-fg-subtle"
             style={{ minHeight }}
           />
         ) : (
@@ -270,6 +268,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
           style={{ top: mention?.top ?? 0, left: mention?.left ?? 0 }}
         />
       </div>
+      {footer && <div className="px-1.5 pb-1.5">{footer}</div>}
       <Popover
         open={mention !== null && suggestions.length > 0 && tab === 'write'}
         onOpenChange={(open) => {
@@ -313,8 +312,8 @@ function EditorTab(props: { active: boolean; onClick: () => void; children: Reac
       type="button"
       onClick={onClick}
       className={cn(
-        'h-6 cursor-default rounded-md border px-2 text-xs font-medium',
-        active ? 'border-border bg-canvas text-fg' : 'border-transparent text-fg-muted hover:bg-hover hover:text-fg',
+        'h-6 cursor-default rounded-md px-2 text-xs',
+        active ? 'bg-canvas font-medium text-fg' : 'text-fg-subtle hover:text-fg',
       )}
     >
       {children}

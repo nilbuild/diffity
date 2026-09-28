@@ -47,21 +47,25 @@ export function CommentNavBar(props: CommentNavBarProps) {
   };
 
   return (
-    <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-canvas px-3 text-xs">
-      <span className="truncate font-semibold text-fg" title={label}>
+    <div className="flex h-9 shrink-0 items-center gap-2.5 border-b border-border bg-panel px-3 text-xs">
+      <span className="truncate text-fg-muted" title={label}>
         {label}
       </span>
-      <span className="shrink-0 text-fg-subtle">
-        {files} {files === 1 ? 'file' : 'files'}
+      <span className="inline-flex shrink-0 items-center overflow-hidden rounded-md bg-muted text-fg-subtle">
+        <span className="px-2 py-0.5">
+          {files} {files === 1 ? 'file' : 'files'} changed
+        </span>
+        <span className="px-2 py-0.5">
+          <DiffStat additions={additions} deletions={deletions} />
+        </span>
       </span>
-      <DiffStat additions={additions} deletions={deletions} />
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <Button
           size="sm"
           variant="ghost"
           aria-pressed={conversationOpen}
           onClick={onToggleConversation}
-          className={cn(conversationOpen && 'bg-accent-soft text-accent hover:bg-accent-soft hover:text-accent')}
+          className={cn(conversationOpen && 'bg-accent/12 text-accent hover:bg-accent/15 hover:text-accent')}
           title={conversationOpen ? 'Hide conversation' : 'Show conversation'}
         >
           <ConversationIcon size={12} />

@@ -12,15 +12,15 @@ export interface ButtonProps extends ComponentProps<'button'> {
 }
 
 const variants: Record<ButtonVariant, string> = {
-  primary: 'border-transparent bg-accent-solid text-accent-fg hover:bg-accent-solid/88',
-  secondary: 'border-border bg-raised text-fg hover:border-border-strong hover:bg-hover',
+  primary: 'border-transparent bg-accent-solid text-accent-fg hover:bg-accent-solid/85',
+  secondary: 'border-border bg-transparent text-fg hover:bg-hover',
   ghost: 'border-transparent text-fg-muted hover:bg-hover hover:text-fg',
   danger: 'border-transparent bg-danger text-white hover:bg-danger/90',
 };
 
 const sizes: Record<ButtonSize, string> = {
   sm: 'h-6 gap-1 px-2 text-xs',
-  md: 'h-7 gap-1.5 px-2.5 text-sm',
+  md: 'h-7 gap-1.5 px-3 text-xs',
   lg: 'h-8 gap-2 px-3 text-sm',
 };
 

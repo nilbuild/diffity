@@ -97,7 +97,7 @@ function FileViewerHeader(props: FileViewerHeaderProps) {
   const { path, size, mode, onModeChange, onCommentFile } = props;
   const { repoPath } = useWorkspace();
   return (
-    <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-canvas px-3 text-xs">
+    <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-panel px-3 text-xs">
       <span className="truncate font-medium text-fg">{path}</span>
       {size !== null && <span className="text-fg-subtle">{formatSize(size)}</span>}
       <div className="ml-auto flex items-center gap-1">

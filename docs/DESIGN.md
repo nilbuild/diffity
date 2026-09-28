@@ -2,8 +2,9 @@
 
 The rules every UI change must follow. Tokens live in `apps/desktop/src/styles.css`, primitives in
 `apps/desktop/src/components/ui`, the icon set in `apps/desktop/src/components/ui/icon.tsx`.
-Reference feel: GitHub's PR review UI with Linear/Raycast polish. It should read as a dense,
-calm desktop tool.
+Reference look: the previous Diffity web UI (`~/Vibecode/diffity/packages/ui`), which follows GitHub's
+light palette and a neutral-grey dark palette. Dense, flat, calm: text-xs chrome, contrast from surface
+steps rather than heavy borders, blue only for primary actions, links and selection.
 
 ## Hard rules
 
@@ -29,66 +30,84 @@ All colours are CSS variables on `:root`, redefined for dark mode. Tailwind util
 (`bg-panel`, `text-fg-muted`, `border-border-strong`…). The theme is applied via
 `html[data-theme]`, which `lib/theme.ts` always sets, so a `dark:` variant exists but should be rare.
 
+Values come from the previous app's `app.css` (light = GitHub, dark = neutral greys with rgba tints).
+
 ### Surfaces (from back to front)
 
 | Token      | Light     | Dark      | Use |
 |------------|-----------|-----------|-----|
-| `canvas`   | `#ffffff` | `#0d1117` | Main content: the diff/code area, PR page, welcome page, text fields |
-| `panel`    | `#f6f8fa` | `#151a22` | Chrome: toolbar, sidebars, agent panel, card headers, dialog footer |
-| `raised`   | `#ffffff` | `#1c222c` | Cards, secondary buttons, popovers, dialogs, tooltips |
-| `hover`    | `#eef1f4` | `#222a35` | Hover fill for rows and ghost controls |
-| `active`   | `#e4e8ed` | `#2b3441` | Pressed/current neutral state (pill tabs, list nav) |
-| `muted`    | `#eef1f4` | `#232b36` | Neutral fill: neutral badges, inline code |
-| `selected` | `#e7effe` | `#1b2c48` | Selected row in a list or tree (accent-tinted) |
+| `canvas`   | `#ffffff` | `#171717` | Main content: diff/code area, comment bubbles, text fields |
+| `panel`    | `#f6f8fa` | `#1a1a1a` | Chrome: toolbar, sidebars, sub-toolbars, file headers, thread cards, popovers |
+| `raised`   | `#ffffff` | `#1a1a1a` | Dialogs and cards that sit on `panel` |
+| `muted`    | `#eaeef2` | `#262626` | Neutral fill: comment composer box, segmented control track, summary chips, inline code |
+| `hover`    | `rgba(208,215,222,.32)` | `rgba(161,161,170,.10)` | Hover fill for rows and ghost controls (translucent, works on any surface) |
+| `active`   | `rgba(208,215,222,.48)` | `rgba(161,161,170,.18)` | Current row (with a 2px `border-l-accent`), pressed state |
+| `selected` | = `active` | = `active` | Alias kept for older call sites |
 
 ### Borders
 
 | Token           | Light     | Dark      | Use |
 |-----------------|-----------|-----------|-----|
-| `border-subtle` | `#e8ebef` | `#212833` | Row dividers inside a bordered container |
-| `border`        | `#d5dbe2` | `#2d3541` | Default: panes, cards, inputs, secondary buttons. This is also the global default border colour |
-| `border-strong` | `#b9c1cb` | `#3d4756` | Floating layers, hovered inputs and buttons, selected segment |
+| `border-subtle` | `#d8dee4` | `#1f1f1f` | Row dividers, diff gutter/content separator |
+| `border`        | `#d0d7de` | `#262626` | Default: panes, file cards, inputs, secondary buttons. Global default border colour |
+| `border-strong` | `#afb8c1` | `#3a3a3a` | Floating layers (popover, menu, dialog, tooltip), hovered inputs |
 
 ### Text
 
 | Token       | Light     | Dark      | Use |
 |-------------|-----------|-----------|-----|
-| `fg`        | `#1f2328` | `#e6edf3` | Primary text, titles |
-| `fg-muted`  | `#4f5864` | `#9aa4b2` | Secondary text, idle icons, labels |
-| `fg-subtle` | `#6a737d` | `#7d8794` | Meta text, placeholders, counts, line numbers. Passes WCAG AA on canvas and panel |
+| `fg`        | `#1f2328` | `#e5e5e5` | Primary text |
+| `fg-muted`  | `#656d76` | `#a3a3a3` | Secondary text, labels |
+| `fg-subtle` | `#8b949e` | `#737373` | Meta text, placeholders, line numbers, idle icons |
 
 ### Accent and semantic colours
 
 | Token          | Light     | Dark      | Use |
 |----------------|-----------|-----------|-----|
-| `accent`       | `#2563eb` | `#4c8dff` | Links, active tab indicator, focus, accent text and icons |
-| `accent-solid` | `#2563eb` | `#2f6fed` | Filled backgrounds under white text (primary button). Use this, not `accent`, for fills |
-| `accent-soft`  | `#e7effe` | `#19294a` | Tinted backgrounds: accent badges, active toggle, user chat bubble |
+| `accent`       | `#0969da` | `#60a5fa` | Links, text actions ("Reply", "Add comment"), active tab indicator, focus |
+| `accent-hover` | `#0550ae` | `#93c5fd` | Hovered links/text actions |
+| `accent-solid` | `#0969da` | `#3b82f6` | Filled backgrounds under white text: primary button, active segment, gutter "+" |
+| `accent-soft`  | `#ddf4ff` | `rgba(96,165,250,.12)` | Tinted backgrounds (user chat bubble, icon tiles). For toggles prefer `bg-accent/12` |
 | `accent-fg`    | `#ffffff` | `#ffffff` | Text on `accent-solid` |
-| `added`        | `#1a7f37` | `#3fb950` | Diff additions: `+n` stats, A/U status, diff line colour |
-| `removed`      | `#d1242f` | `#f85149` | Diff deletions: `−n` stats, D status |
-| `success`      | `#1a7f37` | `#3fb950` | Resolved, viewed, logged in, completed |
-| `warning`      | `#9a6700` | `#d29922` | Modified (M), stale, outdated, pending permission, `question` |
-| `danger`       | `#d1242f` | `#f85149` | Errors, destructive actions, `must-fix` |
-| `info`         | `#0969da` | `#58a6ff` | Neutral informational callouts |
-| `backdrop`     | ink 36%   | black 60% | Dialog scrim |
+| `added`        | `#1a7f37` | `#4ade80` | Additions, A/U status |
+| `removed`      | `#cf222e` | `#f87171` | Deletions, D status |
+| `renamed`      | `#0969da` | `#60a5fa` | R/C status |
+| `success`      | `#1a7f37` | `#4ade80` | Resolved, viewed |
+| `warning`      | `#9a6700` | `#facc15` | Modified (M), pending, outdated, `question` |
+| `danger`       | `#cf222e` | `#f87171` | Errors, destructive actions, `must-fix` |
+| `info`         | `#0969da` | `#60a5fa` | Informational callouts |
+| `backdrop`     | black 40% | black 60% | Dialog scrim |
 
-Tinted badge and callout recipe: `bg-{tone}/12 text-{tone}`, adding `border border-{tone}/30` or `/40` for callouts.
+### Diff colours
 
-**Where colour goes:** the accent marks primary actions, the current tab, selection and focus.
-Semantic colours mark status: file status letters (M/A/D/R/U), severity tags, thread status and diff stats.
-Everything else stays neutral.
+| Token                  | Light     | Dark                   | Use |
+|------------------------|-----------|------------------------|-----|
+| `--diff-add-bg`        | `#dafbe1` | `rgba(34,197,94,.10)`  | Added line (content and gutter) |
+| `--diff-add-word`      | `#abf2bc` | `rgba(34,197,94,.35)`  | Word-level addition |
+| `--diff-del-bg`        | `#ffebe9` | `rgba(239,68,68,.10)`  | Deleted line |
+| `--diff-del-word`      | `rgba(255,129,130,.4)` | `rgba(239,68,68,.35)` | Word-level deletion |
+| `--diff-hunk-bg` / `-fg` | `#ddf4ff` / `#0969da` | `rgba(96,165,250,.10)` / `#60a5fa` | Hunk/expand separator rows |
+| `--diff-expanded-bg`   | `#f6fcff` | `rgba(96,165,250,.05)` | Expanded context |
+| `--diff-comment-bg`    | `#fff8c5` | `rgba(234,179,8,.10)`  | Selected/commented code line (yellow) |
+| `--diff-comment-gutter`| `#ecd364` | `rgba(234,179,8,.30)`  | Line number of a selected/commented line |
+
+`add-bg`, `del-bg`, `hunk-bg/fg`, `comment-bg/gutter` also exist as Tailwind colours (`bg-diff-comment-bg`…).
+
+Tinted badge recipe: `rounded-full bg-{tone}/15 text-{tone}` (the `Badge` primitive). Callouts add `border border-{tone}/30`.
+
+**Where colour goes:** blue marks primary actions, links/text actions, the current tab and the current row's left edge.
+Semantic colours mark status only. Everything else stays grey.
 
 ### Type scale (system font, 13px base)
 
-`--font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif`
-`--font-mono: "SF Mono", "JetBrains Mono", ui-monospace, Menlo, monospace`
+`--font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif`
+`--font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', 'Menlo', monospace`
 
 | Class       | Size / line | Use |
 |-------------|-------------|-----|
 | `text-2xs`  | 11 / 16     | Meta text, badges, kbd, counts, section labels in dense lists |
-| `text-xs`   | 12 / 16     | Secondary UI text, sidebar meta, small buttons, code in diffs (mono) |
-| `text-sm`   | 13 / 20     | **Default** body and UI text, menu items, inputs, buttons |
+| `text-xs`   | 12 / 16     | **Chrome default**: buttons, menu items, toolbars, labels, file headers (mono), diff code (mono) |
+| `text-sm`   | 13 / 20     | Body text: comments, file-tree rows, inputs |
 | `text-base` | 14 / 20     | Section titles in dialogs and settings, PR title |
 | `text-lg`   | 16 / 24     | Page titles (rare) |
 
@@ -97,8 +116,8 @@ Section labels are sentence case, `text-xs font-medium text-fg-muted`, not upper
 
 ### Radii
 
-`rounded-sm` 4px (badges, kbd, menu rows, inline chips) · `rounded-md` 6px (buttons, inputs, toggles, small cards) ·
-`rounded-lg` 8px (cards, popovers, dialogs, diff file cards). Use `rounded-full` only for dots and count pills.
+`rounded-sm` 4px (status letters, kbd, menu rows, gutter "+") · `rounded-md` 6px (buttons, inputs, toggles, inset text field) ·
+`rounded-lg` 8px (thread cards, comment bubbles, composer box, popovers, dialogs, file cards). `rounded-full` for badges, avatars, dots.
 `rounded-xl` and larger are not used.
 
 ### Spacing and density
@@ -107,8 +126,10 @@ Section labels are sentence case, `text-xs font-medium text-fg-muted`, not upper
 - **Control heights:** 24px `h-6` (`sm`: inline, dense lists, card actions), 28px `h-7` (`md`: default,
   toolbars, panel headers), 32px `h-8` (`lg`: forms, hero actions).
 - **Bars:** the app toolbar is `h-11`. Pane headers and sub-toolbars are `h-9` with `px-2` or `px-3` and `border-b border-border`.
-- **List rows:** `h-7` with `px-3` (file sidebar), 24px for the virtualised tree. Rows use `hover:bg-hover`,
-  the current row uses `bg-selected`, and row dividers inside a container use `border-border-subtle`.
+- **List rows:** `h-7` (file sidebar), 24px for the virtualised tree, `text-sm`. Rows use `border-l-2 border-l-transparent hover:bg-hover`;
+  the current row uses `bg-active border-l-accent`. Viewed files are `opacity-50` with a struck-through name.
+- **Status letters:** 18px `rounded-sm font-mono text-2xs font-bold`, `bg-{added|removed|warning|renamed}/15`.
+- **Comment counts:** `CommentCount` (icon + number, `text-accent` in lists, `text-fg-subtle` in file headers), not pills.
 - **Card padding:** `px-3 py-2` for dense cards (threads, tool calls), `p-4` for dialogs and settings panels.
 - Gaps: 4px between icon buttons, 6–8px between buttons, 12px between cards.
 
@@ -120,16 +141,32 @@ Section labels are sentence case, `text-xs font-medium text-fg-muted`, not upper
 ```
 
 Panes are separated only by `ResizeHandle` (the 1px `bg-border` line). Adjacent panes must not add their own border on that edge.
-The diff renders as a column of flat bordered file cards (8px radius, `bg-panel` 44px header with a `border-b`) inset 12px inside the canvas.
+The diff renders as a column of bordered file cards (8px radius, sticky 36px `bg-panel` header with a `border-b`, mono 12px path)
+inset 12px inside the canvas. The sub-toolbar above it (`CommentNavBar`) is `bg-panel` with a `bg-muted` "N files changed +a −d" chip.
+
+## Comments
+
+- **Composer** (`CommentComposer` → `MarkdownEditor`): one flat `bg-muted rounded-lg` box. Header row: label
+  ("Add a comment on line 5") left, tiny Write/Preview tabs and the @ button right. Then an inset `bg-canvas rounded-md`
+  textarea. Footer inside the box: severity dropdown (`SeverityPicker`, a ghost "Severity ▾" menu) left;
+  Cancel (ghost), Add single comment (secondary), Start a review / Add review comment (primary) right, all `md` (28px).
+  No card around it, no border.
+- **Thread** (`ThreadCard`): `bg-panel rounded-lg`, no border (pending threads get a dashed `border-warning/60`, the active one
+  `border-accent`). Header: mono `text-2xs text-fg-subtle` "Line 5", severity/status badges; right side: Ask Claude,
+  "Resolve"/"Reopen" and "Collapse" as tiny text actions, overflow menu. Each comment is a `bg-canvas rounded-lg px-3 py-2.5`
+  bubble: 20px avatar, `text-xs font-semibold` author, `bot` pill, `text-2xs` time, body indented `pl-7`. Footer: accent "Reply" link.
+- **Collapsed/resolved thread:** a single inline 24px button (comment icon, "N comments", badges).
+- **Conversation** (general comments): `rounded-lg bg-panel` (or `bg-accent/5` when non-empty) header with accent "Add comment" link,
+  body is an inset `bg-canvas rounded-md` well holding thread cards.
 
 ## Primitives (`components/ui`)
 
 | Component | Import | Key props |
 |-----------|--------|-----------|
-| `Button` | `ui/Button` | `variant`: `primary` \| `secondary` (default) \| `ghost` \| `danger`; `size`: `sm` 24 \| `md` 28 (default) \| `lg` 32; `loading` (shows Spinner, disables). Put icons as children before the label |
-| `IconButton` | `ui/IconButton` | `label` (required; it is the aria-label and the tooltip), `shortcut?` shown in the tooltip, `active?` (accent-soft toggle state), `size`: `sm` 24 \| `md` 28, `variant`: `ghost` \| `primary`, `tooltipSide` |
+| `Button` | `ui/Button` | `variant`: `primary` (solid `accent-solid`) \| `secondary` (transparent + `border`, default) \| `ghost` \| `danger`; `size`: `sm` 24 \| `md` 28 `px-3 text-xs` (default) \| `lg` 32; `loading` (shows Spinner, disables). Put icons as children before the label |
+| `IconButton` | `ui/IconButton` | `label` (required; it is the aria-label and the tooltip), `shortcut?` shown in the tooltip, `active?` (`bg-accent/12 text-accent`), `size`: `sm` 24 \| `md` 28, `variant`: `ghost` \| `primary`, `tooltipSide`. Idle icon colour is `fg-subtle` |
 | `Tooltip` / `useTooltip` | `ui/Tooltip` | `useTooltip(content, side)` returns `{ anchorProps, tooltip }` for custom triggers; `<Tooltip content>` wraps arbitrary children. 450ms delay, portal, bordered |
-| `SegmentedToggle` | `ui/SegmentedToggle` | `value`, `options: {value,label,title?}[]`, `onChange`, `size`: `sm` \| `md` |
+| `SegmentedToggle` | `ui/SegmentedToggle` | `value`, `options: {value,label,title?}[]`, `onChange`, `size`: `sm` \| `md`. `bg-muted` track, selected segment is solid `accent-solid` with white text (old toolbar style) |
 | `Tabs` | `ui/Tabs` | `value`, `items: {value,label,icon?,count?}[]`, `onChange`, `variant`: `underline` (toolbar and pane headers; 2px accent indicator, fills parent height) \| `pill` \| `list` (vertical nav) |
 | `Badge` / `CountBadge` | `ui/Badge` | `tone`: `neutral` \| `accent` \| `success` \| `warning` \| `danger` \| `info`. `CountBadge` has `count`, `icon?` (12px pill) |
 | `Kbd` | `ui/Kbd` | children, e.g. `⌘L` |
@@ -176,12 +213,17 @@ The diff renders as a column of flat bordered file cards (8px radius, `bg-panel`
 
 ## Diff surface (`components/diff-surface`)
 
-- `theme.ts` maps @pierre/diffs onto the tokens through `unsafeCSS` (the `unsafe` layer beats the theme's inline
-  colours; our CSS variables inherit into the library's encapsulated DOM). Background is `canvas`, separators and
-  buffers are `panel`, and add/remove use `added`/`removed`. Syntax colours still come from `pierre-light`/`pierre-dark`.
-- `SURFACE_TOKEN_CSS` is colours only (use it for embedded diffs like the permission preview).
-  `SURFACE_UNSAFE_CSS` adds the file-card chrome. The file header must stay exactly 44px tall because CodeView virtualises on that metric.
-  Never add borders or padding that change item heights; draw card edges with the `::after` overlay.
+- `theme.ts` maps @pierre/diffs onto the tokens through `unsafeCSS` (the `unsafe` layer beats the library's base layer; our CSS
+  variables inherit into its encapsulated DOM). It sets line backgrounds directly from `--diff-*` (instead of the library's colour
+  mixing), word-diff spans from `--diff-*-word`, hunk separators from `--diff-hunk-*`, and line numbers in `fg-subtle`.
+- Syntax: Shiki `github-light` / `github-dark` (`DIFF_THEMES`), same as the old app. Indicators are `classic` (+/− column).
+  Hunk separators are `line-info-basic` (full-width `diff-hunk-bg` row with expand buttons).
+- **Selection** paints only code lines: `--diff-comment-bg` on the line, `--diff-comment-gutter` on its number. Annotation rows
+  (composer, threads) always stay `canvas` — never let the selection tint reach `[data-line-annotation]`.
+- Gutter "+" (`[data-utility-button]`) is an 18px `accent-solid` square with 4px radius and a 10px glyph.
+- `SURFACE_TOKEN_CSS` is colours only (embedded diffs like the permission preview). `SURFACE_UNSAFE_CSS` adds the file-card chrome.
+  The file header is `FILE_HEADER_HEIGHT` (36px) and CodeSurface passes the same value as `itemMetrics.diffHeaderHeight`; change both
+  together. Never add borders or padding that change item heights; draw card edges with the `::after` overlay.
 - Single-file views (`hideFileHeader`) render full-bleed with no card.
 
 ## Do / Don't
@@ -189,11 +231,12 @@ The diff renders as a column of flat bordered file cards (8px radius, `bg-panel`
 | Do | Don't |
 |----|-------|
 | Separate with `border-border` and a surface step (`panel` next to `canvas`) | Add `shadow-*`, `ring-*` or glows |
-| Use `bg-selected` for the current row and `accent-soft` for an on toggle | Use `bg-accent` fills for selection |
+| Use `bg-active` + `border-l-accent` for the current row and `bg-accent/12` for an on toggle | Use `bg-accent` fills for list selection |
 | Use `accent-solid` for filled accent backgrounds | Put white text on `accent` in dark mode (contrast fails) |
+| Keep comment UI flat: `muted` composer box, `panel` thread card, `canvas` bubbles | Nest bordered boxes inside bordered boxes |
 | Use `Button`/`IconButton`/`Input` | Hand-style `<button>`/`<input>` with ad-hoc classes |
 | Use `text-2xs`…`text-lg` | Use `text-[13px]` or other arbitrary sizes |
 | Use 12/14/16/20/24 icon sizes | Use 10/11/13/15 or hand-rolled SVG |
 | Write sentence-case section labels | Use uppercase tracking-wider labels |
-| Tint status with `/10–/12` backgrounds and `/30–/40` borders | Use solid semantic backgrounds except for `danger` buttons |
+| Tint status with `/15` backgrounds and `/30–/40` borders | Use solid semantic backgrounds except for `danger` buttons |
 | Keep chrome (`panel`) and content (`canvas`) distinct | Nest `raised` cards inside `raised` cards without a border |

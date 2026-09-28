@@ -9,7 +9,7 @@ export function FolderView(props: { node: TreeNode }) {
 
   return (
     <div className="h-full overflow-auto p-4">
-      <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-border bg-raised">
+      <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-border bg-canvas">
         <div className="border-b border-border bg-panel px-4 py-2 text-xs font-medium text-fg-muted">
           {node.path || 'Repository root'} · {node.children.length} items
         </div>

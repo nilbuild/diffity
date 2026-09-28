@@ -108,7 +108,7 @@ export function MenuRow(props: MenuRowProps) {
       disabled={disabled}
       onClick={onSelect}
       className={cn(
-        'flex w-full cursor-default items-center gap-2 rounded-sm px-2 text-left text-sm hover:bg-hover disabled:pointer-events-none disabled:opacity-40',
+        'flex w-full cursor-default items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-hover disabled:pointer-events-none disabled:opacity-40',
         description ? 'py-1.5' : 'h-7',
         danger ? 'text-danger' : 'text-fg',
         className,
