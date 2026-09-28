@@ -82,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
     ));
     manager.on_threads_changed(Arc::new(|sid: &str| println!("[threads-changed] {sid}")));
 
-    for info in manager.list_agents().await? {
+    for info in manager.list_agents(false).await? {
         println!("[agent] {info:?}");
     }
     let session = store.get_or_create_session(&repo_path, "work")?;

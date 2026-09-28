@@ -11,12 +11,16 @@ use tauri::{Emitter, Manager};
 
 pub use state::AppState;
 
+/// `diffity-mcp` is bundled as a Tauri `externalBin`: Tauri places it next to the main executable
+/// (`target/<profile>/` in dev, `Diffity.app/Contents/MacOS/` when bundled).
 fn mcp_binary_path() -> std::path::PathBuf {
-    // TODO: resolve bundled sidecar once `externalBin` is configured for diffity-mcp.
+    let name = if cfg!(windows) { "diffity-mcp.exe" } else { "diffity-mcp" };
     std::env::current_exe()
         .ok()
-        .and_then(|p| p.parent().map(|d| d.join("diffity-mcp")))
-        .unwrap_or_else(|| "diffity-mcp".into())
+        .and_then(|p| p.parent().map(|d| d.join(name)))
+        .filter(|p| p.exists())
+        .or_else(|| diffity_agents::detect::find_in_path(name))
+        .unwrap_or_else(|| name.into())
 }
 
 fn init_state(app: &tauri::App) -> anyhow::Result<AppState> {
@@ -35,7 +39,11 @@ fn init_state(app: &tauri::App) -> anyhow::Result<AppState> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                tracing_subscriber::EnvFilter::new(if cfg!(debug_assertions) { "info" } else { "warn" })
+            }),
+        )
         .try_init();
     env_fix::load_login_shell_env();
 
@@ -85,6 +93,8 @@ pub fn run() {
             commands::comments::set_thread_status,
             commands::comments::list_viewed,
             commands::comments::set_viewed,
+            commands::dev::log_frontend,
+            commands::dev::dev_launch_target,
             commands::agents::list_agents,
             commands::agents::start_chat,
             commands::agents::list_chats,
@@ -107,6 +117,7 @@ pub fn run() {
             commands::github::checkout_pr,
             commands::github::push_review,
             commands::github::pull_review,
+            commands::github::github_pushable_threads,
             commands::github::github_reply,
             commands::github::github_set_resolved,
         ])

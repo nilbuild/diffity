@@ -23,6 +23,7 @@ export function useThreadsChangedListener() {
     api
       .onThreadsChanged((payload) => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.threads(payload.sessionId) });
+        void queryClient.invalidateQueries({ queryKey: ['github', 'pushable'] });
       })
       .then((fn) => {
         if (disposed) {

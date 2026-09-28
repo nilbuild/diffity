@@ -1,17 +1,9 @@
 import type { AgentInfo, AgentMode } from '@/lib/types';
 
-export const DEFAULT_AGENT_SETTING = 'agent.default';
 export const agentPathSetting = (agentId: string) => `agent.${agentId}.path`;
 
-const CLI_NAMES: Record<string, string> = {
-  claude: 'claude',
-  'claude-code': 'claude',
-  codex: 'codex',
-  gemini: 'gemini',
-};
-
 export function agentCli(agent: AgentInfo) {
-  return CLI_NAMES[agent.id] ?? agent.id;
+  return agent.id;
 }
 
 export function isAgentUsable(agent: AgentInfo) {
@@ -28,17 +20,9 @@ export function agentHint(agent: AgentInfo): string | null {
   return agent.note;
 }
 
-export function pickAgent(agents: AgentInfo[], preferred: string | null, fallbackSetting: string | null) {
-  const byId = (id: string | null) => (id ? agents.find((agent) => agent.id === id) : undefined);
-  const candidate = byId(preferred);
-  if (candidate) {
-    return candidate;
-  }
-  const configured = byId(fallbackSetting);
-  if (configured && isAgentUsable(configured)) {
-    return configured;
-  }
-  return agents.find(isAgentUsable) ?? configured ?? agents[0] ?? null;
+/** Only Claude Code is supported for now; the backend reports a single agent. */
+export function pickAgent(agents: AgentInfo[]) {
+  return agents.find((agent) => agent.id === 'claude') ?? agents[0] ?? null;
 }
 
 export function isReadOnlyMode(mode: AgentMode) {

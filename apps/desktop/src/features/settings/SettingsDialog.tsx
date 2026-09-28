@@ -5,7 +5,7 @@ import * as api from '@/lib/api';
 import { queryKeys } from '@/lib/query';
 import { cn } from '@/lib/cn';
 import type { AgentInfo } from '@/lib/types';
-import { DEFAULT_AGENT_SETTING, agentHint, agentPathSetting, isAgentUsable } from '@/features/agent/agents';
+import { agentHint, agentPathSetting, isAgentUsable } from '@/features/agent/agents';
 import { IconGithub } from '@/features/agent/icons';
 import { Badge, Button, Dialog, Spinner } from '@/features/agent/primitives';
 import { GithubAuthPanel } from '@/features/pr/GithubAuthPanel';
@@ -19,7 +19,7 @@ export interface SettingsDialogProps {
 type Section = 'agents' | 'github' | 'editor' | 'appearance';
 
 const SECTIONS: { id: Section; label: string }[] = [
-  { id: 'agents', label: 'Agents' },
+  { id: 'agents', label: 'Claude Code' },
   { id: 'github', label: 'GitHub' },
   { id: 'editor', label: 'Editor' },
   { id: 'appearance', label: 'Appearance' },
@@ -131,29 +131,25 @@ function OptionCards<T extends string>(props: {
 
 function AgentsSection() {
   const queryClient = useQueryClient();
-  const agentsQuery = useQuery({ queryKey: queryKeys.agents(), queryFn: api.listAgents });
-  const defaultQuery = useSetting(DEFAULT_AGENT_SETTING);
-  const save = useSaveSetting();
+  const agentsQuery = useQuery({ queryKey: queryKeys.agents(), queryFn: () => api.listAgents() });
   const agents = agentsQuery.data ?? [];
+  const redetect = async () => {
+    const fresh = await api.listAgents(true).catch((error) => {
+      toast.error('Could not detect Claude Code', { description: api.errorMessage(error) });
+      return null;
+    });
+    if (!fresh) {
+      return;
+    }
+    queryClient.setQueryData(queryKeys.agents(), fresh);
+  };
 
   return (
     <div>
-      <SectionTitle title="Agents" description="Coding agents are driven over ACP from your local CLI installs." />
-      <Field label="Default agent">
-        <OptionCards
-          value={defaultQuery.data ?? ''}
-          options={agents.map((agent) => ({ value: agent.id, label: agent.name }))}
-          onChange={(value) => void save(DEFAULT_AGENT_SETTING, value)}
-        />
-      </Field>
+      <SectionTitle title="Claude Code" description="Diffity drives your local Claude Code install over ACP." />
       <div className="mb-2 flex items-center justify-between">
-        <div className="text-xs font-medium">Detected agents</div>
-        <Button
-          size="xs"
-          variant="ghost"
-          loading={agentsQuery.isFetching}
-          onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.agents() })}
-        >
+        <div className="text-xs font-medium">Detected install</div>
+        <Button size="xs" variant="ghost" loading={agentsQuery.isFetching} onClick={() => void redetect()}>
           Re-detect
         </Button>
       </div>
@@ -192,7 +188,10 @@ function AgentRow(props: { agent: AgentInfo }) {
     if (!ok) {
       return;
     }
-    queryClient.invalidateQueries({ queryKey: queryKeys.agents() });
+    const fresh = await api.listAgents(true).catch(() => null);
+    if (fresh) {
+      queryClient.setQueryData(queryKeys.agents(), fresh);
+    }
     toast.success(draft.trim() ? `${agent.name} path saved` : `${agent.name} path reset to auto-detect`);
   };
 

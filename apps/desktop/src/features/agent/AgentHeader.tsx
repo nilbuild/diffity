@@ -5,8 +5,8 @@ import type { AgentInfo, Chat } from '@/lib/types';
 import { cn } from '@/lib/cn';
 import { agentHint, isAgentUsable, modeLabel } from './agents';
 import type { UiMode } from './agent-store';
-import { IconChevronDown, IconHistory, IconPlus, IconTrash, IconX } from './icons';
-import { Badge, IconButton, MenuItem, Popover, SegmentedControl, Spinner } from './primitives';
+import { IconHistory, IconPlus, IconTrash, IconX } from './icons';
+import { Badge, IconButton, Popover, SegmentedControl, Spinner } from './primitives';
 
 dayjs.extend(relativeTime);
 
@@ -14,7 +14,6 @@ export interface AgentHeaderProps {
   agents: AgentInfo[];
   agentsLoading: boolean;
   agent: AgentInfo | null;
-  onSelectAgent: (agentId: string) => void;
   uiMode: UiMode;
   onModeChange: (mode: UiMode) => void;
   chats: Chat[];
@@ -25,53 +24,20 @@ export interface AgentHeaderProps {
   onClose: () => void;
 }
 
-function AgentPicker(props: Pick<AgentHeaderProps, 'agents' | 'agentsLoading' | 'agent' | 'onSelectAgent'>) {
-  const { agents, agentsLoading, agent, onSelectAgent } = props;
-  const [open, setOpen] = useState(false);
-
-  const trigger = (
-    <button
-      type="button"
-      onClick={() => setOpen((value) => !value)}
-      className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[13px] font-medium hover:bg-bg-muted"
-    >
+function AgentLabel(props: Pick<AgentHeaderProps, 'agentsLoading' | 'agent'>) {
+  const { agentsLoading, agent } = props;
+  const usable = agent ? isAgentUsable(agent) : false;
+  const title = agent ? (usable ? (agent.binaryPath ?? agent.name) : (agentHint(agent) ?? agent.name)) : undefined;
+  return (
+    <div className="flex h-7 items-center gap-1.5 px-2 text-[13px] font-medium" title={title}>
       {agentsLoading && <Spinner size={12} />}
       {agent && (
-        <span
-          className={cn('h-1.5 w-1.5 rounded-full', isAgentUsable(agent) ? 'bg-success' : 'bg-warning')}
-          aria-hidden
-        />
+        <span className={cn('h-1.5 w-1.5 rounded-full', usable ? 'bg-success' : 'bg-warning')} aria-hidden />
       )}
-      <span className="max-w-[120px] truncate">{agent?.name ?? (agentsLoading ? 'Loading…' : 'No agents')}</span>
-      <IconChevronDown size={12} className="text-fg-subtle" />
-    </button>
-  );
-
-  return (
-    <Popover open={open} onOpenChange={setOpen} trigger={trigger} className="w-[260px]">
-      {agents.length === 0 && <div className="px-2 py-1.5 text-xs text-fg-subtle">No agents detected</div>}
-      {agents.map((item) => {
-        const usable = isAgentUsable(item);
-        return (
-          <MenuItem
-            key={item.id}
-            active={item.id === agent?.id}
-            disabled={!usable}
-            hint={usable ? item.binaryPath : agentHint(item)}
-            onSelect={() => {
-              onSelectAgent(item.id);
-              setOpen(false);
-            }}
-          >
-            <span className="flex items-center gap-2">
-              {item.name}
-              {!item.installed && <Badge>Not installed</Badge>}
-              {item.installed && item.authenticated === false && <Badge tone="warning">Logged out</Badge>}
-            </span>
-          </MenuItem>
-        );
-      })}
-    </Popover>
+      <span className="truncate">{agent?.name ?? (agentsLoading ? 'Loading…' : 'Claude Code')}</span>
+      {agent && !agent.installed && <Badge>Not installed</Badge>}
+      {agent?.installed && agent.authenticated === false && <Badge tone="warning">Logged out</Badge>}
+    </div>
   );
 }
 
@@ -131,12 +97,7 @@ export function AgentHeader(props: AgentHeaderProps) {
   const { uiMode, onModeChange, onNewChat, onClose } = props;
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
-      <AgentPicker
-        agents={props.agents}
-        agentsLoading={props.agentsLoading}
-        agent={props.agent}
-        onSelectAgent={props.onSelectAgent}
-      />
+      <AgentLabel agentsLoading={props.agentsLoading} agent={props.agent} />
       <SegmentedControl
         className="ml-1"
         value={uiMode}

@@ -32,6 +32,8 @@ export function CommentForm(props: CommentFormProps) {
     }
     el.focus({ preventScroll: true });
     el.setSelectionRange(el.value.length, el.value.length);
+    const frame = requestAnimationFrame(() => el.scrollIntoView({ block: 'nearest' }));
+    return () => cancelAnimationFrame(frame);
   }, [autoFocus]);
 
   useEffect(() => {

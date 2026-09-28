@@ -8,8 +8,11 @@ use tauri::State;
 use crate::state::AppState;
 
 #[tauri::command]
-pub async fn list_agents(state: State<'_, AppState>) -> Result<Vec<AgentInfo>, AppError> {
-    state.agents.list_agents().await
+pub async fn list_agents(
+    state: State<'_, AppState>,
+    refresh: Option<bool>,
+) -> Result<Vec<AgentInfo>, AppError> {
+    state.agents.list_agents(refresh.unwrap_or(false)).await
 }
 
 #[tauri::command]

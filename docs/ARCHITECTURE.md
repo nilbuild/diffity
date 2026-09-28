@@ -5,7 +5,7 @@ Scope v1: diffs, comments, file browsing, agents (ACP), GitHub (git sync + PR re
 Reference implementation of the old product (read for behaviour, do not copy blindly): `~/Vibecode/diffity`
 (`packages/git/src/*.ts` for ref resolution, `packages/github/src/*.ts`, `packages/cli/src/{threads,db,server}.ts`, `skills/*/SKILL.md` for review/resolve prompts).
 
-Defaults chosen: data in app data dir; macOS first; agents = Claude Code, Codex, Gemini via ACP; GitHub auth = import `gh auth token`, paste PAT, or OAuth device flow when `DIFFITY_GITHUB_CLIENT_ID` is set.
+Defaults chosen: data in app data dir; macOS first; agents = Claude Code via ACP (Codex/Gemini code kept but disabled); GitHub auth = import `gh auth token`, paste PAT, or OAuth device flow when `DIFFITY_GITHUB_CLIENT_ID` is set.
 
 ## Layout
 
@@ -219,7 +219,7 @@ Keyboard: j/k file, n/p hunk, u/s view, x / shift+x collapse, r viewed, / filter
 
 ## Scaffold notes / TODO
 
-- TODO: add `bundle.externalBin: ["binaries/diffity-mcp"]` in `src-tauri/tauri.conf.json` (target-triple suffixed copy of the `diffity-mcp` binary) and resolve it in `lib.rs::mcp_binary_path()`. Dev currently resolves `diffity-mcp` next to the desktop exe (`target/debug/`), so run `cargo build -p diffity-mcp` first.
+- `diffity-mcp` is bundled as `bundle.externalBin: ["binaries/diffity-mcp"]` (see Integration notes).
 - Router is `HashRouter`: extra windows (`repo-*` labels) load `index.html#/repo?path=<encoded>`.
 - Rust command params named `ref` are written `r#ref` (tauri-macros unraws them, so JS key stays `ref`).
 - `Store::conn()` returns a `MutexGuard<Connection>`; never hold it across `.await`.
@@ -254,9 +254,24 @@ Watcher: `watch::WatcherRegistry` (held in a static in `commands/repo.rs`); `wat
 
 ## Agents implementation notes (agents workstream)
 
+- **Only Claude Code is enabled** (`AgentKind::ENABLED`); Codex/Gemini launch code below is kept but unregistered — add them to `ENABLED` (and back to the UI) to re-enable.
 - Launch (resolved in `diffity_agents::detect`, cached 30s): Claude → `claude-agent-acp` on PATH, else `npx -y @agentclientprotocol/claude-agent-acp@0.84.0`; Codex → `codex-acp` on PATH, else `npx -y @agentclientprotocol/codex-acp@2.0.0` with `CODEX_PATH=<installed codex>` (unless already set); Gemini → `gemini --acp` (`--experimental-acp` for old CLIs). Auth: `claude auth status --json` (`loggedIn`), `codex login status` (exit code), Gemini `null`.
 - ACP client: `agent-client-protocol` 2.2.0 (protocol v1). One agent process per chat, started lazily on first `send_prompt`, reused for follow-ups, `session/load` on restart when the agent supports it. Killed on `delete_chat` and on app exit (`AgentManager::shutdown`, wired to `RunEvent::Exit`).
 - Permission policy: `ask`/`review` auto-reject `edit|delete|move|execute` permission requests and refuse `fs/write_text_file`; `resolve`/`edit` forward everything, and `fs/write_text_file` asks with a diff unless the same path was just approved via `session/request_permission`. Diffity's own MCP tools are auto-approved (the bridge enforces mode).
 - Extra table owned by agents: `agent_chat_sessions(chat_id PK → chats.id, session_id)` binds a chat to its review session (created by `AgentManager::new`).
 - Bridge extras: pseudo-tool `__list_tools` returns the tool names allowed for the token's mode (the stdio server filters `tools/list` with it). `add_comment` accepts any line that exists on the chosen side (anchor filled when inside a hunk); `startLine: 0` = file-level comment.
 - `diffity-mcp` uses `rmcp` 3.5 and must set `ttlMs`/`cacheScope` on `tools/list` (Claude Code negotiates MCP `2026-07-28`).
+
+## Integration notes
+
+- **MCP sidecar.** `apps/desktop/scripts/prepare-mcp.mjs` runs from `beforeDevCommand`/`beforeBuildCommand`: it builds `diffity-mcp` (release when `TAURI_ENV_DEBUG=false`) and copies it to `src-tauri/binaries/diffity-mcp-<target-triple>` (gitignored). Tauri copies the sidecar next to the main executable (`target/<profile>/diffity-mcp` in dev, `Diffity.app/Contents/MacOS/diffity-mcp` bundled); `lib.rs::mcp_binary_path()` resolves it there, falling back to `PATH`. `src-tauri/build.rs` keeps plain `cargo build`/`cargo test` working: it copies an already-built `target/<profile>/diffity-mcp` into `binaries/` or writes a placeholder script that exits with an error.
+- **Custom agent path.** `agent.<id>.path` (Settings → Claude Code → custom binary path) is read by `AgentManager` on every detection (cache is keyed by the configured paths; `list_agents(refresh: true)` bypasses the 30s cache). A path whose file name starts with `claude-agent-acp` is launched directly as the ACP adapter; any other path is treated as the `claude` CLI: used for the auth probe and passed to the adapter as `CLAUDE_CODE_EXECUTABLE`.
+- **Prompts** tell agents to use only `mcp__diffity__*` tools and never a `diffity` CLI or the old diffity skills (users may have them installed globally). A unit test enforces this for every template.
+- **PR comments across sessions.** Users usually comment in `work` (or a branch/commit ref) while the PR tab uses the PR session `origin/<base>...HEAD`.
+  - *Push:* `github_pushable_threads(repoPath, prNumber)` returns open, unsynced threads from **all** of the repo's sessions whose file is in the PR (general comments included) and whose commented side is anchored like GitHub's PR diff: new side ⇒ the session's new side is local `HEAD` (`work`, `staged`, `HEAD`, the PR ref, the file browser), old side ⇒ the session's base is the PR merge-base (in practice only the PR session). PR-session threads are listed first; others get an "other view" badge. `push_review(..., threadIds)` accepts ids from any session of the repo (with `threadIds: null` it pushes the given session only, as before). Threads stay in their original session and gain GitHub ids there.
+  - *Pull:* `pull_review` matches remote threads against GitHub-linked threads in **any** session of the repo (so threads pushed from `work` update in place); new remote threads are created in the PR session, and the PR tab switches the ref picker to the PR ref so the Changes view shows them. Both commands emit `threads-changed` for every session of the repo.
+- **Dev helpers** (debug builds only): `DIFFITY_OPEN=<repo path>` (+ optional `DIFFITY_TAB=changes|files|pr`) opens that repo in the main window on launch (`dev_launch_target` command, `lib/dev.ts`). Webview `console.error`/`console.warn`, uncaught errors and unhandled rejections are forwarded to the terminal through `log_frontend` (tracing target `webview`). Default log level is `info` in dev; override with `RUST_LOG`.
+- `?pr=<url|number>` on `/repo` (from the welcome page) opens the PR tab, which checks the PR out once GitHub auth is available. The initial tab is latched on mount so stripping `?pr=` doesn't bounce back to Changes.
+- "Explain" from a line selection sends the selection (path, side, range, snippet) as a context chip; `prompts/explain.md` focuses the explanation on that range.
+
+Launch the app: `pnpm install && pnpm -C apps/desktop tauri dev` (optionally `DIFFITY_OPEN=/path/to/repo`). Bundle: `pnpm -C apps/desktop tauri build --debug --bundles app`.

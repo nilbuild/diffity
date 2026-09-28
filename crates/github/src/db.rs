@@ -124,6 +124,27 @@ pub fn list_session_threads(store: &Store, session_id: &str) -> Result<Vec<Threa
     Ok(out)
 }
 
+/// `(session_id, ref)` for every review session of a repo, oldest first.
+pub fn list_repo_sessions(store: &Store, repo_path: &str) -> Result<Vec<(String, String)>> {
+    let conn = store.conn()?;
+    let mut stmt = conn.prepare("SELECT id, ref FROM review_sessions WHERE repo_path = ?1 ORDER BY created_at, rowid")?;
+    let rows = stmt.query_map([repo_path], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// Every thread in every review session of a repo.
+pub fn list_repo_threads(store: &Store, repo_path: &str) -> Result<Vec<Thread>> {
+    let mut out = Vec::new();
+    for (session_id, _) in list_repo_sessions(store, repo_path)? {
+        out.extend(list_session_threads(store, &session_id)?);
+    }
+    Ok(out)
+}
+
 pub fn set_thread_github_ids(store: &Store, thread_id: &str, github_thread_id: &str, first_comment_id: Option<i64>) -> Result<()> {
     let conn = store.conn()?;
     conn.execute(

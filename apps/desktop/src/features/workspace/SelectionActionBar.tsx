@@ -50,7 +50,7 @@ export function SelectionActionBar(props: SelectionActionBarProps) {
           Ask AI
           <Kbd className="ml-0.5">{modKey}L</Kbd>
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => agentBus.runAction({ kind: 'explain', path: chip.filePath })}>
+        <Button size="sm" variant="ghost" onClick={() => agentBus.runAction({ kind: 'explain', path: chip.filePath }, [chip])}>
           <LightbulbIcon size={13} />
           Explain
         </Button>

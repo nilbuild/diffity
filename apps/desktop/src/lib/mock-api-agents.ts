@@ -254,8 +254,6 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
   return {
     list_agents: () => [
       { id: 'claude', name: 'Claude Code', installed: true, binaryPath: '/usr/local/bin/claude', authenticated: true, note: null },
-      { id: 'codex', name: 'Codex', installed: true, binaryPath: '/opt/homebrew/bin/codex', authenticated: false, note: null },
-      { id: 'gemini', name: 'Gemini CLI', installed: false, binaryPath: null, authenticated: null, note: null },
     ],
     list_chats: (args) =>
       [...chats.values()]

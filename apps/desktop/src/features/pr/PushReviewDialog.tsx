@@ -68,9 +68,10 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
   const [error, setError] = useState<string | null>(null);
 
   const threadsQuery = useQuery({
-    queryKey: queryKeys.threads(sessionId ?? ''),
-    queryFn: () => api.listThreads(sessionId ?? ''),
-    enabled: open && Boolean(sessionId),
+    queryKey: queryKeys.pushable(repoPath, pr.number),
+    queryFn: () => api.githubPushableThreads(repoPath, pr.number),
+    enabled: open,
+    staleTime: 0,
   });
 
   const pushable = useMemo(() => (threadsQuery.data ?? []).filter(isPushable), [threadsQuery.data]);
@@ -118,7 +119,8 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
     try {
       const pushed = await api.pushReview(repoPath, sessionId, pr.number, event, body.trim() || null, [...selected]);
       setResult(pushed);
-      queryClient.invalidateQueries({ queryKey: queryKeys.threads(sessionId) });
+      queryClient.invalidateQueries({ queryKey: ['threads'] });
+      queryClient.invalidateQueries({ queryKey: ['github', 'pushable'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.pr(repoPath) });
       if (pushed.failed === 0) {
         toast.success(`Review submitted to #${pr.number}`, {
@@ -212,13 +214,19 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
               </button>
             )}
           </div>
+          <p className="mb-1.5 text-[11px] text-fg-subtle">
+            Open comments from every view of this repo (uncommitted changes, branches, PR diff, files) on files in this PR.
+          </p>
           <div className="max-h-[260px] overflow-auto rounded-md border border-border">
             {threadsQuery.isPending && (
               <div className="flex items-center gap-2 px-3 py-3 text-xs text-fg-subtle">
                 <Spinner size={12} /> Loading comments…
               </div>
             )}
-            {!threadsQuery.isPending && pushable.length === 0 && (
+            {threadsQuery.isError && (
+              <div className="px-3 py-3 text-xs text-danger">{errorGuidance(threadsQuery.error)}</div>
+            )}
+            {threadsQuery.isSuccess && pushable.length === 0 && (
               <div className="px-3 py-4 text-center text-xs text-fg-subtle">
                 No unsynced open comments. You can still submit a review with a summary.
               </div>
@@ -247,6 +255,7 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
                         </Badge>
                       )}
                       {thread.severity && <Badge>{thread.severity}</Badge>}
+                      {thread.sessionId !== sessionId && <Badge title="Left in another view of this repo">other view</Badge>}
                     </div>
                     <p className="mt-0.5 line-clamp-2 text-xs">{first?.body ?? ''}</p>
                   </div>

@@ -1,6 +1,6 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use diffity_core::types::{Severity, Side, ThreadStatus, GENERAL_FILE_PATH};
+use diffity_core::types::{Severity, Side, Thread, ThreadStatus, GENERAL_FILE_PATH};
 use serde::Serialize;
 
 use crate::graphql::{Actor, RemoteThread};
@@ -259,5 +259,108 @@ mod tests {
         let second = map_remote_thread(&items[1]).unwrap();
         assert_eq!((second.start_line, second.end_line, second.status), (5, 5, ThreadStatus::Resolved));
         assert_eq!(map_remote_thread(&items[2]), None);
+    }
+}
+
+/// How a review session's line numbers relate to the PR on GitHub.
+#[derive(Debug, Clone, Default)]
+pub struct SessionAnchor {
+    /// The session's new side is the PR head (e.g. `work`, `HEAD`, the PR ref, the file browser).
+    pub new_matches: bool,
+    /// The session's old side is the PR base (merge-base of base branch and head).
+    pub old_matches: bool,
+    pub is_pr_session: bool,
+}
+
+/// Open, unsynced threads from any of the repo's sessions whose anchors line up with the PR:
+/// the file is part of the PR (or it is a general comment) and the commented side is anchored to the
+/// same commit GitHub uses (new side → PR head, old side → PR base). PR-session threads come first.
+pub fn select_pushable(
+    threads: Vec<Thread>,
+    anchors: &HashMap<String, SessionAnchor>,
+    pr_files: &HashSet<String>,
+) -> Vec<Thread> {
+    let mut out: Vec<Thread> = threads
+        .into_iter()
+        .filter(|t| t.status == ThreadStatus::Open && t.github_thread_id.is_none())
+        .filter(|t| {
+            let Some(anchor) = anchors.get(&t.session_id) else {
+                return false;
+            };
+            if t.file_path == GENERAL_FILE_PATH {
+                return anchor.is_pr_session || anchor.new_matches;
+            }
+            if !pr_files.contains(&t.file_path) {
+                return false;
+            }
+            if t.start_line == 0 {
+                return anchor.new_matches || anchor.old_matches;
+            }
+            match t.side {
+                Side::New => anchor.new_matches,
+                Side::Old => anchor.old_matches,
+            }
+        })
+        .collect();
+    out.sort_by_key(|t| {
+        let pr_first = anchors.get(&t.session_id).is_some_and(|a| a.is_pr_session);
+        (!pr_first, t.created_at.clone())
+    });
+    out
+}
+
+#[cfg(test)]
+mod pushable_tests {
+    use super::*;
+
+    fn thread(id: &str, session: &str, path: &str, side: Side, line: u32) -> Thread {
+        Thread {
+            id: id.into(),
+            session_id: session.into(),
+            file_path: path.into(),
+            side,
+            start_line: line,
+            end_line: line,
+            status: ThreadStatus::Open,
+            severity: None,
+            anchor_content: None,
+            github_thread_id: None,
+            comments: vec![],
+            created_at: format!("2026-01-01T00:00:0{}Z", id.len()),
+            updated_at: String::new(),
+        }
+    }
+
+    #[test]
+    fn picks_threads_from_matching_sessions_and_pr_files() {
+        let mut anchors = HashMap::new();
+        anchors.insert("work".to_string(), SessionAnchor { new_matches: true, ..Default::default() });
+        anchors.insert(
+            "pr".to_string(),
+            SessionAnchor { new_matches: true, old_matches: true, is_pr_session: true },
+        );
+        anchors.insert("old-commit".to_string(), SessionAnchor::default());
+        let files: HashSet<String> = ["src/a.ts".to_string()].into();
+        let mut synced = thread("synced", "work", "src/a.ts", Side::New, 3);
+        synced.github_thread_id = Some("T".into());
+        let mut resolved = thread("resolved", "work", "src/a.ts", Side::New, 3);
+        resolved.status = ThreadStatus::Resolved;
+        let picked = select_pushable(
+            vec![
+                thread("w-new", "work", "src/a.ts", Side::New, 3),
+                thread("w-old", "work", "src/a.ts", Side::Old, 3),
+                thread("w-other", "work", "src/b.ts", Side::New, 3),
+                thread("p-old", "pr", "src/a.ts", Side::Old, 2),
+                thread("general", "work", GENERAL_FILE_PATH, Side::New, 0),
+                thread("stale", "old-commit", "src/a.ts", Side::New, 3),
+                thread("orphan", "missing", "src/a.ts", Side::New, 3),
+                synced,
+                resolved,
+            ],
+            &anchors,
+            &files,
+        );
+        let ids: Vec<&str> = picked.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, vec!["p-old", "w-new", "general"]);
     }
 }

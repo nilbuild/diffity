@@ -20,6 +20,18 @@ pub enum AgentKind {
 
 impl AgentKind {
     pub const ALL: [AgentKind; 3] = [AgentKind::Claude, AgentKind::Codex, AgentKind::Gemini];
+    /// Agents exposed to the app. Only Claude Code is supported for now; Codex/Gemini launch code is
+    /// kept intact — add them back here to re-enable.
+    pub const ENABLED: [AgentKind; 1] = [AgentKind::Claude];
+
+    pub fn is_enabled(self) -> bool {
+        Self::ENABLED.contains(&self)
+    }
+
+    /// Settings key holding a user-provided binary path (Settings → custom binary path).
+    pub fn path_setting_key(self) -> String {
+        format!("agent.{}.path", self.id())
+    }
 
     pub fn from_id(id: &str) -> Option<Self> {
         match id {
@@ -40,7 +52,7 @@ impl AgentKind {
 
     pub fn display_name(self) -> &'static str {
         match self {
-            Self::Claude => "Claude",
+            Self::Claude => "Claude Code",
             Self::Codex => "Codex",
             Self::Gemini => "Gemini",
         }
@@ -169,7 +181,38 @@ pub fn adapter_launch(kind: AgentKind, npx: Option<&Path>) -> Result<LaunchSpec,
     })
 }
 
+fn expand_home(path: &str) -> PathBuf {
+    if let Some(rest) = path.strip_prefix("~/") {
+        if let Some(home) = std::env::var_os("HOME") {
+            return PathBuf::from(home).join(rest);
+        }
+    }
+    PathBuf::from(path)
+}
+
+/// A custom path may point at the agent CLI (`claude`, `codex`, `gemini`) or directly at the ACP
+/// adapter (`claude-agent-acp`, `codex-acp`).
+fn is_adapter_path(kind: AgentKind, path: &Path) -> bool {
+    let Some((adapter, _)) = kind.adapter() else {
+        return false;
+    };
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n.starts_with(adapter))
+}
+
 pub async fn detect(kind: AgentKind) -> DetectedAgent {
+    detect_with(kind, None).await
+}
+
+pub async fn detect_with(kind: AgentKind, custom_path: Option<&str>) -> DetectedAgent {
+    let custom = custom_path
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(expand_home);
+    if let Some(custom) = custom {
+        return detect_custom(kind, custom).await;
+    }
     let cli = find_in_path(kind.cli_binary());
     let mut info = AgentInfo {
         id: kind.id().into(),
@@ -234,13 +277,89 @@ pub async fn detect(kind: AgentKind) -> DetectedAgent {
     }
 }
 
-pub async fn detect_all() -> Vec<DetectedAgent> {
-    let (a, b, c) = tokio::join!(
-        detect(AgentKind::Claude),
-        detect(AgentKind::Codex),
-        detect(AgentKind::Gemini)
-    );
-    vec![a, b, c]
+async fn detect_custom(kind: AgentKind, custom: PathBuf) -> DetectedAgent {
+    let display = custom.to_string_lossy().into_owned();
+    let mut info = AgentInfo {
+        id: kind.id().into(),
+        name: kind.display_name().into(),
+        installed: false,
+        binary_path: Some(display.clone()),
+        authenticated: None,
+        note: None,
+    };
+    if !is_executable(&custom) {
+        info.note = Some(format!("Custom path `{display}` is not an executable file"));
+        return DetectedAgent {
+            kind,
+            info,
+            launch: None,
+        };
+    }
+
+    let (launch, auth_cli) = if is_adapter_path(kind, &custom) {
+        let spec = LaunchSpec {
+            command: custom.clone(),
+            args: vec![],
+            env: vec![],
+        };
+        (Ok(spec), find_in_path(kind.cli_binary()))
+    } else {
+        let launch = match kind {
+            AgentKind::Gemini => Ok(LaunchSpec {
+                command: custom.clone(),
+                args: vec![gemini_acp_flag(&custom).await.into()],
+                env: vec![],
+            }),
+            AgentKind::Codex => adapter_launch(kind, find_in_path("npx").as_deref()).map(|mut spec| {
+                spec.env.push(("CODEX_PATH".into(), display.clone()));
+                spec
+            }),
+            AgentKind::Claude => adapter_launch(kind, find_in_path("npx").as_deref()).map(|mut spec| {
+                spec.env
+                    .push(("CLAUDE_CODE_EXECUTABLE".into(), display.clone()));
+                spec
+            }),
+        };
+        (launch, Some(custom.clone()))
+    };
+
+    info.authenticated = match (kind, auth_cli.as_deref()) {
+        (AgentKind::Claude, Some(cli)) => claude_authenticated(cli).await,
+        (AgentKind::Codex, Some(cli)) => codex_authenticated(cli).await,
+        _ => None,
+    };
+    let launch = match launch {
+        Ok(spec) => spec,
+        Err(note) => {
+            info.note = Some(note);
+            return DetectedAgent {
+                kind,
+                info,
+                launch: None,
+            };
+        }
+    };
+    info.installed = true;
+    if info.authenticated == Some(false) {
+        info.note = Some(format!(
+            "Run `{} login` in a terminal to sign in",
+            kind.cli_binary()
+        ));
+    }
+    DetectedAgent {
+        kind,
+        info,
+        launch: Some(launch),
+    }
+}
+
+/// Detects every enabled agent. `custom_paths` maps agent id → user-provided binary path.
+pub async fn detect_all(custom_paths: &std::collections::HashMap<String, String>) -> Vec<DetectedAgent> {
+    let mut out = Vec::with_capacity(AgentKind::ENABLED.len());
+    for kind in AgentKind::ENABLED {
+        out.push(detect_with(kind, custom_paths.get(kind.id()).map(String::as_str)).await);
+    }
+    out
 }
 
 #[cfg(test)]
@@ -268,5 +387,39 @@ mod tests {
             );
         }
         assert!(adapter_launch(AgentKind::Gemini, None).is_err());
+    }
+
+    #[test]
+    fn only_claude_enabled() {
+        assert!(AgentKind::Claude.is_enabled());
+        assert!(!AgentKind::Codex.is_enabled());
+        assert!(!AgentKind::Gemini.is_enabled());
+        assert_eq!(AgentKind::Claude.path_setting_key(), "agent.claude.path");
+    }
+
+    #[tokio::test]
+    async fn custom_path_that_is_not_executable_is_reported() {
+        let agent = detect_with(AgentKind::Claude, Some("/definitely/not/here/claude")).await;
+        assert!(!agent.info.installed);
+        assert!(agent.launch.is_none());
+        assert_eq!(agent.info.binary_path.as_deref(), Some("/definitely/not/here/claude"));
+        assert!(agent.info.note.unwrap().contains("not an executable"));
+    }
+
+    #[tokio::test]
+    async fn custom_adapter_path_is_launched_directly() {
+        let dir = std::env::temp_dir().join(format!("diffity-detect-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let adapter = dir.join("claude-agent-acp");
+        std::fs::write(&adapter, "#!/bin/sh\nexit 0\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&adapter, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let agent = detect_with(AgentKind::Claude, adapter.to_str()).await;
+        assert!(agent.info.installed);
+        assert_eq!(agent.launch.unwrap().command, adapter);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

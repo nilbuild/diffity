@@ -7,7 +7,7 @@ const ASK: &str = include_str!("../../../prompts/ask.md");
 const EXPLAIN: &str = include_str!("../../../prompts/explain.md");
 const SUMMARIZE: &str = include_str!("../../../prompts/summarize.md");
 
-const EDIT_PREAMBLE: &str = "You are a coding assistant embedded in Diffity, a desktop code-review app, working in the repository at the current working directory. Make the changes the user asks for with your file editing tools; every write is shown to the user for approval. Keep changes minimal and focused.";
+const EDIT_PREAMBLE: &str = "You are a coding assistant embedded in Diffity, a desktop code-review app, working in the repository at the current working directory. Make the changes the user asks for with your file editing tools; every write is shown to the user for approval. Keep changes minimal and focused. For review comments use only the `diffity` MCP tools (`mcp__diffity__*`); never run a `diffity` CLI or invoke a diffity skill/slash command — those belong to an older tool and are not connected to this app.";
 
 pub fn render(template: &str, vars: &[(&str, &str)]) -> String {
     let mut out = template.to_string();
@@ -151,6 +151,14 @@ mod tests {
                 !p.contains("{{"),
                 "unrendered placeholder in {action:?}: {p}"
             );
+        }
+    }
+
+    #[test]
+    fn every_template_restricts_agents_to_diffity_mcp_tools() {
+        for template in [REVIEW, RESOLVE, ASK, EXPLAIN, SUMMARIZE, EDIT_PREAMBLE] {
+            assert!(template.contains("mcp__diffity__"), "{template}");
+            assert!(template.contains("CLI") || template.contains("command-line"), "{template}");
         }
     }
 

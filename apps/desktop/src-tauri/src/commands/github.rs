@@ -84,6 +84,7 @@ pub async fn checkout_pr(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn push_review(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -98,7 +99,7 @@ pub async fn push_review(
         .github
         .push_review(&repo_path, &session_id, pr_number, event, body, thread_ids)
         .await;
-    emit_threads_changed(&app, &session_id);
+    emit_repo_threads_changed(&app, &state, &repo_path);
     result
 }
 
@@ -111,8 +112,25 @@ pub async fn pull_review(
     pr_number: u64,
 ) -> Result<PullResult, AppError> {
     let result = state.github.pull_review(&repo_path, &session_id, pr_number).await;
-    emit_threads_changed(&app, &session_id);
+    emit_repo_threads_changed(&app, &state, &repo_path);
     result
+}
+
+/// Open unsynced threads from all of the repo's sessions that can be pushed to the PR.
+#[tauri::command]
+pub async fn github_pushable_threads(
+    state: State<'_, AppState>,
+    repo_path: String,
+    pr_number: u64,
+) -> Result<Vec<Thread>, AppError> {
+    state.github.pushable_threads(&repo_path, pr_number).await
+}
+
+fn emit_repo_threads_changed(app: &AppHandle, state: &AppState, repo_path: &str) {
+    let sessions = diffity_github::db::list_repo_sessions(&state.store, repo_path).unwrap_or_default();
+    for (session_id, _) in sessions {
+        emit_threads_changed(app, &session_id);
+    }
 }
 
 #[tauri::command]

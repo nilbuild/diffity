@@ -33,4 +33,5 @@ export const queryKeys = {
   githubAuth: () => ['github', 'auth'] as const,
   pr: (repoPath: string) => ['github', 'pr', repoPath] as const,
   prs: (repoPath: string) => ['github', 'prs', repoPath] as const,
+  pushable: (repoPath: string, prNumber: number) => ['github', 'pushable', repoPath, prNumber] as const,
 };

@@ -76,7 +76,10 @@ pub async fn has_upstream(repo: &str) -> Result<bool> {
 pub async fn origin_url(repo: &str) -> Result<String> {
     let out = run(repo, &["remote", "get-url", "origin"]).await?;
     if !out.ok {
-        return Err(crate::remote::not_github());
+        return Err(AppError::new(
+            "not_github",
+            "This repository has no `origin` remote. Add a github.com remote to use pull requests.",
+        ));
     }
     Ok(out.output)
 }

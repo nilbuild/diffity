@@ -98,7 +98,7 @@ export const setViewed = (sessionId: string, filePath: string, contentHash: stri
   invoke<void>('set_viewed', { sessionId, filePath, contentHash, viewed });
 
 // agents
-export const listAgents = () => invoke<AgentInfo[]>('list_agents');
+export const listAgents = (refresh?: boolean) => invoke<AgentInfo[]>('list_agents', { refresh: refresh ?? null });
 export const startChat = (input: StartChat) => invoke<Chat>('start_chat', { input });
 export const listChats = (repoPath: string) => invoke<Chat[]>('list_chats', { repoPath });
 export const getChatMessages = (chatId: string) => invoke<ChatMessage[]>('get_chat_messages', { chatId });
@@ -151,6 +151,9 @@ export const pushReview = (
   });
 export const pullReview = (repoPath: string, sessionId: string, prNumber: number) =>
   invoke<PullResult>('pull_review', { repoPath, sessionId, prNumber });
+/** Open unsynced threads from all of the repo's sessions that line up with the PR diff. */
+export const githubPushableThreads = (repoPath: string, prNumber: number) =>
+  invoke<Thread[]>('github_pushable_threads', { repoPath, prNumber });
 export const githubReply = (threadId: string, body: string) => invoke<Thread>('github_reply', { threadId, body });
 export const githubSetResolved = (threadId: string, resolved: boolean) =>
   invoke<Thread>('github_set_resolved', { threadId, resolved });

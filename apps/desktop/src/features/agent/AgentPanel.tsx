@@ -6,7 +6,7 @@ import { queryKeys } from '@/lib/query';
 import { TREE_REF, type AgentAction, type AgentMode, type Chat, type ContextChip } from '@/lib/types';
 import { useAgentBus, type AgentBusRequest } from '@/features/workspace/agent-bus';
 import { useWorkspace } from '@/features/workspace/workspace-context';
-import { DEFAULT_AGENT_SETTING, agentHint, isAgentUsable, isReadOnlyMode, modeLabel, pickAgent } from './agents';
+import { agentHint, isAgentUsable, isReadOnlyMode, modeLabel, pickAgent } from './agents';
 import { useAgentStore, useChatRuntime, type UiMode } from './agent-store';
 import { AgentHeader } from './AgentHeader';
 import { answerPermission, cancelChat, createChat, loadChat, sendToChat, sessionForChat } from './chat-actions';
@@ -71,27 +71,31 @@ function reviewRef(ref: string) {
   return ref;
 }
 
+function actionLabel(action: AgentAction, fallback: string, context: ContextChip[]) {
+  const chip = context[0];
+  if (action.kind !== 'explain' || !chip?.startLine) {
+    return fallback;
+  }
+  const range = chip.endLine && chip.endLine !== chip.startLine ? `${chip.startLine}-${chip.endLine}` : `${chip.startLine}`;
+  return `Explain \`${chip.filePath}:${range}\``;
+}
+
 export function AgentPanel() {
   const { repoPath, ref, sessionId } = useWorkspace();
   const queryClient = useQueryClient();
   const setPanelOpen = useAgentBus((state) => state.setPanelOpen);
   const queue = useAgentBus((state) => state.queue);
   const activeChatId = useAgentStore((state) => state.activeChatId);
-  const storedAgentId = useAgentStore((state) => state.agentId);
   const uiMode = useAgentStore((state) => state.uiMode);
   const runtime = useChatRuntime(activeChatId);
 
-  const agentsQuery = useQuery({ queryKey: queryKeys.agents(), queryFn: api.listAgents, staleTime: 60_000 });
-  const defaultAgentQuery = useQuery({
-    queryKey: queryKeys.setting(DEFAULT_AGENT_SETTING),
-    queryFn: () => api.getSetting(DEFAULT_AGENT_SETTING),
-  });
+  const agentsQuery = useQuery({ queryKey: queryKeys.agents(), queryFn: () => api.listAgents(), staleTime: 60_000 });
   const chatsQuery = useQuery({ queryKey: queryKeys.chats(repoPath), queryFn: () => api.listChats(repoPath) });
 
   const agents = agentsQuery.data ?? [];
   const chats = chatsQuery.data ?? [];
   const activeChat = chats.find((chat) => chat.id === activeChatId) ?? null;
-  const agent = pickAgent(agents, storedAgentId, defaultAgentQuery.data ?? null);
+  const agent = pickAgent(agents);
   const agentUsable = agent ? isAgentUsable(agent) : false;
   const agentName = agent?.name ?? 'Agent';
 
@@ -116,7 +120,7 @@ export function AgentPanel() {
 
   const ensureUsableAgent = useCallback(() => {
     if (!agent) {
-      toast.error('No coding agent found. Install Claude Code, Codex or Gemini CLI.');
+      toast.error('Claude Code not found. Install the `claude` CLI or set its path in Settings.');
       return null;
     }
     if (!isAgentUsable(agent)) {
@@ -159,7 +163,7 @@ export function AgentPanel() {
           chatId: chat.id,
           sessionId: targetSession,
           text,
-          displayText: text || plan.label,
+          displayText: text || actionLabel(action, plan.label, context),
           context,
           action,
           agentName: selected.name,
@@ -226,7 +230,7 @@ export function AgentPanel() {
         useAgentStore.getState().focusComposer();
         return;
       }
-      void runAction(request.action);
+      void runAction(request.action, '', request.context ?? []);
     },
     [runAction],
   );
@@ -276,8 +280,8 @@ export function AgentPanel() {
 
   const disabledReason = !agent
     ? agentsQuery.isPending
-      ? 'Detecting agents…'
-      : 'No coding agent detected'
+      ? 'Detecting Claude Code…'
+      : 'Claude Code not detected'
     : !agentUsable
       ? agentHint(agent)
       : null;
@@ -288,7 +292,6 @@ export function AgentPanel() {
         agents={agents}
         agentsLoading={agentsQuery.isPending}
         agent={agent}
-        onSelectAgent={(agentId) => useAgentStore.getState().setAgentId(agentId)}
         uiMode={uiMode}
         onModeChange={(mode) => useAgentStore.getState().setUiMode(mode)}
         chats={chats}

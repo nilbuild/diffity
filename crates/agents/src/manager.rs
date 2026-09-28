@@ -30,13 +30,19 @@ struct Runtime {
 
 type Slot = Arc<Mutex<Option<Arc<Runtime>>>>;
 
+struct DetectCache {
+    at: Instant,
+    custom_paths: HashMap<String, String>,
+    agents: Vec<DetectedAgent>,
+}
+
 pub struct AgentManager {
     store: Arc<Store>,
     mcp_binary: PathBuf,
     backend: Arc<dyn ReviewBackend>,
     bridge: Arc<McpBridge>,
     broker: Arc<PermissionBroker>,
-    detected: Mutex<Option<(Instant, Vec<DetectedAgent>)>>,
+    detected: Mutex<Option<DetectCache>>,
     runtimes: std::sync::Mutex<HashMap<String, Slot>>,
 }
 
@@ -72,21 +78,45 @@ impl AgentManager {
         self.bridge.set_hook(hook);
     }
 
+    /// `agent.<id>.path` settings (Settings → custom binary path) for the enabled agents.
+    async fn custom_paths(&self) -> HashMap<String, String> {
+        let store = self.store.clone();
+        blocking(move || {
+            let mut out = HashMap::new();
+            for kind in AgentKind::ENABLED {
+                if let Some(path) = store.get_setting(&kind.path_setting_key())? {
+                    if !path.trim().is_empty() {
+                        out.insert(kind.id().to_string(), path);
+                    }
+                }
+            }
+            Ok(out)
+        })
+        .await
+        .unwrap_or_default()
+    }
+
     async fn detected_agents(&self, force: bool) -> Vec<DetectedAgent> {
+        let custom_paths = self.custom_paths().await;
         let mut cache = self.detected.lock().await;
-        if let Some((at, agents)) = cache.as_ref() {
-            if !force && at.elapsed() < DETECT_TTL {
-                return agents.clone();
+        if let Some(c) = cache.as_ref() {
+            if !force && c.at.elapsed() < DETECT_TTL && c.custom_paths == custom_paths {
+                return c.agents.clone();
             }
         }
-        let agents = detect::detect_all().await;
-        *cache = Some((Instant::now(), agents.clone()));
+        let agents = detect::detect_all(&custom_paths).await;
+        *cache = Some(DetectCache {
+            at: Instant::now(),
+            custom_paths,
+            agents: agents.clone(),
+        });
         agents
     }
 
-    pub async fn list_agents(&self) -> Result<Vec<AgentInfo>> {
+    /// `refresh` bypasses the 30s detection cache (Settings → Re-detect).
+    pub async fn list_agents(&self, refresh: bool) -> Result<Vec<AgentInfo>> {
         Ok(self
-            .detected_agents(false)
+            .detected_agents(refresh)
             .await
             .into_iter()
             .map(|a| a.info)
@@ -94,7 +124,7 @@ impl AgentManager {
     }
 
     pub async fn start_chat(&self, input: StartChat) -> Result<Chat> {
-        let Some(kind) = AgentKind::from_id(&input.agent_id) else {
+        let Some(kind) = AgentKind::from_id(&input.agent_id).filter(|k| k.is_enabled()) else {
             return Err(AppError::not_found(format!(
                 "unknown agent `{}`",
                 input.agent_id

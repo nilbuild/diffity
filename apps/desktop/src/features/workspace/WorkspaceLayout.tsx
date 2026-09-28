@@ -37,13 +37,27 @@ export function WorkspaceLayout() {
   }
   return (
     <WorkspaceProvider key={repoPath} repoPath={repoPath} initialRef={params.get('ref') ?? undefined}>
-      <WorkspaceShell initialTab={params.get('pr') ? 'pr' : 'changes'} />
+      <WorkspaceShell initialTab={initialTabFromParams(params)} />
     </WorkspaceProvider>
   );
 }
 
+const TABS: WorkspaceTab[] = ['changes', 'files', 'pr'];
+
+function initialTabFromParams(params: URLSearchParams): WorkspaceTab {
+  if (params.get('pr')) {
+    return 'pr';
+  }
+  const tab = params.get('tab') as WorkspaceTab | null;
+  if (tab && TABS.includes(tab)) {
+    return tab;
+  }
+  return 'changes';
+}
+
 function WorkspaceShell(props: { initialTab: WorkspaceTab }) {
-  const { initialTab } = props;
+  // The PR tab strips `?pr=` once it starts the checkout, so only the first value counts.
+  const [initialTab] = useState(props.initialTab);
   const { repoPath } = useWorkspace();
   const panelOpen = useAgentBus((s) => s.panelOpen);
   const tab = useViewStore((s) => s.tab);

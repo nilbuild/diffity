@@ -107,7 +107,7 @@ function seedThreads() {
     endLine: 0,
     body: 'Overall looks good. Please add a test for the LRU eviction in `cache.ts`.',
     authorType: 'agent',
-    authorName: 'Codex',
+    authorName: 'Claude Code',
   });
   insertThread({
     sessionId,
@@ -356,8 +356,6 @@ const handlers: Record<string, (args: Args) => unknown> = {
   },
   list_agents: () => [
     { id: 'claude', name: 'Claude Code', installed: true, binaryPath: '/usr/local/bin/claude', authenticated: true, note: null },
-    { id: 'codex', name: 'Codex', installed: true, binaryPath: '/usr/local/bin/codex', authenticated: null, note: null },
-    { id: 'gemini', name: 'Gemini', installed: false, binaryPath: null, authenticated: null, note: 'Not installed' },
   ],
   list_chats: () => [],
   start_chat: (args) => {

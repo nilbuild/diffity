@@ -8,6 +8,7 @@ import { queryKeys } from '@/lib/query';
 import { cn } from '@/lib/cn';
 import type { PullRequest } from '@/lib/types';
 import { agentBus } from '@/features/workspace/agent-bus';
+import { useViewStore } from '@/features/workspace/view-store';
 import { useWorkspace } from '@/features/workspace/workspace-context';
 import { Markdown } from '@/features/agent/Markdown';
 import { IconArrowDown, IconArrowUp, IconBranch, IconExternal, IconGithub, IconSparkles } from '@/features/agent/icons';
@@ -135,6 +136,17 @@ function AuthenticatedPrView(props: { login: string | null }) {
     );
   }
 
+  if (prQuery.isError && api.isAppError(prQuery.error) && prQuery.error.code === 'not_github') {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
+        <IconGithub size={20} className="text-fg-subtle" />
+        <p className="text-sm font-medium">No GitHub remote</p>
+        <p className="max-w-[420px] text-xs text-fg-muted">{prQuery.error.message}</p>
+        {login && <p className="mt-4 text-[11px] text-fg-subtle">Signed in to GitHub as {login}</p>}
+      </div>
+    );
+  }
+
   return (
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-[860px] px-6 py-6">
@@ -163,13 +175,17 @@ function PrCard(props: { pr: PullRequest }) {
     queryFn: () => api.getSession(repoPath, reviewRef),
   });
   const sessionId = sessionQuery.data?.id ?? null;
-  const threadsQuery = useQuery({
-    queryKey: queryKeys.threads(sessionId ?? ''),
-    queryFn: () => api.listThreads(sessionId ?? ''),
-    enabled: Boolean(sessionId),
+  const pushableQuery = useQuery({
+    queryKey: queryKeys.pushable(repoPath, pr.number),
+    queryFn: () => api.githubPushableThreads(repoPath, pr.number),
   });
-  const unsynced = (threadsQuery.data ?? []).filter(isPushable).length;
+  const unsynced = (pushableQuery.data ?? []).filter(isPushable).length;
   const statusQuery = useQuery({ queryKey: queryKeys.gitStatus(repoPath), queryFn: () => api.gitStatus(repoPath) });
+
+  const showPrDiff = () => {
+    setRef(reviewRef);
+    useViewStore.getState().setTab('changes');
+  };
 
   const pullComments = async () => {
     if (!sessionId) {
@@ -182,6 +198,7 @@ function PrCard(props: { pr: PullRequest }) {
       const total = result.pulled + result.updated;
       toast.success(total === 0 ? 'Already up to date' : `Pulled ${result.pulled} new, updated ${result.updated}`, {
         description: result.skipped > 0 ? `${result.skipped} skipped (outdated or unsupported)` : undefined,
+        action: { label: 'Show in Changes', onClick: showPrDiff },
       });
       if (ref !== reviewRef) {
         setRef(reviewRef);
@@ -247,12 +264,10 @@ function PrCard(props: { pr: PullRequest }) {
             Push review…
             {unsynced > 0 && <Badge tone="accent">{unsynced}</Badge>}
           </Button>
-          {ref !== reviewRef && (
-            <Button size="sm" variant="ghost" onClick={() => setRef(reviewRef)}>
-              <IconBranch size={12} />
-              Show PR diff
-            </Button>
-          )}
+          <Button size="sm" variant="ghost" onClick={showPrDiff}>
+            <IconBranch size={12} />
+            Show PR diff
+          </Button>
         </div>
         {(ahead > 0 || dirty) && (
           <div className="border-t border-border bg-warning/10 px-5 py-2 text-xs text-warning">

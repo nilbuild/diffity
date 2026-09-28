@@ -3,14 +3,14 @@ import type { AgentAction, ContextChip } from '@/lib/types';
 
 export type AgentBusRequest =
   | { id: string; type: 'ask'; chip: ContextChip }
-  | { id: string; type: 'action'; action: AgentAction };
+  | { id: string; type: 'action'; action: AgentAction; context?: ContextChip[] };
 
 interface AgentBusState {
   queue: AgentBusRequest[];
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
   askAboutSelection: (chip: ContextChip) => void;
-  runAction: (action: AgentAction) => void;
+  runAction: (action: AgentAction, context?: ContextChip[]) => void;
   /** AgentPanel calls this to take ownership of all pending requests. */
   drain: () => AgentBusRequest[];
 }
@@ -24,8 +24,8 @@ export const useAgentBus = create<AgentBusState>((set, get) => ({
   setPanelOpen: (open) => set({ panelOpen: open }),
   askAboutSelection: (chip) =>
     set((state) => ({ panelOpen: true, queue: [...state.queue, { id: nextId(), type: 'ask', chip }] })),
-  runAction: (action) =>
-    set((state) => ({ panelOpen: true, queue: [...state.queue, { id: nextId(), type: 'action', action }] })),
+  runAction: (action, context) =>
+    set((state) => ({ panelOpen: true, queue: [...state.queue, { id: nextId(), type: 'action', action, context }] })),
   drain: () => {
     const pending = get().queue;
     if (pending.length === 0) {
@@ -38,7 +38,7 @@ export const useAgentBus = create<AgentBusState>((set, get) => ({
 
 export const agentBus = {
   askAboutSelection: (chip: ContextChip) => useAgentBus.getState().askAboutSelection(chip),
-  runAction: (action: AgentAction) => useAgentBus.getState().runAction(action),
+  runAction: (action: AgentAction, context?: ContextChip[]) => useAgentBus.getState().runAction(action, context),
 };
 
 export type RevealLocationHandler = (path: string, line: number | null) => void;

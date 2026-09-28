@@ -56,7 +56,20 @@ impl GithubService {
         if let Some(token) = lock(&self.token)?.clone() {
             return Ok(Some(token));
         }
-        let token = auth::keychain_read().await?;
+        // A token imported from `gh` is re-read from `gh auth token` instead of being copied into the
+        // keychain: gh stays the source of truth (rotation, logout) and dev rebuilds don't hit keychain
+        // access prompts (their ad-hoc signature changes on every build).
+        let token = if self.token_source().as_deref() == Some("gh") {
+            auth::gh_auth_token().await.ok()
+        } else {
+            match auth::keychain_read().await {
+                Ok(token) => token,
+                Err(e) => {
+                    tracing::warn!("github: keychain read failed: {}", e.message);
+                    None
+                }
+            }
+        };
         *lock(&self.token)? = token.clone();
         Ok(token)
     }
@@ -67,9 +80,15 @@ impl GithubService {
             .ok_or_else(|| AppError::new("unauthenticated", "Not signed in to GitHub"))
     }
 
+    fn token_source(&self) -> Option<String> {
+        db::get_setting(&self.store, TOKEN_SOURCE_KEY).ok().flatten()
+    }
+
     async fn store_token(&self, token: &str, source: &str) -> Result<GithubAuthStatus> {
         let login = self.http.get_login(token).await?;
-        auth::keychain_write(token.to_string()).await?;
+        if source != "gh" {
+            auth::keychain_write(token.to_string()).await?;
+        }
         db::set_setting(&self.store, TOKEN_SOURCE_KEY, source)?;
         *lock(&self.token)? = Some(token.to_string());
         *lock(&self.login)? = Some(login.clone());
@@ -135,7 +154,9 @@ impl GithubService {
     }
 
     pub async fn logout(&self) -> Result<()> {
-        auth::keychain_delete().await?;
+        if self.token_source().as_deref() != Some("gh") {
+            auth::keychain_delete().await?;
+        }
         db::delete_setting(&self.store, TOKEN_SOURCE_KEY)?;
         *lock(&self.token)? = None;
         *lock(&self.login)? = None;
@@ -278,6 +299,13 @@ impl GithubService {
         let Some(branch) = gitcli::current_branch(repo_path).await? else {
             return Ok(None);
         };
+        // Fork PRs are checked out as a local `pr-<n>` branch (see `checkout_pr`), whose name doesn't
+        // match the PR's head branch, so look the PR up by number.
+        if let Some(number) = linked_pr_number(repo_path, &branch).await {
+            if let Ok(pr) = self.fetch_pr(&token, &slug, number).await {
+                return Ok(Some(pr.to_pull_request()));
+            }
+        }
         let data: RepositoryData<PullRequestsField> = self
             .http
             .query(
@@ -361,6 +389,8 @@ impl GithubService {
             let branch = format!("pr-{number}");
             gitcli::run_ok(repo_path, &["fetch", "origin", &pull_ref]).await?;
             gitcli::run_ok(repo_path, &["checkout", "-B", &branch, "FETCH_HEAD"]).await?;
+            let key = format!("branch.{branch}.{PR_BRANCH_CONFIG}");
+            gitcli::run_ok(repo_path, &["config", &key, &number.to_string()]).await?;
         }
         Ok(pr.to_pull_request())
     }
@@ -390,8 +420,13 @@ impl GithubService {
         }
         gitcli::ensure_clean(repo_path, "pushing a review").await?;
 
+        // Explicit thread ids may come from any of the repo's sessions (see `pushable_threads`).
+        let source = match &thread_ids {
+            Some(_) => db::list_repo_threads(&self.store, repo_path)?,
+            None => db::list_session_threads(&self.store, session_id)?,
+        };
         let filter: Option<HashSet<String>> = thread_ids.map(|ids| ids.into_iter().collect());
-        let threads: Vec<Thread> = db::list_session_threads(&self.store, session_id)?
+        let threads: Vec<Thread> = source
             .into_iter()
             .filter(|t| t.status == ThreadStatus::Open && t.github_thread_id.is_none())
             .filter(|t| filter.as_ref().is_none_or(|f| f.contains(&t.id)))
@@ -499,11 +534,41 @@ impl GithubService {
         Ok(data.add_pull_request_review_thread_reply.comment.and_then(|c| c.database_id))
     }
 
+    /// Open, unsynced threads from all of the repo's review sessions that can be pushed to the PR:
+    /// the file is in the PR and the commented side is anchored like GitHub's PR diff.
+    pub async fn pushable_threads(&self, repo_path: &str, pr_number: u64) -> Result<Vec<Thread>> {
+        let slug = self.origin_slug(repo_path).await?;
+        let token = self.require_token().await?;
+        let pr = self.fetch_pr(&token, &slug, pr_number).await?;
+        let pr_files = self.fetch_pr_files(&token, &slug, pr_number).await?;
+        let head = gitcli::head_sha(repo_path).await?;
+        let store = self.store.clone();
+        let repo = repo_path.to_string();
+        let pr_ref = format!("origin/{}...HEAD", pr.base_ref_name);
+        let (threads, anchors) = tokio::task::spawn_blocking(move || -> Result<_> {
+            let repo_dir = std::path::Path::new(&repo);
+            let pr_base = diffity_core::diff::resolve_ref(repo_dir, &pr_ref)
+                .ok()
+                .and_then(|r| r.base_sha);
+            let mut anchors = HashMap::new();
+            for (session_id, session_ref) in db::list_repo_sessions(&store, &repo)? {
+                let anchor = session_anchor(repo_dir, &session_ref, &pr_ref, &head, pr_base.as_deref());
+                anchors.insert(session_id, anchor);
+            }
+            Ok((db::list_repo_threads(&store, &repo)?, anchors))
+        })
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))??;
+        Ok(review::select_pushable(threads, &anchors, &pr_files))
+    }
+
     pub async fn pull_review(&self, repo_path: &str, session_id: &str, pr_number: u64) -> Result<PullResult> {
         let slug = self.origin_slug(repo_path).await?;
         let token = self.require_token().await?;
         let remote_threads = self.fetch_threads(&token, &slug, pr_number).await?;
-        let local: HashMap<String, Thread> = db::list_session_threads(&self.store, session_id)?
+        // Threads already linked to GitHub may live in any session of the repo (e.g. pushed from `work`);
+        // update them in place and only create new remote threads in `session_id`.
+        let local: HashMap<String, Thread> = db::list_repo_threads(&self.store, repo_path)?
             .into_iter()
             .filter_map(|t| t.github_thread_id.clone().map(|id| (id, t)))
             .collect();
@@ -636,6 +701,51 @@ fn event_name(event: ReviewEvent) -> &'static str {
         ReviewEvent::Comment => "COMMENT",
         ReviewEvent::Approve => "APPROVE",
         ReviewEvent::RequestChanges => "REQUEST_CHANGES",
+    }
+}
+
+/// Git config key (under `branch.<name>.`) recording which PR a `pr-<n>` branch was checked out from.
+const PR_BRANCH_CONFIG: &str = "diffityPr";
+
+async fn linked_pr_number(repo_path: &str, branch: &str) -> Option<u64> {
+    let key = format!("branch.{branch}.{PR_BRANCH_CONFIG}");
+    let configured = gitcli::run(repo_path, &["config", "--get", &key])
+        .await
+        .ok()
+        .filter(|out| out.ok)
+        .and_then(|out| out.output.trim().parse::<u64>().ok());
+    if configured.is_some() {
+        return configured;
+    }
+    branch.strip_prefix("pr-").and_then(|n| n.parse::<u64>().ok())
+}
+
+fn session_anchor(
+    repo: &std::path::Path,
+    session_ref: &str,
+    pr_ref: &str,
+    head: &str,
+    pr_base: Option<&str>,
+) -> review::SessionAnchor {
+    let is_pr_session = session_ref == pr_ref;
+    if session_ref == diffity_core::types::TREE_REF {
+        return review::SessionAnchor {
+            new_matches: true,
+            ..Default::default()
+        };
+    }
+    let Ok(resolved) = diffity_core::diff::resolve_ref(repo, session_ref) else {
+        return review::SessionAnchor {
+            new_matches: is_pr_session,
+            old_matches: is_pr_session,
+            is_pr_session,
+        };
+    };
+    let same = |a: Option<&str>, b: Option<&str>| matches!((a, b), (Some(a), Some(b)) if a.eq_ignore_ascii_case(b));
+    review::SessionAnchor {
+        new_matches: same(resolved.head_sha.as_deref(), Some(head)),
+        old_matches: is_pr_session || same(resolved.base_sha.as_deref(), pr_base),
+        is_pr_session,
     }
 }
 
