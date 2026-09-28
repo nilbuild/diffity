@@ -82,7 +82,7 @@ export function MenuSeparator() {
 }
 
 export function MenuHeading(props: { children: ReactNode }) {
-  return <div className="px-2 pt-1.5 pb-1 text-2xs font-medium text-fg-subtle">{props.children}</div>;
+  return <div className="px-2.5 pt-1.5 pb-1 text-2xs font-medium text-fg-subtle">{props.children}</div>;
 }
 
 export interface MenuRowProps {
@@ -108,7 +108,7 @@ export function MenuRow(props: MenuRowProps) {
       disabled={disabled}
       onClick={onSelect}
       className={cn(
-        'flex w-full cursor-default items-center gap-2 rounded-sm px-2 text-left text-xs hover:bg-hover disabled:pointer-events-none disabled:opacity-40',
+        'flex w-full cursor-default items-center gap-2 rounded-lg px-2.5 text-left text-sm hover:bg-hover disabled:pointer-events-none disabled:opacity-40',
         description ? 'py-1.5' : 'h-7',
         danger ? 'text-danger' : 'text-fg',
         className,

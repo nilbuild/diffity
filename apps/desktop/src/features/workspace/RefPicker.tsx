@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Popover } from '@/components/ui/Popover';
-import { CheckIcon, ChevronDownIcon, GitBranchIcon, GitCommitIcon, GitCompareIcon, PencilIcon, SearchIcon } from '@/components/ui/icon';
+import { CheckIcon, ChevronDownIcon, GitBranchIcon, GitCommitIcon, PencilIcon, SearchIcon } from '@/components/ui/icon';
 import * as api from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { queryKeys } from '@/lib/query';
@@ -46,11 +46,11 @@ export function RefPicker() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          'flex h-7 max-w-[280px] cursor-default items-center gap-1.5 rounded-md border border-border bg-raised px-2 text-xs text-fg hover:border-border-strong hover:bg-hover',
-          open && 'border-border-strong bg-hover',
+          'flex h-7 max-w-[280px] cursor-default items-center gap-2 rounded-lg px-1.5 text-sm text-fg hover:bg-hover',
+          open && 'bg-hover',
         )}
       >
-        <GitCompareIcon size={14} className="shrink-0 text-fg-muted" />
+        <span className="size-2.5 shrink-0 rounded-full bg-accent-solid" />
         <span className="truncate font-medium">{resolved.data?.label ?? refLabel(ref)}</span>
         <ChevronDownIcon size={12} className="shrink-0 text-fg-subtle" />
       </button>

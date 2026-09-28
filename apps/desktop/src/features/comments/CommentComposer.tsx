@@ -78,7 +78,7 @@ export function SeverityPicker(props: { value: Severity | null; onChange: (value
           onClick={trigger.onClick}
           aria-label="Severity"
           className={cn(
-            'inline-flex h-7 cursor-default items-center gap-1.5 rounded-md px-2 text-xs hover:bg-hover',
+            'inline-flex h-7 cursor-default items-center gap-1.5 rounded-full border border-border px-2.5 text-xs hover:border-border-strong hover:bg-hover',
             trigger.open && 'bg-hover',
             value ? cn('font-medium', toneText[severityTone[value]]) : 'text-fg-muted hover:text-fg',
           )}

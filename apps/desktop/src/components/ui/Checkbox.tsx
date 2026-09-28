@@ -20,8 +20,8 @@ export function CheckMark(props: { checked: boolean; tone?: 'accent' | 'success'
     <span
       aria-hidden
       className={cn(
-        'inline-flex size-4 shrink-0 items-center justify-center rounded-sm border transition-colors',
-        checked ? on : 'border-border-strong bg-canvas',
+        'inline-flex size-4 shrink-0 items-center justify-center rounded-[5px] border transition-colors',
+        checked ? on : 'border-border-strong bg-paper',
         className,
       )}
     >

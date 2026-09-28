@@ -15,7 +15,7 @@ export function RunQueue() {
   }
 
   return (
-    <div className="mx-3 mb-1 overflow-hidden rounded-lg border border-border bg-raised">
+    <div className="mx-3 mb-1 overflow-hidden rounded-xl border border-border bg-paper">
       <div className="flex h-7 items-center gap-2 border-b border-border-subtle pr-1 pl-2.5">
         <ClockIcon size={12} className="text-fg-subtle" />
         <span className="text-xs font-medium text-fg">Queue</span>

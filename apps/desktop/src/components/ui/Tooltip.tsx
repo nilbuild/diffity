@@ -88,7 +88,7 @@ function TooltipBubble(props: { anchor: HTMLElement; side: 'top' | 'bottom'; chi
     <div
       ref={ref}
       role="tooltip"
-      className="pointer-events-none fixed z-[60] max-w-[280px] rounded-md border border-border-strong bg-panel px-2 py-1 text-2xs font-medium text-fg"
+      className="pointer-events-none fixed z-[60] max-w-[280px] rounded-lg bg-fg px-2 py-1 text-2xs font-medium text-canvas"
       style={{ top: position?.top ?? -9999, left: position?.left ?? -9999 }}
     >
       {children}

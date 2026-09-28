@@ -193,7 +193,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
   };
 
   return (
-    <div className={cn('flex flex-col rounded-lg bg-muted', className)} onKeyDown={(event) => event.stopPropagation()}>
+    <div className={cn('flex flex-col rounded-xl bg-muted-soft', className)} onKeyDown={(event) => event.stopPropagation()}>
       <div className="flex h-8 shrink-0 items-center gap-1 pr-1.5 pl-3">
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-fg-muted">{label}</span>
         <EditorTab active={tab === 'write'} onClick={() => setTab('write')}>
@@ -212,7 +212,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
           <AtIcon size={14} />
         </button>
       </div>
-      <div className="relative mx-1.5 mb-1.5 overflow-hidden rounded-md bg-canvas">
+      <div className="relative mx-1.5 mb-1.5 overflow-hidden rounded-lg bg-paper">
         {tab === 'write' ? (
           <textarea
             ref={ref}
@@ -312,8 +312,8 @@ function EditorTab(props: { active: boolean; onClick: () => void; children: Reac
       type="button"
       onClick={onClick}
       className={cn(
-        'h-6 cursor-default rounded-md px-2 text-xs',
-        active ? 'bg-canvas font-medium text-fg' : 'text-fg-subtle hover:text-fg',
+        'h-6 cursor-default rounded-full px-2.5 text-xs',
+        active ? 'bg-paper font-medium text-fg' : 'text-fg-muted hover:text-fg',
       )}
     >
       {children}

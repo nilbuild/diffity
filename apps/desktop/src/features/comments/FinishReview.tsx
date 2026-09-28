@@ -39,10 +39,10 @@ export function FinishReview(props: FinishReviewProps) {
         onClick={() => setOpen((v) => !v)}
         title={count > 0 ? `${count} pending ${count === 1 ? 'comment' : 'comments'}` : 'Submit a review'}
         className={cn(
-          'inline-flex h-7 shrink-0 cursor-default items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium whitespace-nowrap transition-colors',
+          'inline-flex h-7 shrink-0 cursor-default items-center gap-1.5 rounded-full border px-3 text-xs font-medium whitespace-nowrap transition-colors',
           count > 0
             ? 'border-transparent bg-accent-solid text-accent-fg hover:bg-accent-solid/88'
-            : 'border-border bg-raised text-fg hover:border-border-strong hover:bg-hover',
+            : 'border-border bg-transparent text-fg hover:border-border-strong hover:bg-hover',
           open && count === 0 && 'border-border-strong bg-hover',
         )}
       >
@@ -115,8 +115,8 @@ function ReviewForm(props: ReviewFormProps) {
 
   return (
     <div className="flex flex-col font-sans">
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <span className="text-base font-semibold text-fg">Finish your review</span>
+      <div className="flex items-center gap-2 px-4 pt-4 pb-1">
+        <span className="font-serif text-lg font-semibold text-fg">Finish your review</span>
         <span className="ml-auto text-xs text-fg-subtle">
           {pendingCount > 0 ? `${pendingCount} pending ${pendingCount === 1 ? 'comment' : 'comments'}` : 'No pending comments'}
         </span>

@@ -47,15 +47,13 @@ export function CommentNavBar(props: CommentNavBarProps) {
   };
 
   return (
-    <div className="flex h-9 shrink-0 items-center gap-2.5 border-b border-border bg-panel px-3 text-xs">
-      <span className="truncate text-fg-muted" title={label}>
+    <div className="flex h-11 shrink-0 items-center gap-3 px-4 text-xs">
+      <span className="truncate font-serif text-lg font-semibold text-fg" title={label}>
         {label}
       </span>
-      <span className="inline-flex shrink-0 items-center overflow-hidden rounded-md bg-muted text-fg-subtle">
-        <span className="px-2 py-0.5">
-          {files} {files === 1 ? 'file' : 'files'} changed
-        </span>
-        <span className="px-2 py-0.5">
+      <span className="inline-flex h-6 shrink-0 items-center gap-2 rounded-full bg-muted pr-1 pl-2.5 text-fg-muted">
+        {files} {files === 1 ? 'file' : 'files'}
+        <span className="rounded-full bg-muted-soft px-1.5 leading-4">
           <DiffStat additions={additions} deletions={deletions} />
         </span>
       </span>
@@ -65,7 +63,7 @@ export function CommentNavBar(props: CommentNavBarProps) {
           variant="ghost"
           aria-pressed={conversationOpen}
           onClick={onToggleConversation}
-          className={cn(conversationOpen && 'bg-accent/12 text-accent hover:bg-accent/15 hover:text-accent')}
+          className={cn(conversationOpen && 'bg-muted text-fg hover:bg-muted hover:text-fg')}
           title={conversationOpen ? 'Hide conversation' : 'Show conversation'}
         >
           <ConversationIcon size={12} />
@@ -74,7 +72,7 @@ export function CommentNavBar(props: CommentNavBarProps) {
         </Button>
         <div className="mx-1 h-4 w-px bg-border" />
         {pending > 0 && (
-          <span className="rounded-sm border border-dashed border-warning/50 px-1.5 text-2xs leading-4 font-medium text-warning">
+          <span className="rounded-full border border-dashed border-warning/60 px-2 text-2xs leading-5 font-medium text-warning">
             {pending} pending
           </span>
         )}

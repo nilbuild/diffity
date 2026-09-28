@@ -17,15 +17,15 @@ export function EmptyState(props: EmptyStateProps) {
       {icon && (
         <div
           className={cn(
-            'mb-2 flex size-10 items-center justify-center rounded-lg border border-border bg-panel',
+            'mb-3 flex size-11 items-center justify-center rounded-full border-[1.5px] border-fg-muted/40',
             tone === 'danger' ? 'text-danger' : 'text-fg-muted',
           )}
         >
           {icon}
         </div>
       )}
-      <div className="text-sm font-medium text-fg">{title}</div>
-      {description && <div className="max-w-sm text-xs text-fg-muted">{description}</div>}
+      <div className="font-serif text-xl font-semibold text-fg">{title}</div>
+      {description && <div className="max-w-sm text-sm text-fg-muted">{description}</div>}
       {action && <div className="mt-3">{action}</div>}
     </div>
   );

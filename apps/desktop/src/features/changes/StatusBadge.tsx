@@ -3,30 +3,25 @@ import { cn } from '@/lib/cn';
 import type { FileStatus } from '@/lib/types';
 
 const LABELS: Record<FileStatus, { letter: string; className: string; title: string }> = {
-  added: { letter: 'A', className: 'text-added bg-added/15', title: 'Added' },
-  untracked: { letter: 'U', className: 'text-added bg-added/15', title: 'Untracked' },
-  deleted: { letter: 'D', className: 'text-removed bg-removed/15', title: 'Deleted' },
-  modified: { letter: 'M', className: 'text-warning bg-warning/15', title: 'Modified' },
-  renamed: { letter: 'R', className: 'text-renamed bg-renamed/15', title: 'Renamed' },
-  copied: { letter: 'C', className: 'text-renamed bg-renamed/15', title: 'Copied' },
+  added: { letter: 'A', className: 'bg-added', title: 'Added' },
+  untracked: { letter: 'U', className: 'bg-added', title: 'Untracked' },
+  deleted: { letter: 'D', className: 'bg-removed', title: 'Deleted' },
+  modified: { letter: 'M', className: 'bg-warning', title: 'Modified' },
+  renamed: { letter: 'R', className: 'bg-renamed', title: 'Renamed' },
+  copied: { letter: 'C', className: 'bg-renamed', title: 'Copied' },
 };
 
 export function FileStatusBadge(props: { status: FileStatus }) {
   const label = LABELS[props.status];
   return (
-    <span
-      title={label.title}
-      className={cn('inline-flex size-[18px] shrink-0 items-center justify-center rounded-sm font-mono text-2xs font-bold', label.className)}
-    >
-      {label.letter}
-    </span>
+    <span title={label.title} aria-label={label.title} className={cn('size-2.5 shrink-0 rounded-full', label.className)} />
   );
 }
 
 export function DiffStat(props: { additions: number; deletions: number }) {
   const { additions, deletions } = props;
   return (
-    <span className="inline-flex shrink-0 gap-1 font-mono text-xs font-semibold tabular-nums">
+    <span className="inline-flex shrink-0 gap-1 text-xs tabular-nums">
       {additions > 0 && <span className="text-added">+{additions}</span>}
       {deletions > 0 && <span className="text-removed">−{deletions}</span>}
     </span>

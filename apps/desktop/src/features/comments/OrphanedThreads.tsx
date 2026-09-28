@@ -22,7 +22,7 @@ export function OrphanedThreads(props: OrphanedThreadsProps) {
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-7 w-full cursor-default items-center gap-1.5 rounded-md px-1 text-left text-xs hover:bg-hover"
+        className="flex h-7 w-full cursor-default items-center gap-1.5 rounded-lg px-1 text-left text-xs hover:bg-hover"
       >
         <ChevronRightIcon size={12} className={cn('text-fg-subtle transition-transform', open && 'rotate-90')} />
         <AlertIcon size={12} className="text-warning" />
@@ -34,9 +34,9 @@ export function OrphanedThreads(props: OrphanedThreadsProps) {
       {open && (
         <div className="mt-1 flex flex-col gap-2">
           {threads.map((thread) => (
-            <div key={thread.id} className="flex flex-col overflow-hidden rounded-lg border border-border">
+            <div key={thread.id} className="flex flex-col overflow-hidden rounded-xl border border-border bg-paper">
               {thread.anchorContent && (
-                <pre className="selectable overflow-x-auto border-b border-border bg-panel px-3 py-1.5 font-mono text-xs text-fg-muted">
+                <pre className="selectable overflow-x-auto border-b border-border-subtle px-3 py-2 font-mono text-xs text-fg-muted">
                   {thread.anchorContent}
                 </pre>
               )}

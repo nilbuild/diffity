@@ -113,7 +113,7 @@ export function ThreadCard(props: ThreadCardProps) {
           aria-expanded={false}
           onClick={() => setExpanded(true)}
           className={cn(
-            'inline-flex h-6 min-w-0 cursor-default items-center gap-1.5 rounded-md px-2 text-xs text-fg-subtle hover:bg-hover hover:text-fg-muted',
+            'inline-flex h-6 min-w-0 cursor-default items-center gap-1.5 rounded-full bg-muted-soft px-2.5 text-xs text-fg-muted hover:bg-muted hover:text-fg',
             active && 'bg-hover text-fg-muted',
             thread.pending && 'border border-dashed border-warning/60',
           )}
@@ -135,7 +135,7 @@ export function ThreadCard(props: ThreadCardProps) {
     <div
       data-thread-id={thread.id}
       className={cn(
-        'overflow-hidden rounded-lg bg-panel font-sans text-sm transition-colors',
+        'overflow-hidden rounded-xl bg-muted-soft font-sans text-sm transition-colors',
         thread.pending ? 'border border-dashed border-warning/60' : 'border border-transparent',
         active && 'border-solid border-accent',
       )}
@@ -151,7 +151,7 @@ export function ThreadCard(props: ThreadCardProps) {
               {locationLabel(thread)}
             </button>
           ) : (
-            <span className="shrink-0 font-mono text-2xs text-fg-subtle">{headerLabel(thread)}</span>
+            <span className="shrink-0 text-xs font-medium text-fg-muted">{headerLabel(thread)}</span>
           )}
           {thread.severity && <SeverityBadge severity={thread.severity} />}
           {thread.pending ? <PendingBadge /> : <StatusBadge status={thread.status} />}
@@ -202,7 +202,7 @@ export function ThreadCard(props: ThreadCardProps) {
         </div>
       ) : (
         <div className="px-3 pb-2">
-          <button type="button" onClick={() => openReply(thread.id)} className="cursor-default text-xs text-accent hover:text-accent-hover">
+          <button type="button" onClick={() => openReply(thread.id)} className="cursor-default text-xs font-medium text-accent hover:text-accent-hover">
             Reply
           </button>
         </div>
@@ -230,7 +230,7 @@ function TextAction(props: { onClick: () => void; children: string }) {
     <button
       type="button"
       onClick={onClick}
-      className="h-6 cursor-default rounded-md px-1.5 text-2xs text-fg-subtle hover:bg-hover hover:text-fg-muted"
+      className="h-6 cursor-default rounded-full px-2 text-xs text-fg-muted hover:bg-hover hover:text-fg"
     >
       {children}
     </button>
@@ -240,7 +240,7 @@ function TextAction(props: { onClick: () => void; children: string }) {
 function ActivityRow(props: { activity: 'queued' | 'working' }) {
   const { activity } = props;
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-canvas px-3 py-2 text-xs">
+    <div className="flex items-center gap-2 rounded-lg bg-paper px-3 py-2 text-xs">
       <Avatar authorType="agent" authorName="Claude Code" size="sm" />
       <span className="font-medium text-fg">Claude Code</span>
       <span className="inline-flex items-center gap-1.5 text-fg-muted">
@@ -266,11 +266,11 @@ function CommentItem(props: { comment: Comment; actions: CommentActions; threadP
   };
 
   return (
-    <div className={cn('group rounded-lg bg-canvas px-3 py-2.5', comment.pending && !threadPending && 'border border-dashed border-warning/50')}>
+    <div className={cn('group rounded-lg bg-paper px-3 py-2.5', comment.pending && !threadPending && 'border border-dashed border-warning/50')}>
       <div className="flex h-5 items-center gap-2">
         <Avatar authorType={comment.authorType} authorName={comment.authorName} size="sm" />
         <span className="text-xs font-semibold text-fg">{authorLabel(comment.authorType, comment.authorName)}</span>
-        {comment.authorType === 'agent' && <span className="rounded-full bg-accent/15 px-1.5 text-2xs leading-4 font-medium text-accent">bot</span>}
+        {comment.authorType === 'agent' && <span className="rounded-full bg-accent-soft px-1.5 text-2xs leading-4 font-medium text-accent">bot</span>}
         <span className="text-2xs text-fg-subtle" title={new Date(comment.createdAt).toLocaleString()}>
           {dayjs(comment.createdAt).fromNow()}
         </span>

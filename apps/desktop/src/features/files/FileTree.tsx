@@ -67,12 +67,11 @@ export function FileTree(props: FileTreeProps) {
 
   return (
     <aside style={{ width }} className="flex shrink-0 flex-col bg-panel">
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border px-2">
+      <div className="flex h-11 shrink-0 items-center gap-1 px-3">
         <Input
           ref={inputRef}
-          size="sm"
-          wrapperClassName="flex-1"
-          icon={<SearchIcon size={12} />}
+          wrapperClassName="flex-1 rounded-full"
+          icon={<SearchIcon size={14} />}
           trailing={!filter && <Kbd className="h-4 min-w-4">/</Kbd>}
           value={filter}
           placeholder="Filter files"
@@ -200,8 +199,8 @@ function TreeRowButton(props: TreeRowButtonProps) {
         onContextMenu(node.path, event.clientX, event.clientY);
       }}
       className={cn(
-        'absolute inset-x-0 flex cursor-default items-center gap-1.5 border-l-2 pr-3 text-left text-sm text-fg',
-        selected ? 'border-l-accent bg-active' : 'border-l-transparent hover:bg-hover',
+        'absolute inset-x-2 flex cursor-default items-center gap-1.5 rounded-lg pr-3 text-left text-sm',
+        selected ? 'bg-selected font-medium text-fg' : 'text-fg-muted hover:bg-hover hover:text-fg',
       )}
     >
       {node.kind === 'dir' ? (

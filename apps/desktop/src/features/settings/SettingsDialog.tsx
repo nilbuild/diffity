@@ -98,7 +98,7 @@ function SectionTitle(props: { title: string; description?: string; action?: Rea
   return (
     <div className="mb-4 flex items-start gap-3">
       <div className="min-w-0 flex-1">
-        <h3 className="text-base font-semibold text-fg">{props.title}</h3>
+        <h3 className="font-serif text-xl font-semibold text-fg">{props.title}</h3>
         {props.description && <p className="mt-0.5 text-xs text-fg-muted">{props.description}</p>}
       </div>
       {props.action}
@@ -107,7 +107,7 @@ function SectionTitle(props: { title: string; description?: string; action?: Rea
 }
 
 function SettingGroup(props: { children: ReactNode }) {
-  return <div className="divide-y divide-border-subtle rounded-lg border border-border bg-raised">{props.children}</div>;
+  return <div className="divide-y divide-border-subtle rounded-xl border border-border bg-paper">{props.children}</div>;
 }
 
 function SettingRow(props: { label: string; description?: ReactNode; children?: ReactNode; stacked?: boolean }) {
@@ -214,7 +214,7 @@ function AgentRow(props: { agent: AgentInfo }) {
   return (
     <SettingGroup>
       <div className="flex items-center gap-3 px-4 py-3">
-        <span className="relative flex size-8 shrink-0 items-center justify-center rounded-md border border-accent/25 bg-accent-soft text-accent">
+        <span className="relative flex size-8 shrink-0 items-center justify-center rounded-full border-[1.5px] border-accent/50 text-accent">
           <SparklesIcon size={16} />
           <span
             aria-hidden
@@ -299,7 +299,7 @@ function GithubSection() {
       {status?.authenticated && !reauth && (
         <SettingGroup>
           <div className="flex items-center gap-3 px-4 py-3">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-panel text-fg">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-full border-[1.5px] border-fg-muted/45 text-fg">
               <GithubIcon size={16} />
             </span>
             <div className="min-w-0 flex-1">

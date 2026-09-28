@@ -21,7 +21,7 @@ const heights: Record<InputSize, string> = {
 };
 
 const fieldFrame =
-  'rounded-md border bg-canvas text-fg transition-colors placeholder:text-fg-subtle focus-within:border-accent hover:border-border-strong';
+  'rounded-lg border bg-paper text-fg transition-colors placeholder:text-fg-subtle focus-within:border-accent hover:border-border-strong';
 
 export function Input(props: InputProps) {
   const { size = 'md', icon, trailing, mono, invalid, className, wrapperClassName, ...rest } = props;

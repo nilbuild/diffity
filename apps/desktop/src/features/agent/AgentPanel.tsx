@@ -6,6 +6,7 @@ import { queryKeys } from '@/lib/query';
 import { TREE_REF, type AgentAction, type AgentMode, type Chat, type ContextChip } from '@/lib/types';
 import { useAgentBus, type AgentBusRequest } from '@/features/workspace/agent-bus';
 import { useWorkspace } from '@/features/workspace/workspace-context';
+import { describeRef } from './ref-label';
 import { REVIEW_FOCUSES, agentHint, isAgentUsable, isReadOnlyMode, modeLabel, pickAgent } from './agents';
 import { useAgentStore, useChatRuntime, type UiMode } from './agent-store';
 import { AgentHeader } from './AgentHeader';
@@ -24,6 +25,8 @@ import {
   PlanChecklist,
   RunHeader,
   StreamingIndicator,
+  useStreamStart,
+  humanizeTool,
   ThoughtBlock,
   ToolGroup,
   UserBubble,
@@ -75,18 +78,18 @@ function focusLabel(focus: string | undefined) {
   return REVIEW_FOCUSES.find((item) => item.value === focus)?.label ?? focus;
 }
 
-function runMeta(action: AgentAction, context: ContextChip[]): RunMeta | undefined {
+function runMeta(action: AgentAction, context: ContextChip[], repoPath: string): RunMeta | undefined {
   switch (action.kind) {
     case 'review': {
       const focus = focusLabel(action.focus);
       return {
         kind: 'review',
-        title: focus ? `Review · ${focus}` : 'Review changes',
-        detail: action.ref === 'work' ? null : action.ref,
+        title: `Reviewing ${describeRef(repoPath, action.ref)}`,
+        detail: focus ? `Focus: ${focus.toLowerCase()}` : null,
       };
     }
     case 'summarize':
-      return { kind: 'summarize', title: 'Summarize changes' };
+      return { kind: 'summarize', title: `Summarizing ${describeRef(repoPath, action.ref)}` };
     case 'explain':
       return { kind: 'explain', title: 'Explain', detail: context.length > 0 ? null : action.path };
     case 'resolve':
@@ -212,7 +215,7 @@ export function AgentPanel() {
             context,
             action,
             agentName: selected.name,
-            run: text ? undefined : runMeta(action, context),
+            run: text ? undefined : runMeta(action, context, repoPath),
           });
         } catch (error) {
           toast.error(`Could not start ${selected.name}`, { description: api.errorMessage(error) });
@@ -443,6 +446,7 @@ function MessageList(props: {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const blocks = useMemo(() => toBlocks(items), [items]);
+  const startedAt = useStreamStart(streaming);
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
@@ -478,8 +482,8 @@ function MessageList(props: {
 
   const lastIndex = items.length - 1;
   const last = items[lastIndex];
-  const showWorking =
-    streaming && (!last || last.kind === 'user' || last.kind === 'note' || (last.kind === 'tool' && last.status === 'completed'));
+  const lastTool = [...items].reverse().find((item) => item.kind === 'tool');
+  const step = lastTool?.kind === 'tool' ? humanizeTool(lastTool, repoPath).title : last?.kind === 'thought' ? 'Thinking' : null;
 
   return (
     <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
@@ -508,7 +512,7 @@ function MessageList(props: {
             />
           );
         })}
-        {showWorking && <StreamingIndicator agentName={agentName} />}
+        {streaming && <StreamingIndicator agentName={agentName} startedAt={startedAt} step={step} />}
       </div>
     </div>
   );

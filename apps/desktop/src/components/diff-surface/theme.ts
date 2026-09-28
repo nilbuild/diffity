@@ -1,4 +1,4 @@
-export const DIFF_THEMES = { dark: 'github-dark', light: 'github-light' } as const;
+export const DIFF_THEMES = { dark: 'everforest-dark', light: 'everforest-light' } as const;
 
 export const FILE_HEADER_HEIGHT = 36;
 
@@ -11,8 +11,8 @@ export const FILE_HEADER_HEIGHT = 36;
  */
 export const SURFACE_TOKEN_CSS = `
 :host {
-  --diffs-light-bg: var(--canvas);
-  --diffs-dark-bg: var(--canvas);
+  --diffs-light-bg: var(--paper);
+  --diffs-dark-bg: var(--paper);
   --diffs-light: var(--fg);
   --diffs-dark: var(--fg);
   --diffs-addition-color-override: var(--added);
@@ -26,7 +26,7 @@ export const SURFACE_TOKEN_CSS = `
   --diffs-bg-separator-override: var(--diff-hunk-bg);
   --diffs-bg-context-override: var(--diff-expanded-bg);
   --diffs-bg-context-gutter-override: var(--diff-expanded-bg);
-  --diffs-bg-buffer-override: var(--muted);
+  --diffs-bg-buffer-override: var(--muted-soft);
   --diffs-bg-hover-override: var(--fg-subtle);
   --diffs-gap-style: 1px solid var(--border-subtle);
 }
@@ -51,11 +51,11 @@ export const SURFACE_TOKEN_CSS = `
 }
 [data-line-annotation],
 [data-gutter-buffer=annotation] {
-  --diffs-annotation-bg: var(--canvas);
+  --diffs-annotation-bg: var(--paper);
 }
 [data-line-annotation][data-selected-line],
 [data-gutter-buffer=annotation][data-selected-line] {
-  --diffs-computed-selected-line-bg: var(--canvas);
+  --diffs-computed-selected-line-bg: var(--paper);
 }
 [data-separator=line-info],
 [data-separator=line-info-basic] {
@@ -77,7 +77,7 @@ export const SURFACE_TOKEN_CSS = `
 }
 [data-expand-button] {
   color: color-mix(in srgb, var(--diff-hunk-fg) 70%, transparent);
-  border-color: var(--canvas);
+  border-color: var(--paper);
 }
 [data-expand-button]:hover {
   color: var(--diff-hunk-fg);
@@ -105,7 +105,7 @@ export const SURFACE_UNSAFE_CSS = `${SURFACE_TOKEN_CSS}
 :host {
   display: block;
   position: relative;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: clip;
 }
 :host::after {
@@ -114,28 +114,28 @@ export const SURFACE_UNSAFE_CSS = `${SURFACE_TOKEN_CSS}
   inset: 0;
   z-index: 20;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 12px;
   pointer-events: none;
 }
 [data-diffs-header] {
   box-sizing: border-box;
   height: ${FILE_HEADER_HEIGHT}px;
   min-height: ${FILE_HEADER_HEIGHT}px;
-  padding-inline: 6px 6px;
+  padding-inline: 8px 8px;
   gap: 8px;
   font-size: 12px;
-  background-color: var(--panel);
+  background-color: var(--muted-soft);
   border-bottom: 1px solid var(--border);
 }
 [data-diffs-header][data-sticky] {
-  background-color: var(--panel);
+  background-color: var(--muted-soft);
 }
 [data-diffs-header] [data-header-content] {
   gap: 6px;
 }
 [data-diffs-header] [data-title] {
   font-family: var(--diffs-font-family);
-  font-weight: 400;
+  font-weight: 500;
   color: var(--fg);
 }
 [data-diffs-header] [data-prev-name] {

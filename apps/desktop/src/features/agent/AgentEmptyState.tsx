@@ -19,15 +19,15 @@ export function AgentEmptyState(props: { agentName: string; canRun: boolean; onE
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6">
       <div className="my-auto w-full">
-        <div className="flex size-9 items-center justify-center rounded-lg border border-accent/25 bg-accent-soft text-accent">
+        <div className="flex size-10 items-center justify-center rounded-full border-[1.5px] border-accent/50 text-accent">
           <SparklesIcon size={20} />
         </div>
-        <h3 className="mt-3 text-base font-semibold text-fg">Review with {agentName}</h3>
+        <h3 className="mt-3 font-serif text-xl font-semibold text-fg">Review with {agentName}</h3>
         <p className="mt-1 text-xs leading-relaxed text-fg-muted">
           Ask about the diff, or select code and press <Kbd>{modKey}L</Kbd> to attach it.
         </p>
 
-        <ul className="mt-4 divide-y divide-border-subtle rounded-md border border-border bg-raised">
+        <ul className="mt-4 divide-y divide-border-subtle rounded-xl border border-border bg-paper">
           {CAPABILITIES.map((item) => (
             <li key={item.title} className="flex items-start gap-2.5 px-3 py-2">
               <item.icon size={14} className="mt-0.5 shrink-0 text-fg-subtle" />
@@ -40,14 +40,14 @@ export function AgentEmptyState(props: { agentName: string; canRun: boolean; onE
 
         {canRun && (
           <div className="mt-5">
-            <div className="mb-1.5 text-xs font-medium text-fg-muted">Try asking</div>
-            <div className="flex flex-col gap-1">
+            <div className="mb-2 text-sm font-medium text-fg">Try asking</div>
+            <div className="flex flex-wrap gap-1.5">
               {EXAMPLES.map((example) => (
                 <button
                   key={example}
                   type="button"
                   onClick={() => onExample(example)}
-                  className="group flex w-full cursor-default items-center gap-2 rounded-md border border-border bg-canvas px-2.5 py-1.5 text-left text-xs text-fg-muted transition-colors hover:border-border-strong hover:text-fg"
+                  className="group flex cursor-default items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-left text-xs text-fg-muted transition-colors hover:bg-muted/70 hover:text-fg"
                 >
                   <span className="min-w-0 flex-1">{example}</span>
                   <ArrowRightIcon size={12} className="shrink-0 text-fg-subtle group-hover:text-accent" />

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { toast } from 'sonner';
 import { Markdown } from '@/components/markdown/Markdown';
 import { Badge, CountBadge } from '@/components/ui/Badge';
-import { ChevronRightIcon, ConversationIcon } from '@/components/ui/icon';
+import { ChevronRightIcon, ConversationIcon, PlusIcon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { dayjs } from '@/lib/time';
 import { GENERAL_FILE_PATH, type Review, type ReviewVerdict, type Thread } from '@/lib/types';
@@ -42,8 +42,8 @@ export function Conversation(props: ConversationProps) {
   }, [threads, reviews]);
 
   return (
-    <section className={cn('overflow-hidden rounded-lg font-sans', entries.length > 0 ? 'bg-accent/5' : 'bg-panel')}>
-      <div className="flex h-9 items-center gap-2 pr-3 pl-2">
+    <section className="overflow-hidden rounded-xl border border-border bg-paper font-sans">
+      <div className="flex h-11 items-center gap-2 pr-4 pl-3">
         <button
           type="button"
           aria-expanded={open}
@@ -54,14 +54,14 @@ export function Conversation(props: ConversationProps) {
             <ChevronRightIcon size={12} className={cn('text-fg-subtle transition-transform', open && 'rotate-90')} />
           </span>
           <ConversationIcon size={14} className="text-fg-subtle" />
-          <span className="text-sm text-fg-muted">Conversation</span>
+          <span className="font-serif text-base font-semibold text-fg">Conversation</span>
           {entries.length > 0 && <CountBadge count={entries.length} tone="accent" />}
           {!open && entries.length === 0 && <span className="truncate text-2xs text-fg-subtle">General comments and submitted reviews</span>}
         </button>
         {!composing && (
           <button
             type="button"
-            className="cursor-default text-xs text-accent hover:text-accent-hover"
+            className="inline-flex h-7 cursor-default items-center gap-1 rounded-full border border-accent/70 px-3 text-xs font-medium text-accent hover:border-accent hover:bg-accent/8"
             onClick={() => {
               setBody('general', '');
               if (!open) {
@@ -69,12 +69,13 @@ export function Conversation(props: ConversationProps) {
               }
             }}
           >
+            <PlusIcon size={12} />
             Add comment
           </button>
         )}
       </div>
       {open && (
-        <div className="mx-1.5 mb-1.5 flex flex-col gap-3 rounded-md bg-canvas p-3">
+        <div className="flex flex-col gap-3 px-3 pb-3">
           {entries.length === 0 && !composing && (
             <div className="py-1 text-center text-xs text-fg-subtle">No general comments or reviews yet.</div>
           )}
@@ -125,7 +126,7 @@ function ReviewEntry(props: { review: Review }) {
   const verdict = VERDICT[review.verdict ?? 'comment'];
   const at = review.submittedAt ?? review.createdAt;
   return (
-    <div className="overflow-hidden rounded-lg bg-panel">
+    <div className="overflow-hidden rounded-xl bg-muted-soft">
       <div className="flex min-h-9 items-center gap-2 px-3 py-1.5">
         <Avatar authorType="user" authorName="You" size="sm" />
         <span className="min-w-0 truncate text-xs text-fg-muted">
@@ -140,7 +141,7 @@ function ReviewEntry(props: { review: Review }) {
         </Badge>
       </div>
       {review.body.trim() && (
-        <div className="mx-1.5 mb-1.5 rounded-lg bg-canvas px-3 py-2.5">
+        <div className="mx-1.5 mb-1.5 rounded-lg bg-paper px-3 py-2.5">
           <Markdown compact mentions>
             {review.body}
           </Markdown>

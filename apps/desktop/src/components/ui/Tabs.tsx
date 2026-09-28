@@ -14,15 +14,15 @@ export interface TabsProps<T extends string> {
   items: TabItem<T>[];
   onChange: (value: T) => void;
   /** `pill`: compact toolbar tabs. `underline`: section tabs inside a panel header (fills the header height). `list`: vertical nav. */
-  variant?: 'pill' | 'underline' | 'list';
+  variant?: 'pill' | 'underline' | 'list' | 'folder';
   className?: string;
 }
 
 const variants = {
   pill: {
     root: 'flex items-center gap-0.5',
-    item: 'h-7 rounded-md px-2.5 text-xs',
-    active: 'bg-active text-fg',
+    item: 'h-7 rounded-full px-3 text-xs',
+    active: 'bg-muted text-fg',
     idle: 'text-fg-muted hover:bg-hover hover:text-fg',
   },
   underline: {
@@ -31,10 +31,16 @@ const variants = {
     active: 'border-b-accent text-fg',
     idle: 'border-b-transparent text-fg-muted hover:text-fg',
   },
+  folder: {
+    root: 'flex items-end gap-1',
+    item: 'relative -mb-px h-8 rounded-t-xl border px-3.5 text-sm',
+    active: 'z-10 border-border border-b-canvas bg-canvas text-fg',
+    idle: 'border-border/70 bg-muted text-fg-muted hover:text-fg',
+  },
   list: {
     root: 'flex flex-col gap-px',
-    item: 'h-7 w-full rounded-md px-2 text-sm',
-    active: 'bg-active text-fg',
+    item: 'h-7 w-full rounded-lg px-2 text-sm',
+    active: 'bg-muted text-fg',
     idle: 'text-fg-muted hover:bg-hover hover:text-fg',
   },
 };
@@ -63,7 +69,7 @@ export function Tabs<T extends string>(props: TabsProps<T>) {
             {item.icon && <span className="flex shrink-0">{item.icon}</span>}
             {item.label}
             {item.count !== undefined && item.count > 0 && (
-              <span className="rounded-full bg-muted px-1.5 text-2xs leading-4 text-fg-muted tabular-nums">{item.count}</span>
+              <span className="rounded-full bg-muted-soft px-1.5 text-2xs leading-4 text-fg-muted tabular-nums">{item.count}</span>
             )}
           </button>
         );

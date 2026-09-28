@@ -5,7 +5,6 @@ import { Menu } from '@/components/ui/Menu';
 import { SegmentedToggle } from '@/components/ui/SegmentedToggle';
 import { Tabs } from '@/components/ui/Tabs';
 import {
-  ChevronDownIcon,
   ColumnsIcon,
   ExternalLinkIcon,
   FolderIcon,
@@ -47,11 +46,12 @@ export function Toolbar(props: { onOpenSettings: () => void }) {
   return (
     <header
       data-tauri-drag-region
-      className="flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-panel pr-2 pl-[78px]"
+      className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border bg-canvas pr-3 pl-[80px]"
     >
       <RepoMenu />
+      <span className="text-sm text-fg-subtle select-none">/</span>
       <RefPicker />
-      <Tabs variant="underline" className="ml-3 self-stretch" value={tab} onChange={setTab} items={TABS} />
+      <Tabs variant="folder" className="ml-4 self-end" value={tab} onChange={setTab} items={TABS} />
       <div data-tauri-drag-region className="h-full min-w-4 flex-1" />
       {tab === 'changes' && (
         <>
@@ -60,8 +60,8 @@ export function Toolbar(props: { onOpenSettings: () => void }) {
         </>
       )}
       <div className="flex items-center gap-0.5">
-        <Button variant="ghost" title="Ask Claude to review these changes" onClick={() => agentBus.runAction({ kind: 'review', ref })}>
-          <SparklesIcon size={14} className="text-accent" />
+        <Button variant="outline" title="Ask Claude to review these changes" onClick={() => agentBus.runAction({ kind: 'review', ref })}>
+          <SparklesIcon size={14} />
           AI review
         </Button>
         <IconButton label="Summarize changes" onClick={() => agentBus.runAction({ kind: 'summarize', ref })}>
@@ -72,15 +72,21 @@ export function Toolbar(props: { onOpenSettings: () => void }) {
       <Divider />
       <GitSyncButtons />
       <Divider />
-      <div className="flex items-center gap-0.5">
-        <IconButton label="Keyboard shortcuts" shortcut="?" onClick={() => setShortcutsOpen(true)}>
-          <KeyboardIcon size={16} />
+      <div className="flex items-center gap-2">
+        <IconButton variant="circle" label="Keyboard shortcuts" shortcut="?" onClick={() => setShortcutsOpen(true)}>
+          <KeyboardIcon size={14} />
         </IconButton>
-        <IconButton label="Settings" onClick={onOpenSettings}>
-          <SettingsIcon size={16} />
+        <IconButton variant="circle" label="Settings" onClick={onOpenSettings}>
+          <SettingsIcon size={14} />
         </IconButton>
-        <IconButton label={panelOpen ? 'Hide agent panel' : 'Show agent panel'} shortcut={`${modKey}L`} active={panelOpen} onClick={() => setPanelOpen(!panelOpen)}>
-          <PanelRightIcon size={16} mirrored />
+        <IconButton
+          variant="circle"
+          label={panelOpen ? 'Hide agent panel' : 'Show agent panel'}
+          shortcut={`${modKey}L`}
+          active={panelOpen}
+          onClick={() => setPanelOpen(!panelOpen)}
+        >
+          <PanelRightIcon size={14} mirrored />
         </IconButton>
       </div>
     </header>
@@ -123,11 +129,9 @@ function RepoMenu() {
           type="button"
           onClick={trigger.onClick}
           title={repoPath}
-          className={cn('flex h-7 max-w-[220px] cursor-default items-center gap-1.5 rounded-md px-2 hover:bg-hover', trigger.open && 'bg-active')}
+          className={cn('flex h-7 max-w-[220px] cursor-default items-center gap-1.5 rounded-lg px-1.5 hover:bg-hover', trigger.open && 'bg-hover')}
         >
-          <span className="truncate text-sm font-semibold text-fg">{name}</span>
-          {repo?.branch && <span className="truncate text-xs text-fg-subtle">{repo.branch}</span>}
-          <ChevronDownIcon size={12} className="shrink-0 text-fg-subtle" />
+          <span className="truncate text-sm font-medium text-fg">{name}</span>
         </button>
       )}
     />

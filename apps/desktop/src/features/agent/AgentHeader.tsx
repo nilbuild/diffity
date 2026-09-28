@@ -43,7 +43,7 @@ function AgentLabel(props: Pick<AgentHeaderProps, 'agentsLoading' | 'agent'>) {
   const { anchorProps, tooltip } = useTooltip(status);
   return (
     <div className="flex h-7 min-w-0 items-center gap-2 pr-1 pl-1" {...anchorProps}>
-      <span className="relative flex size-6 shrink-0 items-center justify-center rounded-md border border-accent/25 bg-accent-soft text-accent">
+      <span className="relative flex size-6 shrink-0 items-center justify-center rounded-full border-[1.5px] border-accent/50 text-accent">
         <SparklesIcon size={14} />
         {agentsLoading && !agent ? null : (
           <span

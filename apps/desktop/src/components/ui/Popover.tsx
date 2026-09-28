@@ -81,7 +81,7 @@ export function Popover(props: PopoverProps) {
     <div
       ref={panelRef}
       className={cn(
-        'fixed z-40 overflow-hidden rounded-lg border border-border-strong bg-panel',
+        'fixed z-40 overflow-hidden rounded-xl border border-border bg-raised',
         position === null && 'invisible',
         className,
       )}

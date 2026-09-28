@@ -44,15 +44,15 @@ export function Dialog(props: DialogProps) {
         role="dialog"
         aria-modal="true"
         className={cn(
-          'flex max-h-[76vh] w-[440px] max-w-full flex-col overflow-hidden rounded-lg border border-border-strong bg-raised',
+          'flex max-h-[76vh] w-[440px] max-w-full flex-col overflow-hidden rounded-xl border border-border bg-canvas',
           className,
         )}
         onMouseDown={(event) => event.stopPropagation()}
       >
         {title && (
-          <div className="flex shrink-0 items-start gap-3 border-b border-border py-2.5 pr-2.5 pl-4">
+          <div className="flex shrink-0 items-start gap-3 py-3 pr-3 pl-5">
             <div className="min-w-0 flex-1 py-0.5">
-              <h2 className="truncate text-sm font-semibold text-fg">{title}</h2>
+              <h2 className="truncate font-serif text-lg font-semibold text-fg">{title}</h2>
               {description && <p className="mt-0.5 truncate text-xs text-fg-muted">{description}</p>}
             </div>
             <IconButton size="sm" label="Close" onClick={() => onOpenChange(false)}>
@@ -60,9 +60,9 @@ export function Dialog(props: DialogProps) {
             </IconButton>
           </div>
         )}
-        <div className={cn('min-h-0 flex-1 overflow-auto', padded && 'p-4')}>{children}</div>
+        <div className={cn('min-h-0 flex-1 overflow-auto', padded && 'px-5 pt-1 pb-5')}>{children}</div>
         {footer && (
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border bg-panel px-4 py-2.5">{footer}</div>
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">{footer}</div>
         )}
       </div>
     </div>,

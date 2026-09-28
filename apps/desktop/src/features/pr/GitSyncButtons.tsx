@@ -122,7 +122,7 @@ export function GitSyncButtons() {
       : 'Detached HEAD';
 
   return (
-    <div className="flex h-7 items-stretch overflow-hidden rounded-md border border-border bg-raised text-xs">
+    <div className="flex h-7 items-stretch overflow-hidden rounded-full border border-border text-xs">
       <BranchLabel branch={branch} title={branchTitle} />
       <SyncButton
         label={behind > 0 ? String(behind) : null}
@@ -158,7 +158,7 @@ function BranchLabel(props: { branch: string | null; title: string }) {
   const { anchorProps, tooltip } = useTooltip(title);
   return (
     <>
-      <span className="flex max-w-[180px] min-w-0 items-center gap-1.5 px-2 text-fg-muted" {...anchorProps}>
+      <span className="flex max-w-[180px] min-w-0 items-center gap-1.5 pr-2 pl-3 text-fg-muted" {...anchorProps}>
         <GitBranchIcon size={12} className="shrink-0 text-fg-subtle" />
         <span className="truncate font-medium text-fg">{branch ?? 'detached'}</span>
       </span>
@@ -188,7 +188,7 @@ function SyncButton(props: {
           disabled={disabled}
           onClick={onClick}
           className={cn(
-            'flex min-w-7 cursor-default items-center justify-center gap-1 px-1.5 text-xs font-medium text-fg-muted tabular-nums transition-colors hover:bg-hover hover:text-fg disabled:text-fg-subtle disabled:hover:bg-transparent',
+            'flex min-w-7 cursor-default items-center justify-center gap-1 px-2 text-xs font-medium text-fg-muted tabular-nums transition-colors hover:bg-hover hover:text-fg disabled:text-fg-subtle disabled:hover:bg-transparent',
             highlight && 'text-accent hover:text-accent',
             running && 'text-accent disabled:text-accent',
             disabled && !running && 'opacity-60',

@@ -195,7 +195,7 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
             </p>
           )}
           {result.errors.length > 0 && (
-            <ul className="selectable space-y-1 rounded-md border border-danger/40 bg-danger/10 p-2 text-xs text-danger">
+            <ul className="selectable space-y-1 rounded-lg border border-danger/40 bg-danger/10 p-2 text-xs text-danger">
               {result.errors.map((message, index) => (
                 <li key={index}>{message}</li>
               ))}
@@ -226,7 +226,7 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
     >
       <div className="space-y-4">
         {headMismatch && (
-          <div className="flex gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+          <div className="flex gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
             <AlertIcon size={14} className="mt-px shrink-0" />
             <span>
               Your local HEAD ({localHeadSha?.slice(0, 7)}) differs from the PR head ({pr.headSha.slice(0, 7)}). Push
@@ -343,7 +343,7 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
         </section>
 
         {error && (
-          <div className="selectable flex gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs whitespace-pre-wrap text-danger">
+          <div className="selectable flex gap-2 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs whitespace-pre-wrap text-danger">
             <AlertIcon size={14} className="mt-px shrink-0" />
             <span>{error}</span>
           </div>

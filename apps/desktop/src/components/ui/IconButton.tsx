@@ -9,7 +9,8 @@ export interface IconButtonProps extends ComponentProps<'button'> {
   shortcut?: string;
   active?: boolean;
   size?: 'sm' | 'md';
-  variant?: 'ghost' | 'primary';
+  /** `circle`: glyph inside a thin round outline (title-bar actions). */
+  variant?: 'ghost' | 'primary' | 'circle';
   tooltipSide?: 'top' | 'bottom';
   children: ReactNode;
 }
@@ -48,11 +49,17 @@ export function IconButton(props: IconButtonProps) {
         aria-label={label}
         aria-pressed={active}
         className={cn(
-          'inline-flex shrink-0 cursor-default items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-40',
+          'inline-flex shrink-0 cursor-default items-center justify-center transition-colors disabled:pointer-events-none disabled:opacity-40',
           size === 'sm' ? 'size-6' : 'size-7',
-          variant === 'primary'
-            ? 'bg-accent-solid text-accent-fg hover:bg-accent-solid/85'
-            : cn('text-fg-subtle hover:bg-hover hover:text-fg', active && 'bg-accent/12 text-accent hover:bg-accent/15 hover:text-accent'),
+          variant === 'circle' ? 'rounded-full' : 'rounded-lg',
+          variant === 'primary' && 'bg-accent-solid text-accent-fg hover:bg-accent-solid/88',
+          variant === 'ghost' &&
+            cn('text-fg-muted hover:bg-hover hover:text-fg', active && 'bg-muted text-fg hover:bg-muted hover:text-fg'),
+          variant === 'circle' &&
+            cn(
+              'border-[1.5px] border-fg-muted/55 text-fg-muted hover:border-fg-muted hover:bg-hover hover:text-fg',
+              active && 'border-fg bg-muted text-fg',
+            ),
           className,
         )}
         {...rest}

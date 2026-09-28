@@ -21,7 +21,7 @@ export function SegmentedToggle<T extends string>(props: SegmentedToggleProps<T>
     <div
       role="radiogroup"
       className={cn(
-        'inline-flex shrink-0 items-center overflow-hidden rounded-md bg-muted',
+        'inline-flex shrink-0 items-center gap-px rounded-full bg-muted p-0.5',
         size === 'sm' ? 'h-6' : 'h-7',
         className,
       )}
@@ -37,9 +37,9 @@ export function SegmentedToggle<T extends string>(props: SegmentedToggleProps<T>
             aria-checked={selected}
             onClick={() => onChange(option.value)}
             className={cn(
-              'inline-flex h-full cursor-default items-center gap-1.5 transition-colors',
+              'inline-flex h-full cursor-default items-center gap-1.5 rounded-full font-medium transition-colors',
               size === 'sm' ? 'px-2 text-2xs' : 'px-2.5 text-xs',
-              selected ? 'bg-accent-solid text-accent-fg' : 'text-fg-muted hover:bg-hover hover:text-fg',
+              selected ? 'bg-paper text-fg' : 'text-fg-muted hover:text-fg',
             )}
           >
             {option.label}

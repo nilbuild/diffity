@@ -301,7 +301,7 @@ export function CodeSurface<T>(props: CodeSurfaceProps<T>) {
       renderCodeViewHeader={renderTop}
       renderCodeViewFooter={renderBottom}
       onScroll={handleScroll}
-      className={className ?? (hideFileHeader ? 'h-full overflow-auto bg-canvas' : 'h-full overflow-auto bg-canvas px-3')}
+      className={className ?? (hideFileHeader ? 'h-full overflow-auto bg-paper' : 'h-full overflow-auto bg-canvas px-3')}
       style={surfaceStyleVars}
     />
   );

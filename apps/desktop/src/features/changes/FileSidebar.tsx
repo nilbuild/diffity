@@ -38,7 +38,7 @@ export function FileSidebar(props: FileSidebarProps) {
 
   return (
     <aside style={{ width }} className="flex shrink-0 flex-col bg-panel">
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border px-2">
+      <div className="flex h-11 shrink-0 items-center gap-1 px-3">
         <FilterInput inputRef={inputRef} value={filter} onChange={setFilter} />
         <IconButton size="sm" label="Only files with open comments" active={onlyCommented} onClick={toggleOnlyCommented}>
           <CommentIcon size={14} />
@@ -48,15 +48,14 @@ export function FileSidebar(props: FileSidebarProps) {
           {allCollapsed ? <ExpandAllIcon size={14} /> : <CollapseAllIcon size={14} />}
         </IconButton>
       </div>
-      <div className="flex h-7 shrink-0 items-center justify-between px-3 text-2xs text-fg-subtle">
-        <span>
-          {entries.length === totalCount ? `${totalCount} files` : `${entries.length} of ${totalCount} files`}
-        </span>
-        <span>
-          {viewedCount}/{entries.length} viewed
+      <div className="flex h-8 shrink-0 items-center justify-between px-5 text-sm">
+        <span className="font-medium text-fg">Changed files</span>
+        <span className="text-xs text-fg-subtle tabular-nums">
+          {entries.length === totalCount ? totalCount : `${entries.length}/${totalCount}`}
+          {viewedCount > 0 && ` · ${viewedCount} viewed`}
         </span>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {entries.map((entry) => (
           <FileRow
             key={entry.summary.path}
@@ -77,9 +76,8 @@ function FilterInput(props: { inputRef: RefObject<HTMLInputElement | null>; valu
   return (
     <Input
       ref={inputRef}
-      size="sm"
-      wrapperClassName="flex-1"
-      icon={<SearchIcon size={12} />}
+      wrapperClassName="flex-1 rounded-full"
+      icon={<SearchIcon size={14} />}
       trailing={!value && <Kbd className="h-4 min-w-4">/</Kbd>}
       value={value}
       placeholder="Filter files"
@@ -116,19 +114,19 @@ function FileRow(props: FileRowProps) {
       title={path}
       onClick={() => onSelect(path)}
       className={cn(
-        'group flex h-7 w-full cursor-default items-center gap-1.5 border-l-2 pr-2 pl-2.5 text-left',
-        active ? 'border-l-accent bg-active' : 'border-l-transparent hover:bg-hover',
-        viewed && 'opacity-50',
+        'group flex h-7 w-full cursor-default items-center gap-2.5 rounded-lg px-3 text-left',
+        active ? 'bg-selected' : 'hover:bg-hover',
+        viewed && 'opacity-55',
       )}
     >
       <FileStatusBadge status={status} />
-      <span className={cn('min-w-0 flex-1 truncate text-sm text-fg', viewed && 'line-through')}>
+      <span className={cn('min-w-0 flex-1 truncate text-sm', active ? 'font-medium text-fg' : 'text-fg-muted', viewed && 'line-through')}>
         {name}
-        {dir && <span className="ml-1.5 text-2xs text-fg-subtle">{dir}</span>}
+        {dir && <span className="ml-1.5 text-xs font-normal text-fg-subtle">{dir}</span>}
       </span>
       {openComments > 0 && <CommentCount count={openComments} />}
       {binary ? <span className="text-2xs text-fg-subtle">bin</span> : <DiffStat additions={additions} deletions={deletions} />}
-      {viewed && <CheckIcon size={12} className="shrink-0 text-added" />}
+      {viewed && <CheckIcon size={12} className="shrink-0 text-accent" />}
     </button>
   );
 }

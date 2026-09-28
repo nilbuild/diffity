@@ -212,7 +212,7 @@ export function GithubAuthPanel(props: GithubAuthPanelProps) {
 
   if (compact) {
     return (
-      <div className="overflow-hidden rounded-lg border border-border bg-raised">
+      <div className="overflow-hidden rounded-xl border border-border bg-paper">
         {deviceView || methods}
         {errorView}
       </div>
@@ -221,13 +221,13 @@ export function GithubAuthPanel(props: GithubAuthPanelProps) {
 
   return (
     <div className="mx-auto max-w-[480px] py-12">
-      <div className="overflow-hidden rounded-lg border border-border bg-raised">
+      <div className="overflow-hidden rounded-xl border border-border bg-paper">
         <div className="flex items-center gap-3 border-b border-border bg-panel px-4 py-3.5">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-raised text-fg">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full border-[1.5px] border-fg-muted/45 text-fg">
             <GithubIcon size={20} />
           </span>
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-fg">Connect GitHub</h2>
+            <h2 className="font-serif text-xl font-semibold text-fg">Connect GitHub</h2>
             <p className="text-xs text-fg-muted">See pull requests and sync review comments. Tokens stay in your keychain.</p>
           </div>
         </div>
@@ -240,7 +240,7 @@ export function GithubAuthPanel(props: GithubAuthPanelProps) {
 
 function MethodIcon(props: { children: ReactNode }) {
   return (
-    <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-panel text-fg-muted">
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-full border-[1.5px] border-fg-muted/45 text-fg-muted">
       {props.children}
     </span>
   );

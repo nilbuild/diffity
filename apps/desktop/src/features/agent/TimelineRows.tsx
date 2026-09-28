@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { MultiFileDiff } from '@pierre/diffs/react';
 import * as api from '@/lib/api';
 import { cn } from '@/lib/cn';
@@ -54,7 +54,7 @@ export function ContextChipView(props: { chip: ContextChip; onRemove?: () => voi
   return (
     <span
       title={chip.filePath}
-      className="inline-flex h-6 max-w-full items-center gap-1 rounded-md border border-border bg-raised pr-1 pl-1.5 text-2xs text-fg-muted"
+      className="inline-flex h-6 max-w-full items-center gap-1 rounded-full bg-muted pr-1 pl-2 text-2xs text-fg-muted"
     >
       <FileIcon size={12} className="shrink-0 text-fg-subtle" />
       <button
@@ -310,7 +310,7 @@ export function PlanChecklist(props: { entries: PlanEntry[]; live: boolean }) {
   const done = entries.filter((entry) => entry.status === 'completed').length;
   const percent = entries.length === 0 ? 0 : Math.round((done / entries.length) * 100);
   return (
-    <div className="overflow-hidden rounded-md border border-border bg-raised">
+    <div className="overflow-hidden rounded-xl border border-border bg-paper">
       <div className="flex h-8 items-center gap-2 border-b border-border-subtle px-2.5 text-xs">
         <ListChecksIcon size={14} className="text-fg-subtle" />
         <span className="font-medium text-fg">Plan</span>
@@ -436,7 +436,7 @@ export function PermissionCard(props: {
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-warning/50 bg-raised">
+    <div className="overflow-hidden rounded-xl border border-warning/50 bg-paper">
       <div className="flex items-start gap-2.5 px-3 py-2.5">
         <span className="mt-px flex size-6 shrink-0 items-center justify-center rounded-md bg-warning/12 text-warning">
           <PermissionIcon size={14} />
@@ -490,7 +490,7 @@ export function UserBubble(props: { item: Extract<TimelineItem, { kind: 'user' }
   const { item, repoPath } = props;
   return (
     <div className="flex justify-end pl-8">
-      <div className="max-w-full min-w-0 rounded-lg border border-accent/20 bg-accent-soft px-3 py-2">
+      <div className="max-w-full min-w-0 rounded-2xl rounded-br-md bg-muted px-3.5 py-2">
         {item.context.length > 0 && (
           <div className="mb-1.5 flex flex-wrap gap-1">
             {item.context.map((chip, index) => (
@@ -532,13 +532,13 @@ export function RunHeader(props: { run: RunMeta; context: ContextChip[]; repoPat
   const { run, context, repoPath } = props;
   const Icon = runIcon(run.kind);
   return (
-    <div className="flex items-center gap-2 pt-1">
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-md border border-accent/20 bg-accent-soft text-accent">
-        <Icon size={12} />
+    <div className="flex items-center gap-2.5 pt-1">
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-full border-[1.5px] border-accent/50 text-accent">
+        <Icon size={14} />
       </span>
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1">
-        <span className="truncate text-xs font-semibold text-fg">{run.title}</span>
-        {run.detail && <span className="truncate font-mono text-2xs text-fg-subtle">{run.detail}</span>}
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="min-w-0 truncate font-serif text-base font-semibold text-fg">{run.title}</span>
+        {run.detail && <span className="truncate rounded-full bg-muted px-2 text-2xs leading-5 text-fg-muted">{run.detail}</span>}
         {context.map((chip, index) => (
           <ContextChipView
             key={index}
@@ -566,7 +566,7 @@ export function NoteRow(props: { text: string }) {
 
 export function ErrorRow(props: { message: string }) {
   return (
-    <div className="flex items-start gap-2 rounded-md border border-danger/40 bg-danger/10 px-2.5 py-2 text-xs text-danger">
+    <div className="flex items-start gap-2 rounded-lg border border-danger/40 bg-danger/10 px-2.5 py-2 text-xs text-danger">
       <AlertIcon size={14} className="shrink-0" />
       <div className="selectable min-w-0 break-words whitespace-pre-wrap">{props.message}</div>
     </div>
@@ -595,11 +595,41 @@ export function DoneRow(props: { stopReason: string }) {
   );
 }
 
-export function StreamingIndicator(props: { agentName: string }) {
+export function useStreamStart(streaming: boolean) {
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  useEffect(() => {
+    if (!streaming) {
+      setStartedAt(null);
+      return;
+    }
+    setStartedAt((previous) => previous ?? Date.now());
+  }, [streaming]);
+  return startedAt;
+}
+
+function formatElapsed(ms: number) {
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+export function StreamingIndicator(props: { agentName: string; startedAt: number | null; step: string | null }) {
+  const { agentName, startedAt, step } = props;
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   return (
-    <div className="flex h-6 items-center gap-2 text-xs text-fg-subtle">
-      <SparklesIcon size={12} className="animate-pulse text-accent" />
-      <span>{props.agentName} is working…</span>
+    <div className="flex items-center gap-2.5 rounded-xl border border-border-subtle bg-paper px-3 py-2 text-xs">
+      <Spinner size={12} className="shrink-0 text-accent" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="font-medium text-fg">{agentName} is working</span>
+        {step && <span className="truncate text-2xs text-fg-subtle">{step}</span>}
+      </div>
+      {startedAt !== null && <span className="shrink-0 text-2xs text-fg-subtle tabular-nums">{formatElapsed(now - startedAt)}</span>}
     </div>
   );
 }

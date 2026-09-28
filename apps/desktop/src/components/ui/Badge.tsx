@@ -8,8 +8,8 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const tones: Record<BadgeTone, string> = {
-  neutral: 'bg-fg-subtle/15 text-fg-muted',
-  accent: 'bg-accent/15 text-accent',
+  neutral: 'bg-muted text-fg-muted',
+  accent: 'bg-accent-soft text-accent',
   success: 'bg-success/15 text-success',
   warning: 'bg-warning/15 text-warning',
   danger: 'bg-danger/15 text-danger',

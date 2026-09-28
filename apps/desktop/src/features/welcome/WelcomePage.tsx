@@ -101,7 +101,7 @@ export function WelcomePage() {
           <header className="flex items-center gap-3.5">
             <Logo />
             <div className="min-w-0 flex-1">
-              <h1 className="text-lg font-semibold text-fg">Diffity</h1>
+              <h1 className="font-serif text-3xl font-semibold text-fg">Diffity</h1>
               <p className="text-sm text-fg-muted">Review diffs, leave comments, and hand them to Claude Code.</p>
             </div>
           </header>
@@ -110,9 +110,9 @@ export function WelcomePage() {
             <button
               type="button"
               onClick={() => void openFolder()}
-              className="group flex cursor-default items-start gap-3 rounded-lg border border-accent/40 bg-accent-soft p-3.5 text-left transition-colors hover:border-accent"
+              className="group flex cursor-default items-start gap-3 rounded-xl border border-accent/30 bg-accent-soft p-4 text-left transition-colors hover:border-accent/70"
             >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-accent-solid text-accent-fg">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-solid text-accent-fg">
                 <FolderOpenIcon size={16} />
               </span>
               <span className="min-w-0 flex-1">
@@ -126,9 +126,9 @@ export function WelcomePage() {
             <button
               type="button"
               onClick={() => void openFolder(true)}
-              className="group flex cursor-default items-start gap-3 rounded-lg border border-border bg-raised p-3.5 text-left transition-colors hover:border-border-strong"
+              className="group flex cursor-default items-start gap-3 rounded-xl border border-border/60 bg-muted-soft p-4 text-left transition-colors hover:border-border-strong"
             >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-panel text-fg-muted">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full border-[1.5px] border-fg-muted/50 text-fg-muted">
                 <NewWindowIcon size={16} />
               </span>
               <span className="min-w-0 flex-1">
@@ -144,8 +144,8 @@ export function WelcomePage() {
           </section>
 
           <section>
-            <div className="mb-2 flex items-center justify-between">
-              <SectionLabel className="mb-0">Recent</SectionLabel>
+            <div className="mb-2.5 flex items-center gap-3">
+              <SectionLabel className="mb-0 flex-1">Recent</SectionLabel>
               {recent.repos.length > 0 && (
                 <span className="text-2xs text-fg-subtle">
                   <Kbd>{modKey}</Kbd> click opens in a new window
@@ -172,12 +172,16 @@ export function WelcomePage() {
 }
 
 function SectionLabel(props: { children: ReactNode; className?: string }) {
-  return <h2 className={cn('mb-2 text-xs font-medium text-fg-muted', props.className)}>{props.children}</h2>;
+  return (
+    <h2 className={cn('mb-2.5 flex items-center gap-3 text-sm font-medium text-fg after:h-px after:flex-1 after:bg-border', props.className)}>
+      {props.children}
+    </h2>
+  );
 }
 
 function Logo() {
   return (
-    <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-accent-solid text-accent-fg">
+    <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-accent-solid text-accent-fg">
       <GitCompareIcon size={24} />
     </div>
   );
@@ -238,7 +242,7 @@ function RecentList(props: RecentListProps) {
     );
   }
   return (
-    <ul className="overflow-hidden rounded-lg border border-border bg-raised">
+    <ul className="overflow-hidden rounded-xl border border-border bg-paper">
       {repos.map((repo) => (
         <RecentRow key={repo.path} repo={repo} onOpen={onOpen} onRemove={onRemove} />
       ))}
@@ -261,7 +265,7 @@ function RecentRow(props: { repo: RecentRepo; onOpen: (path: string, newWindow?:
         onClick={(event) => onOpen(repo.path, event.metaKey || event.ctrlKey)}
         className="flex min-w-0 flex-1 cursor-default items-center gap-3 px-3 py-2.5 text-left"
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-panel text-sm font-semibold text-fg-muted uppercase">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted font-serif text-sm font-semibold text-fg-muted uppercase">
           {repo.name.slice(0, 1)}
         </span>
         <span className="min-w-0 flex-1">

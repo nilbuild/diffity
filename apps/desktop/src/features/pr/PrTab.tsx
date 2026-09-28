@@ -224,7 +224,7 @@ function AuthenticatedPrView(props: { login: string | null }) {
     <div className="h-full overflow-auto">
       <div className="mx-auto max-w-[860px] px-6 py-6">
         {prQuery.isError && (
-          <div className="mb-4 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+          <div className="mb-4 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
             {errorGuidance(prQuery.error)}
           </div>
         )}
@@ -298,11 +298,11 @@ function PrCard(props: { pr: PullRequest }) {
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-lg border border-border bg-raised">
+      <div className="overflow-hidden rounded-xl border border-border bg-paper">
         <div className="px-5 pt-4 pb-3.5">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
-              <h1 className="selectable text-lg leading-snug font-semibold text-fg">
+              <h1 className="selectable font-serif text-3xl leading-tight font-semibold text-fg">
                 {pr.title} <span className="font-normal text-fg-subtle">#{pr.number}</span>
               </h1>
               <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-fg-muted">
@@ -380,7 +380,7 @@ function PrDescription(props: { body: string }) {
   const [open, setOpen] = useState(true);
   const empty = !body.trim();
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-raised">
+    <div className="overflow-hidden rounded-xl border border-border bg-paper">
       <button
         type="button"
         aria-expanded={open}
@@ -462,12 +462,12 @@ function PrPicker() {
           </div>
         )}
         {prsQuery.isError && (
-          <div className="rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+          <div className="rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
             {errorGuidance(prsQuery.error)}
           </div>
         )}
         {prsQuery.data?.length === 0 && <p className="py-4 text-xs text-fg-subtle">No open pull requests.</p>}
-        <ul className="overflow-hidden rounded-lg border border-border bg-raised empty:hidden">
+        <ul className="overflow-hidden rounded-xl border border-border bg-paper empty:hidden">
           {(prsQuery.data ?? []).map((pr) => {
             const state = prState(pr);
             const checks = checksInfo(pr.checks);

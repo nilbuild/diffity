@@ -11,6 +11,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@fontsource-variable/source-serif-4": "^5.3.0",
     "@phosphor-icons/react": "2.1.10",
     "@pierre/diffs": "1.5.1",
     "@tailwindcss/vite": "4.3.3",

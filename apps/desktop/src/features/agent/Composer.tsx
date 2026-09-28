@@ -161,7 +161,7 @@ export function Composer(props: ComposerProps) {
     <div className="shrink-0 px-3 pt-1 pb-3">
       <div
         className={cn(
-          'rounded-lg border bg-canvas transition-colors',
+          'rounded-2xl border bg-paper transition-colors',
           streaming ? 'border-border' : 'border-border hover:border-border-strong focus-within:border-accent hover:focus-within:border-accent',
           disabled && 'opacity-70',
         )}
