@@ -1,7 +1,10 @@
 import { useRef, type RefObject } from 'react';
 import { useHotkeys } from 'react-hotkeys-hook';
+import { CountBadge } from '@/components/ui/Badge';
 import { IconButton } from '@/components/ui/IconButton';
-import { CheckIcon, ChevronsDownUpIcon, ChevronsUpDownIcon, CommentIcon, SearchIcon } from '@/components/ui/icons';
+import { Input } from '@/components/ui/Input';
+import { Kbd } from '@/components/ui/Kbd';
+import { CheckIcon, CollapseAllIcon, ExpandAllIcon, CommentIcon, SearchIcon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { useChangesStore } from './changes-store';
 import { DiffStat, FileStatusBadge } from './StatusBadge';
@@ -35,17 +38,18 @@ export function FileSidebar(props: FileSidebarProps) {
   const viewedCount = entries.filter((e) => viewedPaths.has(e.summary.path)).length;
 
   return (
-    <aside style={{ width }} className="flex shrink-0 flex-col border-r border-border bg-bg-subtle">
-      <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
+    <aside style={{ width }} className="flex shrink-0 flex-col bg-panel">
+      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border px-2">
         <FilterInput inputRef={inputRef} value={filter} onChange={setFilter} />
         <IconButton size="sm" label="Only files with open comments" active={onlyCommented} onClick={toggleOnlyCommented}>
-          <CommentIcon size={13} />
+          <CommentIcon size={14} />
         </IconButton>
-        <IconButton size="sm" label={allCollapsed ? 'Expand all (⇧X)' : 'Collapse all (⇧X)'} onClick={onToggleAll}>
-          {allCollapsed ? <ChevronsUpDownIcon size={14} /> : <ChevronsDownUpIcon size={14} />}
+        <IconButton size="sm" label={allCollapsed ? 'Expand all' : 'Collapse all'}
+          shortcut="⇧X" onClick={onToggleAll}>
+          {allCollapsed ? <ExpandAllIcon size={14} /> : <CollapseAllIcon size={14} />}
         </IconButton>
       </div>
-      <div className="flex items-center justify-between px-3 py-1.5 text-[11px] text-fg-subtle">
+      <div className="flex h-7 shrink-0 items-center justify-between px-3 text-2xs text-fg-subtle">
         <span>
           {entries.length === totalCount ? `${totalCount} files` : `${entries.length} of ${totalCount} files`}
         </span>
@@ -72,23 +76,23 @@ export function FileSidebar(props: FileSidebarProps) {
 function FilterInput(props: { inputRef: RefObject<HTMLInputElement | null>; value: string; onChange: (value: string) => void }) {
   const { inputRef, value, onChange } = props;
   return (
-    <label className="flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-border bg-bg px-2 focus-within:border-accent">
-      <SearchIcon size={12} className="shrink-0 text-fg-subtle" />
-      <input
-        ref={inputRef}
-        value={value}
-        placeholder="Filter files  /"
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key !== 'Escape') {
-            return;
-          }
-          onChange('');
-          event.currentTarget.blur();
-        }}
-        className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-fg-subtle"
-      />
-    </label>
+    <Input
+      ref={inputRef}
+      size="sm"
+      wrapperClassName="flex-1"
+      icon={<SearchIcon size={12} />}
+      trailing={!value && <Kbd className="h-4 min-w-4">/</Kbd>}
+      value={value}
+      placeholder="Filter files"
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') {
+          return;
+        }
+        onChange('');
+        event.currentTarget.blur();
+      }}
+    />
   );
 }
 
@@ -113,22 +117,19 @@ function FileRow(props: FileRowProps) {
       title={path}
       onClick={() => onSelect(path)}
       className={cn(
-        'group flex w-full cursor-default items-center gap-2 px-3 py-[5px] text-left',
-        active ? 'bg-accent-subtle' : 'hover:bg-bg-muted',
+        'group flex h-7 w-full cursor-default items-center gap-2 px-3 text-left',
+        active ? 'bg-selected' : 'hover:bg-hover',
       )}
     >
       <FileStatusBadge status={status} />
-      <span className={cn('min-w-0 flex-1 truncate text-[12.5px]', viewed && 'text-fg-subtle')}>
+      <span className={cn('min-w-0 flex-1 truncate text-sm', viewed && 'text-fg-subtle')}>
         <span className={cn('font-medium', !viewed && 'text-fg')}>{name}</span>
-        {dir && <span className="ml-1.5 text-[11px] text-fg-subtle">{dir}</span>}
+        {dir && <span className="ml-1.5 text-2xs text-fg-subtle">{dir}</span>}
       </span>
       {openComments > 0 && (
-        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-accent-subtle px-1.5 text-[10px] font-semibold text-accent">
-          <CommentIcon size={10} />
-          {openComments}
-        </span>
+        <CountBadge count={openComments} icon={<CommentIcon size={12} />} title={`${openComments} open comments`} />
       )}
-      {binary ? <span className="text-[10px] text-fg-subtle">bin</span> : <DiffStat additions={additions} deletions={deletions} />}
+      {binary ? <span className="text-2xs text-fg-subtle">bin</span> : <DiffStat additions={additions} deletions={deletions} />}
       {viewed && <CheckIcon size={12} className="shrink-0 text-success" />}
     </button>
   );

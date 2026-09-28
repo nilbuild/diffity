@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import type { AgentInfo, Chat } from '@/lib/types';
 import { cn } from '@/lib/cn';
 import { agentHint, isAgentUsable, modeLabel } from './agents';
 import type { UiMode } from './agent-store';
-import { IconHistory, IconPlus, IconTrash, IconX } from './icons';
-import { Badge, IconButton, Popover, SegmentedControl, Spinner } from './primitives';
+import { HistoryIcon, PlusIcon, TrashIcon, XIcon } from '@/components/ui/icon';
+import { Badge } from '@/components/ui/Badge';
+import { IconButton } from '@/components/ui/IconButton';
+import { MenuList } from '@/components/ui/Menu';
+import { Popover } from '@/components/ui/Popover';
+import { SegmentedToggle } from '@/components/ui/SegmentedToggle';
+import { Spinner } from '@/components/ui/Spinner';
 
 dayjs.extend(relativeTime);
 
@@ -29,7 +34,7 @@ function AgentLabel(props: Pick<AgentHeaderProps, 'agentsLoading' | 'agent'>) {
   const usable = agent ? isAgentUsable(agent) : false;
   const title = agent ? (usable ? (agent.binaryPath ?? agent.name) : (agentHint(agent) ?? agent.name)) : undefined;
   return (
-    <div className="flex h-7 items-center gap-1.5 px-2 text-[13px] font-medium" title={title}>
+    <div className="flex h-7 items-center gap-1.5 px-2 text-sm font-medium" title={title}>
       {agentsLoading && <Spinner size={12} />}
       {agent && (
         <span className={cn('h-1.5 w-1.5 rounded-full', usable ? 'bg-success' : 'bg-warning')} aria-hidden />
@@ -46,50 +51,50 @@ function ChatHistory(
 ) {
   const { chats, activeChatId, onSelectChat, onDeleteChat, agents } = props;
   const [open, setOpen] = useState(false);
-
-  const trigger = (
-    <IconButton label="Chat history" active={open} onClick={() => setOpen((value) => !value)}>
-      <IconHistory />
-    </IconButton>
-  );
+  const anchorRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <Popover open={open} onOpenChange={setOpen} trigger={trigger} align="end" className="max-h-[360px] w-[300px] overflow-auto">
-      {chats.length === 0 && <div className="px-2 py-3 text-center text-xs text-fg-subtle">No chats yet</div>}
-      {chats.map((chat) => {
-        const agentName = agents.find((agent) => agent.id === chat.agentId)?.name ?? chat.agentId;
-        return (
-          <div
-            key={chat.id}
-            className={cn(
-              'group flex items-center gap-1 rounded-md hover:bg-bg-muted',
-              chat.id === activeChatId && 'bg-accent-subtle',
-            )}
-          >
-            <button
-              type="button"
-              className="min-w-0 flex-1 px-2 py-1.5 text-left"
-              onClick={() => {
-                onSelectChat(chat.id);
-                setOpen(false);
-              }}
-            >
-              <div className="truncate text-xs">{chat.title || 'Untitled chat'}</div>
-              <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] text-fg-subtle">
-                <span>{agentName}</span>·<span>{modeLabel[chat.mode]}</span>·<span>{dayjs(chat.updatedAt).fromNow()}</span>
+    <>
+      <IconButton ref={anchorRef} label="Chat history" active={open} onClick={() => setOpen((value) => !value)}>
+        <HistoryIcon size={16} />
+      </IconButton>
+      <Popover open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="end" className="max-h-[360px] w-[300px] overflow-auto">
+        <MenuList>
+          {chats.length === 0 && <div className="px-2 py-3 text-center text-xs text-fg-subtle">No chats yet</div>}
+          {chats.map((chat) => {
+            const agentName = agents.find((agent) => agent.id === chat.agentId)?.name ?? chat.agentId;
+            return (
+              <div
+                key={chat.id}
+                className={cn('group flex items-center gap-1 rounded-sm hover:bg-hover', chat.id === activeChatId && 'bg-accent-soft hover:bg-accent-soft')}
+              >
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 cursor-default px-2 py-1.5 text-left"
+                  onClick={() => {
+                    onSelectChat(chat.id);
+                    setOpen(false);
+                  }}
+                >
+                  <div className="truncate text-sm text-fg">{chat.title || 'Untitled chat'}</div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-fg-subtle">
+                    <span>{agentName}</span>·<span>{modeLabel[chat.mode]}</span>·<span>{dayjs(chat.updatedAt).fromNow()}</span>
+                  </div>
+                </button>
+                <IconButton
+                  size="sm"
+                  label="Delete chat"
+                  className="mr-1 opacity-0 group-hover:opacity-100"
+                  onClick={() => onDeleteChat(chat.id)}
+                >
+                  <TrashIcon size={14} />
+                </IconButton>
               </div>
-            </button>
-            <IconButton
-              label="Delete chat"
-              className="mr-1 h-6 w-6 opacity-0 group-hover:opacity-100"
-              onClick={() => onDeleteChat(chat.id)}
-            >
-              <IconTrash size={12} />
-            </IconButton>
-          </div>
-        );
-      })}
-    </Popover>
+            );
+          })}
+        </MenuList>
+      </Popover>
+    </>
   );
 }
 
@@ -98,7 +103,8 @@ export function AgentHeader(props: AgentHeaderProps) {
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
       <AgentLabel agentsLoading={props.agentsLoading} agent={props.agent} />
-      <SegmentedControl
+      <SegmentedToggle
+        size="sm"
         className="ml-1"
         value={uiMode}
         onChange={onModeChange}
@@ -116,10 +122,10 @@ export function AgentHeader(props: AgentHeaderProps) {
           agents={props.agents}
         />
         <IconButton label="New chat" onClick={onNewChat}>
-          <IconPlus />
+          <PlusIcon size={16} />
         </IconButton>
         <IconButton label="Close panel" onClick={onClose}>
-          <IconX />
+          <XIcon size={16} />
         </IconButton>
       </div>
     </div>

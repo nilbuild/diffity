@@ -1,29 +1,76 @@
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { cn } from '@/lib/cn';
+import { useTooltip } from './Tooltip';
 
 export interface IconButtonProps extends ComponentProps<'button'> {
+  /** Accessible name, also shown as the tooltip. */
   label: string;
+  /** Optional shortcut shown after the label in the tooltip, e.g. "⌘L". */
+  shortcut?: string;
   active?: boolean;
   size?: 'sm' | 'md';
+  variant?: 'ghost' | 'primary';
+  tooltipSide?: 'top' | 'bottom';
+  children: ReactNode;
 }
 
 export function IconButton(props: IconButtonProps) {
-  const { label, active, size = 'md', className, type = 'button', children, ...rest } = props;
+  const {
+    label,
+    shortcut,
+    active,
+    size = 'md',
+    variant = 'ghost',
+    tooltipSide,
+    className,
+    type = 'button',
+    children,
+    onMouseEnter,
+    onMouseLeave,
+    ...rest
+  } = props;
+  const { anchorProps, tooltip } = useTooltip(
+    shortcut ? (
+      <span className="flex items-center gap-1.5">
+        {label}
+        <span className="text-fg-subtle">{shortcut}</span>
+      </span>
+    ) : (
+      label
+    ),
+    tooltipSide,
+  );
+
   return (
-    <button
-      type={type}
-      aria-label={label}
-      title={label}
-      aria-pressed={active}
-      className={cn(
-        'inline-flex shrink-0 cursor-default items-center justify-center rounded-md text-fg-muted transition-colors outline-none hover:bg-bg-muted hover:text-fg focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40',
-        size === 'sm' ? 'size-6' : 'size-7',
-        active && 'bg-bg-muted text-fg',
-        className,
-      )}
-      {...rest}
-    >
-      {children}
-    </button>
+    <>
+      <button
+        type={type}
+        aria-label={label}
+        aria-pressed={active}
+        className={cn(
+          'inline-flex shrink-0 cursor-default items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-40',
+          size === 'sm' ? 'size-6' : 'size-7',
+          variant === 'primary'
+            ? 'bg-accent-solid text-accent-fg hover:bg-accent-solid/88'
+            : cn('text-fg-muted hover:bg-hover hover:text-fg', active && 'bg-accent-soft text-accent hover:bg-accent-soft hover:text-accent'),
+          className,
+        )}
+        {...rest}
+        onMouseEnter={(event) => {
+          anchorProps.onMouseEnter(event);
+          onMouseEnter?.(event);
+        }}
+        onMouseLeave={(event) => {
+          anchorProps.onMouseLeave();
+          onMouseLeave?.(event);
+        }}
+        onFocus={anchorProps.onFocus}
+        onBlur={anchorProps.onBlur}
+        onMouseDown={anchorProps.onMouseDown}
+      >
+        {children}
+      </button>
+      {tooltip}
+    </>
   );
 }

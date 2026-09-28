@@ -1,11 +1,53 @@
 use crate::types::{AgentAction, AgentMode, ContextChip};
-use diffity_core::types::Side;
+use diffity_core::types::{ReviewVerdict, Side};
 
 const REVIEW: &str = include_str!("../../../prompts/review.md");
 const RESOLVE: &str = include_str!("../../../prompts/resolve.md");
 const ASK: &str = include_str!("../../../prompts/ask.md");
 const EXPLAIN: &str = include_str!("../../../prompts/explain.md");
 const SUMMARIZE: &str = include_str!("../../../prompts/summarize.md");
+const THREAD: &str = include_str!("../../../prompts/thread.md");
+const REVIEW_FEEDBACK: &str = include_str!("../../../prompts/review-feedback.md");
+
+/// Submitted review details for `AgentAction::ReviewFeedback`.
+#[derive(Clone, Debug, Default)]
+pub struct ReviewBrief {
+    pub body: String,
+    pub verdict: Option<ReviewVerdict>,
+    pub thread_ids: Vec<String>,
+}
+
+fn verdict_label(v: Option<ReviewVerdict>) -> &'static str {
+    match v {
+        Some(ReviewVerdict::Approve) => "approved",
+        Some(ReviewVerdict::RequestChanges) => "changes requested",
+        _ => "comment",
+    }
+}
+
+fn render_review_feedback(session_ref: &str, review: &ReviewBrief) -> String {
+    let threads = if review.thread_ids.is_empty() {
+        "none (act on the summary only)".to_string()
+    } else {
+        review
+            .thread_ids
+            .iter()
+            .map(|id| format!("`{id}`"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let body = review.body.trim();
+    let body = if body.is_empty() { "(no summary)" } else { body };
+    render(
+        REVIEW_FEEDBACK,
+        &[
+            ("ref", session_ref),
+            ("verdict", verdict_label(review.verdict)),
+            ("threads", &threads),
+            ("body", body),
+        ],
+    )
+}
 
 const EDIT_PREAMBLE: &str = "You are a coding assistant embedded in Diffity, a desktop code-review app, working in the repository at the current working directory. Make the changes the user asks for with your file editing tools; every write is shown to the user for approval. Keep changes minimal and focused. For review comments use only the `diffity` MCP tools (`mcp__diffity__*`); never run a `diffity` CLI or invoke a diffity skill/slash command — those belong to an older tool and are not connected to this app.";
 
@@ -23,8 +65,17 @@ fn action_template(
     action: &AgentAction,
     session_ref: &str,
     first_turn: bool,
+    review: Option<&ReviewBrief>,
 ) -> Option<String> {
     match action {
+        AgentAction::Thread { thread_id } => Some(render(
+            THREAD,
+            &[("ref", session_ref), ("threadId", thread_id)],
+        )),
+        AgentAction::ReviewFeedback { .. } => {
+            let fallback = ReviewBrief::default();
+            Some(render_review_feedback(session_ref, review.unwrap_or(&fallback)))
+        }
         AgentAction::Review { r#ref, focus } => {
             let focus = focus
                 .as_deref()
@@ -91,6 +142,7 @@ fn render_chip(chip: &ContextChip) -> String {
     )
 }
 
+/// `review` is only used by `AgentAction::ReviewFeedback`.
 pub fn build_prompt(
     mode: AgentMode,
     action: &AgentAction,
@@ -98,9 +150,10 @@ pub fn build_prompt(
     first_turn: bool,
     text: &str,
     context: &[ContextChip],
+    review: Option<&ReviewBrief>,
 ) -> String {
     let mut parts: Vec<String> = Vec::new();
-    if let Some(template) = action_template(mode, action, session_ref, first_turn) {
+    if let Some(template) = action_template(mode, action, session_ref, first_turn, review) {
         parts.push(template.trim_end().to_string());
     }
     if !context.is_empty() {
@@ -144,9 +197,15 @@ mod tests {
                 r#ref: "HEAD~1".into(),
             },
             AgentAction::Chat,
+            AgentAction::Thread {
+                thread_id: "abcd1234-full".into(),
+            },
+            AgentAction::ReviewFeedback {
+                review_id: "r1".into(),
+            },
         ];
         for action in &actions {
-            let p = build_prompt(AgentMode::Review, action, "work", true, "", &[]);
+            let p = build_prompt(AgentMode::Review, action, "work", true, "", &[], None);
             assert!(
                 !p.contains("{{"),
                 "unrendered placeholder in {action:?}: {p}"
@@ -156,7 +215,7 @@ mod tests {
 
     #[test]
     fn every_template_restricts_agents_to_diffity_mcp_tools() {
-        for template in [REVIEW, RESOLVE, ASK, EXPLAIN, SUMMARIZE, EDIT_PREAMBLE] {
+        for template in [REVIEW, RESOLVE, ASK, EXPLAIN, SUMMARIZE, THREAD, REVIEW_FEEDBACK, EDIT_PREAMBLE] {
             assert!(template.contains("mcp__diffity__"), "{template}");
             assert!(template.contains("CLI") || template.contains("command-line"), "{template}");
         }
@@ -168,7 +227,7 @@ mod tests {
             r#ref: "main..feat".into(),
             focus: Some("security".into()),
         };
-        let p = build_prompt(AgentMode::Review, &action, "work", true, "", &[]);
+        let p = build_prompt(AgentMode::Review, &action, "work", true, "", &[], None);
         assert!(p.contains("`main..feat`"));
         assert!(p.contains("Focus: security"));
         assert!(p.contains("add_comment"));
@@ -180,7 +239,7 @@ mod tests {
         let action = AgentAction::Resolve {
             thread_id: Some("abcd1234".into()),
         };
-        let p = build_prompt(AgentMode::Resolve, &action, "work", false, "", &[]);
+        let p = build_prompt(AgentMode::Resolve, &action, "work", false, "", &[], None);
         assert!(p.contains("thread `abcd1234` only"));
     }
 
@@ -193,16 +252,17 @@ mod tests {
             false,
             "  why?  ",
             &[],
+            None,
         );
         assert_eq!(p, "why?");
     }
 
     #[test]
     fn chat_first_turn_uses_mode_preamble() {
-        let ask = build_prompt(AgentMode::Ask, &AgentAction::Chat, "work", true, "hi", &[]);
+        let ask = build_prompt(AgentMode::Ask, &AgentAction::Chat, "work", true, "hi", &[], None);
         assert!(ask.contains("read-only mode"));
         assert!(ask.ends_with("## Request\n\nhi"));
-        let edit = build_prompt(AgentMode::Edit, &AgentAction::Chat, "work", true, "hi", &[]);
+        let edit = build_prompt(AgentMode::Edit, &AgentAction::Chat, "work", true, "hi", &[], None);
         assert!(edit.contains("approval"));
     }
 
@@ -231,6 +291,7 @@ mod tests {
             false,
             "what is this",
             &chips,
+            None,
         );
         assert!(
             p.contains("- `src/a.rs` lines 3-5 (old side — removed code)\n```\nlet x = 1;\n```")
@@ -255,7 +316,43 @@ mod tests {
             false,
             "",
             &[chip],
+            None,
         );
         assert!(p.contains("line 1\n````\n```js"));
+    }
+
+    #[test]
+    fn thread_prompt_targets_one_thread() {
+        let action = AgentAction::Thread {
+            thread_id: "abcd1234-5678".into(),
+        };
+        let p = build_prompt(AgentMode::Resolve, &action, "work", true, "", &[], None);
+        assert!(p.contains("- Thread: `abcd1234-5678`"));
+        assert!(p.contains("- Diff: `work`"));
+        assert!(p.contains("reply"));
+        assert!(p.contains("resolve"));
+        assert!(!p.contains("{{"));
+    }
+
+    #[test]
+    fn review_feedback_prompt_lists_threads_and_summary() {
+        let action = AgentAction::ReviewFeedback {
+            review_id: "r1".into(),
+        };
+        let brief = ReviewBrief {
+            body: "Please tidy the error handling.".into(),
+            verdict: Some(ReviewVerdict::RequestChanges),
+            thread_ids: vec!["t1".into(), "t2".into()],
+        };
+        let p = build_prompt(AgentMode::Resolve, &action, "main..feat", true, "", &[], Some(&brief));
+        assert!(p.contains("- Threads in this review, in order: `t1`, `t2`"));
+        assert!(p.contains("- Verdict: changes requested"));
+        assert!(p.contains("## Review summary\n\nPlease tidy the error handling."));
+        assert!(p.contains("`main..feat`"));
+        assert!(p.contains("Skip** threads whose `status` is already `resolved`"));
+
+        let empty = build_prompt(AgentMode::Resolve, &action, "work", true, "", &[], None);
+        assert!(empty.contains("none (act on the summary only)"));
+        assert!(empty.contains("(no summary)"));
     }
 }

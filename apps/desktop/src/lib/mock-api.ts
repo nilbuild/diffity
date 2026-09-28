@@ -8,13 +8,16 @@ import type {
   DiffFileSummary,
   DiffResult,
   NewThread,
+  Review,
   ReviewSession,
+  ReviewVerdict,
   Thread,
   ThreadStatus,
   TreeEntry,
 } from './types';
 import { FIXTURE_CONTENTS, FIXTURE_FILES, FIXTURE_PATCH, FIXTURE_VERSIONS } from './mock-fixtures';
 import { createAgentMockHandlers } from './mock-api-agents';
+import { mentionsAgent } from './mentions';
 
 type Args = Record<string, unknown>;
 
@@ -28,6 +31,7 @@ const newId = () => `${(++idCounter).toString(16)}a1b2c3d4e5f6`;
 
 const sessions = new Map<string, ReviewSession>();
 const threads = new Map<string, Thread>();
+const reviews = new Map<string, Review>();
 const viewed = new Map<string, Map<string, string>>();
 const settings = new Map<string, string>([['theme', 'system']]);
 
@@ -42,12 +46,79 @@ function sessionFor(repoPath: string, ref: string): ReviewSession {
   return session;
 }
 
-function makeComment(threadId: string, body: string, authorType: Comment['authorType'], authorName: string): Comment {
-  return { id: newId(), threadId, authorType, authorName, body, createdAt: now(), githubCommentId: null };
+function makeComment(
+  threadId: string,
+  body: string,
+  authorType: Comment['authorType'],
+  authorName: string,
+  reviewId: string | null = null,
+): Comment {
+  return {
+    id: newId(),
+    threadId,
+    authorType,
+    authorName,
+    body,
+    createdAt: now(),
+    githubCommentId: null,
+    pending: reviewId !== null,
+    reviewId,
+    mentionsAgent: authorType === 'user' && mentionsAgent(body),
+  };
+}
+
+function pendingReviewFor(sessionId: string): Review | null {
+  return [...reviews.values()].find((r) => r.sessionId === sessionId && r.state === 'pending') ?? null;
+}
+
+function ensurePendingReview(sessionId: string): Review {
+  const existing = pendingReviewFor(sessionId);
+  if (existing) {
+    return existing;
+  }
+  const review: Review = {
+    id: `rev-${newId()}`,
+    sessionId,
+    state: 'pending',
+    body: '',
+    verdict: null,
+    pendingCount: 0,
+    commentCount: 0,
+    threadIds: [],
+    mentionedThreadIds: [],
+    bodyMentionsAgent: false,
+    createdAt: now(),
+    submittedAt: null,
+  };
+  reviews.set(review.id, review);
+  return review;
+}
+
+function fillReview(review: Review): Review {
+  const comments = [...threads.values()].flatMap((t) => t.comments).filter((c) => c.reviewId === review.id);
+  const threadIds: string[] = [];
+  const mentionedThreadIds: string[] = [];
+  for (const c of comments) {
+    if (!threadIds.includes(c.threadId)) {
+      threadIds.push(c.threadId);
+    }
+    if (c.mentionsAgent && !mentionedThreadIds.includes(c.threadId)) {
+      mentionedThreadIds.push(c.threadId);
+    }
+  }
+  return {
+    ...review,
+    pendingCount: comments.filter((c) => c.pending).length,
+    commentCount: comments.length,
+    threadIds,
+    mentionedThreadIds,
+    bodyMentionsAgent: mentionsAgent(review.body),
+  };
 }
 
 function insertThread(input: NewThread): Thread {
   const id = newId();
+  const reviewId = input.pending ? ensurePendingReview(input.sessionId).id : null;
   const thread: Thread = {
     id,
     sessionId: input.sessionId,
@@ -59,9 +130,11 @@ function insertThread(input: NewThread): Thread {
     severity: input.severity ?? null,
     anchorContent: input.anchorContent ?? null,
     githubThreadId: null,
-    comments: [makeComment(id, input.body, input.authorType ?? 'user', input.authorName ?? 'You')],
+    comments: [makeComment(id, input.body, input.authorType ?? 'user', input.authorName ?? 'You', reviewId)],
     createdAt: now(),
     updatedAt: now(),
+    pending: reviewId !== null,
+    reviewId,
   };
   threads.set(id, thread);
   return thread;
@@ -276,10 +349,11 @@ const handlers: Record<string, (args: Args) => unknown> = {
     if (!thread) {
       throw { code: 'not_found', message: 'thread not found' };
     }
-    thread.comments.push(
-      makeComment(thread.id, String(args.body), (args.authorType as Comment['authorType']) ?? 'user', (args.authorName as string) ?? 'You'),
-    );
-    if (thread.status !== 'open') {
+    const authorType = (args.authorType as Comment['authorType']) ?? 'user';
+    const pending = authorType === 'user' && (args.pending === true || thread.pending);
+    const reviewId = pending ? ensurePendingReview(thread.sessionId).id : null;
+    thread.comments.push(makeComment(thread.id, String(args.body), authorType, (args.authorName as string) ?? 'You', reviewId));
+    if (!pending && authorType === 'user' && thread.status !== 'open') {
       thread.status = 'open';
     }
     return touch(thread);
@@ -335,6 +409,65 @@ const handlers: Record<string, (args: Args) => unknown> = {
       thread.comments.push(makeComment(thread.id, args.summary, 'agent', 'Claude Code'));
     }
     return touch(thread);
+  },
+  get_pending_review: (args) => {
+    const review = pendingReviewFor(String(args.sessionId));
+    return review ? fillReview(review) : null;
+  },
+  start_review: (args) => fillReview(ensurePendingReview(String(args.sessionId))),
+  get_review: (args) => {
+    const review = reviews.get(String(args.reviewId));
+    if (!review) {
+      throw { code: 'not_found', message: 'review not found' };
+    }
+    return fillReview(review);
+  },
+  list_reviews: (args) =>
+    [...reviews.values()].filter((r) => r.sessionId === args.sessionId).map((r) => fillReview(r)),
+  submit_review: (args) => {
+    const sessionId = String(args.sessionId);
+    const body = typeof args.body === 'string' ? args.body.trim() : '';
+    const verdict = (args.verdict as ReviewVerdict | null) ?? 'comment';
+    const pending = pendingReviewFor(sessionId);
+    const pendingCount = pending ? fillReview(pending).pendingCount : 0;
+    if (pendingCount === 0 && !body && verdict === 'comment') {
+      throw { code: 'invalid', message: 'the review has no comments and no summary' };
+    }
+    const review = ensurePendingReview(sessionId);
+    const ts = now();
+    for (const thread of threads.values()) {
+      const drafts = thread.comments.filter((c) => c.reviewId === review.id && c.pending);
+      if (drafts.length === 0) {
+        continue;
+      }
+      for (const c of drafts) {
+        c.pending = false;
+        c.createdAt = ts;
+      }
+      thread.pending = false;
+      thread.status = 'open';
+      thread.updatedAt = ts;
+    }
+    Object.assign(review, { state: 'submitted', body, verdict, submittedAt: ts });
+    void emit('threads-changed', { sessionId });
+    return fillReview(review);
+  },
+  discard_review: (args) => {
+    const sessionId = String(args.sessionId);
+    const review = pendingReviewFor(sessionId);
+    if (!review) {
+      return null;
+    }
+    for (const thread of [...threads.values()]) {
+      if (thread.reviewId === review.id) {
+        threads.delete(thread.id);
+        continue;
+      }
+      thread.comments = thread.comments.filter((c) => !(c.reviewId === review.id && c.pending));
+    }
+    reviews.delete(review.id);
+    void emit('threads-changed', { sessionId });
+    return null;
   },
   list_viewed: (args) =>
     [...(viewed.get(String(args.sessionId)) ?? new Map()).entries()].map(([filePath, contentHash]) => ({ filePath, contentHash })),

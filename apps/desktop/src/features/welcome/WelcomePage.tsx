@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
 import { Kbd } from '@/components/ui/Kbd';
 import { Menu } from '@/components/ui/Menu';
-import { ExternalLinkIcon, FolderIcon, MoreIcon, PullRequestIcon } from '@/components/ui/icons';
+import { ExternalLinkIcon, FolderIcon, GitCompareIcon, MoreIcon, PullRequestIcon } from '@/components/ui/icon';
 import * as api from '@/lib/api';
 import { isTauri, modKey } from '@/lib/platform';
 import { queryKeys } from '@/lib/query';
@@ -54,23 +54,23 @@ export function WelcomePage() {
             <Logo />
             <div>
               <h1 className="text-xl font-semibold tracking-tight">Diffity</h1>
-              <p className="mt-1 text-[13px] text-fg-muted">Review diffs, leave comments, and hand them to your agents.</p>
+              <p className="mt-1 text-sm text-fg-muted">Review diffs, leave comments, and hand them to your agents.</p>
             </div>
           </header>
 
           <div className="flex flex-col gap-2">
-            <Button variant="primary" className="h-9 w-full text-[13px]" onClick={() => void openFolder()}>
-              <FolderIcon size={15} />
+            <Button variant="primary" size="lg" className="w-full" onClick={() => void openFolder()}>
+              <FolderIcon size={16} />
               Open Folder…
-              <span className="ml-1 text-[11px] opacity-70">{modKey}O</span>
+              <span className="ml-1 text-2xs font-normal opacity-75">{modKey}O</span>
             </Button>
             <PrUrlForm recent={recent.data ?? []} onOpen={openRepo} />
           </div>
 
           <section>
             <div className="mb-2 flex items-center justify-between px-1">
-              <h2 className="text-[11px] font-semibold tracking-wider text-fg-subtle uppercase">Recent repositories</h2>
-              <span className="text-[11px] text-fg-subtle">
+              <h2 className="text-xs font-medium text-fg-muted">Recent repositories</h2>
+              <span className="text-2xs text-fg-subtle">
                 <Kbd>{modKey}</Kbd>+click opens in a new window
               </span>
             </div>
@@ -79,7 +79,7 @@ export function WelcomePage() {
         </div>
       </div>
       {dragging && (
-        <div className="pointer-events-none absolute inset-3 flex items-center justify-center rounded-xl border-2 border-dashed border-accent bg-accent-subtle/60 text-sm font-medium text-accent">
+        <div className="pointer-events-none absolute inset-3 flex items-center justify-center rounded-lg border-2 border-dashed border-accent bg-accent-soft/80 text-sm font-medium text-accent">
           Drop a folder to open it
         </div>
       )}
@@ -89,13 +89,8 @@ export function WelcomePage() {
 
 function Logo() {
   return (
-    <div className="flex size-12 items-center justify-center rounded-xl bg-accent text-accent-fg shadow-lg shadow-accent/30">
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round">
-        <path d="M8 4v16" />
-        <path d="M16 4v16" />
-        <path d="M5 8h6" />
-        <path d="M13 16h6" />
-      </svg>
+    <div className="flex size-12 items-center justify-center rounded-lg bg-accent-solid text-accent-fg">
+      <GitCompareIcon size={24} />
     </div>
   );
 }
@@ -143,7 +138,7 @@ interface RecentListProps {
 function RecentList(props: RecentListProps) {
   const { repos, loading, onOpen } = props;
   if (loading) {
-    return <div className="h-24 animate-pulse rounded-lg bg-bg-muted" />;
+    return <div className="h-24 animate-pulse rounded-lg border border-border bg-panel" />;
   }
   if (repos.length === 0) {
     return (
@@ -153,32 +148,32 @@ function RecentList(props: RecentListProps) {
     );
   }
   return (
-    <ul className="overflow-hidden rounded-lg border border-border bg-bg-elevated">
+    <ul className="overflow-hidden rounded-lg border border-border bg-raised">
       {repos.map((repo) => (
-        <li key={repo.path} className="group flex items-center border-b border-border last:border-b-0 hover:bg-bg-muted">
+        <li key={repo.path} className="group flex items-center border-b border-border-subtle last:border-b-0 hover:bg-hover">
           <button
             type="button"
             onClick={(event) => onOpen(repo.path, event.metaKey || event.ctrlKey)}
             className="flex min-w-0 flex-1 cursor-default items-center gap-3 px-3 py-2.5 text-left"
           >
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-bg-muted text-sm font-semibold text-fg-muted uppercase">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-panel text-sm font-semibold text-fg-muted uppercase">
               {repo.name.slice(0, 1)}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[13px] font-medium text-fg">{repo.name}</span>
-              <span className="block truncate text-[11px] text-fg-subtle">{repo.path.replace(/^\/Users\/[^/]+/, '~')}</span>
+              <span className="block truncate text-sm font-medium text-fg">{repo.name}</span>
+              <span className="block truncate text-2xs text-fg-subtle">{repo.path.replace(/^\/Users\/[^/]+/, '~')}</span>
             </span>
-            <span className="shrink-0 text-[11px] text-fg-subtle">{dayjs(repo.lastOpenedAt).fromNow()}</span>
+            <span className="shrink-0 text-2xs text-fg-subtle">{dayjs(repo.lastOpenedAt).fromNow()}</span>
           </button>
           <div className="pr-2 opacity-0 group-hover:opacity-100">
             <Menu
               items={[
                 { label: 'Open', onSelect: () => onOpen(repo.path) },
-                { label: 'Open in new window', icon: <ExternalLinkIcon size={13} />, onSelect: () => onOpen(repo.path, true) },
+                { label: 'Open in new window', icon: <ExternalLinkIcon size={14} />, onSelect: () => onOpen(repo.path, true) },
               ]}
               trigger={(trigger) => (
                 <IconButton ref={trigger.ref} size="sm" label="More" onClick={trigger.onClick}>
-                  <MoreIcon size={14} />
+                  <MoreIcon size={16} />
                 </IconButton>
               )}
             />
@@ -227,18 +222,18 @@ function PrUrlForm(props: PrUrlFormProps) {
 
   return (
     <form
-      className="flex h-9 items-center gap-2 rounded-md border border-border bg-bg-elevated pr-1 pl-3 focus-within:border-accent"
+      className="flex h-9 items-center gap-2 rounded-md border border-border bg-canvas pr-1 pl-3 transition-colors focus-within:border-accent hover:border-border-strong"
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
       }}
     >
-      <PullRequestIcon size={14} className="shrink-0 text-fg-subtle" />
+      <PullRequestIcon size={16} className="shrink-0 text-fg-subtle" />
       <input
         value={url}
         onChange={(event) => setUrl(event.target.value)}
         placeholder="Open a pull request URL…"
-        className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-fg-subtle"
+        className="selectable min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-fg-subtle"
       />
       <Button size="sm" type="submit" disabled={!url.trim() || busy}>
         Open PR

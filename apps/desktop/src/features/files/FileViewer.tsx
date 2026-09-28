@@ -7,7 +7,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { IconButton } from '@/components/ui/IconButton';
 import { SegmentedToggle } from '@/components/ui/SegmentedToggle';
 import { Spinner } from '@/components/ui/Spinner';
-import { CodeIcon, CommentIcon, CopyIcon, FileIcon, LightbulbIcon } from '@/components/ui/icons';
+import { CodeIcon, CommentIcon, CopyIcon, FileIcon, LightbulbIcon } from '@/components/ui/icon';
 import * as api from '@/lib/api';
 import { hashNumber } from '@/lib/hash';
 import { queryKeys } from '@/lib/query';
@@ -72,7 +72,7 @@ export function FileViewer(props: FileViewerProps) {
         {file && mime && file.binary && <ImageViewer path={path} mime={mime} />}
         {file && !mime && (file.binary || file.contents === null) && (
           <EmptyState
-            icon={<FileIcon size={28} />}
+            icon={<FileIcon size={20} />}
             title="Binary file not shown"
             description={`${formatSize(file.size)} · open it in your editor to inspect.`}
           />
@@ -97,13 +97,14 @@ function FileViewerHeader(props: FileViewerHeaderProps) {
   const { path, size, mode, onModeChange, onCommentFile } = props;
   const { repoPath } = useWorkspace();
   return (
-    <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-3 text-xs">
+    <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border bg-canvas px-3 text-xs">
       <span className="truncate font-medium text-fg">{path}</span>
       {size !== null && <span className="text-fg-subtle">{formatSize(size)}</span>}
       <div className="ml-auto flex items-center gap-1">
         {mode && (
           <SegmentedToggle
             value={mode}
+            size="sm"
             onChange={onModeChange}
             options={[
               { value: 'code', label: 'Code' },
@@ -113,24 +114,24 @@ function FileViewerHeader(props: FileViewerHeaderProps) {
           />
         )}
         <IconButton size="sm" label="Comment on file" onClick={onCommentFile}>
-          <CommentIcon size={13} />
+          <CommentIcon size={14} />
         </IconButton>
         <IconButton size="sm" label="Explain with AI" onClick={() => agentBus.runAction({ kind: 'explain', path })}>
-          <LightbulbIcon size={13} />
+          <LightbulbIcon size={14} />
         </IconButton>
         <IconButton
           size="sm"
           label="Copy path"
           onClick={() => void navigator.clipboard.writeText(path).then(() => toast.success('Path copied'))}
         >
-          <CopyIcon size={13} />
+          <CopyIcon size={14} />
         </IconButton>
         <IconButton
           size="sm"
           label="Open in editor"
           onClick={() => api.openInEditor(repoPath, path).catch((error: unknown) => toast.error(api.errorMessage(error)))}
         >
-          <CodeIcon size={13} />
+          <CodeIcon size={14} />
         </IconButton>
       </div>
     </div>

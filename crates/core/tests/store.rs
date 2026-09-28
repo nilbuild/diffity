@@ -1,5 +1,5 @@
 use diffity_core::store::UpsertOutcome;
-use diffity_core::types::{AuthorType, NewThread, Severity, Side, ThreadStatus};
+use diffity_core::types::{AuthorType, NewThread, ReviewState, ReviewVerdict, Severity, Side, ThreadStatus};
 use diffity_core::Store;
 
 fn new_thread(session_id: &str, body: &str) -> NewThread {
@@ -14,6 +14,14 @@ fn new_thread(session_id: &str, body: &str) -> NewThread {
         anchor_content: Some("fn b() {}".into()),
         author_type: None,
         author_name: None,
+        pending: None,
+    }
+}
+
+fn pending_thread(session_id: &str, body: &str) -> NewThread {
+    NewThread {
+        pending: Some(true),
+        ..new_thread(session_id, body)
     }
 }
 
@@ -165,4 +173,169 @@ fn persists_to_disk() {
     };
     let store = Store::open(&db).unwrap();
     assert_eq!(store.get_thread(&id).unwrap().comments[0].body, "persist");
+}
+
+#[test]
+fn pending_review_lifecycle() {
+    let store = Store::open_in_memory().unwrap();
+    let s = store.get_or_create_session("/repo", "work").unwrap();
+    assert!(store.get_pending_review(&s.id).unwrap().is_none());
+
+    let published = store.create_thread(&new_thread(&s.id, "published")).unwrap();
+    let published = store
+        .set_thread_status(&published.id, ThreadStatus::Resolved, None)
+        .unwrap();
+    assert!(!published.pending);
+    assert!(published.review_id.is_none());
+
+    let draft = store.create_thread(&pending_thread(&s.id, "draft @claude fix")).unwrap();
+    assert!(draft.pending);
+    assert!(draft.comments[0].pending);
+    assert!(draft.comments[0].mentions_agent);
+    let review = store.get_pending_review(&s.id).unwrap().unwrap();
+    assert_eq!(review.state, ReviewState::Pending);
+    assert_eq!(draft.review_id.as_deref(), Some(review.id.as_str()));
+    assert_eq!(store.start_review(&s.id).unwrap().id, review.id);
+
+    let draft = store.add_reply(&draft.id, "forced pending", AuthorType::User, None).unwrap();
+    assert!(draft.comments[1].pending);
+
+    let replied = store
+        .add_reply_with(&published.id, "why this?", AuthorType::User, None, true)
+        .unwrap();
+    assert!(!replied.pending);
+    assert!(replied.comments[1].pending);
+    assert_eq!(replied.status, ThreadStatus::Resolved);
+
+    let agent = store
+        .add_reply_with(&published.id, "agent answer", AuthorType::Agent, Some("Claude Code"), true)
+        .unwrap();
+    assert!(!agent.comments[2].pending);
+    assert_eq!(agent.status, ThreadStatus::Resolved);
+
+    assert!(store.create_thread(&NewThread {
+        author_type: Some(AuthorType::Agent),
+        ..pending_thread(&s.id, "agent draft")
+    })
+    .is_err());
+
+    let listed = store.list_threads(&s.id, None).unwrap();
+    assert_eq!(listed.iter().filter(|t| t.pending).count(), 1);
+    let review = store.get_pending_review(&s.id).unwrap().unwrap();
+    assert_eq!(review.pending_count, 3);
+    assert_eq!(review.thread_ids, vec![draft.id.clone(), published.id.clone()]);
+    assert_eq!(review.mentioned_thread_ids, vec![draft.id.clone()]);
+
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    let submitted = store
+        .submit_review(&s.id, " looks good @claude ", ReviewVerdict::RequestChanges)
+        .unwrap();
+    assert_eq!(submitted.id, review.id);
+    assert_eq!(submitted.state, ReviewState::Submitted);
+    assert_eq!(submitted.verdict, Some(ReviewVerdict::RequestChanges));
+    assert_eq!(submitted.body, "looks good @claude");
+    assert!(submitted.body_mentions_agent);
+    assert_eq!(submitted.pending_count, 0);
+    assert_eq!(submitted.comment_count, 3);
+    assert!(submitted.submitted_at.is_some());
+    assert!(store.get_pending_review(&s.id).unwrap().is_none());
+
+    let draft = store.get_thread(&draft.id).unwrap();
+    assert!(!draft.pending);
+    assert!(draft.comments.iter().all(|c| !c.pending));
+    let published = store.get_thread(&published.id).unwrap();
+    assert_eq!(published.status, ThreadStatus::Open);
+    assert_eq!(published.comments.last().unwrap().body, "why this?");
+
+    let next = store.create_thread(&pending_thread(&s.id, "second round")).unwrap();
+    assert_ne!(next.review_id, Some(review.id.clone()));
+    let reviews = store.list_reviews(&s.id).unwrap();
+    assert_eq!(reviews.len(), 2);
+    assert_eq!(reviews[1].state, ReviewState::Pending);
+}
+
+#[test]
+fn discard_and_edit_pending() {
+    let store = Store::open_in_memory().unwrap();
+    let s = store.get_or_create_session("/repo", "work").unwrap();
+    let keep = store.create_thread(&new_thread(&s.id, "keep")).unwrap();
+    let draft = store.create_thread(&pending_thread(&s.id, "draft")).unwrap();
+    store.add_reply_with(&keep.id, "draft reply", AuthorType::User, None, true).unwrap();
+    let edited_id = draft.comments[0].id.clone();
+    store.edit_comment(&edited_id, "edited").unwrap();
+    assert_eq!(store.get_comment(&edited_id).unwrap().body, "edited");
+    assert!(store.get_comment(&edited_id).unwrap().pending);
+
+    assert!(store.discard_review(&s.id).unwrap());
+    assert!(!store.discard_review(&s.id).unwrap());
+    let threads = store.list_threads(&s.id, None).unwrap();
+    assert_eq!(threads.len(), 1);
+    assert_eq!(threads[0].comments.len(), 1);
+    assert!(store.list_reviews(&s.id).unwrap().is_empty());
+}
+
+#[test]
+fn submit_rules() {
+    let store = Store::open_in_memory().unwrap();
+    let s = store.get_or_create_session("/repo", "work").unwrap();
+    assert_eq!(store.submit_review(&s.id, "  ", ReviewVerdict::Comment).unwrap_err().code, "invalid");
+    let approved = store.submit_review(&s.id, "", ReviewVerdict::Approve).unwrap();
+    assert_eq!(approved.comment_count, 0);
+    assert_eq!(approved.state, ReviewState::Submitted);
+    assert_eq!(store.submit_review("nope", "hi", ReviewVerdict::Comment).unwrap_err().code, "not_found");
+
+    store.start_review(&s.id).unwrap();
+    store.start_review(&s.id).unwrap();
+    let pending: i64 = store
+        .conn()
+        .unwrap()
+        .query_row("SELECT count(*) FROM reviews WHERE state = 'pending'", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(pending, 1);
+    let dup = store.conn().unwrap().execute(
+        "INSERT INTO reviews (id, session_id, state, body, created_at) VALUES ('x', ?1, 'pending', '', 'now')",
+        [&s.id],
+    );
+    assert!(dup.is_err());
+}
+
+#[test]
+fn migrates_v1_database() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("old.db");
+    {
+        let conn = rusqlite::Connection::open(&db).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE review_sessions (id TEXT PRIMARY KEY, repo_path TEXT NOT NULL, ref TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(repo_path, ref));
+             CREATE TABLE threads (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES review_sessions(id) ON DELETE CASCADE,
+               file_path TEXT NOT NULL, side TEXT NOT NULL, start_line INTEGER NOT NULL, end_line INTEGER NOT NULL,
+               status TEXT NOT NULL DEFAULT 'open', severity TEXT NULL, anchor_content TEXT NULL, github_thread_id TEXT NULL,
+               github_comment_id INTEGER NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+             CREATE TABLE comments (id TEXT PRIMARY KEY, thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+               author_type TEXT NOT NULL, author_name TEXT NOT NULL, body TEXT NOT NULL, github_comment_id INTEGER NULL, created_at TEXT NOT NULL);
+             INSERT INTO review_sessions VALUES ('s1', '/repo', 'work', '2026-01-01T00:00:00Z');
+             INSERT INTO threads (id, session_id, file_path, side, start_line, end_line, created_at, updated_at)
+               VALUES ('t1', 's1', 'a.rs', 'new', 1, 1, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z');
+             INSERT INTO comments VALUES ('c1', 't1', 'user', 'You', 'old @claude', NULL, '2026-01-01T00:00:00Z');
+             PRAGMA user_version = 1;",
+        )
+        .unwrap();
+    }
+    let store = Store::open(&db).unwrap();
+    let version: i64 = store
+        .conn()
+        .unwrap()
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap();
+    assert_eq!(version, 2);
+    let t = store.get_thread("t1").unwrap();
+    assert!(!t.pending);
+    assert!(t.review_id.is_none());
+    assert!(!t.comments[0].pending);
+    assert!(t.comments[0].mentions_agent);
+    let t = store.add_reply_with("t1", "draft", AuthorType::User, None, true).unwrap();
+    assert!(t.comments[1].pending);
+    drop(store);
+    let store = Store::open(&db).unwrap();
+    assert_eq!(store.list_reviews("s1").unwrap().len(), 1);
 }

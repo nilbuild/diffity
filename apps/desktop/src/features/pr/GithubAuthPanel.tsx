@@ -5,8 +5,10 @@ import { toast } from 'sonner';
 import * as api from '@/lib/api';
 import { queryKeys } from '@/lib/query';
 import type { DeviceCode, GithubAuthStatus } from '@/lib/types';
-import { IconExternal, IconGithub, IconTerminal } from '@/features/agent/icons';
-import { Button, Spinner } from '@/features/agent/primitives';
+import { ExternalLinkIcon, GithubIcon, TerminalIcon } from '@/components/ui/icon';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Spinner } from '@/components/ui/Spinner';
 
 export interface GithubAuthPanelProps {
   deviceFlowAvailable: boolean;
@@ -123,8 +125,8 @@ export function GithubAuthPanel(props: GithubAuthPanelProps) {
     <div className={compact ? 'space-y-4' : 'mx-auto max-w-[420px] space-y-5 py-10'}>
       {!compact && (
         <div className="text-center">
-          <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-bg-muted">
-            <IconGithub size={22} />
+          <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-lg border border-border bg-panel text-fg">
+            <GithubIcon size={24} />
           </div>
           <h2 className="text-base font-semibold">Connect GitHub</h2>
           <p className="mt-1 text-xs text-fg-muted">
@@ -134,37 +136,37 @@ export function GithubAuthPanel(props: GithubAuthPanelProps) {
       )}
 
       {device ? (
-        <div className="space-y-3 rounded-lg border border-border bg-bg-elevated p-4 text-center">
+        <div className="space-y-3 rounded-lg border border-border bg-raised p-4 text-center">
           <p className="text-xs text-fg-muted">Enter this code on GitHub (copied to your clipboard):</p>
           <div className="selectable font-mono text-2xl font-semibold tracking-[0.2em]">{device.userCode}</div>
           <div className="flex items-center justify-center gap-2">
-            <Button size="sm" onClick={() => openUrl(device.verificationUri).catch(() => undefined)}>
-              <IconExternal size={12} />
+            <Button size="md" onClick={() => openUrl(device.verificationUri).catch(() => undefined)}>
+              <ExternalLinkIcon size={14} />
               Open {device.verificationUri.replace(/^https?:\/\//, '')}
             </Button>
-            <Button size="sm" variant="ghost" onClick={cancelDevice}>
+            <Button size="md" variant="ghost" onClick={cancelDevice}>
               Cancel
             </Button>
           </div>
-          <div className="flex items-center justify-center gap-2 text-[11px] text-fg-subtle">
-            <Spinner size={11} /> Waiting for authorization…
+          <div className="flex items-center justify-center gap-2 text-2xs text-fg-subtle">
+            <Spinner size={12} /> Waiting for authorization…
           </div>
         </div>
       ) : (
         <>
           <div className="space-y-2">
-            <Button variant="primary" size="md" className="w-full" loading={busy === 'gh'} disabled={busy !== null} onClick={importGh}>
-              <IconTerminal size={13} />
+            <Button variant="primary" size="lg" className="w-full" loading={busy === 'gh'} disabled={busy !== null} onClick={importGh}>
+              <TerminalIcon size={14} />
               Import from GitHub CLI (gh)
             </Button>
             {deviceFlowAvailable && (
-              <Button size="md" className="w-full" loading={busy === 'device'} disabled={busy !== null} onClick={startDevice}>
-                <IconGithub size={13} />
+              <Button size="lg" className="w-full" loading={busy === 'device'} disabled={busy !== null} onClick={startDevice}>
+                <GithubIcon size={14} />
                 Sign in with browser
               </Button>
             )}
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-fg-subtle">
+          <div className="flex items-center gap-2 text-2xs text-fg-subtle">
             <span className="h-px flex-1 bg-border" /> or paste a personal access token <span className="h-px flex-1 bg-border" />
           </div>
           <form
@@ -174,18 +176,20 @@ export function GithubAuthPanel(props: GithubAuthPanelProps) {
               void saveToken();
             }}
           >
-            <input
+            <Input
               type="password"
+              size="lg"
+              mono
+              wrapperClassName="flex-1"
               value={token}
               onChange={(event) => setToken(event.target.value)}
               placeholder="ghp_… or github_pat_…"
-              className="selectable h-8 min-w-0 flex-1 rounded-md border border-border bg-bg-elevated px-2.5 font-mono text-xs outline-none focus:border-accent focus:ring-2 focus:ring-ring"
             />
-            <Button type="submit" size="md" loading={busy === 'token'} disabled={busy !== null || !token.trim()}>
+            <Button type="submit" size="lg" loading={busy === 'token'} disabled={busy !== null || !token.trim()}>
               Save
             </Button>
           </form>
-          <p className="text-[11px] text-fg-subtle">
+          <p className="text-2xs text-fg-subtle">
             Token needs the <code className="font-mono">repo</code> scope (classic) or Pull requests read/write
             (fine-grained).
           </p>

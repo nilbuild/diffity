@@ -1,7 +1,7 @@
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
-import { ArrowDownIcon, ArrowUpIcon, CommentIcon, CopyIcon } from '@/components/ui/icons';
+import { ArrowDownIcon, ArrowUpIcon, CommentIcon, CopyIcon } from '@/components/ui/icon';
 import type { Thread } from '@/lib/types';
 import { useCommentDraft } from '@/features/comments/draft-store';
 import { threadsAsPrompt } from '@/features/comments/thread-utils';
@@ -40,7 +40,7 @@ export function CommentNavBar(props: CommentNavBarProps) {
   };
 
   return (
-    <div className="flex h-9 shrink-0 items-center gap-3 border-b border-border bg-bg px-3 text-xs">
+    <div className="flex h-9 shrink-0 items-center gap-3 border-b border-border bg-canvas px-3 text-xs">
       <span className="truncate font-medium text-fg">{label}</span>
       <span className="text-fg-subtle">
         {files} {files === 1 ? 'file' : 'files'}
@@ -48,14 +48,14 @@ export function CommentNavBar(props: CommentNavBarProps) {
       <DiffStat additions={additions} deletions={deletions} />
       <div className="ml-auto flex items-center gap-1">
         <span className="inline-flex items-center gap-1 text-fg-muted">
-          <CommentIcon size={12} />
+          <CommentIcon size={14} />
           {navigable.length} open
         </span>
         <IconButton size="sm" label="Previous comment" disabled={navigable.length === 0} onClick={() => step(-1)}>
-          <ArrowUpIcon size={13} />
+          <ArrowUpIcon size={14} />
         </IconButton>
         <IconButton size="sm" label="Next comment" disabled={navigable.length === 0} onClick={() => step(1)}>
-          <ArrowDownIcon size={13} />
+          <ArrowDownIcon size={14} />
         </IconButton>
         <Button size="sm" variant="ghost" onClick={copyPrompt} title="Copy unresolved comments as an agent prompt">
           <CopyIcon size={12} />

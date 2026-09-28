@@ -2,7 +2,7 @@ import { useCallback, useImperativeHandle, useMemo, useRef, type ReactNode, type
 import { CodeView, type CodeViewHandle, type CodeViewItem, type CodeViewReactOptions } from '@pierre/diffs/react';
 import type { FileDiffLoadedFiles, FileDiffMetadata, SelectedLineRange } from '@pierre/diffs';
 import { useResolvedTheme } from '@/lib/theme';
-import { DIFF_THEMES, SURFACE_UNSAFE_CSS, surfaceStyleVars } from './theme';
+import { DIFF_THEMES, SURFACE_TOKEN_CSS, SURFACE_UNSAFE_CSS, surfaceStyleVars } from './theme';
 import type {
   CodeSurfaceHandle,
   LoadedFileVersions,
@@ -189,8 +189,8 @@ export function CodeSurface<T>(props: CodeSurfaceProps<T>) {
         loadDiffFiles,
         stickyHeaders: !hideFileHeader,
         disableFileHeader: hideFileHeader,
-        unsafeCSS: SURFACE_UNSAFE_CSS,
-        layout: { paddingTop: 12, paddingBottom: 48, gap: 12 },
+        unsafeCSS: hideFileHeader ? SURFACE_TOKEN_CSS : SURFACE_UNSAFE_CSS,
+        layout: hideFileHeader ? { paddingTop: 8, paddingBottom: 48, gap: 0 } : { paddingTop: 12, paddingBottom: 48, gap: 12 },
       }) as unknown as CodeViewReactOptions<Meta<T>, undefined>,
     [themeType, diffStyle, wordDiff, wrap, hideFileHeader, onGutterUtilityClick, loadDiffFiles],
   );
@@ -300,7 +300,7 @@ export function CodeSurface<T>(props: CodeSurfaceProps<T>) {
       renderCodeViewHeader={renderTop}
       renderCodeViewFooter={renderBottom}
       onScroll={handleScroll}
-      className={className ?? 'h-full overflow-auto'}
+      className={className ?? (hideFileHeader ? 'h-full overflow-auto bg-canvas' : 'h-full overflow-auto bg-canvas px-3')}
       style={surfaceStyleVars}
     />
   );

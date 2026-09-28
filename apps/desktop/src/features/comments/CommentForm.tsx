@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { Textarea } from '@/components/ui/Input';
 import { cn } from '@/lib/cn';
 import { modKey } from '@/lib/platform';
 import type { Severity } from '@/lib/types';
@@ -61,7 +62,7 @@ export function CommentForm(props: CommentFormProps) {
 
   return (
     <div className="flex flex-col gap-2" onKeyDown={(event) => event.stopPropagation()}>
-      <textarea
+      <Textarea
         ref={ref}
         value={body}
         placeholder={placeholder}
@@ -78,7 +79,7 @@ export function CommentForm(props: CommentFormProps) {
             onCancel?.();
           }
         }}
-        className="selectable min-h-[56px] w-full resize-none rounded-md border border-border bg-bg px-2.5 py-2 font-sans text-[13px] text-fg outline-none placeholder:text-fg-subtle focus:border-accent focus:ring-2 focus:ring-ring"
+        className="min-h-[56px] font-sans"
       />
       <div className="flex items-center gap-1.5">
         {withSeverity &&
@@ -87,12 +88,12 @@ export function CommentForm(props: CommentFormProps) {
               key={value}
               type="button"
               onClick={() => setSeverity(severity === value ? null : value)}
-              className={cn('cursor-default rounded opacity-60 hover:opacity-100', severity === value && 'opacity-100 ring-1 ring-fg-subtle')}
+              className={cn('cursor-default rounded-sm opacity-55 outline-offset-1 hover:opacity-100', severity === value && 'opacity-100 outline outline-1 outline-current')}
             >
               <SeverityBadge severity={value} />
             </button>
           ))}
-        <span className="ml-auto text-[11px] text-fg-subtle">{modKey}↵ to submit</span>
+        <span className="ml-auto text-2xs text-fg-subtle">{modKey}↵ to submit</span>
         {onCancel && (
           <Button size="sm" variant="ghost" onClick={onCancel}>
             Cancel

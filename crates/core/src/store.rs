@@ -4,8 +4,10 @@ use std::sync::{Mutex, MutexGuard};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use crate::error::{AppError, Result};
+use crate::mentions;
 use crate::types::{
-    AuthorType, Comment, NewThread, RecentRepo, ReviewSession, Severity, Side, Thread, ThreadStatus, ViewedFile,
+    AuthorType, Comment, NewThread, RecentRepo, Review, ReviewSession, ReviewState, ReviewVerdict, Severity, Side,
+    Thread, ThreadStatus, ViewedFile,
 };
 
 const SCHEMA: &str = r#"
@@ -86,7 +88,25 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 "#;
 
-const SCHEMA_VERSION: i64 = 1;
+const MIGRATION_V2: &str = r#"
+CREATE TABLE IF NOT EXISTS reviews (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES review_sessions(id) ON DELETE CASCADE,
+  state TEXT NOT NULL DEFAULT 'pending',
+  body TEXT NOT NULL DEFAULT '',
+  verdict TEXT NULL,
+  created_at TEXT NOT NULL,
+  submitted_at TEXT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_reviews_session ON reviews(session_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_one_pending ON reviews(session_id) WHERE state = 'pending';
+ALTER TABLE threads ADD COLUMN review_id TEXT NULL REFERENCES reviews(id) ON DELETE SET NULL;
+ALTER TABLE comments ADD COLUMN pending INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE comments ADD COLUMN review_id TEXT NULL REFERENCES reviews(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_comments_review ON comments(review_id);
+"#;
+
+const SCHEMA_VERSION: i64 = 2;
 
 pub struct Store {
     conn: Mutex<Connection>,
@@ -110,14 +130,34 @@ impl Store {
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         conn.pragma_update(None, "busy_timeout", 5000)?;
-        let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
-        if version < SCHEMA_VERSION {
-            conn.execute_batch(SCHEMA)?;
-            conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
-        }
+        Self::migrate(&conn)?;
         Ok(Store {
             conn: Mutex::new(conn),
         })
+    }
+
+    fn migrate(conn: &Connection) -> Result<()> {
+        let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
+        if version >= SCHEMA_VERSION {
+            return Ok(());
+        }
+        conn.execute_batch("BEGIN")?;
+        let applied = (|| -> Result<()> {
+            if version < 1 {
+                conn.execute_batch(SCHEMA)?;
+            }
+            if version < 2 {
+                conn.execute_batch(MIGRATION_V2)?;
+            }
+            conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+            Ok(())
+        })();
+        if let Err(e) = applied {
+            let _ = conn.execute_batch("ROLLBACK");
+            return Err(e);
+        }
+        conn.execute_batch("COMMIT")?;
+        Ok(())
     }
 
     /// Locks the underlying connection. Keep the guard short-lived; never hold it across `.await`.
@@ -218,8 +258,9 @@ pub enum UpsertOutcome {
     Unchanged,
 }
 
-const THREAD_COLS: &str = "id, session_id, file_path, side, start_line, end_line, status, severity, anchor_content, github_thread_id, created_at, updated_at";
-const COMMENT_COLS: &str = "id, thread_id, author_type, author_name, body, github_comment_id, created_at";
+const THREAD_COLS: &str = "id, session_id, file_path, side, start_line, end_line, status, severity, anchor_content, github_thread_id, created_at, updated_at, review_id";
+const COMMENT_COLS: &str = "id, thread_id, author_type, author_name, body, github_comment_id, created_at, pending, review_id";
+const REVIEW_COLS: &str = "id, session_id, state, body, verdict, created_at, submitted_at";
 
 fn row_to_thread(r: &Row) -> rusqlite::Result<Thread> {
     let side: String = r.get(3)?;
@@ -239,19 +280,37 @@ fn row_to_thread(r: &Row) -> rusqlite::Result<Thread> {
         comments: Vec::new(),
         created_at: r.get(10)?,
         updated_at: r.get(11)?,
+        pending: false,
+        review_id: r.get(12)?,
     })
 }
 
 fn row_to_comment(r: &Row) -> rusqlite::Result<Comment> {
     let author: String = r.get(2)?;
+    let author_type = parse_author(&author);
+    let body: String = r.get(4)?;
+    let mentions_agent = author_type == AuthorType::User && mentions::mentions_agent(&body);
     Ok(Comment {
         id: r.get(0)?,
         thread_id: r.get(1)?,
-        author_type: parse_author(&author),
+        author_type,
         author_name: r.get(3)?,
-        body: r.get(4)?,
+        body,
         github_comment_id: r.get(5)?,
         created_at: r.get(6)?,
+        pending: r.get::<_, i64>(7)? != 0,
+        review_id: r.get(8)?,
+        mentions_agent,
+    })
+}
+
+fn with_comments(conn: &Connection, thread: Thread) -> Result<Thread> {
+    let comments = load_comments(conn, &thread.id)?;
+    let pending = comments.first().is_some_and(|c| c.pending);
+    Ok(Thread {
+        comments,
+        pending,
+        ..thread
     })
 }
 
@@ -272,33 +331,169 @@ fn load_thread(conn: &Connection, thread_id: &str) -> Result<Thread> {
         )
         .optional()?
         .ok_or_else(|| AppError::not_found(format!("thread {thread_id} not found")))?;
-    let comments = load_comments(conn, thread_id)?;
-    Ok(Thread { comments, ..thread })
+    with_comments(conn, thread)
 }
 
-fn insert_comment(
-    conn: &Connection,
-    thread_id: &str,
+struct CommentRow<'a> {
     author_type: AuthorType,
-    author_name: &str,
-    body: &str,
+    author_name: &'a str,
+    body: &'a str,
     github_comment_id: Option<i64>,
-    created_at: &str,
-) -> Result<Comment> {
+    created_at: &'a str,
+    review_id: Option<&'a str>,
+}
+
+impl<'a> CommentRow<'a> {
+    fn new(author_type: AuthorType, author_name: &'a str, body: &'a str, created_at: &'a str) -> Self {
+        CommentRow {
+            author_type,
+            author_name,
+            body,
+            github_comment_id: None,
+            created_at,
+            review_id: None,
+        }
+    }
+}
+
+/// Inserts a comment; it is a pending draft when `review_id` is set.
+fn insert_comment(conn: &Connection, thread_id: &str, c: CommentRow<'_>) -> Result<()> {
+    conn.execute(
+        "INSERT INTO comments (id, thread_id, author_type, author_name, body, github_comment_id, created_at, pending, review_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            new_id(),
+            thread_id,
+            author_str(c.author_type),
+            c.author_name,
+            c.body,
+            c.github_comment_id,
+            c.created_at,
+            c.review_id.is_some() as i64,
+            c.review_id
+        ],
+    )?;
+    Ok(())
+}
+
+fn thread_is_pending(conn: &Connection, thread_id: &str) -> Result<bool> {
+    let pending: Option<i64> = conn
+        .query_row(
+            "SELECT pending FROM comments WHERE thread_id = ?1 ORDER BY created_at, rowid LIMIT 1",
+            [thread_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    Ok(pending.unwrap_or(0) != 0)
+}
+
+fn parse_review_state(s: &str) -> ReviewState {
+    if s == "submitted" {
+        return ReviewState::Submitted;
+    }
+    ReviewState::Pending
+}
+
+pub fn verdict_str(v: ReviewVerdict) -> &'static str {
+    match v {
+        ReviewVerdict::Comment => "comment",
+        ReviewVerdict::Approve => "approve",
+        ReviewVerdict::RequestChanges => "requestChanges",
+    }
+}
+
+fn parse_verdict(s: &str) -> Option<ReviewVerdict> {
+    match s {
+        "comment" => Some(ReviewVerdict::Comment),
+        "approve" => Some(ReviewVerdict::Approve),
+        "requestChanges" => Some(ReviewVerdict::RequestChanges),
+        _ => None,
+    }
+}
+
+fn row_to_review(r: &Row) -> rusqlite::Result<Review> {
+    let state: String = r.get(2)?;
+    let verdict: Option<String> = r.get(4)?;
+    let body: String = r.get(3)?;
+    Ok(Review {
+        id: r.get(0)?,
+        session_id: r.get(1)?,
+        state: parse_review_state(&state),
+        body_mentions_agent: mentions::mentions_agent(&body),
+        body,
+        verdict: verdict.as_deref().and_then(parse_verdict),
+        pending_count: 0,
+        comment_count: 0,
+        thread_ids: Vec::new(),
+        mentioned_thread_ids: Vec::new(),
+        created_at: r.get(5)?,
+        submitted_at: r.get(6)?,
+    })
+}
+
+fn fill_review(conn: &Connection, review: Review) -> Result<Review> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT thread_id, pending, author_type, body FROM comments WHERE review_id = ?1 ORDER BY created_at, rowid",
+    )?;
+    let rows = stmt
+        .query_map([&review.id], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, i64>(1)? != 0,
+                r.get::<_, String>(2)?,
+                r.get::<_, String>(3)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut out = review;
+    for (thread_id, pending, author, body) in rows {
+        out.comment_count += 1;
+        if pending {
+            out.pending_count += 1;
+        }
+        if !out.thread_ids.contains(&thread_id) {
+            out.thread_ids.push(thread_id.clone());
+        }
+        let mentions = parse_author(&author) == AuthorType::User && mentions::mentions_agent(&body);
+        if mentions && !out.mentioned_thread_ids.contains(&thread_id) {
+            out.mentioned_thread_ids.push(thread_id);
+        }
+    }
+    Ok(out)
+}
+
+fn load_review(conn: &Connection, review_id: &str) -> Result<Review> {
+    let review = conn
+        .query_row(
+            &format!("SELECT {REVIEW_COLS} FROM reviews WHERE id = ?1"),
+            [review_id],
+            row_to_review,
+        )
+        .optional()?
+        .ok_or_else(|| AppError::not_found(format!("review {review_id} not found")))?;
+    fill_review(conn, review)
+}
+
+fn pending_review_id(conn: &Connection, session_id: &str) -> Result<Option<String>> {
+    Ok(conn
+        .query_row(
+            "SELECT id FROM reviews WHERE session_id = ?1 AND state = 'pending'",
+            [session_id],
+            |r| r.get(0),
+        )
+        .optional()?)
+}
+
+fn ensure_pending_review(conn: &Connection, session_id: &str) -> Result<String> {
+    if let Some(id) = pending_review_id(conn, session_id)? {
+        return Ok(id);
+    }
     let id = new_id();
     conn.execute(
-        "INSERT INTO comments (id, thread_id, author_type, author_name, body, github_comment_id, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![id, thread_id, author_str(author_type), author_name, body, github_comment_id, created_at],
+        "INSERT INTO reviews (id, session_id, state, body, created_at) VALUES (?1, ?2, 'pending', '', ?3)",
+        params![id, session_id, now()],
     )?;
-    Ok(Comment {
-        id,
-        thread_id: thread_id.to_string(),
-        author_type,
-        author_name: author_name.to_string(),
-        body: body.to_string(),
-        created_at: created_at.to_string(),
-        github_comment_id,
-    })
+    Ok(id)
 }
 
 fn touch_thread(conn: &Connection, thread_id: &str, ts: &str) -> Result<()> {
@@ -396,10 +591,7 @@ impl Store {
             .collect::<rusqlite::Result<Vec<_>>>()?;
         threads
             .into_iter()
-            .map(|t| {
-                let comments = load_comments(&conn, &t.id)?;
-                Ok(Thread { comments, ..t })
-            })
+            .map(|t| with_comments(&conn, t))
             .collect()
     }
 
@@ -460,9 +652,19 @@ impl Store {
         } else {
             (input.start_line, input.end_line)
         };
+        let author_type = input.author_type.unwrap_or(AuthorType::User);
+        let pending = input.pending.unwrap_or(false);
+        if pending && author_type != AuthorType::User {
+            return Err(AppError::invalid("only user comments can be pending"));
+        }
+        let review_id = if pending {
+            Some(ensure_pending_review(&tx, &input.session_id)?)
+        } else {
+            None
+        };
         tx.execute(
-            "INSERT INTO threads (id, session_id, file_path, side, start_line, end_line, status, severity, anchor_content, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'open', ?7, ?8, ?9, ?9)",
+            "INSERT INTO threads (id, session_id, file_path, side, start_line, end_line, status, severity, anchor_content, created_at, updated_at, review_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'open', ?7, ?8, ?9, ?9, ?10)",
             params![
                 id,
                 input.session_id,
@@ -472,22 +674,29 @@ impl Store {
                 end,
                 input.severity.map(severity_str),
                 input.anchor_content,
-                ts
+                ts,
+                review_id
             ],
         )?;
-        let author_type = input.author_type.unwrap_or(AuthorType::User);
         let author_name = input
             .author_name
             .clone()
             .filter(|n| !n.trim().is_empty())
             .unwrap_or_else(|| default_author_name(author_type).to_string());
-        insert_comment(&tx, &id, author_type, &author_name, &input.body, None, &ts)?;
+        insert_comment(
+            &tx,
+            &id,
+            CommentRow {
+                review_id: review_id.as_deref(),
+                ..CommentRow::new(author_type, &author_name, &input.body, &ts)
+            },
+        )?;
         let thread = load_thread(&tx, &id)?;
         tx.commit()?;
         Ok(thread)
     }
 
-    /// Appends a comment. A user reply to a resolved/dismissed thread reopens it.
+    /// Appends a published comment. A user reply to a resolved/dismissed thread reopens it.
     pub fn add_reply(
         &self,
         thread_id: &str,
@@ -495,18 +704,46 @@ impl Store {
         author_type: AuthorType,
         author_name: Option<&str>,
     ) -> Result<Thread> {
+        self.add_reply_with(thread_id, body, author_type, author_name, false)
+    }
+
+    /// Appends a comment. `pending` adds a user draft to the session's pending review (created on demand);
+    /// replies to a pending thread are always pending. Published user replies reopen resolved/dismissed threads.
+    pub fn add_reply_with(
+        &self,
+        thread_id: &str,
+        body: &str,
+        author_type: AuthorType,
+        author_name: Option<&str>,
+        pending: bool,
+    ) -> Result<Thread> {
         if body.trim().is_empty() {
             return Err(AppError::invalid("comment body is empty"));
         }
         let mut conn = self.conn()?;
         let tx = conn.transaction()?;
-        thread_session(&tx, thread_id)?;
+        let session_id = thread_session(&tx, thread_id)?;
+        let pending = author_type == AuthorType::User && (pending || thread_is_pending(&tx, thread_id)?);
+        let review_id = if pending {
+            Some(ensure_pending_review(&tx, &session_id)?)
+        } else {
+            None
+        };
         let ts = now();
         let name = author_name
             .filter(|n| !n.trim().is_empty())
             .unwrap_or(default_author_name(author_type));
-        insert_comment(&tx, thread_id, author_type, name, body, None, &ts)?;
-        if author_type == AuthorType::User {
+        insert_comment(
+            &tx,
+            thread_id,
+            CommentRow {
+                review_id: review_id.as_deref(),
+                ..CommentRow::new(author_type, name, body, &ts)
+            },
+        )?;
+        if pending {
+            touch_thread(&tx, thread_id, &ts)?;
+        } else if author_type == AuthorType::User {
             tx.execute(
                 "UPDATE threads SET status = 'open', updated_at = ?1 WHERE id = ?2",
                 params![ts, thread_id],
@@ -589,7 +826,7 @@ impl Store {
             let name = author_name
                 .filter(|n| !n.trim().is_empty())
                 .unwrap_or(default_author_name(author_type));
-            insert_comment(&tx, thread_id, author_type, name, summary, None, &ts)?;
+            insert_comment(&tx, thread_id, CommentRow::new(author_type, name, summary, &ts))?;
         }
         let thread = load_thread(&tx, thread_id)?;
         tx.commit()?;
@@ -611,6 +848,113 @@ impl Store {
             )
             .optional()?
             .ok_or_else(|| AppError::not_found(format!("comment {comment_id} not found")))
+    }
+
+    // ---- reviews ----
+
+    pub fn get_pending_review(&self, session_id: &str) -> Result<Option<Review>> {
+        let conn = self.conn()?;
+        pending_review_id(&conn, session_id)?
+            .map(|id| load_review(&conn, &id))
+            .transpose()
+    }
+
+    /// Get-or-create the session's pending review (at most one per session).
+    pub fn start_review(&self, session_id: &str) -> Result<Review> {
+        let mut conn = self.conn()?;
+        let tx = conn.transaction()?;
+        let exists: bool = tx
+            .query_row("SELECT 1 FROM review_sessions WHERE id = ?1", [session_id], |_| Ok(true))
+            .optional()?
+            .unwrap_or(false);
+        if !exists {
+            return Err(AppError::not_found(format!("session {session_id} not found")));
+        }
+        let id = ensure_pending_review(&tx, session_id)?;
+        let review = load_review(&tx, &id)?;
+        tx.commit()?;
+        Ok(review)
+    }
+
+    pub fn get_review(&self, review_id: &str) -> Result<Review> {
+        load_review(&*self.conn()?, review_id)
+    }
+
+    /// Reviews of a session, oldest first (the pending one included).
+    pub fn list_reviews(&self, session_id: &str) -> Result<Vec<Review>> {
+        let conn = self.conn()?;
+        let mut stmt = conn.prepare_cached(&format!(
+            "SELECT {REVIEW_COLS} FROM reviews WHERE session_id = ?1 ORDER BY created_at, rowid"
+        ))?;
+        let reviews = stmt
+            .query_map([session_id], row_to_review)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        reviews.into_iter().map(|r| fill_review(&conn, r)).collect()
+    }
+
+    /// Publishes every pending comment of the session's review and stamps it submitted.
+    /// Published comments are re-stamped with the submit time; replies reopen resolved/dismissed threads.
+    /// Without a pending review, a non-empty body or a non-comment verdict submits a body-only review.
+    pub fn submit_review(&self, session_id: &str, body: &str, verdict: ReviewVerdict) -> Result<Review> {
+        let body = body.trim();
+        let mut conn = self.conn()?;
+        let tx = conn.transaction()?;
+        let pending_id = pending_review_id(&tx, session_id)?;
+        let pending_count: i64 = match &pending_id {
+            Some(id) => tx.query_row(
+                "SELECT count(*) FROM comments WHERE review_id = ?1 AND pending = 1",
+                [id],
+                |r| r.get(0),
+            )?,
+            None => 0,
+        };
+        if pending_count == 0 && body.is_empty() && verdict == ReviewVerdict::Comment {
+            return Err(AppError::invalid("the review has no comments and no summary"));
+        }
+        let review_id = match pending_id {
+            Some(id) => id,
+            None => {
+                let exists: bool = tx
+                    .query_row("SELECT 1 FROM review_sessions WHERE id = ?1", [session_id], |_| Ok(true))
+                    .optional()?
+                    .unwrap_or(false);
+                if !exists {
+                    return Err(AppError::not_found(format!("session {session_id} not found")));
+                }
+                ensure_pending_review(&tx, session_id)?
+            }
+        };
+        let ts = now();
+        tx.execute(
+            "UPDATE threads SET status = 'open', updated_at = ?2
+             WHERE id IN (SELECT thread_id FROM comments WHERE review_id = ?1 AND pending = 1)",
+            params![review_id, ts],
+        )?;
+        tx.execute(
+            "UPDATE comments SET pending = 0, created_at = ?2 WHERE review_id = ?1 AND pending = 1",
+            params![review_id, ts],
+        )?;
+        tx.execute(
+            "UPDATE reviews SET state = 'submitted', body = ?2, verdict = ?3, submitted_at = ?4 WHERE id = ?1",
+            params![review_id, body, verdict_str(verdict), ts],
+        )?;
+        let review = load_review(&tx, &review_id)?;
+        tx.commit()?;
+        Ok(review)
+    }
+
+    /// Deletes the session's pending review with its draft threads and replies. Returns whether one existed.
+    pub fn discard_review(&self, session_id: &str) -> Result<bool> {
+        let mut conn = self.conn()?;
+        let tx = conn.transaction()?;
+        let Some(review_id) = pending_review_id(&tx, session_id)? else {
+            return Ok(false);
+        };
+        tx.execute("DELETE FROM threads WHERE review_id = ?1", [&review_id])?;
+        tx.execute("DELETE FROM comments WHERE review_id = ?1 AND pending = 1", [&review_id])?;
+        tx.execute("DELETE FROM reviews WHERE id = ?1", [&review_id])?;
+        tx.commit()?;
+        Ok(true)
     }
 
     // ---- github sync ----
@@ -704,7 +1048,14 @@ impl Store {
             }
             None => {
                 let ts = created_at.map(str::to_string).unwrap_or_else(now);
-                insert_comment(&tx, thread_id, AuthorType::Github, author_name, body, Some(github_comment_id), &ts)?;
+                insert_comment(
+                    &tx,
+                    thread_id,
+                    CommentRow {
+                        github_comment_id: Some(github_comment_id),
+                        ..CommentRow::new(AuthorType::Github, author_name, body, &ts)
+                    },
+                )?;
                 touch_thread(&tx, thread_id, &now())?;
                 UpsertOutcome::Inserted
             }
@@ -785,6 +1136,6 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(n, 8);
+        assert_eq!(n, 9);
     }
 }

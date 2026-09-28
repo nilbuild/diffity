@@ -2,82 +2,130 @@
 
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
 
+/*
+ * Design tokens. See docs/DESIGN.md before adding or changing anything here.
+ * Surfaces step up in lightness (dark) / stay white with grey panels (light);
+ * separation comes from 1px borders, never from shadows.
+ */
 :root {
   color-scheme: light;
-  --bg: #fbfcfd;
-  --bg-subtle: #f4f6f8;
-  --bg-muted: #eceff3;
-  --bg-elevated: #ffffff;
-  --border: #dde2e8;
-  --border-strong: #c6cdd6;
-  --fg: #16191d;
-  --fg-muted: #5a6370;
-  --fg-subtle: #8a93a0;
+
+  --canvas: #ffffff;
+  --panel: #f6f8fa;
+  --raised: #ffffff;
+  --hover: #eef1f4;
+  --active: #e4e8ed;
+  --muted: #eef1f4;
+  --selected: #e7effe;
+
+  --border-subtle: #e8ebef;
+  --border: #d5dbe2;
+  --border-strong: #b9c1cb;
+
+  --fg: #1f2328;
+  --fg-muted: #4f5864;
+  --fg-subtle: #6a737d;
+
   --accent: #2563eb;
-  --accent-hover: #1d4ed8;
+  --accent-hover: #1d4fd8;
+  --accent-solid: #2563eb;
   --accent-fg: #ffffff;
-  --accent-subtle: #e7efff;
-  --success: #16a34a;
-  --warning: #d97706;
-  --danger: #dc2626;
-  --diff-add: #e6f6ea;
-  --diff-del: #fdebec;
-  --ring: #2563eb66;
+  --accent-soft: #e7effe;
+
+  --added: #1a7f37;
+  --removed: #d1242f;
+  --success: #1a7f37;
+  --warning: #9a6700;
+  --danger: #d1242f;
+  --info: #0969da;
+
+  --focus-ring: #2563eb;
+  --backdrop: rgb(31 35 40 / 0.36);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
-    --bg: #111317;
-    --bg-subtle: #16191e;
-    --bg-muted: #1d2127;
-    --bg-elevated: #1a1d22;
-    --border: #2a2f37;
-    --border-strong: #3a414b;
-    --fg: #e6e9ee;
-    --fg-muted: #9aa3b0;
-    --fg-subtle: #6b7482;
-    --accent: #3b82f6;
-    --accent-hover: #60a5fa;
+
+    --canvas: #0d1117;
+    --panel: #151a22;
+    --raised: #1c222c;
+    --hover: #222a35;
+    --active: #2b3441;
+    --muted: #232b36;
+    --selected: #1b2c48;
+
+    --border-subtle: #212833;
+    --border: #2d3541;
+    --border-strong: #3d4756;
+
+    --fg: #e6edf3;
+    --fg-muted: #9aa4b2;
+    --fg-subtle: #7d8794;
+
+    --accent: #4c8dff;
+    --accent-hover: #6ba1ff;
+    --accent-solid: #2f6fed;
     --accent-fg: #ffffff;
-    --accent-subtle: #172642;
-    --success: #22c55e;
-    --warning: #f59e0b;
-    --danger: #f87171;
-    --diff-add: #13261b;
-    --diff-del: #2d1719;
-    --ring: #3b82f680;
+    --accent-soft: #19294a;
+
+    --added: #3fb950;
+    --removed: #f85149;
+    --success: #3fb950;
+    --warning: #d29922;
+    --danger: #f85149;
+    --info: #58a6ff;
+
+    --focus-ring: #4c8dff;
+    --backdrop: rgb(1 4 9 / 0.6);
   }
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #111317;
-  --bg-subtle: #16191e;
-  --bg-muted: #1d2127;
-  --bg-elevated: #1a1d22;
-  --border: #2a2f37;
-  --border-strong: #3a414b;
-  --fg: #e6e9ee;
-  --fg-muted: #9aa3b0;
-  --fg-subtle: #6b7482;
-  --accent: #3b82f6;
-  --accent-hover: #60a5fa;
+
+  --canvas: #0d1117;
+  --panel: #151a22;
+  --raised: #1c222c;
+  --hover: #222a35;
+  --active: #2b3441;
+  --muted: #232b36;
+  --selected: #1b2c48;
+
+  --border-subtle: #212833;
+  --border: #2d3541;
+  --border-strong: #3d4756;
+
+  --fg: #e6edf3;
+  --fg-muted: #9aa4b2;
+  --fg-subtle: #7d8794;
+
+  --accent: #4c8dff;
+  --accent-hover: #6ba1ff;
+  --accent-solid: #2f6fed;
   --accent-fg: #ffffff;
-  --accent-subtle: #172642;
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --danger: #f87171;
-  --diff-add: #13261b;
-  --diff-del: #2d1719;
-  --ring: #3b82f680;
+  --accent-soft: #19294a;
+
+  --added: #3fb950;
+  --removed: #f85149;
+  --success: #3fb950;
+  --warning: #d29922;
+  --danger: #f85149;
+  --info: #58a6ff;
+
+  --focus-ring: #4c8dff;
+  --backdrop: rgb(1 4 9 / 0.6);
 }
 
 @theme inline {
-  --color-bg: var(--bg);
-  --color-bg-subtle: var(--bg-subtle);
-  --color-bg-muted: var(--bg-muted);
-  --color-bg-elevated: var(--bg-elevated);
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-hover: var(--hover);
+  --color-active: var(--active);
+  --color-selected: var(--selected);
+  --color-muted: var(--muted);
+  --color-border-subtle: var(--border-subtle);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-fg: var(--fg);
@@ -85,16 +133,58 @@
   --color-fg-subtle: var(--fg-subtle);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
+  --color-accent-solid: var(--accent-solid);
   --color-accent-fg: var(--accent-fg);
-  --color-accent-subtle: var(--accent-subtle);
+  --color-accent-soft: var(--accent-soft);
+  --color-added: var(--added);
+  --color-removed: var(--removed);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
-  --color-diff-add: var(--diff-add);
-  --color-diff-del: var(--diff-del);
-  --color-ring: var(--ring);
-  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+  --color-info: var(--info);
+  --color-backdrop: var(--backdrop);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+
+@theme {
+  --text-2xs: 11px;
+  --text-2xs--line-height: 16px;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 20px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-lg: 16px;
+  --text-lg--line-height: 24px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  --shadow-*: initial;
+  --inset-shadow-*: initial;
+  --drop-shadow-*: initial;
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+  }
 }
 
 html,
@@ -105,10 +195,11 @@ body,
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: var(--canvas);
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: 13px;
+  line-height: 20px;
   -webkit-font-smoothing: antialiased;
   user-select: none;
   overflow: hidden;
@@ -120,6 +211,10 @@ body {
 
 button {
   -webkit-user-select: none;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 ::-webkit-scrollbar {
@@ -142,13 +237,26 @@ button {
   background: transparent;
 }
 
+/* Sonner ships elevated toasts; flatten them to our bordered surfaces. */
+[data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: var(--raised) !important;
+  --normal-border: var(--border) !important;
+  --normal-text: var(--fg) !important;
+  --border-radius: var(--radius-lg) !important;
+  font-family: var(--font-sans);
+}
+
+[data-sonner-toaster] [data-sonner-toast] {
+  box-shadow: none !important;
+}
+
 .checkerboard {
-  background-color: var(--bg-elevated);
+  background-color: var(--raised);
   background-image:
-    linear-gradient(45deg, var(--bg-muted) 25%, transparent 25%),
-    linear-gradient(-45deg, var(--bg-muted) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, var(--bg-muted) 75%),
-    linear-gradient(-45deg, transparent 75%, var(--bg-muted) 75%);
+    linear-gradient(45deg, var(--muted) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--muted) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--muted) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--muted) 75%);
   background-size: 16px 16px;
   background-position:
     0 0,
@@ -183,19 +291,19 @@ button {
 }
 
 .markdown h1 {
-  font-size: 1.7em;
+  font-size: 1.6em;
   padding-bottom: 0.3em;
   border-bottom: 1px solid var(--border);
 }
 
 .markdown h2 {
-  font-size: 1.35em;
+  font-size: 1.3em;
   padding-bottom: 0.3em;
   border-bottom: 1px solid var(--border);
 }
 
 .markdown h3 {
-  font-size: 1.15em;
+  font-size: 1.1em;
 }
 
 .markdown :where(ul, ol) {
@@ -224,17 +332,29 @@ button {
 .markdown code {
   font-family: var(--font-mono);
   font-size: 0.86em;
-  padding: 0.15em 0.35em;
-  border-radius: 4px;
-  background: var(--bg-muted);
+  padding: 0.12em 0.35em;
+  border-radius: var(--radius-sm);
+  background: var(--muted);
 }
 
 .markdown pre {
   padding: 10px 12px;
-  border-radius: 6px;
-  background: var(--bg-subtle);
+  border-radius: var(--radius-md);
+  background: var(--panel);
   border: 1px solid var(--border);
   overflow-x: auto;
+}
+
+.markdown .markdown-pre {
+  margin: 0 0 0.8em;
+}
+
+.markdown .markdown-pre > pre {
+  margin: 0;
+}
+
+.markdown .markdown-pre:hover .markdown-copy {
+  opacity: 1;
 }
 
 .markdown pre code {
@@ -246,7 +366,7 @@ button {
 .markdown blockquote {
   padding-left: 1em;
   color: var(--fg-muted);
-  border-left: 3px solid var(--border-strong);
+  border-left: 2px solid var(--border-strong);
 }
 
 .markdown table {
@@ -261,7 +381,7 @@ button {
 }
 
 .markdown th {
-  background: var(--bg-subtle);
+  background: var(--panel);
   font-weight: 600;
 }
 
@@ -277,10 +397,10 @@ button {
 
 .markdown-compact {
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
-.markdown-compact :where(p, ul, ol, pre, blockquote, table) {
+.markdown-compact :where(p, ul, ol, pre, blockquote, table, .markdown-pre) {
   margin-bottom: 0.5em;
 }
 

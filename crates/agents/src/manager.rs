@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 use diffity_core::store::Store;
+use diffity_core::types::{ReviewSession, ReviewState};
 use diffity_core::{AppError, Result};
 
 use crate::backend::ReviewBackend;
@@ -192,10 +193,33 @@ impl AgentManager {
                 .backend
                 .get_or_create_session(&rec.chat.repo_path, &r)
                 .await?;
-            let (store, chat_id, sid) =
-                (self.store.clone(), rec.chat.id.clone(), session.id.clone());
-            blocking(move || chats::set_review_session(&store, &chat_id, &sid)).await?;
-            return Ok((session.id, session.r#ref));
+            return self.bind_session(rec, session).await;
+        }
+        let target_session = match action {
+            AgentAction::Thread { thread_id } => {
+                let thread = self.backend.get_thread(thread_id).await?;
+                if thread.pending {
+                    return Err(AppError::invalid(
+                        "the thread is still pending; submit the review first",
+                    ));
+                }
+                Some(thread.session_id)
+            }
+            AgentAction::ReviewFeedback { review_id } => {
+                let review = self.backend.get_review(review_id).await?;
+                if review.state != ReviewState::Submitted {
+                    return Err(AppError::invalid("submit the review before sending it to the agent"));
+                }
+                Some(review.session_id)
+            }
+            _ => None,
+        };
+        if let Some(sid) = target_session {
+            let session = self.backend.session(&sid).await?;
+            if session.repo_path != rec.chat.repo_path {
+                return Err(AppError::invalid("the thread belongs to another repository"));
+            }
+            return self.bind_session(rec, session).await;
         }
         if let Some(sid) = &rec.review_session_id {
             if let Ok(session) = self.backend.session(sid).await {
@@ -207,6 +231,28 @@ impl AgentManager {
             .get_or_create_session(&rec.chat.repo_path, DEFAULT_REF)
             .await?;
         Ok((session.id, session.r#ref))
+    }
+
+    async fn bind_session(
+        &self,
+        rec: &chats::ChatRecord,
+        session: ReviewSession,
+    ) -> Result<(String, String)> {
+        let (store, chat_id, sid) = (self.store.clone(), rec.chat.id.clone(), session.id.clone());
+        blocking(move || chats::set_review_session(&store, &chat_id, &sid)).await?;
+        Ok((session.id, session.r#ref))
+    }
+
+    async fn review_brief(&self, action: &AgentAction) -> Result<Option<prompts::ReviewBrief>> {
+        let AgentAction::ReviewFeedback { review_id } = action else {
+            return Ok(None);
+        };
+        let review = self.backend.get_review(review_id).await?;
+        Ok(Some(prompts::ReviewBrief {
+            body: review.body,
+            verdict: review.verdict,
+            thread_ids: review.thread_ids,
+        }))
     }
 
     async fn runtime(&self, rec: &chats::ChatRecord, binding: Binding) -> Result<Arc<Runtime>> {
@@ -307,7 +353,13 @@ impl AgentManager {
         let (store, id) = (self.store.clone(), chat_id.to_string());
         let rec = blocking(move || chats::get(&store, &id)).await?;
         let kind = AgentKind::from_id(&rec.chat.agent_id);
+        if action.needs_write_mode() && !crate::policy::can_write_files(rec.chat.mode) {
+            return Err(AppError::invalid(
+                "this action edits code; start the chat in `resolve` mode",
+            ));
+        }
         let (session_id, session_ref) = self.binding_session(&rec, &action).await?;
+        let review = self.review_brief(&action).await?;
         let binding = Binding {
             repo_path: rec.chat.repo_path.clone(),
             session_id,
@@ -328,6 +380,7 @@ impl AgentManager {
             first_turn,
             &text,
             &context,
+            review.as_ref(),
         );
         if prompt.trim().is_empty() {
             return Err(AppError::invalid("prompt is empty"));

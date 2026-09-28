@@ -6,9 +6,15 @@ import { queryKeys } from '@/lib/query';
 import { cn } from '@/lib/cn';
 import type { AgentInfo } from '@/lib/types';
 import { agentHint, agentPathSetting, isAgentUsable } from '@/features/agent/agents';
-import { IconGithub } from '@/features/agent/icons';
-import { Badge, Button, Dialog, Spinner } from '@/features/agent/primitives';
+import { GithubIcon } from '@/components/ui/icon';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Dialog } from '@/components/ui/Dialog';
+import { Spinner } from '@/components/ui/Spinner';
 import { GithubAuthPanel } from '@/features/pr/GithubAuthPanel';
+import { Input } from '@/components/ui/Input';
+import { SegmentedToggle } from '@/components/ui/SegmentedToggle';
+import { Tabs } from '@/components/ui/Tabs';
 import { setThemePreference, useThemeStore, type ThemePreference } from '@/lib/theme';
 
 export interface SettingsDialogProps {
@@ -54,24 +60,12 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const [section, setSection] = useState<Section>('agents');
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Settings" className="h-[520px] w-[720px]">
+    <Dialog open={open} onOpenChange={onOpenChange} title="Settings" padded={false} className="h-[540px] w-[760px]">
       <div className="flex h-full min-h-0">
-        <nav className="w-[160px] shrink-0 space-y-0.5 border-r border-border bg-bg-subtle p-2">
-          {SECTIONS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setSection(item.id)}
-              className={cn(
-                'block w-full rounded-md px-2.5 py-1.5 text-left text-xs',
-                section === item.id ? 'bg-bg-muted font-medium text-fg' : 'text-fg-muted hover:bg-bg-muted hover:text-fg',
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
+        <nav className="w-[180px] shrink-0 border-r border-border bg-panel p-2">
+          <Tabs variant="list" value={section} onChange={setSection} items={SECTIONS.map((item) => ({ value: item.id, label: item.label }))} />
         </nav>
-        <div className="min-w-0 flex-1 overflow-auto p-5">
+        <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
           {section === 'agents' && <AgentsSection />}
           {section === 'github' && <GithubSection />}
           {section === 'editor' && <EditorSection />}
@@ -84,8 +78,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
 
 function SectionTitle(props: { title: string; description?: string }) {
   return (
-    <div className="mb-4">
-      <h3 className="text-sm font-semibold">{props.title}</h3>
+    <div className="mb-5 border-b border-border pb-3">
+      <h3 className="text-base font-semibold text-fg">{props.title}</h3>
       {props.description && <p className="mt-0.5 text-xs text-fg-muted">{props.description}</p>}
     </div>
   );
@@ -94,39 +88,20 @@ function SectionTitle(props: { title: string; description?: string }) {
 function Field(props: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
     <div className="mb-4">
-      <div className="mb-1.5 text-xs font-medium">{props.label}</div>
+      <div className="mb-1.5 text-sm font-medium text-fg">{props.label}</div>
       {props.children}
-      {props.hint && <div className="mt-1 text-[11px] text-fg-subtle">{props.hint}</div>}
+      {props.hint && <div className="mt-1 text-2xs text-fg-subtle">{props.hint}</div>}
     </div>
   );
 }
 
 function OptionCards<T extends string>(props: {
   value: T;
-  options: { value: T; label: string; disabled?: boolean }[];
+  options: { value: T; label: string }[];
   onChange: (value: T) => void;
 }) {
   const { value, options, onChange } = props;
-  return (
-    <div className="flex flex-wrap gap-2">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          disabled={option.disabled}
-          onClick={() => onChange(option.value)}
-          className={cn(
-            'rounded-md border px-3 py-1.5 text-xs disabled:opacity-50',
-            option.value === value
-              ? 'border-accent bg-accent-subtle text-accent'
-              : 'border-border bg-bg-elevated text-fg-muted hover:text-fg',
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  );
+  return <SegmentedToggle value={value} options={options} onChange={onChange} />;
 }
 
 function AgentsSection() {
@@ -149,13 +124,13 @@ function AgentsSection() {
       <SectionTitle title="Claude Code" description="Diffity drives your local Claude Code install over ACP." />
       <div className="mb-2 flex items-center justify-between">
         <div className="text-xs font-medium">Detected install</div>
-        <Button size="xs" variant="ghost" loading={agentsQuery.isFetching} onClick={() => void redetect()}>
+        <Button size="sm" variant="ghost" loading={agentsQuery.isFetching} onClick={() => void redetect()}>
           Re-detect
         </Button>
       </div>
       {agentsQuery.isPending && (
         <div className="flex items-center gap-2 text-xs text-fg-subtle">
-          <Spinner size={12} /> Detecting…
+          <Spinner size={14} /> Detecting…
         </div>
       )}
       {agentsQuery.isError && <p className="text-xs text-danger">{api.errorMessage(agentsQuery.error)}</p>}
@@ -196,24 +171,24 @@ function AgentRow(props: { agent: AgentInfo }) {
   };
 
   return (
-    <div className="rounded-lg border border-border bg-bg-elevated p-3">
+    <div className="rounded-lg border border-border bg-raised p-3">
       <div className="flex items-center gap-2">
         <span
           className={cn('h-2 w-2 rounded-full', isAgentUsable(agent) ? 'bg-success' : 'bg-warning')}
           aria-hidden
         />
-        <span className="text-[13px] font-medium">{agent.name}</span>
+        <span className="text-sm font-medium">{agent.name}</span>
         {!agent.installed && <Badge>Not installed</Badge>}
         {agent.installed && agent.authenticated === true && <Badge tone="success">Logged in</Badge>}
         {agent.installed && agent.authenticated === false && <Badge tone="warning">Logged out</Badge>}
         {agent.installed && agent.authenticated === null && <Badge>Auth unknown</Badge>}
       </div>
       {agent.binaryPath && (
-        <div className="selectable mt-1 truncate font-mono text-[11px] text-fg-subtle" title={agent.binaryPath}>
+        <div className="selectable mt-1 truncate font-mono text-2xs text-fg-subtle" title={agent.binaryPath}>
           {agent.binaryPath}
         </div>
       )}
-      {hint && <div className="mt-1 text-[11px] text-fg-muted">{hint}</div>}
+      {hint && <div className="mt-1 text-2xs text-fg-muted">{hint}</div>}
       <form
         className="mt-2 flex gap-2"
         onSubmit={(event) => {
@@ -221,13 +196,14 @@ function AgentRow(props: { agent: AgentInfo }) {
           void commit();
         }}
       >
-        <input
+        <Input
+          mono
+          wrapperClassName="flex-1"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder="Custom binary path (leave empty to auto-detect)"
-          className="selectable h-7 min-w-0 flex-1 rounded-md border border-border bg-bg px-2 font-mono text-[11px] outline-none focus:border-accent focus:ring-2 focus:ring-ring"
         />
-        <Button type="submit" size="sm" disabled={!dirty}>
+        <Button type="submit" size="md" disabled={!dirty}>
           Save
         </Button>
       </form>
@@ -260,22 +236,22 @@ function GithubSection() {
       <SectionTitle title="GitHub" description="Used to find pull requests and sync review comments." />
       {authQuery.isPending && (
         <div className="flex items-center gap-2 text-xs text-fg-subtle">
-          <Spinner size={12} /> Checking…
+          <Spinner size={14} /> Checking…
         </div>
       )}
       {status?.authenticated && !reauth && (
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-bg-elevated p-3">
-          <IconGithub size={20} />
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-raised p-3">
+          <GithubIcon size={24} />
           <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-medium">{status.login ?? 'Authenticated'}</div>
-            <div className="text-[11px] text-fg-subtle">
+            <div className="text-sm font-medium">{status.login ?? 'Authenticated'}</div>
+            <div className="text-2xs text-fg-subtle">
               {status.source === 'gh' ? 'Token from GitHub CLI' : 'Token stored in keychain'}
             </div>
           </div>
-          <Button size="sm" onClick={() => setReauth(true)}>
+          <Button size="md" onClick={() => setReauth(true)}>
             Re-authenticate
           </Button>
-          <Button size="sm" variant="ghost" loading={loggingOut} onClick={logout}>
+          <Button size="md" variant="ghost" loading={loggingOut} onClick={logout}>
             Sign out
           </Button>
         </div>
@@ -288,7 +264,7 @@ function GithubSection() {
             onAuthenticated={() => setReauth(false)}
           />
           {reauth && (
-            <Button className="mt-3" size="sm" variant="ghost" onClick={() => setReauth(false)}>
+            <Button className="mt-3" size="md" variant="ghost" onClick={() => setReauth(false)}>
               Cancel
             </Button>
           )}

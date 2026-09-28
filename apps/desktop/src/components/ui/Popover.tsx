@@ -8,6 +8,7 @@ export interface PopoverProps {
   anchorRef: RefObject<HTMLElement | null>;
   children: ReactNode;
   align?: 'start' | 'end';
+  side?: 'bottom' | 'top';
   className?: string;
 }
 
@@ -16,8 +17,11 @@ interface Position {
   left: number;
 }
 
+const GAP = 4;
+
+/** Floating panel anchored to `anchorRef`, rendered in a portal. Closes on outside pointer-down and Escape. */
 export function Popover(props: PopoverProps) {
-  const { open, onOpenChange, anchorRef, children, align = 'start', className } = props;
+  const { open, onOpenChange, anchorRef, children, align = 'start', side = 'bottom', className } = props;
   const panelRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<Position | null>(null);
 
@@ -33,12 +37,15 @@ export function Popover(props: PopoverProps) {
     }
     const rect = anchor.getBoundingClientRect();
     const width = panel.offsetWidth;
+    const height = panel.offsetHeight;
     const left = align === 'end' ? rect.right - width : rect.left;
+    const fitsBelow = rect.bottom + GAP + height <= window.innerHeight - 8;
+    const placeAbove = side === 'top' ? rect.top - GAP - height >= 8 : !fitsBelow && rect.top - GAP - height >= 8;
     setPosition({
-      top: rect.bottom + 4,
+      top: placeAbove ? rect.top - GAP - height : rect.bottom + GAP,
       left: Math.max(8, Math.min(left, window.innerWidth - width - 8)),
     });
-  }, [open, anchorRef, align]);
+  }, [open, anchorRef, align, side]);
 
   useEffect(() => {
     if (!open) {
@@ -74,7 +81,7 @@ export function Popover(props: PopoverProps) {
     <div
       ref={panelRef}
       className={cn(
-        'fixed z-40 rounded-lg border border-border bg-bg-elevated shadow-xl',
+        'fixed z-40 overflow-hidden rounded-lg border border-border-strong bg-raised',
         position === null && 'invisible',
         className,
       )}

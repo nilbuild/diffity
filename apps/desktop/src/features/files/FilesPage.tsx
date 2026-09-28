@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
 import { Spinner } from '@/components/ui/Spinner';
 import * as api from '@/lib/api';
 import { queryKeys } from '@/lib/query';
@@ -18,6 +19,7 @@ import { buildTree, findNode } from './tree-model';
 export function FilesPage() {
   const { repoPath, treeSessionId } = useWorkspace();
   const sidebarWidth = useViewStore((s) => s.sidebarWidth);
+  const setSidebarWidth = useViewStore((s) => s.setSidebarWidth);
   const selectedPath = useFilesStore((s) => s.selectedPath);
   const select = useFilesStore((s) => s.select);
   const expandTo = useFilesStore((s) => s.expandTo);
@@ -62,6 +64,7 @@ export function FilesPage() {
   return (
     <div className="flex h-full min-h-0">
       <FileTree root={root} commentCounts={commentCounts} width={sidebarWidth} />
+      <ResizeHandle value={sidebarWidth} onChange={setSidebarWidth} min={200} max={520} direction="right" />
       <div className="min-w-0 flex-1">
         {!selectedNode && <EmptyState title="File not found" description={selectedPath ?? ''} />}
         {selectedNode?.kind === 'dir' && <FolderView node={selectedNode} />}

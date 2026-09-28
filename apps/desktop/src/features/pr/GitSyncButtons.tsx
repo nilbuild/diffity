@@ -5,9 +5,10 @@ import * as api from '@/lib/api';
 import { queryKeys } from '@/lib/query';
 import type { GitOpResult } from '@/lib/types';
 import { useWorkspace } from '@/features/workspace/workspace-context';
-import { IconArrowDown, IconArrowUp, IconBranch, IconRefresh } from '@/features/agent/icons';
-import { Spinner } from '@/features/agent/primitives';
+import { ArrowDownIcon, ArrowUpIcon, GitBranchIcon, RefreshIcon } from '@/components/ui/icon';
+import { Spinner } from '@/components/ui/Spinner';
 import { cn } from '@/lib/cn';
+import { useTooltip } from '@/components/ui/Tooltip';
 
 type GitOp = 'fetch' | 'pull' | 'push';
 
@@ -81,7 +82,7 @@ export function GitSyncButtons() {
       const result = await call(repoPath);
       if (!result.ok) {
         toast.error(`${opLabel[op]} failed`, {
-          description: <pre className="max-h-40 overflow-auto font-mono text-[11px] whitespace-pre-wrap">{lastLines(result.output)}</pre>,
+          description: <pre className="max-h-40 overflow-auto font-mono text-2xs whitespace-pre-wrap">{lastLines(result.output)}</pre>,
           duration: 10_000,
         });
         return;
@@ -120,11 +121,11 @@ export function GitSyncButtons() {
         className="mr-1 flex max-w-[180px] items-center gap-1 truncate text-fg-muted"
         title={status?.upstream ? `${branch} → ${status.upstream}` : (branch ?? 'Detached HEAD')}
       >
-        <IconBranch size={12} className="shrink-0" />
+        <GitBranchIcon size={14} className="shrink-0" />
         <span className="truncate">{branch ?? 'detached'}</span>
       </span>
       <SyncButton label={null} title="Fetch from remote" running={running === 'fetch'} disabled={running !== null} onClick={() => run('fetch')}>
-        <IconRefresh size={12} />
+        <RefreshIcon size={14} />
       </SyncButton>
       <SyncButton
         label={behind > 0 ? String(behind) : null}
@@ -134,7 +135,7 @@ export function GitSyncButtons() {
         highlight={behind > 0}
         onClick={() => run('pull')}
       >
-        <IconArrowDown size={12} />
+        <ArrowDownIcon size={14} />
       </SyncButton>
       <SyncButton
         label={ahead > 0 ? String(ahead) : null}
@@ -146,7 +147,7 @@ export function GitSyncButtons() {
         highlight={ahead > 0 || (!hasUpstream && branch !== null)}
         onClick={() => run('push')}
       >
-        <IconArrowUp size={12} />
+        <ArrowUpIcon size={14} />
       </SyncButton>
     </div>
   );
@@ -162,20 +163,24 @@ function SyncButton(props: {
   children: ReactNode;
 }) {
   const { label, title, running, disabled, highlight, onClick, children } = props;
+  const { anchorProps, tooltip } = useTooltip(title);
   return (
-    <button
-      type="button"
-      title={title}
-      aria-label={title}
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        'flex h-7 items-center gap-1 rounded-md px-1.5 text-fg-muted hover:bg-bg-muted hover:text-fg disabled:opacity-50 disabled:hover:bg-transparent',
-        highlight && 'text-accent',
-      )}
-    >
-      {running ? <Spinner size={12} /> : children}
-      {label && <span className="tabular-nums">{label}</span>}
-    </button>
+    <>
+      <button
+        type="button"
+        aria-label={title}
+        disabled={disabled}
+        onClick={onClick}
+        {...anchorProps}
+        className={cn(
+          'flex h-7 min-w-7 cursor-default items-center justify-center gap-1 rounded-md px-1.5 text-xs font-medium text-fg-muted hover:bg-hover hover:text-fg disabled:opacity-50 disabled:hover:bg-transparent',
+          highlight && 'text-accent hover:text-accent',
+        )}
+      >
+        {running ? <Spinner size={14} /> : children}
+        {label && <span className="tabular-nums">{label}</span>}
+      </button>
+      {tooltip}
+    </>
   );
 }

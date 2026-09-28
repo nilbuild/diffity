@@ -26,8 +26,10 @@ import type {
   RepoChangedPayload,
   RepoInfo,
   ResolvedRef,
+  Review,
   ReviewEvent,
   ReviewSession,
+  ReviewVerdict,
   StartChat,
   Thread,
   ThreadStatus,
@@ -85,14 +87,34 @@ export const readFileBase64 = (repoPath: string, path: string) =>
 export const getSession = (repoPath: string, ref: string) => invoke<ReviewSession>('get_session', { repoPath, ref });
 export const listThreads = (sessionId: string) => invoke<Thread[]>('list_threads', { sessionId });
 export const createThread = (input: NewThread) => invoke<Thread>('create_thread', { input });
-export const addReply = (threadId: string, body: string, authorType?: AuthorType | null, authorName?: string | null) =>
-  invoke<Thread>('add_reply', { threadId, body, authorType: authorType ?? null, authorName: authorName ?? null });
+export const addReply = (
+  threadId: string,
+  body: string,
+  authorType?: AuthorType | null,
+  authorName?: string | null,
+  pending?: boolean,
+) =>
+  invoke<Thread>('add_reply', {
+    threadId,
+    body,
+    authorType: authorType ?? null,
+    authorName: authorName ?? null,
+    pending: pending ?? null,
+  });
 export const editComment = (commentId: string, body: string) => invoke<void>('edit_comment', { commentId, body });
 export const deleteComment = (commentId: string) => invoke<void>('delete_comment', { commentId });
 export const deleteThread = (threadId: string) => invoke<void>('delete_thread', { threadId });
 export const deleteAllThreads = (sessionId: string) => invoke<void>('delete_all_threads', { sessionId });
 export const setThreadStatus = (threadId: string, status: ThreadStatus, summary?: string | null) =>
   invoke<Thread>('set_thread_status', { threadId, status, summary: summary ?? null });
+export const getPendingReview = (sessionId: string) => invoke<Review | null>('get_pending_review', { sessionId });
+export const startReview = (sessionId: string) => invoke<Review>('start_review', { sessionId });
+export const getReview = (reviewId: string) => invoke<Review>('get_review', { reviewId });
+export const listReviews = (sessionId: string) => invoke<Review[]>('list_reviews', { sessionId });
+/** Publishes all pending comments. Use the returned `mentionedThreadIds` / `threadIds` to trigger the agent. */
+export const submitReview = (sessionId: string, body?: string | null, verdict?: ReviewVerdict | null) =>
+  invoke<Review>('submit_review', { sessionId, body: body ?? null, verdict: verdict ?? null });
+export const discardReview = (sessionId: string) => invoke<void>('discard_review', { sessionId });
 export const listViewed = (sessionId: string) => invoke<ViewedFile[]>('list_viewed', { sessionId });
 export const setViewed = (sessionId: string, filePath: string, contentHash: string, viewed: boolean) =>
   invoke<void>('set_viewed', { sessionId, filePath, contentHash, viewed });
@@ -137,9 +159,10 @@ export const pushReview = (
   repoPath: string,
   sessionId: string,
   prNumber: number,
-  event: ReviewEvent,
+  event: ReviewEvent | null,
   body?: string | null,
   threadIds?: string[] | null,
+  reviewId?: string | null,
 ) =>
   invoke<PushResult>('push_review', {
     repoPath,
@@ -148,7 +171,11 @@ export const pushReview = (
     event,
     body: body ?? null,
     threadIds: threadIds ?? null,
+    reviewId: reviewId ?? null,
   });
+/** Pushes a submitted local review: its new threads, its replies on GitHub-linked threads, body and verdict. */
+export const pushSubmittedReview = (repoPath: string, sessionId: string, prNumber: number, reviewId: string) =>
+  pushReview(repoPath, sessionId, prNumber, null, null, null, reviewId);
 export const pullReview = (repoPath: string, sessionId: string, prNumber: number) =>
   invoke<PullResult>('pull_review', { repoPath, sessionId, prNumber });
 /** Open unsynced threads from all of the repo's sessions that line up with the PR diff. */

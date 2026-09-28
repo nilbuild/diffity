@@ -1,4 +1,4 @@
-import { FileIcon, FolderIcon } from '@/components/ui/icons';
+import { FileIcon, FolderIcon } from '@/components/ui/icon';
 import { useFilesStore } from './files-store';
 import type { TreeNode } from './tree-model';
 
@@ -9,8 +9,8 @@ export function FolderView(props: { node: TreeNode }) {
 
   return (
     <div className="h-full overflow-auto p-4">
-      <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-border">
-        <div className="border-b border-border bg-bg-subtle px-4 py-2 text-xs font-medium text-fg-muted">
+      <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-border bg-raised">
+        <div className="border-b border-border bg-panel px-4 py-2 text-xs font-medium text-fg-muted">
           {node.path || 'Repository root'} · {node.children.length} items
         </div>
         {node.children.map((child) => (
@@ -21,10 +21,10 @@ export function FolderView(props: { node: TreeNode }) {
               expandTo(child.path);
               select(child.path);
             }}
-            className="flex w-full cursor-default items-center gap-2 border-b border-border px-4 py-1.5 text-left text-[13px] last:border-b-0 hover:bg-bg-muted"
+            className="flex h-8 w-full cursor-default items-center gap-2 border-b border-border-subtle px-4 text-left text-sm text-fg last:border-b-0 hover:bg-hover"
           >
             {child.kind === 'dir' ? (
-              <FolderIcon size={14} className="text-accent/80" />
+              <FolderIcon size={14} className="text-fg-subtle" />
             ) : (
               <FileIcon size={14} className="text-fg-subtle" />
             )}

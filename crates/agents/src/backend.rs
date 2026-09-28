@@ -2,7 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 use diffity_core::types::{
-    AuthorType, DiffResult, NewThread, ReviewSession, Side, Thread, ThreadStatus,
+    AuthorType, DiffResult, NewThread, Review, ReviewSession, Side, Thread, ThreadStatus,
 };
 use diffity_core::Result;
 
@@ -28,6 +28,9 @@ pub trait ReviewBackend: Send + Sync + 'static {
         status: Option<ThreadStatus>,
     ) -> BoxFut<'_, Vec<Thread>>;
     fn find_thread(&self, session_id: &str, id_or_prefix: &str) -> BoxFut<'_, Thread>;
+    /// Thread by full id in any session (includes pending drafts; callers filter).
+    fn get_thread(&self, thread_id: &str) -> BoxFut<'_, Thread>;
+    fn get_review(&self, review_id: &str) -> BoxFut<'_, Review>;
     fn create_thread(&self, input: NewThread) -> BoxFut<'_, Thread>;
     fn add_reply(
         &self,

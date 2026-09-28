@@ -44,10 +44,10 @@ export function ShortcutsModal() {
       <div className="grid grid-cols-2 gap-x-8 gap-y-4 py-1">
         {GROUPS.map((group) => (
           <div key={group.title}>
-            <div className="mb-1.5 text-[11px] font-semibold tracking-wide text-fg-subtle uppercase">{group.title}</div>
+            <div className="mb-1.5 text-xs font-medium text-fg-muted">{group.title}</div>
             {group.items.map(([keys, label]) => (
-              <div key={label} className="flex items-center justify-between py-1 text-[13px]">
-                <span className="text-fg-muted">{label}</span>
+              <div key={label} className="flex items-center justify-between py-1 text-sm">
+                <span className="text-fg">{label}</span>
                 <span className="flex gap-1">
                   {keys.map((key) => (
                     <Kbd key={key}>{key}</Kbd>

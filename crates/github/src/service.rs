@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use diffity_core::store::Store;
-use diffity_core::types::{AuthorType, Thread, ThreadStatus};
+use diffity_core::types::{AuthorType, ReviewState, Thread, ThreadStatus};
 use diffity_core::{AppError, Result};
 use serde_json::json;
 
@@ -395,6 +395,7 @@ impl GithubService {
         Ok(pr.to_pull_request())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn push_review(
         &self,
         repo_path: &str,
@@ -403,6 +404,7 @@ impl GithubService {
         event: ReviewEvent,
         body: Option<String>,
         thread_ids: Option<Vec<String>>,
+        review_id: Option<String>,
     ) -> Result<PushResult> {
         let slug = self.origin_slug(repo_path).await?;
         let token = self.require_token().await?;
@@ -420,17 +422,31 @@ impl GithubService {
         }
         gitcli::ensure_clean(repo_path, "pushing a review").await?;
 
-        // Explicit thread ids may come from any of the repo's sessions (see `pushable_threads`).
-        let source = match &thread_ids {
-            Some(_) => db::list_repo_threads(&self.store, repo_path)?,
-            None => db::list_session_threads(&self.store, session_id)?,
+        let mut review_replies: Vec<(String, String, String)> = Vec::new();
+        let threads: Vec<Thread> = match &review_id {
+            Some(rid) => {
+                let review = self.store.get_review(rid)?;
+                if review.state != ReviewState::Submitted {
+                    return Err(AppError::invalid("submit the review before pushing it to GitHub"));
+                }
+                let selection = review::select_review(db::list_repo_threads(&self.store, repo_path)?, rid);
+                review_replies = selection.replies;
+                selection.threads
+            }
+            None => {
+                // Explicit thread ids may come from any of the repo's sessions (see `pushable_threads`).
+                let source = match &thread_ids {
+                    Some(_) => db::list_repo_threads(&self.store, repo_path)?,
+                    None => db::list_session_threads(&self.store, session_id)?,
+                };
+                let filter: Option<HashSet<String>> = thread_ids.map(|ids| ids.into_iter().collect());
+                source
+                    .into_iter()
+                    .filter(|t| t.status == ThreadStatus::Open && t.github_thread_id.is_none() && !t.pending)
+                    .filter(|t| filter.as_ref().is_none_or(|f| f.contains(&t.id)))
+                    .collect()
+            }
         };
-        let filter: Option<HashSet<String>> = thread_ids.map(|ids| ids.into_iter().collect());
-        let threads: Vec<Thread> = source
-            .into_iter()
-            .filter(|t| t.status == ThreadStatus::Open && t.github_thread_id.is_none())
-            .filter(|t| filter.as_ref().is_none_or(|f| f.contains(&t.id)))
-            .collect();
         let by_id: HashMap<&str, &Thread> = threads.iter().map(|t| (t.id.as_str(), t)).collect();
         let candidates: Vec<PushCandidate> = threads.iter().map(candidate_from_thread).collect();
 
@@ -441,6 +457,20 @@ impl GithubService {
             errors: plan.skipped.clone(),
             ..PushResult::default()
         };
+
+        for (github_thread_id, comment_id, reply_body) in &review_replies {
+            match self.post_reply(&token, github_thread_id, reply_body).await {
+                Ok(Some(id)) => {
+                    db::set_comment_github_id(&self.store, comment_id, id)?;
+                    result.pushed += 1;
+                }
+                Ok(None) => result.pushed += 1,
+                Err(e) => {
+                    result.failed += 1;
+                    result.errors.push(format!("reply not synced: {}", e.message));
+                }
+            }
+        }
 
         let review_body = review::compose_review_body(body.as_deref(), &plan.body_sections);
         if plan.drafts.is_empty() && review_body.is_empty() && event == ReviewEvent::Comment {
@@ -509,7 +539,7 @@ impl GithubService {
             if let (Some(first_local), Some(id)) = (local.comments.first(), first_id) {
                 db::set_comment_github_id(&self.store, &first_local.id, id)?;
             }
-            for extra in local.comments.iter().skip(1) {
+            for extra in local.comments.iter().skip(1).filter(|c| !c.pending) {
                 match self.post_reply(&token, &remote.thread.id, &extra.body).await {
                     Ok(Some(id)) => db::set_comment_github_id(&self.store, &extra.id, id)?,
                     Ok(None) => {}

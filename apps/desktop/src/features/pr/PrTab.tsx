@@ -5,14 +5,17 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
 import * as api from '@/lib/api';
 import { queryKeys } from '@/lib/query';
-import { cn } from '@/lib/cn';
 import type { PullRequest } from '@/lib/types';
 import { agentBus } from '@/features/workspace/agent-bus';
 import { useViewStore } from '@/features/workspace/view-store';
 import { useWorkspace } from '@/features/workspace/workspace-context';
-import { Markdown } from '@/features/agent/Markdown';
-import { IconArrowDown, IconArrowUp, IconBranch, IconExternal, IconGithub, IconSparkles } from '@/features/agent/icons';
-import { Badge, Button, Spinner } from '@/features/agent/primitives';
+import { Markdown } from '@/components/markdown/Markdown';
+import { ArrowDownIcon, ArrowUpIcon, GitBranchIcon, ExternalLinkIcon, GithubIcon, SparklesIcon } from '@/components/ui/icon';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { IconButton } from '@/components/ui/IconButton';
+import { Input } from '@/components/ui/Input';
+import { Spinner } from '@/components/ui/Spinner';
 import { GithubAuthPanel } from './GithubAuthPanel';
 import { PushReviewDialog, errorGuidance, isPushable } from './PushReviewDialog';
 
@@ -103,7 +106,7 @@ export function PrTab() {
   if (authQuery.isPending) {
     return (
       <div className="flex h-full items-center justify-center gap-2 text-xs text-fg-subtle">
-        <Spinner size={12} /> Checking GitHub connection…
+        <Spinner size={14} /> Checking GitHub connection…
       </div>
     );
   }
@@ -131,7 +134,7 @@ function AuthenticatedPrView(props: { login: string | null }) {
   if (prQuery.isPending) {
     return (
       <div className="flex h-full items-center justify-center gap-2 text-xs text-fg-subtle">
-        <Spinner size={12} /> Looking for a pull request…
+        <Spinner size={14} /> Looking for a pull request…
       </div>
     );
   }
@@ -139,10 +142,10 @@ function AuthenticatedPrView(props: { login: string | null }) {
   if (prQuery.isError && api.isAppError(prQuery.error) && prQuery.error.code === 'not_github') {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-        <IconGithub size={20} className="text-fg-subtle" />
+        <GithubIcon size={24} className="text-fg-subtle" />
         <p className="text-sm font-medium">No GitHub remote</p>
         <p className="max-w-[420px] text-xs text-fg-muted">{prQuery.error.message}</p>
-        {login && <p className="mt-4 text-[11px] text-fg-subtle">Signed in to GitHub as {login}</p>}
+        {login && <p className="mt-4 text-2xs text-fg-subtle">Signed in to GitHub as {login}</p>}
       </div>
     );
   }
@@ -156,7 +159,7 @@ function AuthenticatedPrView(props: { login: string | null }) {
           </div>
         )}
         {prQuery.data ? <PrCard pr={prQuery.data} /> : <PrPicker />}
-        {login && <p className="mt-6 text-center text-[11px] text-fg-subtle">Signed in to GitHub as {login}</p>}
+        {login && <p className="mt-6 text-center text-2xs text-fg-subtle">Signed in to GitHub as {login}</p>}
       </div>
     </div>
   );
@@ -224,7 +227,7 @@ function PrCard(props: { pr: PullRequest }) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-bg-elevated">
+      <div className="rounded-lg border border-border bg-raised">
         <div className="border-b border-border px-5 py-4">
           <div className="flex items-start gap-3">
             <div className="min-w-0 flex-1">
@@ -238,34 +241,34 @@ function PrCard(props: { pr: PullRequest }) {
                 <span className="ml-1">
                   <span className="font-medium text-fg">{pr.author}</span> wants to merge
                 </span>
-                <span className="inline-flex items-center gap-1 font-mono text-[11px]">
-                  <span className="rounded bg-accent-subtle px-1 text-accent">{pr.baseRef}</span>←
-                  <span className="rounded bg-accent-subtle px-1 text-accent">{pr.headRef}</span>
+                <span className="inline-flex items-center gap-1 font-mono text-2xs">
+                  <span className="rounded-sm bg-accent-soft px-1 text-accent">{pr.baseRef}</span>←
+                  <span className="rounded-sm bg-accent-soft px-1 text-accent">{pr.headRef}</span>
                 </span>
               </div>
             </div>
-            <Button size="sm" variant="ghost" onClick={() => openExternal(pr.url)}>
-              <IconExternal size={12} />
+            <Button size="md" variant="ghost" onClick={() => openExternal(pr.url)}>
+              <ExternalLinkIcon size={14} />
               Open on GitHub
             </Button>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 px-5 py-3">
-          <Button size="sm" variant="primary" onClick={reviewWithAi}>
-            <IconSparkles size={12} />
+          <Button size="md" variant="primary" onClick={reviewWithAi}>
+            <SparklesIcon size={14} />
             Review this PR with AI
           </Button>
-          <Button size="sm" loading={pulling} disabled={!sessionId} onClick={pullComments}>
-            <IconArrowDown size={12} />
+          <Button size="md" loading={pulling} disabled={!sessionId} onClick={pullComments}>
+            <ArrowDownIcon size={14} />
             Pull comments from GitHub
           </Button>
-          <Button size="sm" disabled={!sessionId} onClick={() => setPushOpen(true)}>
-            <IconArrowUp size={12} />
+          <Button size="md" disabled={!sessionId} onClick={() => setPushOpen(true)}>
+            <ArrowUpIcon size={14} />
             Push review…
             {unsynced > 0 && <Badge tone="accent">{unsynced}</Badge>}
           </Button>
-          <Button size="sm" variant="ghost" onClick={showPrDiff}>
-            <IconBranch size={12} />
+          <Button size="md" variant="ghost" onClick={showPrDiff}>
+            <GitBranchIcon size={14} />
             Show PR diff
           </Button>
         </div>
@@ -278,7 +281,7 @@ function PrCard(props: { pr: PullRequest }) {
         )}
       </div>
 
-      <div className="rounded-xl border border-border bg-bg-elevated px-5 py-4">
+      <div className="rounded-lg border border-border bg-raised px-5 py-4">
         {pr.body.trim() ? (
           <Markdown>{pr.body}</Markdown>
         ) : (
@@ -326,8 +329,8 @@ function PrPicker() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-dashed border-border px-5 py-5 text-center">
-        <IconGithub size={20} className="mx-auto text-fg-subtle" />
+      <div className="rounded-lg border border-dashed border-border px-5 py-5 text-center">
+        <GithubIcon size={24} className="mx-auto text-fg-subtle" />
         <p className="mt-2 text-sm font-medium">No pull request for {repo?.branch ? <code className="font-mono">{repo.branch}</code> : 'this branch'}</p>
         <p className="mt-0.5 text-xs text-fg-muted">Check out an open PR below, or paste a PR URL.</p>
         <form
@@ -337,13 +340,14 @@ function PrPicker() {
             void checkout(url);
           }}
         >
-          <input
+          <Input
+            size="lg"
+            wrapperClassName="flex-1"
             value={url}
             onChange={(event) => setUrl(event.target.value)}
             placeholder="https://github.com/owner/repo/pull/123 or 123"
-            className="selectable h-8 min-w-0 flex-1 rounded-md border border-border bg-bg-elevated px-2.5 text-xs outline-none focus:border-accent focus:ring-2 focus:ring-ring"
           />
-          <Button type="submit" size="md" loading={checkingOut === url.trim() && url.trim() !== ''} disabled={!url.trim() || checkingOut !== null}>
+          <Button type="submit" size="lg" loading={checkingOut === url.trim() && url.trim() !== ''} disabled={!url.trim() || checkingOut !== null}>
             Open PR
           </Button>
         </form>
@@ -353,7 +357,7 @@ function PrPicker() {
         <h2 className="mb-2 text-xs font-semibold text-fg-muted">Open pull requests</h2>
         {prsQuery.isPending && (
           <div className="flex items-center gap-2 py-4 text-xs text-fg-subtle">
-            <Spinner size={12} /> Loading…
+            <Spinner size={14} /> Loading…
           </div>
         )}
         {prsQuery.isError && (
@@ -362,29 +366,24 @@ function PrPicker() {
           </div>
         )}
         {prsQuery.data?.length === 0 && <p className="py-4 text-xs text-fg-subtle">No open pull requests.</p>}
-        <ul className="overflow-hidden rounded-xl border border-border bg-bg-elevated empty:hidden">
+        <ul className="overflow-hidden rounded-lg border border-border bg-raised empty:hidden">
           {(prsQuery.data ?? []).map((pr) => (
             <li key={pr.number} className="flex items-center gap-3 border-b border-border px-4 py-2.5 last:border-b-0">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <span className="truncate text-[13px] font-medium">{pr.title}</span>
+                  <span className="truncate text-sm font-medium">{pr.title}</span>
                   {pr.isDraft && <Badge>Draft</Badge>}
                 </div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-fg-subtle">
+                <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-fg-subtle">
                   <span>#{pr.number}</span>·<span>{pr.author}</span>·
                   <span className="truncate font-mono">{pr.headRef}</span>
                 </div>
               </div>
-              <button
-                type="button"
-                title="Open on GitHub"
-                onClick={() => openExternal(pr.url)}
-                className={cn('rounded p-1 text-fg-subtle hover:bg-bg-muted hover:text-fg')}
-              >
-                <IconExternal size={12} />
-              </button>
+              <IconButton size="sm" label="Open on GitHub" onClick={() => openExternal(pr.url)}>
+                <ExternalLinkIcon size={14} />
+              </IconButton>
               <Button
-                size="xs"
+                size="sm"
                 loading={checkingOut === String(pr.number)}
                 disabled={checkingOut !== null}
                 onClick={() => checkout(String(pr.number))}

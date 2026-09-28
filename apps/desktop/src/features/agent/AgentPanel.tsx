@@ -287,7 +287,7 @@ export function AgentPanel() {
       : null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-bg-subtle">
+    <div className="flex h-full min-h-0 flex-col bg-panel">
       <AgentHeader
         agents={agents}
         agentsLoading={agentsQuery.isPending}

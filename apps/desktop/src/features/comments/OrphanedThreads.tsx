@@ -1,4 +1,4 @@
-import { AlertIcon } from '@/components/ui/icons';
+import { AlertIcon } from '@/components/ui/icon';
 import type { Thread } from '@/lib/types';
 import { ThreadCard } from './ThreadCard';
 import type { CommentActions } from './use-threads';
@@ -14,9 +14,9 @@ export function OrphanedThreads(props: OrphanedThreadsProps) {
     return null;
   }
   return (
-    <section className="mx-3 mb-1 rounded-lg border border-warning/40 bg-warning/5 p-3 font-sans">
+    <section className="mb-1 rounded-lg border border-warning/40 bg-warning/6 p-3 font-sans">
       <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-warning">
-        <AlertIcon size={13} />
+        <AlertIcon size={14} />
         {threads.length} outdated {threads.length === 1 ? 'thread' : 'threads'} — the commented lines are no longer in this diff
       </div>
       <div className="flex flex-col gap-2">
@@ -26,7 +26,7 @@ export function OrphanedThreads(props: OrphanedThreadsProps) {
               {thread.filePath}:{thread.startLine === thread.endLine ? thread.startLine : `${thread.startLine}-${thread.endLine}`}
             </div>
             {thread.anchorContent && (
-              <pre className="selectable overflow-x-auto rounded-md border border-border bg-bg-subtle px-3 py-2 font-mono text-xs text-fg-muted">
+              <pre className="selectable overflow-x-auto rounded-md border border-border bg-canvas px-3 py-2 font-mono text-xs text-fg-muted">
                 {thread.anchorContent}
               </pre>
             )}

@@ -1,5 +1,6 @@
 //! Live smoke test against an installed agent. Costs tokens.
-//! `cargo build -p diffity-mcp && cargo run -p diffity-agents --example smoke -- <claude|codex|gemini> [repo] [review|ask]`
+//! `cargo build -p diffity-mcp && cargo run -p diffity-agents --example smoke -- <claude|codex|gemini> [repo] [review|ask|edit|thread]`
+//! `thread` leaves a user comment mentioning `@claude` on math.js and runs the `thread` action (auto-approves writes).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -64,9 +65,12 @@ async fn main() -> anyhow::Result<()> {
         Some(r) => PathBuf::from(r).canonicalize()?,
         None => make_repo(tmp.path())?,
     };
-    let mode = match args.next().as_deref() {
+    let mode_arg = args.next();
+    let thread_mode = mode_arg.as_deref() == Some("thread");
+    let mode = match mode_arg.as_deref() {
         Some("ask") => AgentMode::Ask,
         Some("edit") => AgentMode::Edit,
+        Some("thread") => AgentMode::Resolve,
         _ => AgentMode::Review,
     };
     let repo_path = repo.to_string_lossy().into_owned();
@@ -139,6 +143,25 @@ async fn main() -> anyhow::Result<()> {
         Some(c) => (c, AgentAction::Chat),
         None => (text, action),
     };
+    let (text, action) = if thread_mode {
+        let thread = store.create_thread(&diffity_core::types::NewThread {
+            session_id: session.id.clone(),
+            file_path: "math.js".into(),
+            side: diffity_core::types::Side::New,
+            start_line: 3,
+            end_line: 3,
+            body: "@claude why `<=` here? Keep it short.".into(),
+            severity: None,
+            anchor_content: None,
+            author_type: None,
+            author_name: None,
+            pending: None,
+        })?;
+        println!("[thread] created {} mentionsAgent={}", thread.id, thread.comments[0].mentions_agent);
+        (String::new(), AgentAction::Thread { thread_id: thread.id })
+    } else {
+        (text, action)
+    };
     let run = manager.send_prompt(&chat.id, text, vec![], action, sink);
     let outcome = tokio::time::timeout(Duration::from_secs(170), run).await;
     match outcome {
@@ -151,6 +174,9 @@ async fn main() -> anyhow::Result<()> {
     }
 
     for thread in store.list_threads(&session.id, None)? {
+        for c in thread.comments.iter().skip(1) {
+            println!("  [reply] {:?}/{}: {}", c.author_type, c.author_name, c.body);
+        }
         let first = thread.comments.first();
         println!(
             "[thread] {} {}:{}-{} {:?} {:?} by {:?}/{}: {}",

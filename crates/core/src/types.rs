@@ -179,6 +179,13 @@ pub struct Comment {
     pub body: String,
     pub created_at: String,
     pub github_comment_id: Option<i64>,
+    #[serde(default)]
+    pub pending: bool,
+    #[serde(default)]
+    pub review_id: Option<String>,
+    /// A user-authored comment that mentions `@claude` (outside code).
+    #[serde(default)]
+    pub mentions_agent: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -197,6 +204,12 @@ pub struct Thread {
     pub comments: Vec<Comment>,
     pub created_at: String,
     pub updated_at: String,
+    /// True while the first comment is still a draft in a pending review.
+    #[serde(default)]
+    pub pending: bool,
+    /// Review the thread was started in, if any.
+    #[serde(default)]
+    pub review_id: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -216,6 +229,9 @@ pub struct NewThread {
     pub author_type: Option<AuthorType>,
     #[serde(default)]
     pub author_name: Option<String>,
+    /// Adds the thread to the session's pending review (created on demand) instead of publishing it.
+    #[serde(default)]
+    pub pending: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -223,4 +239,40 @@ pub struct NewThread {
 pub struct ViewedFile {
     pub file_path: String,
     pub content_hash: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ReviewState {
+    Pending,
+    Submitted,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ReviewVerdict {
+    Comment,
+    Approve,
+    RequestChanges,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Review {
+    pub id: String,
+    pub session_id: String,
+    pub state: ReviewState,
+    pub body: String,
+    pub verdict: Option<ReviewVerdict>,
+    /// Draft comments still waiting for submit (0 once submitted).
+    pub pending_count: u32,
+    /// All comments (threads + replies) that belong to the review.
+    pub comment_count: u32,
+    /// Threads the review started or replied to, in order of first review comment.
+    pub thread_ids: Vec<String>,
+    /// Threads with a review comment that mentions `@claude`.
+    pub mentioned_thread_ids: Vec<String>,
+    pub body_mentions_agent: bool,
+    pub created_at: String,
+    pub submitted_at: Option<String>,
 }

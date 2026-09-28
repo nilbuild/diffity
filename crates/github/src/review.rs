@@ -282,7 +282,7 @@ pub fn select_pushable(
 ) -> Vec<Thread> {
     let mut out: Vec<Thread> = threads
         .into_iter()
-        .filter(|t| t.status == ThreadStatus::Open && t.github_thread_id.is_none())
+        .filter(|t| t.status == ThreadStatus::Open && t.github_thread_id.is_none() && !t.pending)
         .filter(|t| {
             let Some(anchor) = anchors.get(&t.session_id) else {
                 return false;
@@ -309,6 +309,42 @@ pub fn select_pushable(
     out
 }
 
+/// What pushing a submitted local review sends to GitHub.
+#[derive(Debug, Default)]
+pub struct ReviewSelection {
+    /// Unsynced threads the review started (any status), oldest first.
+    pub threads: Vec<Thread>,
+    /// `(github_thread_id, local comment id, body)` for review replies on threads already on GitHub.
+    pub replies: Vec<(String, String, String)>,
+}
+
+/// Selects the threads and replies of review `review_id` from the repo's threads. Pending (draft) comments
+/// and comments already on GitHub are never selected.
+pub fn select_review(threads: Vec<Thread>, review_id: &str) -> ReviewSelection {
+    let mut out = ReviewSelection::default();
+    for thread in threads {
+        if thread.pending {
+            continue;
+        }
+        let started_here = thread.review_id.as_deref() == Some(review_id);
+        if started_here && thread.github_thread_id.is_none() {
+            out.threads.push(thread);
+            continue;
+        }
+        let Some(github_thread_id) = thread.github_thread_id.as_deref() else {
+            continue;
+        };
+        for c in &thread.comments {
+            let in_review = c.review_id.as_deref() == Some(review_id);
+            if in_review && !c.pending && c.github_comment_id.is_none() {
+                out.replies.push((github_thread_id.to_string(), c.id.clone(), c.body.clone()));
+            }
+        }
+    }
+    out.threads.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+    out
+}
+
 #[cfg(test)]
 mod pushable_tests {
     use super::*;
@@ -328,7 +364,67 @@ mod pushable_tests {
             comments: vec![],
             created_at: format!("2026-01-01T00:00:0{}Z", id.len()),
             updated_at: String::new(),
+            pending: false,
+            review_id: None,
         }
+    }
+
+    fn comment(id: &str, review: Option<&str>, pending: bool, github: Option<i64>) -> diffity_core::types::Comment {
+        diffity_core::types::Comment {
+            id: id.into(),
+            thread_id: String::new(),
+            author_type: diffity_core::types::AuthorType::User,
+            author_name: "You".into(),
+            body: format!("body {id}"),
+            created_at: String::new(),
+            github_comment_id: github,
+            pending,
+            review_id: review.map(String::from),
+            mentions_agent: false,
+        }
+    }
+
+    #[test]
+    fn selects_review_threads_and_replies() {
+        let mut started = thread("started", "work", "src/a.ts", Side::New, 3);
+        started.review_id = Some("R".into());
+        started.status = ThreadStatus::Resolved;
+        let mut other_review = thread("other", "work", "src/a.ts", Side::New, 4);
+        other_review.review_id = Some("R2".into());
+        let mut draft = thread("draft", "work", "src/a.ts", Side::New, 5);
+        draft.review_id = Some("R".into());
+        draft.pending = true;
+        let mut synced = thread("synced", "pr", "src/a.ts", Side::New, 6);
+        synced.github_thread_id = Some("GT".into());
+        synced.comments = vec![
+            comment("root", None, false, Some(1)),
+            comment("reply", Some("R"), false, None),
+            comment("done", Some("R"), false, Some(2)),
+            comment("wip", Some("R"), true, None),
+            comment("elsewhere", Some("R2"), false, None),
+        ];
+        let mut local_only = thread("local", "work", "src/a.ts", Side::New, 7);
+        local_only.comments = vec![comment("x", Some("R"), false, None)];
+
+        let picked = select_review(vec![started, other_review, draft, synced, local_only], "R");
+        let ids: Vec<&str> = picked.threads.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, vec!["started"]);
+        assert_eq!(
+            picked.replies,
+            vec![("GT".to_string(), "reply".to_string(), "body reply".to_string())]
+        );
+    }
+
+    #[test]
+    fn pushable_skips_pending_threads() {
+        let mut anchors = HashMap::new();
+        anchors.insert("work".to_string(), SessionAnchor { new_matches: true, ..Default::default() });
+        let files: HashSet<String> = ["src/a.ts".to_string()].into();
+        let mut draft = thread("draft", "work", "src/a.ts", Side::New, 3);
+        draft.pending = true;
+        let picked = select_pushable(vec![draft, thread("ok", "work", "src/a.ts", Side::New, 3)], &anchors, &files);
+        assert_eq!(picked.len(), 1);
+        assert_eq!(picked[0].id, "ok");
     }
 
     #[test]

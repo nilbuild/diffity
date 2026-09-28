@@ -42,9 +42,13 @@ repos(id TEXT PK, path TEXT UNIQUE, name TEXT, last_opened_at TEXT)
 review_sessions(id TEXT PK, repo_path TEXT, ref TEXT, created_at TEXT, UNIQUE(repo_path, ref))
 threads(id TEXT PK, session_id TEXT FK, file_path TEXT, side TEXT, start_line INT, end_line INT,
         status TEXT DEFAULT 'open', severity TEXT NULL, anchor_content TEXT NULL,
-        github_thread_id TEXT NULL, github_comment_id INTEGER NULL, created_at TEXT, updated_at TEXT)
+        github_thread_id TEXT NULL, github_comment_id INTEGER NULL, created_at TEXT, updated_at TEXT,
+        review_id TEXT NULL FK reviews ON DELETE SET NULL)                                   -- v2
 comments(id TEXT PK, thread_id TEXT FK ON DELETE CASCADE, author_type TEXT, author_name TEXT,
-         body TEXT, github_comment_id INTEGER NULL, created_at TEXT)
+         body TEXT, github_comment_id INTEGER NULL, created_at TEXT,
+         pending INTEGER DEFAULT 0, review_id TEXT NULL FK reviews ON DELETE SET NULL)       -- v2
+reviews(id TEXT PK, session_id TEXT FK ON DELETE CASCADE, state 'pending'|'submitted', body TEXT,
+        verdict TEXT NULL, created_at TEXT, submitted_at TEXT NULL)                          -- v2; unique partial index: one pending per session
 viewed_files(session_id TEXT, file_path TEXT, content_hash TEXT, PRIMARY KEY(session_id, file_path))
 chats(id TEXT PK, repo_path TEXT, agent_id TEXT, acp_session_id TEXT NULL, mode TEXT, title TEXT, created_at TEXT, updated_at TEXT)
 chat_messages(id TEXT PK, chat_id TEXT FK ON DELETE CASCADE, role TEXT, content_json TEXT, created_at TEXT)
@@ -77,12 +81,17 @@ interface TreeEntry { path: string; kind: 'file' | 'dir'; }
 interface FileContent { path: string; contents: string | null; binary: boolean; size: number; }
 
 interface ReviewSession { id: string; repoPath: string; ref: string; }
-interface Comment { id: string; threadId: string; authorType: AuthorType; authorName: string; body: string; createdAt: string; githubCommentId: number | null; }
+interface Comment { id: string; threadId: string; authorType: AuthorType; authorName: string; body: string; createdAt: string; githubCommentId: number | null;
+  pending: boolean; reviewId: string | null; mentionsAgent: boolean; }
 interface Thread { id: string; sessionId: string; filePath: string; side: Side; startLine: number; endLine: number;
   status: ThreadStatus; severity: Severity | null; anchorContent: string | null; githubThreadId: string | null;
-  comments: Comment[]; createdAt: string; updatedAt: string; }
+  comments: Comment[]; createdAt: string; updatedAt: string; pending: boolean; reviewId: string | null; }
 interface NewThread { sessionId: string; filePath: string; side: Side; startLine: number; endLine: number; body: string;
-  severity?: Severity | null; anchorContent?: string | null; authorType?: AuthorType; authorName?: string; }
+  severity?: Severity | null; anchorContent?: string | null; authorType?: AuthorType; authorName?: string; pending?: boolean; }
+type ReviewVerdict = 'comment' | 'approve' | 'requestChanges';
+interface Review { id: string; sessionId: string; state: 'pending' | 'submitted'; body: string; verdict: ReviewVerdict | null;
+  pendingCount: number; commentCount: number; threadIds: string[]; mentionedThreadIds: string[]; bodyMentionsAgent: boolean;
+  createdAt: string; submittedAt: string | null; }
 
 type AgentMode = 'ask' | 'review' | 'resolve' | 'edit';
 interface AgentInfo { id: string; name: string; installed: boolean; binaryPath: string | null; authenticated: boolean | null; note: string | null; }
@@ -92,7 +101,9 @@ type AgentAction =
   | { kind: 'review'; ref: string; focus?: string }
   | { kind: 'resolve'; threadId?: string }
   | { kind: 'explain'; path: string }
-  | { kind: 'summarize'; ref: string };
+  | { kind: 'summarize'; ref: string }
+  | { kind: 'thread'; threadId: string }            // needs a `resolve`-mode chat
+  | { kind: 'reviewFeedback'; reviewId: string };   // needs a `resolve`-mode chat
 interface StartChat { repoPath: string; agentId: string; mode: AgentMode; sessionId: string; title?: string; }
 interface Chat { id: string; repoPath: string; agentId: string; mode: AgentMode; title: string; createdAt: string; updatedAt: string; }
 type AgentEvent =                                   // serde tag = "type"
@@ -141,7 +152,9 @@ read_file_base64(repoPath, path) -> string      // for images
 get_session(repoPath, ref) -> ReviewSession     // get-or-create
 list_threads(sessionId) -> Thread[]
 create_thread(input: NewThread) -> Thread
-add_reply(threadId, body, authorType: Option, authorName: Option) -> Thread   // replying to resolved reopens
+add_reply(threadId, body, authorType: Option, authorName: Option, pending: Option<bool>) -> Thread   // published user reply reopens
+get_pending_review(sessionId) -> Option<Review>; start_review(sessionId) -> Review; get_review(reviewId) -> Review
+list_reviews(sessionId) -> Review[]; submit_review(sessionId, body: Option, verdict: Option) -> Review; discard_review(sessionId) -> ()
 edit_comment(commentId, body) -> ()
 delete_comment(commentId) -> ()                 // deleting last comment deletes thread
 delete_thread(threadId) -> ()
@@ -179,7 +192,7 @@ git_push(repoPath) -> GitOpResult                         // sets upstream if mi
 find_pr(repoPath) -> Option<PullRequest>                  // PR for current branch
 list_prs(repoPath) -> PullRequest[]
 checkout_pr(repoPath, urlOrNumber) -> PullRequest
-push_review(repoPath, sessionId, prNumber, event: ReviewEvent, body: Option, threadIds: Option<string[]>) -> PushResult
+push_review(repoPath, sessionId, prNumber, event: Option<ReviewEvent>, body: Option, threadIds: Option<string[]>, reviewId: Option) -> PushResult
 pull_review(repoPath, sessionId, prNumber) -> PullResult
 github_reply(threadId, body) -> Thread                    // local + GitHub for synced threads
 github_set_resolved(threadId, resolved: bool) -> Thread
@@ -261,6 +274,21 @@ Watcher: `watch::WatcherRegistry` (held in a static in `commands/repo.rs`); `wat
 - Extra table owned by agents: `agent_chat_sessions(chat_id PK → chats.id, session_id)` binds a chat to its review session (created by `AgentManager::new`).
 - Bridge extras: pseudo-tool `__list_tools` returns the tool names allowed for the token's mode (the stdio server filters `tools/list` with it). `add_comment` accepts any line that exists on the chosen side (anchor filled when inside a hunk); `startLine: 0` = file-level comment.
 - `diffity-mcp` uses `rmcp` 3.5 and must set `ttlMs`/`cacheScope` on `tools/list` (Claude Code negotiates MCP `2026-07-28`).
+
+## Reviews & mentions
+
+GitHub-style pending reviews plus `@claude` mentions.
+
+- **Pending review.** `create_thread({ ..., pending: true })` / `add_reply(..., pending: true)` put a user comment in the session's pending review (get-or-created; at most one per session, enforced by a unique partial index). A thread is pending iff its first comment is pending (`Thread.pending`); replies to a pending thread are always pending; only user comments can be pending. Pending comments can be edited/deleted with the normal commands. `start_review` creates the empty pending review explicitly (optional).
+- **Submit.** `submit_review(sessionId, body, verdict)` publishes every pending comment (re-stamped `createdAt` = submit time so ordering reflects publication), reopens resolved/dismissed threads that received a review reply, and stamps the review `submitted`. Without a pending review it still submits a body-only review when the body is non-empty or the verdict is not `comment` (else `invalid`). `discard_review` deletes the pending review, its draft threads and draft replies.
+- **Review fields.** `pendingCount`, `commentCount`, `threadIds` (threads the review started or replied to, in order), `mentionedThreadIds` (threads with a user review comment mentioning `@claude`), `bodyMentionsAgent`.
+- **Visibility.** The MCP bridge hides pending threads and strips pending comments (`tools::visible`); `find`/`reply`/`resolve` on a pending thread → `not_found`. GitHub push never selects pending threads/comments.
+- **Mentions.** `diffity_core::mentions::mentions_agent` (re-exported as `diffity_agents::mentions`, TS mirror `lib/mentions.ts`): case-insensitive `@claude`, whole word (not `bob@claude.ai`, `@claude_bot`, `@claude-code`, `@claude/sdk`), ignored inside inline code and fenced blocks. `Comment.mentionsAgent` is computed on load for user-authored comments only.
+- **Frontend triggers.** Single comment / published reply: if the returned thread's newest comment has `mentionsAgent`, run `{ kind: 'thread', threadId }`. Submit: if the user picked "Send to Claude", run `{ kind: 'reviewFeedback', reviewId }`; otherwise run `{ kind: 'thread' }` for each of `review.mentionedThreadIds` (and consider `reviewFeedback` when `bodyMentionsAgent`). Post to GitHub with `pushReview(..., event: null, body: null, threadIds: null, reviewId)` (`api.pushSubmittedReview`).
+- **Agent actions.** `thread` (`prompts/thread.md`): read that thread + code; questions → `reply` (no edits, thread stays open); change requests → edit (per-write approval) then `resolve` with a summary; unclear → clarifying `reply`. `reviewFeedback` (`prompts/review-feedback.md`): the prompt lists the review's thread ids, verdict and summary body; the agent handles them in order, skips resolved/dismissed, same rules per thread, and acts on the summary. Both require a chat started with `mode: 'resolve'` (`send_prompt` returns `invalid` otherwise) so the bridge token allows `reply`/`resolve` and writes go through the permission broker. The chat is bound to the thread's / review's session (rejecting pending threads and unsubmitted reviews). Agent replies are `agent`-authored ("Claude Code") and never reopen or alter pending state; a published **user** reply (e.g. a follow-up `@claude`) reopens a resolved thread.
+- **GitHub push of a review.** `push_review(..., reviewId)` requires a submitted review; it sends the threads the review started (any status, unsynced, `review::select_review`), posts review replies on already-linked threads via `addPullRequestReviewThreadReply`, and defaults `body`/`event` to the review's body/verdict (`comment→COMMENT`, `approve→APPROVE`, `requestChanges→REQUEST_CHANGES`). The `threadIds` / session paths are unchanged apart from skipping pending threads/comments.
+- **Migration.** `user_version` 1 → 2 in one transaction: create `reviews` (+ indexes), `ALTER TABLE` add `threads.review_id`, `comments.pending`, `comments.review_id`. Fresh DBs run v1 schema then v2.
+- **Smoke.** `cargo run -p diffity-agents --example smoke -- claude - thread` leaves a `@claude` question on the scratch repo and runs the `thread` action.
 
 ## Integration notes
 

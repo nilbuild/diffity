@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use diffity_core::store::Store;
 use diffity_core::types::{
-    AuthorType, DiffResult, NewThread, ReviewSession, Side, Thread, ThreadStatus,
+    AuthorType, DiffResult, NewThread, Review, ReviewSession, Side, Thread, ThreadStatus,
 };
 use diffity_core::{AppError, Result};
 
@@ -80,6 +80,16 @@ impl ReviewBackend for CoreBackend {
         Box::pin(blocking(move || {
             store.find_thread_by_prefix(&prefix, Some(&sid))
         }))
+    }
+
+    fn get_thread(&self, thread_id: &str) -> BoxFut<'_, Thread> {
+        let (store, id) = (self.store.clone(), thread_id.to_string());
+        Box::pin(blocking(move || store.get_thread(&id)))
+    }
+
+    fn get_review(&self, review_id: &str) -> BoxFut<'_, Review> {
+        let (store, id) = (self.store.clone(), review_id.to_string());
+        Box::pin(blocking(move || store.get_review(&id)))
     }
 
     fn create_thread(&self, input: NewThread) -> BoxFut<'_, Thread> {

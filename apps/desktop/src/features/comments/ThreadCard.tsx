@@ -3,7 +3,7 @@ import { Markdown } from '@/components/markdown/Markdown';
 import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
-import { ChevronRightIcon, PencilIcon, SparklesIcon, TrashIcon } from '@/components/ui/icons';
+import { ChevronRightIcon, PencilIcon, SparklesIcon, TrashIcon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { dayjs } from '@/lib/time';
 import type { Comment, Thread } from '@/lib/types';
@@ -45,12 +45,12 @@ export function ThreadCard(props: ThreadCardProps) {
     <div
       data-thread-id={thread.id}
       className={cn(
-        'overflow-hidden rounded-lg border bg-bg-elevated font-sans text-[13px] shadow-sm',
-        active ? 'border-accent ring-2 ring-ring' : 'border-border',
+        'overflow-hidden rounded-lg border bg-raised font-sans text-sm',
+        active ? 'border-accent outline outline-1 outline-accent' : 'border-border',
         !open && 'opacity-80',
       )}
     >
-      <div className="flex items-center gap-2 border-b border-border bg-bg-subtle px-3 py-1.5">
+      <div className="flex h-9 items-center gap-2 border-b border-border bg-panel pr-1.5 pl-3">
         <button
           type="button"
           className="flex min-w-0 cursor-default items-center gap-1.5 text-left"
@@ -79,11 +79,11 @@ export function ThreadCard(props: ThreadCardProps) {
         <div className="ml-auto flex items-center gap-0.5">
           {open && (
             <IconButton size="sm" label="Resolve with AI" onClick={() => agentBus.runAction({ kind: 'resolve', threadId: thread.id })}>
-              <SparklesIcon size={13} />
+              <SparklesIcon size={14} />
             </IconButton>
           )}
           <IconButton size="sm" label="Delete thread" onClick={() => void deleteThread()}>
-            <TrashIcon size={13} />
+            <TrashIcon size={14} />
           </IconButton>
         </div>
       </div>
@@ -148,16 +148,16 @@ function CommentItem(props: { comment: Comment; actions: CommentActions }) {
     <div className="group px-3 py-2">
       <div className="mb-1 flex items-center gap-2">
         <AuthorBadge authorType={comment.authorType} authorName={comment.authorName} />
-        <span className="text-[11px] text-fg-subtle" title={comment.createdAt}>
+        <span className="text-2xs text-fg-subtle" title={comment.createdAt}>
           {dayjs(comment.createdAt).fromNow()}
         </span>
         {!editing && comment.authorType === 'user' && (
           <div className="ml-auto flex opacity-0 group-hover:opacity-100">
             <IconButton size="sm" label="Edit comment" onClick={() => setEditing(true)}>
-              <PencilIcon size={12} />
+              <PencilIcon size={14} />
             </IconButton>
             <IconButton size="sm" label="Delete comment" onClick={() => void remove()}>
-              <TrashIcon size={12} />
+              <TrashIcon size={14} />
             </IconButton>
           </div>
         )}

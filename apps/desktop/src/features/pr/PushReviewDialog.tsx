@@ -5,8 +5,12 @@ import * as api from '@/lib/api';
 import { queryKeys } from '@/lib/query';
 import { cn } from '@/lib/cn';
 import { GENERAL_FILE_PATH, type AppError, type PullRequest, type PushResult, type ReviewEvent, type Thread } from '@/lib/types';
-import { IconAlert, IconCheck, IconSparkles } from '@/features/agent/icons';
-import { Badge, Button, Dialog, Spinner } from '@/features/agent/primitives';
+import { AlertIcon, CheckIcon, SparklesIcon } from '@/components/ui/icon';
+import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { Textarea } from '@/components/ui/Input';
+import { Dialog } from '@/components/ui/Dialog';
+import { Spinner } from '@/components/ui/Spinner';
 
 export interface PushReviewDialogProps {
   open: boolean;
@@ -147,7 +151,7 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
           </Button>
         }
       >
-        <div className="space-y-3 px-5 py-4">
+        <div className="space-y-3">
           <div className="grid grid-cols-3 gap-2 text-center">
             <Stat label="Pushed" value={result.pushed} tone="success" />
             <Stat label="Skipped" value={result.skipped} tone="neutral" />
@@ -188,10 +192,10 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
         </>
       }
     >
-      <div className="space-y-4 px-5 py-4">
+      <div className="space-y-4">
         {headMismatch && (
           <div className="flex gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
-            <IconAlert size={13} className="mt-px shrink-0" />
+            <AlertIcon size={14} className="mt-px shrink-0" />
             <span>
               Your local HEAD ({localHeadSha?.slice(0, 7)}) differs from the PR head ({pr.headSha.slice(0, 7)}). Push
               your commits first so comments land on the right lines.
@@ -207,20 +211,20 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
             {pushable.length > 0 && (
               <button
                 type="button"
-                className="text-[11px] text-accent hover:underline"
+                className="text-2xs text-accent hover:underline"
                 onClick={() => setSelected(allSelected ? new Set() : new Set(pushable.map((thread) => thread.id)))}
               >
                 {allSelected ? 'Select none' : 'Select all'}
               </button>
             )}
           </div>
-          <p className="mb-1.5 text-[11px] text-fg-subtle">
+          <p className="mb-1.5 text-2xs text-fg-subtle">
             Open comments from every view of this repo (uncommitted changes, branches, PR diff, files) on files in this PR.
           </p>
           <div className="max-h-[260px] overflow-auto rounded-md border border-border">
             {threadsQuery.isPending && (
               <div className="flex items-center gap-2 px-3 py-3 text-xs text-fg-subtle">
-                <Spinner size={12} /> Loading comments…
+                <Spinner size={14} /> Loading comments…
               </div>
             )}
             {threadsQuery.isError && (
@@ -237,20 +241,20 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
               return (
                 <label
                   key={thread.id}
-                  className="flex cursor-pointer items-start gap-2.5 border-b border-border px-3 py-2 last:border-b-0 hover:bg-bg-muted"
+                  className="flex cursor-default items-start gap-2.5 border-b border-border-subtle px-3 py-2 last:border-b-0 hover:bg-hover"
                 >
                   <input
                     type="checkbox"
-                    className="mt-0.5"
+                    className="mt-0.5 accent-[var(--accent)]"
                     checked={selected.has(thread.id)}
                     onChange={() => toggle(thread.id)}
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <span className="truncate font-mono text-[11px] text-fg-muted">{threadLocation(thread)}</span>
+                      <span className="truncate font-mono text-2xs text-fg-muted">{threadLocation(thread)}</span>
                       {isAgent && (
                         <Badge tone="accent" title={first?.authorName}>
-                          <IconSparkles size={10} />
+                          <SparklesIcon size={12} />
                           {first?.authorName || 'AI'}
                         </Badge>
                       )}
@@ -267,12 +271,12 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
 
         <section>
           <h3 className="mb-1.5 text-xs font-semibold">Summary</h3>
-          <textarea
+          <Textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
             rows={4}
             placeholder="Leave an overall comment (optional)"
-            className="selectable w-full resize-y rounded-md border border-border bg-bg-elevated px-2.5 py-2 text-[13px] outline-none focus:border-accent focus:ring-2 focus:ring-ring"
+            className="resize-y"
           />
         </section>
 
@@ -281,20 +285,20 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
             <label
               key={option.value}
               className={cn(
-                'flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 hover:bg-bg-muted',
-                event === option.value && 'bg-bg-muted',
+                'flex cursor-default items-start gap-2.5 rounded-md border px-2 py-1.5',
+                event === option.value ? 'border-accent/40 bg-accent-soft' : 'border-transparent hover:bg-hover',
               )}
             >
               <input
                 type="radio"
                 name="review-event"
-                className="mt-0.5"
+                className="mt-0.5 accent-[var(--accent)]"
                 checked={event === option.value}
                 onChange={() => setEvent(option.value)}
               />
               <span>
                 <span className="block text-xs font-medium">{option.label}</span>
-                <span className="block text-[11px] text-fg-subtle">{option.hint}</span>
+                <span className="block text-2xs text-fg-subtle">{option.hint}</span>
               </span>
             </label>
           ))}
@@ -302,7 +306,7 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
 
         {error && (
           <div className="selectable flex gap-2 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs whitespace-pre-wrap text-danger">
-            <IconAlert size={13} className="mt-px shrink-0" />
+            <AlertIcon size={14} className="mt-px shrink-0" />
             <span>{error}</span>
           </div>
         )}
@@ -322,10 +326,10 @@ function Stat(props: { label: string; value: number; tone: 'success' | 'neutral'
           tone === 'danger' && 'text-danger',
         )}
       >
-        {tone === 'success' && value > 0 && <IconCheck size={14} />}
+        {tone === 'success' && value > 0 && <CheckIcon size={16} />}
         {value}
       </div>
-      <div className="text-[11px] text-fg-subtle">{label}</div>
+      <div className="text-2xs text-fg-subtle">{label}</div>
     </div>
   );
 }

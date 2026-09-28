@@ -91,13 +91,24 @@ pub async fn push_review(
     repo_path: String,
     session_id: String,
     pr_number: u64,
-    event: ReviewEvent,
+    event: Option<ReviewEvent>,
     body: Option<String>,
     thread_ids: Option<Vec<String>>,
+    review_id: Option<String>,
 ) -> Result<PushResult, AppError> {
+    let review = match &review_id {
+        Some(id) => Some(state.store.get_review(id)?),
+        None => None,
+    };
+    let event = event
+        .or_else(|| review.as_ref().and_then(|r| r.verdict).map(ReviewEvent::from))
+        .unwrap_or(ReviewEvent::Comment);
+    let body = body
+        .filter(|b| !b.trim().is_empty())
+        .or_else(|| review.map(|r| r.body));
     let result = state
         .github
-        .push_review(&repo_path, &session_id, pr_number, event, body, thread_ids)
+        .push_review(&repo_path, &session_id, pr_number, event, body, thread_ids, review_id)
         .await;
     emit_repo_threads_changed(&app, &state, &repo_path);
     result

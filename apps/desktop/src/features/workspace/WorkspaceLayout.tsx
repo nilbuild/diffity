@@ -106,7 +106,7 @@ function WorkspaceShell(props: { initialTab: WorkspaceTab }) {
           {panelOpen && (
             <>
               <ResizeHandle value={agentPanelWidth} onChange={setAgentPanelWidth} min={300} max={760} direction="left" />
-              <aside style={{ width: agentPanelWidth }} className="flex shrink-0 flex-col border-l border-border bg-bg-subtle">
+              <aside style={{ width: agentPanelWidth }} className="flex shrink-0 flex-col bg-panel">
                 <AgentPanel />
               </aside>
             </>

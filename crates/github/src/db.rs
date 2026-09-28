@@ -45,7 +45,7 @@ pub fn delete_setting(store: &Store, key: &str) -> Result<()> {
 
 fn load_comments(conn: &Connection, thread_id: &str) -> Result<Vec<Comment>> {
     let mut stmt = conn.prepare(
-        "SELECT id, thread_id, author_type, author_name, body, created_at, github_comment_id
+        "SELECT id, thread_id, author_type, author_name, body, created_at, github_comment_id, pending, review_id
          FROM comments WHERE thread_id = ?1 ORDER BY created_at, rowid",
     )?;
     let rows = stmt.query_map([thread_id], |r| {
@@ -57,26 +57,33 @@ fn load_comments(conn: &Connection, thread_id: &str) -> Result<Vec<Comment>> {
             r.get::<_, String>(4)?,
             r.get::<_, String>(5)?,
             r.get::<_, Option<i64>>(6)?,
+            r.get::<_, i64>(7)? != 0,
+            r.get::<_, Option<String>>(8)?,
         ))
     })?;
     let mut out = Vec::new();
     for row in rows {
-        let (id, thread_id, author_type, author_name, body, created_at, github_comment_id) = row?;
+        let (id, thread_id, author_type, author_name, body, created_at, github_comment_id, pending, review_id) = row?;
+        let author_type = enum_from_string::<AuthorType>(&author_type)?;
+        let mentions_agent = author_type == AuthorType::User && diffity_core::mentions::mentions_agent(&body);
         out.push(Comment {
             id,
             thread_id,
-            author_type: enum_from_string::<AuthorType>(&author_type)?,
+            author_type,
             author_name,
             body,
             created_at,
             github_comment_id,
+            pending,
+            review_id,
+            mentions_agent,
         });
     }
     Ok(out)
 }
 
 const THREAD_COLUMNS: &str = "id, session_id, file_path, side, start_line, end_line, status, severity, \
-     anchor_content, github_thread_id, created_at, updated_at";
+     anchor_content, github_thread_id, created_at, updated_at, review_id";
 
 fn thread_from_row(conn: &Connection, r: &rusqlite::Row<'_>) -> Result<Thread> {
     let id: String = r.get(0)?;
@@ -84,6 +91,7 @@ fn thread_from_row(conn: &Connection, r: &rusqlite::Row<'_>) -> Result<Thread> {
     let status: String = r.get(6)?;
     let severity: Option<String> = r.get(7)?;
     let comments = load_comments(conn, &id)?;
+    let pending = comments.first().is_some_and(|c| c.pending);
     Ok(Thread {
         id,
         session_id: r.get(1)?,
@@ -98,6 +106,8 @@ fn thread_from_row(conn: &Connection, r: &rusqlite::Row<'_>) -> Result<Thread> {
         comments,
         created_at: r.get(10)?,
         updated_at: r.get(11)?,
+        pending,
+        review_id: r.get(12)?,
     })
 }
 

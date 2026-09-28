@@ -5,27 +5,28 @@ import { cn } from '@/lib/cn';
 import type { ContextChip, PlanEntry } from '@/lib/types';
 import { revealLocation } from '@/features/workspace/agent-bus';
 import { useResolvedTheme } from '@/lib/theme';
+import { DIFF_THEMES, SURFACE_TOKEN_CSS } from '@/components/diff-surface/theme';
 import {
-  IconAlert,
-  IconBrain,
-  IconCheck,
-  IconChevronDown,
-  IconChevronRight,
-  IconCircle,
-  IconDot,
-  IconFile,
-  IconGlobe,
-  IconMessage,
-  IconPencil,
-  IconSearch,
-  IconSparkles,
-  IconTerminal,
-  IconTool,
-  IconTrash,
-  IconX,
-} from './icons';
-import { Markdown } from './Markdown';
-import { Button, Spinner } from './primitives';
+  AlertIcon,
+  BrainIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CircleIcon,
+  FileIcon,
+  GlobeIcon,
+  CommentIcon,
+  PencilIcon,
+  SearchIcon,
+  SparklesIcon,
+  TerminalIcon,
+  ToolIcon,
+  TrashIcon,
+  XIcon,
+} from '@/components/ui/icon';
+import { Markdown } from '@/components/markdown/Markdown';
+import { Button } from '@/components/ui/Button';
+import { Spinner } from '@/components/ui/Spinner';
 import type { TimelineItem } from './timeline';
 
 export function chipLabel(chip: ContextChip) {
@@ -44,16 +45,16 @@ export function ContextChipView(props: { chip: ContextChip; onRemove?: () => voi
   return (
     <span
       title={chip.filePath}
-      className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-bg-elevated py-0.5 pr-1 pl-1.5 text-[11px] text-fg-muted"
+      className="inline-flex h-6 max-w-full items-center gap-1 rounded-md border border-border bg-raised pr-1 pl-1.5 text-2xs text-fg-muted"
     >
-      <IconFile size={11} className="shrink-0" />
+      <FileIcon size={12} className="shrink-0" />
       <button type="button" onClick={onClick} className="truncate font-mono hover:text-fg" disabled={!onClick}>
         {chipLabel(chip)}
       </button>
       {chip.side === 'old' && <span className="text-danger">old</span>}
       {onRemove && (
-        <button type="button" onClick={onRemove} className="rounded p-0.5 hover:bg-bg-muted hover:text-fg" aria-label="Remove">
-          <IconX size={10} />
+        <button type="button" onClick={onRemove} className="rounded-sm p-0.5 hover:bg-hover hover:text-fg" aria-label="Remove">
+          <XIcon size={12} />
         </button>
       )}
     </span>
@@ -85,34 +86,34 @@ export function openLocation(repoPath: string, path: string, line: number | null
 function toolIcon(kind: string) {
   switch (kind) {
     case 'read':
-      return IconFile;
+      return FileIcon;
     case 'edit':
-      return IconPencil;
+      return PencilIcon;
     case 'delete':
-      return IconTrash;
+      return TrashIcon;
     case 'search':
-      return IconSearch;
+      return SearchIcon;
     case 'execute':
-      return IconTerminal;
+      return TerminalIcon;
     case 'fetch':
-      return IconGlobe;
+      return GlobeIcon;
     case 'think':
-      return IconBrain;
+      return BrainIcon;
     default:
-      return IconTool;
+      return ToolIcon;
   }
 }
 
 function StatusIcon(props: { status: string }) {
   const { status } = props;
   if (status === 'completed') {
-    return <IconCheck size={12} className="text-success" />;
+    return <CheckIcon size={12} className="text-success" />;
   }
   if (status === 'failed') {
-    return <IconX size={12} className="text-danger" />;
+    return <XIcon size={12} className="text-danger" />;
   }
   if (status === 'pending') {
-    return <IconCircle size={12} className="text-fg-subtle" />;
+    return <CircleIcon size={8} className="m-0.5 text-border-strong" />;
   }
   return <Spinner size={12} className="text-accent" />;
 }
@@ -121,7 +122,7 @@ export function ToolCallRow(props: { item: Extract<TimelineItem, { kind: 'tool' 
   const { item, repoPath } = props;
   const Icon = toolIcon(item.toolKind);
   return (
-    <div className="rounded-md border border-border bg-bg-elevated px-2 py-1.5">
+    <div className="rounded-md border border-border bg-raised px-2 py-1.5">
       <div className="flex items-center gap-2 text-xs">
         <Icon size={12} className="shrink-0 text-fg-subtle" />
         <span className="min-w-0 flex-1 truncate text-fg-muted" title={item.title}>
@@ -138,7 +139,7 @@ export function ToolCallRow(props: { item: Extract<TimelineItem, { kind: 'tool' 
                 key={location}
                 type="button"
                 onClick={() => openLocation(repoPath, parsed.path, parsed.line)}
-                className="max-w-full truncate rounded bg-bg-muted px-1.5 py-px font-mono text-[10.5px] text-fg-muted hover:text-accent"
+                className="max-w-full truncate rounded-sm bg-muted px-1.5 py-px font-mono text-2xs text-fg-muted hover:text-accent"
                 title={location}
               >
                 {parsed.path}
@@ -147,7 +148,7 @@ export function ToolCallRow(props: { item: Extract<TimelineItem, { kind: 'tool' 
             );
           })}
           {item.locations.length > 6 && (
-            <span className="text-[10.5px] text-fg-subtle">+{item.locations.length - 6} more</span>
+            <span className="text-2xs text-fg-subtle">+{item.locations.length - 6} more</span>
           )}
         </div>
       )}
@@ -165,8 +166,8 @@ export function ThoughtBlock(props: { text: string; live: boolean }) {
         onClick={() => setOpen((value) => !value)}
         className="flex items-center gap-1.5 text-fg-subtle hover:text-fg-muted"
       >
-        {open ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
-        <IconBrain size={12} />
+        {open ? <ChevronDownIcon size={12} /> : <ChevronRightIcon size={12} />}
+        <BrainIcon size={12} />
         <span className={cn(live && 'animate-pulse')}>{live ? 'Thinking…' : 'Thought'}</span>
       </button>
       {open && (
@@ -180,20 +181,20 @@ export function ThoughtBlock(props: { text: string; live: boolean }) {
 
 function planIcon(status: string) {
   if (status === 'completed') {
-    return <IconCheck size={12} className="text-success" />;
+    return <CheckIcon size={12} className="text-success" />;
   }
   if (status === 'in_progress' || status === 'inProgress') {
-    return <IconDot size={12} className="text-accent" />;
+    return <CircleIcon size={8} className="m-0.5 text-accent" />;
   }
-  return <IconCircle size={12} className="text-fg-subtle" />;
+  return <CircleIcon size={8} className="m-0.5 text-border-strong" />;
 }
 
 export function PlanChecklist(props: { entries: PlanEntry[] }) {
   const { entries } = props;
   const done = entries.filter((entry) => entry.status === 'completed').length;
   return (
-    <div className="rounded-md border border-border bg-bg-elevated p-2">
-      <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-fg-muted">
+    <div className="rounded-md border border-border bg-raised p-2">
+      <div className="mb-1.5 flex items-center justify-between text-2xs font-medium text-fg-muted">
         <span>Plan</span>
         <span className="text-fg-subtle">
           {done}/{entries.length}
@@ -223,7 +224,7 @@ function PermissionDiffPreview(props: { path: string; oldText: string | null; ne
   }, [path, oldText, newText]);
 
   return (
-    <div className="max-h-[320px] overflow-auto rounded border border-border text-[11px]">
+    <div className="max-h-[320px] overflow-auto rounded-md border border-border text-2xs">
       <MultiFileDiff
         {...files}
         disableWorkerPool
@@ -231,7 +232,8 @@ function PermissionDiffPreview(props: { path: string; oldText: string | null; ne
         options={{
           diffStyle: 'unified',
           themeType,
-          theme: { dark: 'pierre-dark', light: 'pierre-light' },
+          theme: DIFF_THEMES,
+          unsafeCSS: SURFACE_TOKEN_CSS,
           overflow: 'wrap',
           hunkSeparators: 'line-info',
         }}
@@ -262,16 +264,16 @@ export function PermissionCard(props: {
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-lg border bg-bg-elevated',
-        pending ? 'border-warning/60 shadow-sm' : 'border-border opacity-80',
+        'overflow-hidden rounded-lg border bg-raised',
+        pending ? 'border-warning/60' : 'border-border opacity-80',
       )}
     >
       <div className="flex items-center gap-2 border-b border-border px-2.5 py-1.5 text-xs">
-        <IconAlert size={12} className={pending ? 'text-warning' : 'text-fg-subtle'} />
+        <AlertIcon size={12} className={pending ? 'text-warning' : 'text-fg-subtle'} />
         <span className="min-w-0 flex-1 truncate font-medium" title={item.title}>
           {item.title}
         </span>
-        {item.diff && <span className="truncate font-mono text-[10.5px] text-fg-subtle">{item.diff.path}</span>}
+        {item.diff && <span className="truncate font-mono text-2xs text-fg-subtle">{item.diff.path}</span>}
       </div>
       {item.diff && (
         <div className="p-2">
@@ -281,23 +283,23 @@ export function PermissionCard(props: {
       <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-2">
         {pending &&
           item.options.map((option) => (
-            <Button key={option.id} size="xs" variant={optionVariant(option.kind)} onClick={() => onRespond(option.id)}>
+            <Button key={option.id} size="sm" variant={optionVariant(option.kind)} onClick={() => onRespond(option.id)}>
               {option.name}
             </Button>
           ))}
         {pending && !hasReject && (
-          <Button size="xs" variant="ghost" onClick={() => onRespond(null)}>
+          <Button size="sm" variant="ghost" onClick={() => onRespond(null)}>
             Deny
           </Button>
         )}
         {item.state === 'answered' && (
-          <span className="text-[11px] text-success">
-            <IconCheck size={11} className="mr-1 inline" />
+          <span className="text-2xs text-success">
+            <CheckIcon size={12} className="mr-1 inline" />
             {chosen?.name ?? 'Allowed'}
           </span>
         )}
-        {item.state === 'denied' && <span className="text-[11px] text-danger">Denied</span>}
-        {item.state === 'expired' && <span className="text-[11px] text-fg-subtle">No longer pending</span>}
+        {item.state === 'denied' && <span className="text-2xs text-danger">Denied</span>}
+        {item.state === 'expired' && <span className="text-2xs text-fg-subtle">No longer pending</span>}
       </div>
     </div>
   );
@@ -309,7 +311,7 @@ export function UserBubble(props: {
 }) {
   const { item, repoPath } = props;
   return (
-    <div className="ml-6 rounded-lg bg-accent-subtle px-3 py-2">
+    <div className="ml-6 rounded-lg border border-accent/25 bg-accent-soft px-3 py-2">
       {item.context.length > 0 && (
         <div className="mb-1.5 flex flex-wrap gap-1">
           {item.context.map((chip, index) => (
@@ -322,7 +324,7 @@ export function UserBubble(props: {
         </div>
       )}
       {item.text ? (
-        <div className="selectable text-[13px] whitespace-pre-wrap">{item.text}</div>
+        <div className="selectable text-sm whitespace-pre-wrap">{item.text}</div>
       ) : (
         <div className="text-xs text-fg-subtle italic">(no message)</div>
       )}
@@ -331,13 +333,13 @@ export function UserBubble(props: {
 }
 
 export function AgentText(props: { text: string }) {
-  return <Markdown>{props.text}</Markdown>;
+  return <Markdown compact>{props.text}</Markdown>;
 }
 
 export function NoteRow(props: { text: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-md bg-success/10 px-2.5 py-1.5 text-xs text-success">
-      <IconMessage size={12} />
+    <div className="flex items-center gap-2 rounded-md border border-success/25 bg-success/10 px-2.5 py-1.5 text-xs text-success">
+      <CommentIcon size={12} />
       {props.text}
     </div>
   );
@@ -346,7 +348,7 @@ export function NoteRow(props: { text: string }) {
 export function ErrorRow(props: { message: string }) {
   return (
     <div className="flex items-start gap-2 rounded-md border border-danger/40 bg-danger/10 px-2.5 py-2 text-xs text-danger">
-      <IconAlert size={12} className="mt-0.5 shrink-0" />
+      <AlertIcon size={12} className="mt-0.5 shrink-0" />
       <div className="selectable min-w-0 whitespace-pre-wrap">{props.message}</div>
     </div>
   );
@@ -366,7 +368,7 @@ export function DoneRow(props: { stopReason: string }) {
     return null;
   }
   return (
-    <div className="flex items-center gap-2 text-[11px] text-fg-subtle">
+    <div className="flex items-center gap-2 text-2xs text-fg-subtle">
       <span className="h-px flex-1 bg-border" />
       {label}
       <span className="h-px flex-1 bg-border" />
@@ -377,7 +379,7 @@ export function DoneRow(props: { stopReason: string }) {
 export function StreamingIndicator() {
   return (
     <div className="flex items-center gap-2 text-xs text-fg-subtle">
-      <IconSparkles size={12} className="animate-pulse text-accent" />
+      <SparklesIcon size={12} className="animate-pulse text-accent" />
       Working…
     </div>
   );

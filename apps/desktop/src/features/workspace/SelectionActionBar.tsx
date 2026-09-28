@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Kbd } from '@/components/ui/Kbd';
-import { CommentIcon, LightbulbIcon, SparklesIcon, UndoIcon, XIcon } from '@/components/ui/icons';
+import { CommentIcon, LightbulbIcon, SparklesIcon, UndoIcon, XIcon } from '@/components/ui/icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { modKey } from '@/lib/platform';
 import type { ContextChip } from '@/lib/types';
@@ -36,32 +36,32 @@ export function SelectionActionBar(props: SelectionActionBarProps) {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center">
-      <div className="pointer-events-auto flex items-center gap-1 rounded-lg border border-border bg-bg-elevated px-2 py-1.5 shadow-xl">
-        <span className="max-w-[260px] truncate px-1 text-xs text-fg-muted">
+      <div className="pointer-events-auto flex items-center gap-1 rounded-lg border border-border-strong bg-raised p-1">
+        <span className="max-w-[260px] truncate px-2 font-mono text-2xs text-fg-muted">
           {chip.filePath.split('/').pop()} · {lines}
         </span>
-        <div className="mx-1 h-4 w-px bg-border" />
-        <Button size="sm" variant="ghost" onClick={onComment}>
-          <CommentIcon size={13} />
+        <div className="h-4 w-px bg-border" />
+        <Button variant="ghost" onClick={onComment}>
+          <CommentIcon size={14} />
           Comment
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => agentBus.askAboutSelection(chip)}>
-          <SparklesIcon size={13} />
+        <Button variant="ghost" onClick={() => agentBus.askAboutSelection(chip)}>
+          <SparklesIcon size={14} />
           Ask AI
           <Kbd className="ml-0.5">{modKey}L</Kbd>
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => agentBus.runAction({ kind: 'explain', path: chip.filePath }, [chip])}>
-          <LightbulbIcon size={13} />
+        <Button variant="ghost" onClick={() => agentBus.runAction({ kind: 'explain', path: chip.filePath }, [chip])}>
+          <LightbulbIcon size={14} />
           Explain
         </Button>
         {onRevertHunk && (
-          <Button size="sm" variant="ghost" onClick={onRevertHunk}>
-            <UndoIcon size={13} />
+          <Button variant="ghost" onClick={onRevertHunk}>
+            <UndoIcon size={14} />
             Revert hunk
           </Button>
         )}
-        <IconButton size="sm" label="Clear selection" onClick={onClear}>
-          <XIcon size={13} />
+        <IconButton label="Clear selection" shortcut="Esc" tooltipSide="top" onClick={onClear}>
+          <XIcon size={14} />
         </IconButton>
       </div>
     </div>

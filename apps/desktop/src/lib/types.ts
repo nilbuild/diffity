@@ -111,6 +111,11 @@ export interface Comment {
   body: string;
   createdAt: string;
   githubCommentId: number | null;
+  /** Draft in a pending review; hidden from agents and GitHub until the review is submitted. */
+  pending: boolean;
+  reviewId: string | null;
+  /** User-authored comment that mentions `@claude` outside code. */
+  mentionsAgent: boolean;
 }
 
 export interface Thread {
@@ -127,6 +132,10 @@ export interface Thread {
   comments: Comment[];
   createdAt: string;
   updatedAt: string;
+  /** True while the first comment is a draft in the session's pending review. */
+  pending: boolean;
+  /** Review the thread was started in, if any. */
+  reviewId: string | null;
 }
 
 export interface NewThread {
@@ -140,6 +149,30 @@ export interface NewThread {
   anchorContent?: string | null;
   authorType?: AuthorType;
   authorName?: string;
+  /** Add to the session's pending review (created on demand) instead of publishing. */
+  pending?: boolean;
+}
+
+export type ReviewState = 'pending' | 'submitted';
+export type ReviewVerdict = 'comment' | 'approve' | 'requestChanges';
+
+export interface Review {
+  id: string;
+  sessionId: string;
+  state: ReviewState;
+  body: string;
+  verdict: ReviewVerdict | null;
+  /** Draft comments waiting for submit (0 once submitted). */
+  pendingCount: number;
+  /** All comments (new threads + replies) in the review. */
+  commentCount: number;
+  /** Threads the review started or replied to, in order. */
+  threadIds: string[];
+  /** Threads with a user review comment mentioning `@claude`. */
+  mentionedThreadIds: string[];
+  bodyMentionsAgent: boolean;
+  createdAt: string;
+  submittedAt: string | null;
 }
 
 export interface ViewedFile {
@@ -171,7 +204,11 @@ export type AgentAction =
   | { kind: 'review'; ref: string; focus?: string }
   | { kind: 'resolve'; threadId?: string }
   | { kind: 'explain'; path: string }
-  | { kind: 'summarize'; ref: string };
+  | { kind: 'summarize'; ref: string }
+  /** Address one thread (e.g. after an `@claude` mention). Requires a chat in `resolve` mode. */
+  | { kind: 'thread'; threadId: string }
+  /** Address every thread of a submitted review + its summary. Requires a chat in `resolve` mode. */
+  | { kind: 'reviewFeedback'; reviewId: string };
 
 export interface StartChat {
   repoPath: string;

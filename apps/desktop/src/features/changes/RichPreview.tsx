@@ -50,8 +50,8 @@ export function RichPreview(props: { path: string; oldPath: string | null; which
 function PreviewColumn(props: { label: string; contents: string | null; path: string }) {
   const { label, contents, path } = props;
   return (
-    <div className="min-w-0 bg-bg-elevated">
-      <div className="border-b border-border px-4 py-1.5 text-[11px] font-semibold tracking-wide text-fg-subtle uppercase">{label}</div>
+    <div className="min-w-0 bg-canvas">
+      <div className="border-b border-border bg-panel px-4 py-1.5 text-xs font-medium text-fg-muted">{label}</div>
       <div className="max-h-[640px] overflow-auto px-5 py-4">
         {contents === null ? <div className="text-xs text-fg-subtle">No content</div> : <RichContent path={path} contents={contents} />}
       </div>

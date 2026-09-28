@@ -14,7 +14,8 @@ import {
 import { previewKind } from '@/components/markdown/RichContent';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { CheckCircleIcon, AlertIcon } from '@/components/ui/icons';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
+import { CheckCircleIcon, AlertIcon } from '@/components/ui/icon';
 import { Spinner } from '@/components/ui/Spinner';
 import * as api from '@/lib/api';
 import { hashNumber } from '@/lib/hash';
@@ -72,6 +73,7 @@ export function ChangesPage() {
   const wordDiff = useViewStore((s) => s.wordDiff);
   const wrapLines = useViewStore((s) => s.wrapLines);
   const sidebarWidth = useViewStore((s) => s.sidebarWidth);
+  const setSidebarWidth = useViewStore((s) => s.setSidebarWidth);
   const draft = useCommentDraft((s) => s.draft);
   const setDraft = useCommentDraft((s) => s.setDraft);
   const setActiveThread = useCommentDraft((s) => s.setActiveThread);
@@ -416,7 +418,7 @@ export function ChangesPage() {
   if (diff.isLoading) {
     return (
       <div className="flex h-full items-center justify-center gap-2 text-xs text-fg-muted">
-        <Spinner /> Loading diff…
+        <Spinner className="text-fg-subtle" /> Loading diff…
       </div>
     );
   }
@@ -424,7 +426,8 @@ export function ChangesPage() {
   if (diff.error) {
     return (
       <EmptyState
-        icon={<AlertIcon size={28} />}
+        icon={<AlertIcon size={20} />}
+        tone="danger"
         title="Could not load the diff"
         description={api.errorMessage(diff.error)}
       />
@@ -436,7 +439,7 @@ export function ChangesPage() {
       <div className="flex h-full flex-col">
         {stale && <StaleBanner onRefresh={refresh} />}
         <EmptyState
-          icon={<CheckCircleIcon size={28} />}
+          icon={<CheckCircleIcon size={20} />}
           title="No changes"
           description={`Nothing to review for ${resolved?.label ?? ref}. Pick another ref from the toolbar to compare branches or commits.`}
         />
@@ -456,6 +459,7 @@ export function ChangesPage() {
         onToggleAll={toggleAll}
         width={sidebarWidth}
       />
+      <ResizeHandle value={sidebarWidth} onChange={setSidebarWidth} min={200} max={520} direction="right" />
       <div className="relative flex min-w-0 flex-1 flex-col">
         {stale && <StaleBanner onRefresh={refresh} />}
         <CommentNavBar

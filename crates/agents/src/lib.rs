@@ -4,6 +4,9 @@ mod chats;
 pub mod core_backend;
 pub mod detect;
 pub mod manager;
+pub mod mentions {
+    pub use diffity_core::mentions::*;
+}
 pub mod patch;
 pub mod policy;
 pub mod prompts;

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/Button';
 import { IconButton } from '@/components/ui/IconButton';
 import { Menu } from '@/components/ui/Menu';
 import { SegmentedToggle } from '@/components/ui/SegmentedToggle';
+import { Tabs } from '@/components/ui/Tabs';
 import {
   ChevronDownIcon,
   ColumnsIcon,
@@ -16,7 +17,7 @@ import {
   SettingsIcon,
   SparklesIcon,
   TextIcon,
-} from '@/components/ui/icons';
+} from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { modKey } from '@/lib/platform';
 import { openRepoInNewWindow, repoRoute } from '@/lib/window';
@@ -45,46 +46,32 @@ export function Toolbar(props: { onOpenSettings: () => void }) {
   return (
     <header
       data-tauri-drag-region
-      className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-bg-subtle pr-2 pl-[78px]"
+      className="flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-panel pr-2 pl-[78px]"
     >
       <RepoMenu />
       <RefPicker />
-      <nav className="ml-2 flex items-center gap-0.5">
-        {TABS.map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => setTab(t.value)}
-            className={cn(
-              'h-7 cursor-default rounded-md px-2.5 text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring',
-              tab === t.value ? 'bg-bg-elevated text-fg shadow-sm ring-1 ring-border' : 'text-fg-muted hover:bg-bg-muted hover:text-fg',
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+      <Tabs variant="underline" className="ml-3 self-stretch" value={tab} onChange={setTab} items={TABS} />
       <div data-tauri-drag-region className="h-full min-w-4 flex-1" />
       {tab === 'changes' && <DiffViewControls />}
-      <div className="mx-1 h-5 w-px bg-border" />
-      <Button size="sm" variant="ghost" title="Ask the agent to review these changes" onClick={() => agentBus.runAction({ kind: 'review', ref })}>
-        <SparklesIcon size={13} />
+      <div className="mx-1 h-4 w-px bg-border" />
+      <Button variant="ghost" title="Ask the agent to review these changes" onClick={() => agentBus.runAction({ kind: 'review', ref })}>
+        <SparklesIcon size={14} className="text-accent" />
         Review
       </Button>
-      <Button size="sm" variant="ghost" title="Summarize these changes" onClick={() => agentBus.runAction({ kind: 'summarize', ref })}>
-        <LightbulbIcon size={13} />
+      <Button variant="ghost" title="Summarize these changes" onClick={() => agentBus.runAction({ kind: 'summarize', ref })}>
+        <LightbulbIcon size={14} />
         Summarize
       </Button>
-      <div className="mx-1 h-5 w-px bg-border" />
+      <div className="mx-1 h-4 w-px bg-border" />
       <GitSyncButtons />
-      <IconButton label="Keyboard shortcuts (?)" onClick={() => setShortcutsOpen(true)}>
-        <KeyboardIcon size={15} />
+      <IconButton label="Keyboard shortcuts" shortcut="?" onClick={() => setShortcutsOpen(true)}>
+        <KeyboardIcon size={16} />
       </IconButton>
       <IconButton label="Settings" onClick={onOpenSettings}>
-        <SettingsIcon size={15} />
+        <SettingsIcon size={16} />
       </IconButton>
       <IconButton label={panelOpen ? 'Hide agent panel' : 'Show agent panel'} active={panelOpen} onClick={() => setPanelOpen(!panelOpen)}>
-        <PanelRightIcon size={15} />
+        <PanelRightIcon size={16} mirrored />
       </IconButton>
     </header>
   );
@@ -111,8 +98,8 @@ function RepoMenu() {
     <Menu
       align="start"
       items={[
-        { label: 'Open repository…', hint: `${modKey}O`, icon: <FolderIcon size={13} />, onSelect: () => void openOther(false) },
-        { label: 'Open in new window…', icon: <ExternalLinkIcon size={13} />, onSelect: () => void openOther(true) },
+        { label: 'Open repository…', hint: `${modKey}O`, icon: <FolderIcon size={14} />, onSelect: () => void openOther(false) },
+        { label: 'Open in new window…', icon: <ExternalLinkIcon size={14} />, onSelect: () => void openOther(true) },
         'separator',
         { label: 'Back to start', onSelect: () => navigate('/') },
       ]}
@@ -122,9 +109,9 @@ function RepoMenu() {
           type="button"
           onClick={trigger.onClick}
           title={repoPath}
-          className="flex h-7 max-w-[220px] cursor-default items-center gap-1.5 rounded-md px-2 hover:bg-bg-muted"
+          className={cn('flex h-7 max-w-[220px] cursor-default items-center gap-1.5 rounded-md px-2 hover:bg-hover', trigger.open && 'bg-active')}
         >
-          <span className="truncate text-[13px] font-semibold">{name}</span>
+          <span className="truncate text-sm font-semibold text-fg">{name}</span>
           {repo?.branch && <span className="truncate text-xs text-fg-subtle">{repo.branch}</span>}
           <ChevronDownIcon size={12} className="shrink-0 text-fg-subtle" />
         </button>
@@ -147,15 +134,15 @@ function DiffViewControls() {
         value={diffStyle}
         onChange={setDiffStyle}
         options={[
-          { value: 'split', label: <ColumnsIcon size={13} />, title: 'Split view (s)' },
-          { value: 'unified', label: <RowsIcon size={13} />, title: 'Unified view (u)' },
+          { value: 'split', label: <ColumnsIcon size={14} />, title: 'Split view (s)' },
+          { value: 'unified', label: <RowsIcon size={14} />, title: 'Unified view (u)' },
         ]}
       />
       <IconButton label={hideWhitespace ? 'Show whitespace changes' : 'Hide whitespace changes'} active={hideWhitespace} onClick={toggleWhitespace}>
-        <PilcrowIcon size={14} />
+        <PilcrowIcon size={16} />
       </IconButton>
       <IconButton label={wordDiff ? 'Disable word diff' : 'Enable word diff'} active={wordDiff} onClick={toggleWordDiff}>
-        <TextIcon size={14} />
+        <TextIcon size={16} />
       </IconButton>
     </div>
   );

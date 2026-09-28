@@ -35,7 +35,7 @@ export function Mermaid(props: { code: string }) {
     return <pre className="rounded-md border border-danger/40 bg-danger/5 p-3 text-xs text-danger">{error}</pre>;
   }
   if (!svg) {
-    return <div className="h-24 animate-pulse rounded-md bg-bg-muted" />;
+    return <div className="h-24 animate-pulse rounded-md bg-muted" />;
   }
   return <div className="flex justify-center overflow-auto" dangerouslySetInnerHTML={{ __html: svg }} />;
 }

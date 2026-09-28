@@ -3,8 +3,12 @@ import { useSelection } from '@/features/workspace/selection';
 import { cn } from '@/lib/cn';
 import { REVIEW_FOCUSES } from './agents';
 import { useAgentStore } from './agent-store';
-import { IconChevronDown, IconPlus, IconSend, IconStop } from './icons';
-import { Button, IconButton, Kbd, MenuItem, Popover } from './primitives';
+import { ChevronDownIcon, PlusIcon, ArrowUpIcon, StopIcon } from '@/components/ui/icon';
+import { Button } from '@/components/ui/Button';
+import { IconButton } from '@/components/ui/IconButton';
+import { Kbd } from '@/components/ui/Kbd';
+import { MenuHeading, MenuList, MenuRow } from '@/components/ui/Menu';
+import { Popover } from '@/components/ui/Popover';
 import { ContextChipView, chipLabel } from './TimelineRows';
 
 export interface ComposerProps {
@@ -22,37 +26,40 @@ export interface ComposerProps {
 function ReviewButton(props: { disabled: boolean; onReview: (focus: string) => void }) {
   const { disabled, onReview } = props;
   const [open, setOpen] = useState(false);
-  const trigger = (
-    <div className="flex">
-      <Button size="xs" disabled={disabled} className="rounded-r-none" onClick={() => onReview('all')}>
-        Review
-      </Button>
-      <Button
-        size="xs"
-        disabled={disabled}
-        className="-ml-px rounded-l-none px-1"
-        aria-label="Review focus"
-        onClick={() => setOpen((value) => !value)}
-      >
-        <IconChevronDown size={11} />
-      </Button>
-    </div>
-  );
+  const anchorRef = useRef<HTMLDivElement>(null);
   return (
-    <Popover open={open} onOpenChange={setOpen} trigger={trigger} side="top" className="w-[180px]">
-      <div className="px-2 pt-1 pb-1.5 text-[10.5px] font-medium tracking-wide text-fg-subtle uppercase">Focus</div>
-      {REVIEW_FOCUSES.map((focus) => (
-        <MenuItem
-          key={focus.value}
-          onSelect={() => {
-            setOpen(false);
-            onReview(focus.value);
-          }}
+    <>
+      <div ref={anchorRef} className="flex">
+        <Button size="sm" disabled={disabled} className="rounded-r-none" onClick={() => onReview('all')}>
+          Review
+        </Button>
+        <Button
+          size="sm"
+          disabled={disabled}
+          className="-ml-px rounded-l-none px-1"
+          aria-label="Review focus"
+          onClick={() => setOpen((value) => !value)}
         >
-          {focus.label}
-        </MenuItem>
-      ))}
-    </Popover>
+          <ChevronDownIcon size={12} />
+        </Button>
+      </div>
+      <Popover open={open} onOpenChange={setOpen} anchorRef={anchorRef} side="top" className="w-[200px]">
+        <MenuList>
+          <MenuHeading>Review focus</MenuHeading>
+          {REVIEW_FOCUSES.map((focus) => (
+            <MenuRow
+              key={focus.value}
+              onSelect={() => {
+                setOpen(false);
+                onReview(focus.value);
+              }}
+            >
+              {focus.label}
+            </MenuRow>
+          ))}
+        </MenuList>
+      </Popover>
+    </>
   );
 }
 
@@ -106,16 +113,16 @@ export function Composer(props: ComposerProps) {
     <div className="shrink-0 border-t border-border p-2">
       <div className="mb-1.5 flex flex-wrap items-center gap-1">
         <ReviewButton disabled={disabled || streaming} onReview={onReview} />
-        <Button size="xs" disabled={disabled || streaming} onClick={onResolveAll}>
+        <Button size="sm" disabled={disabled || streaming} onClick={onResolveAll}>
           Resolve all
         </Button>
-        <Button size="xs" disabled={disabled || streaming} onClick={onSummarize}>
+        <Button size="sm" disabled={disabled || streaming} onClick={onSummarize}>
           Summarize changes
         </Button>
       </div>
       <div
         className={cn(
-          'rounded-lg border border-border bg-bg-elevated focus-within:border-accent focus-within:ring-2 focus-within:ring-ring',
+          'rounded-lg border border-border bg-canvas transition-colors focus-within:border-accent',
           disabled && 'opacity-70',
         )}
       >
@@ -129,9 +136,9 @@ export function Composer(props: ComposerProps) {
                 type="button"
                 onClick={() => attach(selection)}
                 title="Attach current selection (⌘L)"
-                className="inline-flex items-center gap-1 rounded-md border border-dashed border-border-strong px-1.5 py-0.5 font-mono text-[11px] text-fg-subtle hover:border-accent hover:text-accent"
+                className="inline-flex h-6 items-center gap-1 rounded-md border border-dashed border-border-strong px-1.5 font-mono text-2xs text-fg-muted hover:border-accent hover:text-accent"
               >
-                <IconPlus size={10} />
+                <PlusIcon size={12} />
                 {chipLabel(selection)}
               </button>
             )}
@@ -151,10 +158,10 @@ export function Composer(props: ComposerProps) {
             event.preventDefault();
             submit();
           }}
-          className="selectable block max-h-[200px] w-full resize-none bg-transparent px-2.5 py-2 text-[13px] outline-none placeholder:text-fg-subtle"
+          className="selectable block max-h-[200px] w-full resize-none bg-transparent px-2.5 py-2 text-sm outline-none placeholder:text-fg-subtle"
         />
         <div className="flex items-center gap-2 px-2 pb-1.5">
-          <span className="min-w-0 flex-1 truncate text-[10.5px] text-fg-subtle">
+          <span className="min-w-0 flex-1 truncate text-2xs text-fg-subtle">
             {modeHint ?? (
               <>
                 <Kbd>↵</Kbd> send · <Kbd>⇧↵</Kbd> newline
@@ -162,8 +169,8 @@ export function Composer(props: ComposerProps) {
             )}
           </span>
           {streaming ? (
-            <Button size="xs" variant="danger" onClick={onStop}>
-              <IconStop size={10} />
+            <Button size="sm" variant="danger" onClick={onStop}>
+              <StopIcon size={12} />
               Stop
             </Button>
           ) : (
@@ -171,9 +178,11 @@ export function Composer(props: ComposerProps) {
               label="Send (Enter)"
               disabled={!canSend}
               onClick={submit}
-              className={cn('h-6 w-6', canSend && 'bg-accent text-accent-fg hover:bg-accent-hover hover:text-accent-fg')}
+              size="sm"
+              variant={canSend ? 'primary' : 'ghost'}
+              tooltipSide="top"
             >
-              <IconSend size={12} />
+              <ArrowUpIcon size={14} />
             </IconButton>
           )}
         </div>

@@ -20,7 +20,7 @@ export function DraftForm(props: { actions: CommentActions }) {
         : `Comment on lines ${draft.startLine}–${draft.endLine}`;
 
   return (
-    <div className="rounded-lg border border-accent/60 bg-bg-elevated p-3 font-sans shadow-sm">
+    <div className="rounded-lg border border-accent bg-raised p-3 font-sans">
       <div className="mb-2 text-xs font-medium text-fg-muted">
         {label}
         {draft.side === 'old' && draft.startLine > 0 && <span className="text-fg-subtle"> (old)</span>}

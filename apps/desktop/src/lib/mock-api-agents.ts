@@ -208,6 +208,37 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
       }
     }
 
+    if (action.kind === 'thread' || action.kind === 'reviewFeedback') {
+      const targets = [...deps.threads.values()].filter((t) => {
+        if (t.pending || t.status !== 'open') {
+          return false;
+        }
+        if (action.kind === 'thread') {
+          return t.id === action.threadId;
+        }
+        return t.comments.some((c) => c.reviewId === action.reviewId);
+      });
+      for (const thread of targets) {
+        const id = `r-${thread.id}`;
+        emit({ type: 'toolCall', id, title: `reply ${thread.id.slice(0, 8)}`, kind: 'other', status: 'in_progress', locations: [] });
+        await wait(300);
+        thread.comments.push({
+          id: deps.newId(),
+          threadId: thread.id,
+          authorType: 'agent',
+          authorName: 'Claude Code',
+          body: 'Mocked answer: I looked at the code around this comment and it behaves as intended.',
+          createdAt: deps.now(),
+          githubCommentId: null,
+          pending: false,
+          reviewId: null,
+          mentionsAgent: false,
+        });
+        deps.touch(thread);
+        emit({ type: 'toolCallUpdate', id, status: 'completed' });
+      }
+    }
+
     if (mode === 'edit' || mode === 'resolve') {
       const requestId = deps.newId();
       emit({
@@ -388,7 +419,10 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
     },
     push_review: async (args) => {
       await wait(800);
-      const ids = (args.threadIds as string[] | null) ?? [];
+      const reviewId = typeof args.reviewId === 'string' ? args.reviewId : null;
+      const ids = reviewId
+        ? [...deps.threads.values()].filter((t) => t.reviewId === reviewId && !t.githubThreadId).map((t) => t.id)
+        : ((args.threadIds as string[] | null) ?? []);
       let pushed = 0;
       let skipped = 0;
       for (const id of ids) {
@@ -435,6 +469,9 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
         body: String(args.body),
         createdAt: deps.now(),
         githubCommentId: null,
+        pending: false,
+        reviewId: null,
+        mentionsAgent: false,
       });
       return deps.touch(thread);
     },

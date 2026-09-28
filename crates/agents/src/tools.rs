@@ -119,12 +119,29 @@ fn thread_json(t: &Thread) -> Value {
     })
 }
 
+/// What agents may see of a thread: pending (draft) threads are hidden and draft replies stripped.
+pub fn visible(thread: Thread) -> Option<Thread> {
+    if thread.pending {
+        return None;
+    }
+    let comments = thread.comments.into_iter().filter(|c| !c.pending).collect();
+    Some(Thread { comments, ..thread })
+}
+
 async fn find_thread(backend: &dyn ReviewBackend, session_id: &str, id: &str) -> Result<Thread> {
     let id = id.trim();
     if id.is_empty() {
         return Err(AppError::invalid("threadId is required"));
     }
-    backend.find_thread(session_id, id).await
+    let thread = backend.find_thread(session_id, id).await?;
+    visible(thread).ok_or_else(|| AppError::not_found(format!("thread '{id}' not found")))
+}
+
+fn visible_json(thread: Thread) -> Value {
+    match visible(thread) {
+        Some(t) => thread_json(&t),
+        None => Value::Null,
+    }
 }
 
 async fn add_comment(backend: &dyn ReviewBackend, b: &Binding, a: CommentArgs) -> Result<Value> {
@@ -207,6 +224,7 @@ async fn add_comment(backend: &dyn ReviewBackend, b: &Binding, a: CommentArgs) -
             anchor_content: anchor,
             author_type: Some(AuthorType::Agent),
             author_name: Some(b.agent_name.clone()),
+            pending: None,
         })
         .await?;
     Ok(json!({ "created": thread_json(&thread) }))
@@ -255,7 +273,11 @@ pub async fn call(
             let a: ListArgs = args(raw)?;
             let status = parse_status(a.status.as_deref())?;
             let threads = backend.list_threads(&b.session_id, status).await?;
-            let list: Vec<Value> = threads.iter().map(thread_json).collect();
+            let list: Vec<Value> = threads
+                .into_iter()
+                .filter_map(visible)
+                .map(|t| thread_json(&t))
+                .collect();
             Ok(json!({ "threads": list }))
         }
         "add_comment" => add_comment(backend, b, args(raw)?).await,
@@ -276,6 +298,7 @@ pub async fn call(
                     anchor_content: None,
                     author_type: Some(AuthorType::Agent),
                     author_name: Some(b.agent_name.clone()),
+                    pending: None,
                 })
                 .await?;
             Ok(json!({ "created": thread_json(&thread) }))
@@ -290,7 +313,7 @@ pub async fn call(
             let thread = backend
                 .add_reply(&thread.id, body, AuthorType::Agent, &b.agent_name)
                 .await?;
-            Ok(json!({ "thread": thread_json(&thread) }))
+            Ok(json!({ "thread": visible_json(thread) }))
         }
         "resolve" | "dismiss" => {
             let a: ThreadArgs = args(raw)?;
@@ -313,7 +336,7 @@ pub async fn call(
                     &b.agent_name,
                 )
                 .await?;
-            Ok(json!({ "thread": thread_json(&thread) }))
+            Ok(json!({ "thread": visible_json(thread) }))
         }
         other => Err(AppError::not_found(format!("unknown tool `{other}`"))),
     }
@@ -346,5 +369,84 @@ mod tests {
         assert_eq!(parse_side(None).ok(), Some(Side::New));
         assert_eq!(parse_side(Some("old")).ok(), Some(Side::Old));
         assert!(parse_side(Some("middle")).is_err());
+    }
+
+    fn setup() -> (std::sync::Arc<diffity_core::Store>, crate::core_backend::CoreBackend, Binding) {
+        let store = std::sync::Arc::new(diffity_core::Store::open_in_memory().unwrap());
+        let session = store.get_or_create_session("/repo", "work").unwrap();
+        let backend = crate::core_backend::CoreBackend::new(store.clone());
+        let binding = Binding {
+            repo_path: "/repo".into(),
+            session_id: session.id,
+            r#ref: "work".into(),
+            mode: AgentMode::Resolve,
+            agent_name: "Claude Code".into(),
+        };
+        (store, backend, binding)
+    }
+
+    fn thread_input(session_id: &str, body: &str, pending: bool) -> NewThread {
+        NewThread {
+            session_id: session_id.into(),
+            file_path: "a.rs".into(),
+            side: Side::New,
+            start_line: 1,
+            end_line: 1,
+            body: body.into(),
+            severity: None,
+            anchor_content: None,
+            author_type: None,
+            author_name: None,
+            pending: Some(pending),
+        }
+    }
+
+    #[tokio::test]
+    async fn agents_never_see_pending_comments() {
+        let (store, backend, b) = setup();
+        let published = store.create_thread(&thread_input(&b.session_id, "published", false)).unwrap();
+        let draft = store.create_thread(&thread_input(&b.session_id, "draft", true)).unwrap();
+        store
+            .add_reply_with(&published.id, "draft reply", AuthorType::User, None, true)
+            .unwrap();
+
+        let listed = call(&backend, &b, "list_threads", Value::Null).await.unwrap();
+        let threads = listed["threads"].as_array().unwrap();
+        assert_eq!(threads.len(), 1);
+        assert_eq!(threads[0]["id"], published.id);
+        assert_eq!(threads[0]["comments"].as_array().unwrap().len(), 1);
+
+        let err = call(&backend, &b, "reply", json!({ "threadId": draft.id, "body": "hi" }))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code, "not_found");
+
+        let replied = call(&backend, &b, "reply", json!({ "threadId": published.id, "body": "answer" }))
+            .await
+            .unwrap();
+        let comments = replied["thread"]["comments"].as_array().unwrap();
+        assert_eq!(comments.len(), 2);
+        assert_eq!(comments[1]["authorName"], "Claude Code");
+
+        let stored = store.get_thread(&published.id).unwrap();
+        assert_eq!(stored.comments.len(), 3);
+        assert!(stored.comments[1].pending);
+        assert!(!stored.comments[2].pending);
+        assert_eq!(store.get_pending_review(&b.session_id).unwrap().unwrap().pending_count, 2);
+    }
+
+    #[tokio::test]
+    async fn user_mention_reply_reopens_resolved_thread() {
+        let (store, backend, b) = setup();
+        let t = store.create_thread(&thread_input(&b.session_id, "rename this", false)).unwrap();
+        call(&backend, &b, "resolve", json!({ "threadId": t.id, "summary": "Fixed" }))
+            .await
+            .unwrap();
+        assert_eq!(store.get_thread(&t.id).unwrap().status, ThreadStatus::Resolved);
+        let t = store
+            .add_reply(&t.id, "@claude not quite, use snake_case", AuthorType::User, None)
+            .unwrap();
+        assert_eq!(t.status, ThreadStatus::Open);
+        assert!(t.comments.last().unwrap().mentions_agent);
     }
 }

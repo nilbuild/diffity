@@ -53,7 +53,7 @@ export function ConfirmDialogHost() {
         </>
       }
     >
-      <p className="text-[13px] text-fg-muted">{request?.message}</p>
+      <p className="text-sm text-fg-muted">{request?.message}</p>
     </Dialog>
   );
 }

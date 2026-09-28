@@ -58,6 +58,16 @@ pub enum ReviewEvent {
     RequestChanges,
 }
 
+impl From<diffity_core::types::ReviewVerdict> for ReviewEvent {
+    fn from(v: diffity_core::types::ReviewVerdict) -> Self {
+        match v {
+            diffity_core::types::ReviewVerdict::Comment => ReviewEvent::Comment,
+            diffity_core::types::ReviewVerdict::Approve => ReviewEvent::Approve,
+            diffity_core::types::ReviewVerdict::RequestChanges => ReviewEvent::RequestChanges,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PushResult {

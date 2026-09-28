@@ -3,14 +3,19 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { IconButton } from '@/components/ui/IconButton';
 import {
   ChevronRightIcon,
-  ChevronsDownUpIcon,
-  ChevronsUpDownIcon,
+  CollapseAllIcon,
+  ExpandAllIcon,
   CommentIcon,
+  CopyIcon,
   FileIcon,
   FolderIcon,
   LightbulbIcon,
   SearchIcon,
-} from '@/components/ui/icons';
+} from '@/components/ui/icon';
+import { CountBadge } from '@/components/ui/Badge';
+import { Input } from '@/components/ui/Input';
+import { Kbd } from '@/components/ui/Kbd';
+import { MenuList, MenuRow } from '@/components/ui/Menu';
 import { Popover } from '@/components/ui/Popover';
 import { cn } from '@/lib/cn';
 import { agentBus } from '@/features/workspace/agent-bus';
@@ -62,34 +67,34 @@ export function FileTree(props: FileTreeProps) {
   const anyExpanded = expanded.size > 0;
 
   return (
-    <aside style={{ width }} className="flex shrink-0 flex-col border-r border-border bg-bg-subtle">
-      <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
-        <label className="flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md border border-border bg-bg px-2 focus-within:border-accent">
-          <SearchIcon size={12} className="shrink-0 text-fg-subtle" />
-          <input
-            ref={inputRef}
-            value={filter}
-            placeholder="Filter files  /"
-            onChange={(event) => setFilter(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== 'Escape') {
-                return;
-              }
-              setFilter('');
-              event.currentTarget.blur();
-            }}
-            className="min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-fg-subtle"
-          />
-        </label>
+    <aside style={{ width }} className="flex shrink-0 flex-col bg-panel">
+      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-border px-2">
+        <Input
+          ref={inputRef}
+          size="sm"
+          wrapperClassName="flex-1"
+          icon={<SearchIcon size={12} />}
+          trailing={!filter && <Kbd className="h-4 min-w-4">/</Kbd>}
+          value={filter}
+          placeholder="Filter files"
+          onChange={(event) => setFilter(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') {
+              return;
+            }
+            setFilter('');
+            event.currentTarget.blur();
+          }}
+        />
         <IconButton size="sm" label="Only files with open comments" active={onlyCommented} onClick={toggleOnlyCommented}>
-          <CommentIcon size={13} />
+          <CommentIcon size={14} />
         </IconButton>
         <IconButton
           size="sm"
           label={anyExpanded ? 'Collapse all' : 'Expand all'}
           onClick={() => setExpanded(anyExpanded ? new Set() : allDirPaths(root))}
         >
-          {anyExpanded ? <ChevronsDownUpIcon size={14} /> : <ChevronsUpDownIcon size={14} />}
+          {anyExpanded ? <CollapseAllIcon size={14} /> : <ExpandAllIcon size={14} />}
         </IconButton>
       </div>
       <VirtualRows
@@ -196,14 +201,14 @@ function TreeRowButton(props: TreeRowButtonProps) {
         onContextMenu(node.path, event.clientX, event.clientY);
       }}
       className={cn(
-        'absolute inset-x-0 flex cursor-default items-center gap-1.5 pr-3 text-left text-[12.5px]',
-        selected ? 'bg-accent-subtle text-fg' : 'text-fg hover:bg-bg-muted',
+        'absolute inset-x-0 flex cursor-default items-center gap-1.5 pr-3 text-left text-sm text-fg',
+        selected ? 'bg-selected' : 'hover:bg-hover',
       )}
     >
       {node.kind === 'dir' ? (
         <>
           <ChevronRightIcon size={12} className={cn('shrink-0 text-fg-subtle transition-transform', expanded && 'rotate-90')} />
-          <FolderIcon size={14} className="shrink-0 text-accent/80" />
+          <FolderIcon size={14} className="shrink-0 text-fg-subtle" />
         </>
       ) : (
         <>
@@ -213,9 +218,7 @@ function TreeRowButton(props: TreeRowButtonProps) {
       )}
       <span className="min-w-0 flex-1 truncate">{node.name}</span>
       {comments > 0 && (
-        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-accent-subtle px-1.5 text-[10px] font-semibold text-accent">
-          {comments}
-        </span>
+        <CountBadge count={comments} />
       )}
     </button>
   );
@@ -228,33 +231,31 @@ function TreeContextMenu(props: { menu: { path: string; x: number; y: number } |
   return (
     <>
       <span ref={anchorRef} className="fixed size-0" style={{ left: menu?.x ?? 0, top: menu?.y ?? 0 }} />
-      <Popover open={menu !== null} onOpenChange={(open) => !open && onClose()} anchorRef={anchorRef} className="min-w-[180px] py-1">
-        <button
-          type="button"
-          className="flex w-full cursor-default items-center gap-2 px-3 py-1.5 text-left text-[13px] hover:bg-bg-muted"
-          onClick={() => {
-            if (menu) {
-              agentBus.runAction({ kind: 'explain', path: menu.path });
-            }
-            onClose();
-          }}
-        >
-          <LightbulbIcon size={13} className="text-fg-muted" />
-          Explain with AI
-        </button>
-        <button
-          type="button"
-          className="flex w-full cursor-default items-center gap-2 px-3 py-1.5 text-left text-[13px] hover:bg-bg-muted"
-          onClick={() => {
-            if (menu) {
-              void navigator.clipboard.writeText(menu.path);
-            }
-            onClose();
-          }}
-        >
-          <FileIcon size={13} className="text-fg-muted" />
-          Copy path
-        </button>
+      <Popover open={menu !== null} onOpenChange={(open) => !open && onClose()} anchorRef={anchorRef} className="min-w-[180px]">
+        <MenuList>
+          <MenuRow
+            icon={<LightbulbIcon size={14} />}
+            onSelect={() => {
+              if (menu) {
+                agentBus.runAction({ kind: 'explain', path: menu.path });
+              }
+              onClose();
+            }}
+          >
+            Explain with AI
+          </MenuRow>
+          <MenuRow
+            icon={<CopyIcon size={14} />}
+            onSelect={() => {
+              if (menu) {
+                void navigator.clipboard.writeText(menu.path);
+              }
+              onClose();
+            }}
+          >
+            Copy path
+          </MenuRow>
+        </MenuList>
       </Popover>
     </>
   );

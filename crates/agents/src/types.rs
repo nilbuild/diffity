@@ -60,6 +60,24 @@ pub enum AgentAction {
         #[serde(rename = "ref")]
         r#ref: String,
     },
+    /// Address one thread (e.g. after an `@claude` mention): answer via `reply`, or change code and `resolve`.
+    Thread {
+        thread_id: String,
+    },
+    /// Address every thread of a submitted review plus its summary body.
+    ReviewFeedback {
+        review_id: String,
+    },
+}
+
+impl AgentAction {
+    /// Actions that may edit files and must run in a chat whose mode allows writes (`resolve` / `edit`).
+    pub fn needs_write_mode(&self) -> bool {
+        matches!(
+            self,
+            AgentAction::Thread { .. } | AgentAction::ReviewFeedback { .. }
+        )
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -206,5 +224,13 @@ mod tests {
         assert!(matches!(a, AgentAction::Review { .. }));
         let a: AgentAction = serde_json::from_str(r#"{"kind":"chat"}"#).unwrap();
         assert!(matches!(a, AgentAction::Chat));
+        let a: AgentAction = serde_json::from_str(r#"{"kind":"thread","threadId":"t"}"#).unwrap();
+        assert!(matches!(a, AgentAction::Thread { ref thread_id } if thread_id == "t"));
+        let a: AgentAction = serde_json::from_str(r#"{"kind":"reviewFeedback","reviewId":"r"}"#).unwrap();
+        assert!(matches!(a, AgentAction::ReviewFeedback { ref review_id } if review_id == "r"));
+        assert_eq!(
+            serde_json::to_string(&AgentAction::ReviewFeedback { review_id: "r".into() }).unwrap(),
+            r#"{"kind":"reviewFeedback","reviewId":"r"}"#
+        );
     }
 }
