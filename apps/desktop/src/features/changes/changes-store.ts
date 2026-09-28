@@ -6,6 +6,8 @@ interface ChangesState {
   filter: string;
   onlyCommented: boolean;
   currentFile: string | null;
+  conversationOpen: boolean;
+  setConversationOpen: (open: boolean) => void;
   setCollapsed: (path: string, collapsed: boolean) => void;
   setAllCollapsed: (paths: string[], collapsed: boolean) => void;
   togglePreview: (path: string) => void;
@@ -21,6 +23,8 @@ export const useChangesStore = create<ChangesState>((set) => ({
   filter: '',
   onlyCommented: false,
   currentFile: null,
+  conversationOpen: true,
+  setConversationOpen: (conversationOpen) => set({ conversationOpen }),
   setCollapsed: (path, collapsed) =>
     set((s) => {
       const next = new Map(s.collapsed);

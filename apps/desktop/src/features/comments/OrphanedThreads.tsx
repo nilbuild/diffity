@@ -1,4 +1,6 @@
-import { AlertIcon } from '@/components/ui/icon';
+import { useState } from 'react';
+import { AlertIcon, ChevronRightIcon } from '@/components/ui/icon';
+import { cn } from '@/lib/cn';
 import type { Thread } from '@/lib/types';
 import { ThreadCard } from './ThreadCard';
 import type { CommentActions } from './use-threads';
@@ -10,30 +12,41 @@ export interface OrphanedThreadsProps {
 
 export function OrphanedThreads(props: OrphanedThreadsProps) {
   const { threads, actions } = props;
+  const [open, setOpen] = useState(true);
   if (threads.length === 0) {
     return null;
   }
   return (
-    <section className="mb-1 rounded-lg border border-warning/40 bg-warning/6 p-3 font-sans">
-      <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-warning">
-        <AlertIcon size={14} />
-        {threads.length} outdated {threads.length === 1 ? 'thread' : 'threads'} — the commented lines are no longer in this diff
-      </div>
-      <div className="flex flex-col gap-2">
-        {threads.map((thread) => (
-          <div key={thread.id} className="flex flex-col gap-1">
-            <div className="text-xs text-fg-muted">
-              {thread.filePath}:{thread.startLine === thread.endLine ? thread.startLine : `${thread.startLine}-${thread.endLine}`}
+    <section className="font-sans">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-7 w-full cursor-default items-center gap-1.5 rounded-md px-1 text-left text-xs hover:bg-hover"
+      >
+        <ChevronRightIcon size={12} className={cn('text-fg-subtle transition-transform', open && 'rotate-90')} />
+        <AlertIcon size={12} className="text-warning" />
+        <span className="font-medium text-fg">
+          {threads.length} outdated {threads.length === 1 ? 'conversation' : 'conversations'}
+        </span>
+        <span className="truncate text-fg-subtle">— the commented lines are no longer in this diff</span>
+      </button>
+      {open && (
+        <div className="mt-1 flex flex-col gap-2">
+          {threads.map((thread) => (
+            <div key={thread.id} className="flex flex-col overflow-hidden rounded-lg border border-border">
+              {thread.anchorContent && (
+                <pre className="selectable overflow-x-auto border-b border-border bg-panel px-3 py-1.5 font-mono text-xs text-fg-muted">
+                  {thread.anchorContent}
+                </pre>
+              )}
+              <div className="[&>div]:rounded-none [&>div]:border-0">
+                <ThreadCard thread={thread} actions={actions} showLocation />
+              </div>
             </div>
-            {thread.anchorContent && (
-              <pre className="selectable overflow-x-auto rounded-md border border-border bg-canvas px-3 py-2 font-mono text-xs text-fg-muted">
-                {thread.anchorContent}
-              </pre>
-            )}
-            <ThreadCard thread={thread} actions={actions} />
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

@@ -28,7 +28,8 @@ const GROUPS: { title: string; items: [string[], string][] }[] = [
   {
     title: 'Comments & AI',
     items: [
-      [[modKey, '↵'], 'Submit comment'],
+      [['@'], 'Mention Claude in a comment'],
+      [[modKey, '↵'], 'Start a review / add review comment'],
       [[modKey, 'L'], 'Ask AI about selection'],
       [[modKey, 'O'], 'Open repository'],
       [['?'], 'Show shortcuts'],

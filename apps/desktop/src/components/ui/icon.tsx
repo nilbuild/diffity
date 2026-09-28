@@ -8,6 +8,29 @@ import { Code, IconContext, Plus, X, type Icon, type IconProps } from '@phosphor
  * Sizes: 12 (inline in 11-12px text, badges, chips), 14 (default), 16 (28px toolbar buttons), 20-24 (empty states).
  */
 export {
+  At as AtIcon,
+  ChatsCircle as ConversationIcon,
+  CornersOut as FitIcon,
+  Eye as EyeIcon,
+  FileCode as FileCodeIcon,
+  FileCss as FileCssIcon,
+  FileHtml as FileHtmlIcon,
+  FileImage as FileImageIcon,
+  FileJs as FileJsIcon,
+  FileLock as FileLockIcon,
+  FileMd as FileMdIcon,
+  FilePy as FilePyIcon,
+  FileRs as FileRsIcon,
+  FileSvg as FileSvgIcon,
+  FileText as FileTextIcon,
+  FileTs as FileTsIcon,
+  FolderOpen as FolderOpenIcon,
+  Hourglass as HourglassIcon,
+  Link as LinkIcon,
+  MagnifyingGlassMinus as ZoomOutIcon,
+  MagnifyingGlassPlus as ZoomInIcon,
+  PaperPlaneRight as SendIcon,
+  Prohibit as DismissIcon,
   ArrowCounterClockwise as UndoIcon,
   ArrowDown as ArrowDownIcon,
   ArrowSquareOut as ExternalLinkIcon,
@@ -52,6 +75,28 @@ export {
   Trash as TrashIcon,
   Warning as AlertIcon,
   Wrench as ToolIcon,
+} from '@phosphor-icons/react';
+
+// Agent panel, PR tab, settings and welcome (agents-ui workstream).
+export {
+  AppWindow as NewWindowIcon,
+  ArrowLeft as ArrowLeftIcon,
+  ArrowRight as ArrowRightIcon,
+  Article as SummaryIcon,
+  Checks as ChecksIcon,
+  CircleDashed as CircleDashedIcon,
+  Clock as ClockIcon,
+  DownloadSimple as DownloadIcon,
+  GitMerge as GitMergeIcon,
+  Key as KeyIcon,
+  ListChecks as ListChecksIcon,
+  Monitor as MonitorIcon,
+  Moon as MoonIcon,
+  Palette as PaletteIcon,
+  ShieldWarning as PermissionIcon,
+  Sun as SunIcon,
+  UserCircle as UserIcon,
+  XCircle as XCircleIcon,
 } from '@phosphor-icons/react';
 
 export type { Icon as IconComponent, IconProps } from '@phosphor-icons/react';

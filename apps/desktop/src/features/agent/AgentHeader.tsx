@@ -5,13 +5,14 @@ import type { AgentInfo, Chat } from '@/lib/types';
 import { cn } from '@/lib/cn';
 import { agentHint, isAgentUsable, modeLabel } from './agents';
 import type { UiMode } from './agent-store';
-import { HistoryIcon, PlusIcon, TrashIcon, XIcon } from '@/components/ui/icon';
+import { HistoryIcon, PlusIcon, SparklesIcon, TrashIcon, XIcon } from '@/components/ui/icon';
 import { Badge } from '@/components/ui/Badge';
 import { IconButton } from '@/components/ui/IconButton';
 import { MenuList } from '@/components/ui/Menu';
 import { Popover } from '@/components/ui/Popover';
 import { SegmentedToggle } from '@/components/ui/SegmentedToggle';
 import { Spinner } from '@/components/ui/Spinner';
+import { useTooltip } from '@/components/ui/Tooltip';
 
 dayjs.extend(relativeTime);
 
@@ -32,16 +33,33 @@ export interface AgentHeaderProps {
 function AgentLabel(props: Pick<AgentHeaderProps, 'agentsLoading' | 'agent'>) {
   const { agentsLoading, agent } = props;
   const usable = agent ? isAgentUsable(agent) : false;
-  const title = agent ? (usable ? (agent.binaryPath ?? agent.name) : (agentHint(agent) ?? agent.name)) : undefined;
+  const status = !agent
+    ? agentsLoading
+      ? 'Detecting Claude Code…'
+      : 'Claude Code not detected'
+    : usable
+      ? `Ready · ${agent.binaryPath ?? agent.name}`
+      : (agentHint(agent) ?? 'Not ready');
+  const { anchorProps, tooltip } = useTooltip(status);
   return (
-    <div className="flex h-7 items-center gap-1.5 px-2 text-sm font-medium" title={title}>
-      {agentsLoading && <Spinner size={12} />}
-      {agent && (
-        <span className={cn('h-1.5 w-1.5 rounded-full', usable ? 'bg-success' : 'bg-warning')} aria-hidden />
-      )}
-      <span className="truncate">{agent?.name ?? (agentsLoading ? 'Loading…' : 'Claude Code')}</span>
-      {agent && !agent.installed && <Badge>Not installed</Badge>}
+    <div className="flex h-7 min-w-0 items-center gap-2 pr-1 pl-1" {...anchorProps}>
+      <span className="relative flex size-6 shrink-0 items-center justify-center rounded-md border border-accent/25 bg-accent-soft text-accent">
+        <SparklesIcon size={14} />
+        {agentsLoading && !agent ? null : (
+          <span
+            aria-hidden
+            className={cn(
+              'absolute -right-0.5 -bottom-0.5 size-2 rounded-full border border-panel',
+              usable ? 'bg-success' : 'bg-warning',
+            )}
+          />
+        )}
+      </span>
+      <span className="truncate text-sm font-semibold text-fg">{agent?.name ?? 'Claude Code'}</span>
+      {agentsLoading && <Spinner size={12} className="text-fg-subtle" />}
+      {agent && !agent.installed && <Badge tone="warning">Not installed</Badge>}
       {agent?.installed && agent.authenticated === false && <Badge tone="warning">Logged out</Badge>}
+      {tooltip}
     </div>
   );
 }
@@ -66,7 +84,7 @@ function ChatHistory(
             return (
               <div
                 key={chat.id}
-                className={cn('group flex items-center gap-1 rounded-sm hover:bg-hover', chat.id === activeChatId && 'bg-accent-soft hover:bg-accent-soft')}
+                className={cn('group flex items-center gap-1 rounded-sm hover:bg-hover', chat.id === activeChatId && 'bg-selected hover:bg-selected')}
               >
                 <button
                   type="button"
@@ -101,19 +119,18 @@ function ChatHistory(
 export function AgentHeader(props: AgentHeaderProps) {
   const { uiMode, onModeChange, onNewChat, onClose } = props;
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border px-2">
+    <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border pr-1.5 pl-2">
       <AgentLabel agentsLoading={props.agentsLoading} agent={props.agent} />
       <SegmentedToggle
         size="sm"
-        className="ml-1"
         value={uiMode}
         onChange={onModeChange}
         options={[
-          { value: 'ask', label: 'Ask', title: 'Read-only: the agent can read code and leave comments' },
-          { value: 'edit', label: 'Edit', title: 'The agent may edit files (each write asks for approval)' },
+          { value: 'ask', label: 'Ask', title: 'Read-only: Claude reads code and leaves comments' },
+          { value: 'edit', label: 'Edit', title: 'Claude may edit files; every write asks for approval' },
         ]}
       />
-      <div className="ml-auto flex items-center">
+      <div className="ml-auto flex items-center gap-0.5">
         <ChatHistory
           chats={props.chats}
           activeChatId={props.activeChatId}

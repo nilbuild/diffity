@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import * as api from '@/lib/api';
@@ -6,12 +6,15 @@ import { queryKeys } from '@/lib/query';
 import { TREE_REF, type AgentAction, type AgentMode, type Chat, type ContextChip } from '@/lib/types';
 import { useAgentBus, type AgentBusRequest } from '@/features/workspace/agent-bus';
 import { useWorkspace } from '@/features/workspace/workspace-context';
-import { agentHint, isAgentUsable, isReadOnlyMode, modeLabel, pickAgent } from './agents';
+import { REVIEW_FOCUSES, agentHint, isAgentUsable, isReadOnlyMode, modeLabel, pickAgent } from './agents';
 import { useAgentStore, useChatRuntime, type UiMode } from './agent-store';
 import { AgentHeader } from './AgentHeader';
 import { answerPermission, cancelChat, createChat, loadChat, sendToChat, sessionForChat } from './chat-actions';
 import { Composer } from './Composer';
+import { Spinner } from '@/components/ui/Spinner';
 import { AgentEmptyState } from './AgentEmptyState';
+import { RunQueue } from './RunQueue';
+import { enqueueThreadAction, isThreadAction, trackExternalRun } from './run-queue';
 import {
   AgentText,
   DoneRow,
@@ -19,12 +22,13 @@ import {
   NoteRow,
   PermissionCard,
   PlanChecklist,
+  RunHeader,
   StreamingIndicator,
   ThoughtBlock,
-  ToolCallRow,
+  ToolGroup,
   UserBubble,
 } from './TimelineRows';
-import type { TimelineItem } from './timeline';
+import type { RunMeta, TimelineItem } from './timeline';
 
 interface ActionPlan {
   mode: AgentMode;
@@ -55,8 +59,44 @@ function planAction(action: AgentAction, workspaceRef: string): ActionPlan {
         title: action.threadId ? `Resolve thread ${action.threadId.slice(0, 8)}` : 'Resolve all comments',
         label: action.threadId ? `Resolve thread ${action.threadId.slice(0, 8)}` : 'Resolve all open comments',
       };
+    case 'thread':
+      return { mode: 'resolve', ref: null, title: 'Reply to thread', label: 'Reply to thread' };
+    case 'reviewFeedback':
+      return { mode: 'resolve', ref: null, title: 'Address review', label: 'Address review' };
     case 'chat':
       return { mode: 'ask', ref: null, title: 'Chat', label: '' };
+  }
+}
+
+function focusLabel(focus: string | undefined) {
+  if (!focus || focus === 'all') {
+    return null;
+  }
+  return REVIEW_FOCUSES.find((item) => item.value === focus)?.label ?? focus;
+}
+
+function runMeta(action: AgentAction, context: ContextChip[]): RunMeta | undefined {
+  switch (action.kind) {
+    case 'review': {
+      const focus = focusLabel(action.focus);
+      return {
+        kind: 'review',
+        title: focus ? `Review · ${focus}` : 'Review changes',
+        detail: action.ref === 'work' ? null : action.ref,
+      };
+    }
+    case 'summarize':
+      return { kind: 'summarize', title: 'Summarize changes' };
+    case 'explain':
+      return { kind: 'explain', title: 'Explain', detail: context.length > 0 ? null : action.path };
+    case 'resolve':
+      return action.threadId
+        ? { kind: 'resolve', title: 'Resolve thread', detail: action.threadId.slice(0, 8), threadIds: [action.threadId] }
+        : { kind: 'resolve', title: 'Resolve open comments' };
+    case 'thread':
+    case 'reviewFeedback':
+    case 'chat':
+      return undefined;
   }
 }
 
@@ -136,43 +176,50 @@ export function AgentPanel() {
       if (!selected) {
         return;
       }
-      const plan = planAction(action, ref);
-      try {
-        const targetSession = await resolveSession(plan.ref);
-        const store = useAgentStore.getState();
-        const current = chats.find((chat) => chat.id === store.activeChatId);
-        const currentRuntime = current ? store.runtimes[current.id] : undefined;
-        const reusable =
-          current &&
-          current.mode === plan.mode &&
-          current.agentId === selected.id &&
-          !currentRuntime?.streaming &&
-          (currentRuntime?.items.length ?? 0) === 0;
-        const chat = reusable
-          ? current
-          : await createChat({
-              repoPath,
-              agentId: selected.id,
-              mode: plan.mode,
-              sessionId: targetSession,
-              title: plan.title,
-            });
-        store.setUiMode(modeClass(plan.mode));
-        await sendToChat({
-          repoPath,
-          chatId: chat.id,
-          sessionId: targetSession,
-          text,
-          displayText: text || actionLabel(action, plan.label, context),
-          context,
-          action,
-          agentName: selected.name,
-        });
-      } catch (error) {
-        toast.error(`Could not start ${selected.name}`, { description: api.errorMessage(error) });
+      if (isThreadAction(action)) {
+        enqueueThreadAction(action, { repoPath, agentId: selected.id, agentName: selected.name, sessionId });
+        return;
       }
+      const plan = planAction(action, ref);
+      await trackExternalRun(async () => {
+        try {
+          const targetSession = await resolveSession(plan.ref);
+          const store = useAgentStore.getState();
+          const current = chats.find((chat) => chat.id === store.activeChatId);
+          const currentRuntime = current ? store.runtimes[current.id] : undefined;
+          const reusable =
+            current &&
+            current.mode === plan.mode &&
+            current.agentId === selected.id &&
+            !currentRuntime?.streaming &&
+            (currentRuntime?.items.length ?? 0) === 0;
+          const chat = reusable
+            ? current
+            : await createChat({
+                repoPath,
+                agentId: selected.id,
+                mode: plan.mode,
+                sessionId: targetSession,
+                title: plan.title,
+              });
+          store.setUiMode(modeClass(plan.mode));
+          await sendToChat({
+            repoPath,
+            chatId: chat.id,
+            sessionId: targetSession,
+            text,
+            displayText: text || actionLabel(action, plan.label, context),
+            context,
+            action,
+            agentName: selected.name,
+            run: text ? undefined : runMeta(action, context),
+          });
+        } catch (error) {
+          toast.error(`Could not start ${selected.name}`, { description: api.errorMessage(error) });
+        }
+      });
     },
-    [chats, ensureUsableAgent, ref, repoPath, resolveSession],
+    [chats, ensureUsableAgent, ref, repoPath, resolveSession, sessionId],
   );
 
   const sendMessage = useCallback(
@@ -323,8 +370,12 @@ export function AgentPanel() {
         agentName={agentName}
         onExample={(prompt) => void sendMessage(prompt)}
         canRun={agentUsable}
+        chatTitle={activeChat?.title ?? null}
+        chatAction={activeChat ? chatRunKind(activeChat) : 'chat'}
       />
+      <RunQueue />
       <Composer
+        agentName={agentName}
         disabled={!agentUsable}
         disabledReason={disabledReason}
         streaming={runtime.streaming}
@@ -344,6 +395,38 @@ export function AgentPanel() {
   );
 }
 
+function chatRunKind(chat: Chat): AgentAction['kind'] {
+  if (chat.mode === 'review') {
+    return 'review';
+  }
+  if (chat.mode === 'resolve') {
+    return 'resolve';
+  }
+  return 'chat';
+}
+
+type Block =
+  | { type: 'item'; item: TimelineItem; index: number }
+  | { type: 'tools'; items: Extract<TimelineItem, { kind: 'tool' }>[]; lastIndex: number };
+
+function toBlocks(items: TimelineItem[]): Block[] {
+  const blocks: Block[] = [];
+  items.forEach((item, index) => {
+    const previous = blocks[blocks.length - 1];
+    if (item.kind === 'tool' && previous?.type === 'tools') {
+      previous.items.push(item);
+      previous.lastIndex = index;
+      return;
+    }
+    if (item.kind === 'tool') {
+      blocks.push({ type: 'tools', items: [item], lastIndex: index });
+      return;
+    }
+    blocks.push({ type: 'item', item, index });
+  });
+  return blocks;
+}
+
 function MessageList(props: {
   chatId: string | null;
   items: TimelineItem[];
@@ -352,11 +435,14 @@ function MessageList(props: {
   repoPath: string;
   agentName: string;
   canRun: boolean;
+  chatTitle: string | null;
+  chatAction: AgentAction['kind'];
   onExample: (prompt: string) => void;
 }) {
-  const { chatId, items, streaming, loaded, repoPath, agentName, canRun, onExample } = props;
+  const { chatId, items, streaming, loaded, repoPath, agentName, canRun, chatTitle, chatAction, onExample } = props;
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
+  const blocks = useMemo(() => toBlocks(items), [items]);
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
@@ -379,7 +465,11 @@ function MessageList(props: {
   };
 
   if (!loaded) {
-    return <div className="flex flex-1 items-center justify-center text-xs text-fg-subtle">Loading chat…</div>;
+    return (
+      <div className="flex flex-1 items-center justify-center gap-2 text-xs text-fg-subtle">
+        <Spinner size={12} /> Loading chat…
+      </div>
+    );
   }
 
   if (items.length === 0 && !streaming) {
@@ -388,43 +478,74 @@ function MessageList(props: {
 
   const lastIndex = items.length - 1;
   const last = items[lastIndex];
-  const showWorking = streaming && (!last || last.kind === 'user' || last.kind === 'tool' || last.kind === 'note');
+  const showWorking =
+    streaming && (!last || last.kind === 'user' || last.kind === 'note' || (last.kind === 'tool' && last.status === 'completed'));
 
   return (
     <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-      <div className="flex flex-col gap-2.5">
-        {items.map((item, index) => (
-          <TimelineRow
-            key={`${item.kind}-${item.id}`}
-            item={item}
-            chatId={chatId}
-            repoPath={repoPath}
-            live={streaming && index === lastIndex}
-          />
-        ))}
-        {showWorking && <StreamingIndicator />}
+      <div className="flex flex-col gap-2">
+        {blocks.map((block) => {
+          if (block.type === 'tools') {
+            return (
+              <ToolGroup
+                key={`tools-${block.items[0].id}`}
+                items={block.items}
+                repoPath={repoPath}
+                live={streaming && block.lastIndex === lastIndex}
+              />
+            );
+          }
+          return (
+            <TimelineRow
+              key={`${block.item.kind}-${block.item.id}`}
+              item={block.item}
+              chatId={chatId}
+              repoPath={repoPath}
+              agentName={agentName}
+              fallbackRun={chatTitle ? { kind: chatAction, title: chatTitle } : null}
+              live={streaming && block.index === lastIndex}
+              streaming={streaming}
+            />
+          );
+        })}
+        {showWorking && <StreamingIndicator agentName={agentName} />}
       </div>
     </div>
   );
 }
 
-function TimelineRow(props: { item: TimelineItem; chatId: string | null; repoPath: string; live: boolean }) {
-  const { item, chatId, repoPath, live } = props;
+function TimelineRow(props: {
+  item: TimelineItem;
+  chatId: string | null;
+  repoPath: string;
+  agentName: string;
+  fallbackRun: RunMeta | null;
+  live: boolean;
+  streaming: boolean;
+}) {
+  const { item, chatId, repoPath, agentName, fallbackRun, live, streaming } = props;
   switch (item.kind) {
-    case 'user':
+    case 'user': {
+      const run = item.run ?? (!item.text && item.context.length === 0 ? (fallbackRun ?? { kind: 'chat', title: 'Run' }) : null);
+      if (run) {
+        return <RunHeader run={run} context={item.context} repoPath={repoPath} />;
+      }
       return <UserBubble item={item} repoPath={repoPath} />;
+    }
     case 'text':
       return <AgentText text={item.text} />;
     case 'thought':
       return <ThoughtBlock text={item.text} live={live} />;
     case 'tool':
-      return <ToolCallRow item={item} repoPath={repoPath} />;
+      return <ToolGroup items={[item]} repoPath={repoPath} live={live} />;
     case 'plan':
-      return <PlanChecklist entries={item.entries} />;
+      return <PlanChecklist entries={item.entries} live={streaming} />;
     case 'permission':
       return (
         <PermissionCard
           item={item}
+          agentName={agentName}
+          repoPath={repoPath}
           onRespond={(optionId) => {
             if (!chatId) {
               return;

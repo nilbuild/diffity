@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Kbd } from '@/components/ui/Kbd';
 import { CheckIcon, CollapseAllIcon, ExpandAllIcon, CommentIcon, SearchIcon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
+import { FileTypeIcon } from '@/features/files/FileTypeIcon';
 import { useChangesStore } from './changes-store';
 import { DiffStat, FileStatusBadge } from './StatusBadge';
 import type { DiffEntry } from './use-diff';
@@ -118,10 +119,11 @@ function FileRow(props: FileRowProps) {
       onClick={() => onSelect(path)}
       className={cn(
         'group flex h-7 w-full cursor-default items-center gap-2 px-3 text-left',
-        active ? 'bg-selected' : 'hover:bg-hover',
+        active ? 'relative bg-selected before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent' : 'hover:bg-hover',
       )}
     >
       <FileStatusBadge status={status} />
+      <FileTypeIcon name={name} className={cn(viewed && 'opacity-60')} />
       <span className={cn('min-w-0 flex-1 truncate text-sm', viewed && 'text-fg-subtle')}>
         <span className={cn('font-medium', !viewed && 'text-fg')}>{name}</span>
         {dir && <span className="ml-1.5 text-2xs text-fg-subtle">{dir}</span>}

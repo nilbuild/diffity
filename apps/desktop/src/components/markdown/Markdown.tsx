@@ -5,11 +5,14 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { CheckIcon, CopyIcon } from '@/components/ui/icon';
 import { cn } from '@/lib/cn';
 import { Mermaid } from './Mermaid';
+import { remarkMentions } from './remark-mentions';
 
 export interface MarkdownProps {
   children: string;
   className?: string;
   compact?: boolean;
+  /** Highlight `@claude` mentions as pills. */
+  mentions?: boolean;
 }
 
 function Code(props: ComponentProps<'code'>) {
@@ -94,12 +97,14 @@ function Link(props: ComponentProps<'a'>) {
 }
 
 const components = { code: Code, pre: Pre, a: Link };
+const PLUGINS = [remarkGfm];
+const MENTION_PLUGINS = [remarkGfm, remarkMentions];
 
 export function Markdown(props: MarkdownProps) {
-  const { children, className, compact } = props;
+  const { children, className, compact, mentions } = props;
   return (
     <div className={cn('markdown selectable', compact && 'markdown-compact', className)}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown remarkPlugins={mentions ? MENTION_PLUGINS : PLUGINS} components={components}>
         {children}
       </ReactMarkdown>
     </div>

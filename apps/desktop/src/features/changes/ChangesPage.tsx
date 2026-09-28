@@ -24,9 +24,10 @@ import type { ContextChip, Thread } from '@/lib/types';
 import { AnnotationStack } from '@/features/comments/AnnotationStack';
 import type { CommentAnnotation } from '@/features/comments/annotation-types';
 import { useCommentDraft } from '@/features/comments/draft-store';
-import { GeneralComments } from '@/features/comments/GeneralComments';
+import { Conversation } from '@/features/comments/Conversation';
 import { OrphanedThreads } from '@/features/comments/OrphanedThreads';
 import { isFileLevel } from '@/features/comments/thread-utils';
+import { useSubmittedReviews } from '@/features/comments/use-review';
 import { useCommentActions, useThreads } from '@/features/comments/use-threads';
 import { SelectionActionBar } from '@/features/workspace/SelectionActionBar';
 import { useViewStore } from '@/features/workspace/view-store';
@@ -67,6 +68,9 @@ export function ChangesPage() {
   const diff = useDiffData();
   const threads = useThreads(sessionId);
   const actions = useCommentActions(sessionId);
+  const reviews = useSubmittedReviews(sessionId);
+  const conversationOpen = useChangesStore((s) => s.conversationOpen);
+  const setConversationOpen = useChangesStore((s) => s.setConversationOpen);
   const { viewedMap, setViewed } = useViewed(sessionId);
   const stale = useDiffStaleness(diff.result?.fingerprint);
   const diffStyle = useViewStore((s) => s.diffStyle);
@@ -390,12 +394,18 @@ export function ChangesPage() {
 
   const renderTop = useCallback(
     () => (
-      <div className="flex flex-col gap-2 pt-3">
-        <GeneralComments threads={layout.general} actions={actions} />
+      <div className="flex max-w-[1100px] flex-col gap-2 pt-3">
+        <Conversation
+          threads={layout.general}
+          reviews={reviews}
+          actions={actions}
+          open={conversationOpen}
+          onToggle={() => setConversationOpen(!conversationOpen)}
+        />
         <OrphanedThreads threads={layout.orphaned} actions={actions} />
       </div>
     ),
-    [layout.general, layout.orphaned, actions],
+    [layout.general, layout.orphaned, actions, reviews, conversationOpen, setConversationOpen],
   );
 
   const scrollFrame = useRef(0);
@@ -470,6 +480,15 @@ export function ChangesPage() {
           threads={threads}
           navigable={layout.navigable}
           onNavigate={goToThread}
+          conversationCount={layout.general.length + reviews.length}
+          conversationOpen={conversationOpen}
+          onToggleConversation={() => {
+            const next = !conversationOpen;
+            setConversationOpen(next);
+            if (next) {
+              surfaceRef.current?.scrollToTop();
+            }
+          }}
         />
         <div className="min-h-0 flex-1">
           {items.length === 0 ? (

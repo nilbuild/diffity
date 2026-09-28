@@ -141,7 +141,8 @@ The diff renders as a column of flat bordered file cards (8px radius, `bg-panel`
 | `EmptyState` | `ui/EmptyState` | `icon?` (pass a 20px icon; it sits in a 40px bordered tile), `title`, `description?`, `action?`, `tone`: `neutral` \| `danger` |
 | `Spinner` | `ui/Spinner` | `size` (default 14), `className` (colour via `text-*`) |
 | `ResizeHandle` | `ui/ResizeHandle` | `value`, `onChange`, `min`, `max`, `direction` (`left` means the pane is to the right). Renders a 1px border line with a 7px invisible hit area, showing a 2px accent line only while hovered or dragged |
-| `Markdown` | `components/markdown/Markdown` | `compact` (13px, for comments and chat). Default is 14px (PR bodies and previews). Handles mermaid, external links and a copy button on code blocks |
+| `Checkbox` / `Radio` / `CheckMark` | `ui/Checkbox` | `Checkbox`: `checked`, `onChange(checked)`, `label?`, `description?`, `disabled?`. `Radio`: `checked`, `onSelect`, `label?`, `description?`. `CheckMark` is the bare 16px box (`tone`: `accent` \| `success`) for custom toggles such as the diff "Viewed" pill. Never use a native `<input type="checkbox">` |
+| `Markdown` | `components/markdown/Markdown` | `compact` (13px, for comments and chat). Default is 14px (PR bodies and previews). `mentions` renders `@claude` (outside code/links) as an accent pill. Handles mermaid, external links and a copy button on code blocks |
 
 ## Icons
 
@@ -158,6 +159,20 @@ The diff renders as a column of flat bordered file cards (8px radius, `bg-panel`
 - Always pair icon-only controls with `IconButton` so they get a label and tooltip.
 - Mapping conventions: AI actions use `SparklesIcon`, explain uses `LightbulbIcon`, comments use `CommentIcon`, revert uses `UndoIcon`,
   close uses `XIcon`, overflow menus use `MoreIcon`, and disclosure uses `ChevronRightIcon` rotated 90° when open.
+
+## Agent panel, PR tab, settings (agents-ui)
+
+- **Theme previews.** `[data-theme-preview='light' | 'dark']` on any element re-scopes the colour tokens for its subtree
+  (`styles.css`), so mini previews (Settings → Appearance swatches) use normal token classes, never hex.
+- **Agent timeline.** Typed messages are right-aligned `accent-soft` bubbles; runs started by an action (Review, Resolve,
+  `@claude` thread, review feedback) render a `RunHeader` (accent icon tile + title + mono detail) instead. Agent text is
+  full-width `Markdown compact`. Consecutive tool calls collapse into a quiet "N steps" row (12px icons, `text-fg-subtle`),
+  thinking is a muted disclosure, pending steps use a 1.5px `border-border-strong` ring (not an icon).
+- **Permission card:** `border-warning/50` card, "Claude wants to edit `path`", embedded diff, `panel` footer with
+  **Allow once** (primary), Always allow (secondary) and Deny (ghost, right). Answered requests collapse to one line.
+- **Status pills** (PR state) use `rounded-full` + `border-{tone}/30 bg-{tone}/12 text-{tone}`; checks and review decision
+  are icon + label in the tone colour.
+- Settings rows: `SettingGroup` (bordered `raised` card, `divide-border-subtle`) with label + description left, control right.
 
 ## Diff surface (`components/diff-surface`)
 

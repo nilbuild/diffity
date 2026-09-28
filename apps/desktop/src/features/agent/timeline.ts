@@ -1,4 +1,5 @@
 import type {
+  AgentAction,
   AgentEvent,
   ChatMessage,
   ContextChip,
@@ -8,10 +9,18 @@ import type {
   UserMessageContent,
 } from '@/lib/types';
 
+/** Set on the user item of a run started by an action (review, resolve, thread…), shown as a run header. */
+export interface RunMeta {
+  kind: AgentAction['kind'];
+  title: string;
+  detail?: string | null;
+  threadIds?: string[];
+}
+
 export type PermissionState = 'pending' | 'answered' | 'denied' | 'expired';
 
 export type TimelineItem =
-  | { kind: 'user'; id: string; text: string; context: ContextChip[] }
+  | { kind: 'user'; id: string; text: string; context: ContextChip[]; run?: RunMeta }
   | { kind: 'text'; id: string; text: string }
   | { kind: 'thought'; id: string; text: string }
   | { kind: 'tool'; id: string; title: string; toolKind: string; status: string; locations: string[] }

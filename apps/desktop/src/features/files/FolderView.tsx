@@ -1,4 +1,4 @@
-import { FileIcon, FolderIcon } from '@/components/ui/icon';
+import { FileTypeIcon, FolderTypeIcon } from './FileTypeIcon';
 import { useFilesStore } from './files-store';
 import type { TreeNode } from './tree-model';
 
@@ -23,11 +23,7 @@ export function FolderView(props: { node: TreeNode }) {
             }}
             className="flex h-8 w-full cursor-default items-center gap-2 border-b border-border-subtle px-4 text-left text-sm text-fg last:border-b-0 hover:bg-hover"
           >
-            {child.kind === 'dir' ? (
-              <FolderIcon size={14} className="text-fg-subtle" />
-            ) : (
-              <FileIcon size={14} className="text-fg-subtle" />
-            )}
+            {child.kind === 'dir' ? <FolderTypeIcon open={false} /> : <FileTypeIcon name={child.name} />}
             {child.name}
           </button>
         ))}

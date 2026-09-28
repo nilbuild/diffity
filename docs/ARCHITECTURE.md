@@ -227,6 +227,7 @@ Cross-feature hooks the core UI exposes for the agent UI:
 - `useSelection()` store (zustand or React context in `features/workspace/selection.ts`): current `ContextChip | null`; ⌘L sends it to the AgentPanel.
 - `useWorkspace()` → `{ repoPath, repo, ref, setRef, sessionId }`.
 - `agentBus` (in `features/workspace/agent-bus.ts`): `askAboutSelection(chip)`, `runAction(action)`, used by diff/file UI buttons ("Ask AI", "Explain", "Resolve with AI").
+  `thread` / `reviewFeedback` actions are queued (`features/agent/run-queue.ts`) and run one at a time in a `resolve` chat, never alongside another run. `useAgentThreadActivity(threadId)` → `'idle' | 'queued' | 'working'` and `useAgentBus(s => s.activeThreadIds)` expose progress to thread UI (review runs mark every `review.threadIds`).
 
 Keyboard: j/k file, n/p hunk, u/s view, x / shift+x collapse, r viewed, / filter, ? help, ⌘L ask, ⌘O open, ⌘Enter submit, Esc cancel.
 

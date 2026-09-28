@@ -13,7 +13,14 @@ interface AgentBusState {
   runAction: (action: AgentAction, context?: ContextChip[]) => void;
   /** AgentPanel calls this to take ownership of all pending requests. */
   drain: () => AgentBusRequest[];
+  /** Threads the agent is currently working on (a `thread` / `reviewFeedback` run is in progress). */
+  activeThreadIds: string[];
+  /** Per-thread agent activity; threads not listed are idle. Written by the agent feature. */
+  threadActivity: Record<string, Exclude<AgentThreadActivity, 'idle'>>;
+  setThreadActivity: (activity: Record<string, Exclude<AgentThreadActivity, 'idle'>>) => void;
 }
+
+export type AgentThreadActivity = 'idle' | 'queued' | 'working';
 
 let counter = 0;
 const nextId = () => `req-${Date.now()}-${++counter}`;
@@ -34,7 +41,19 @@ export const useAgentBus = create<AgentBusState>((set, get) => ({
     set({ queue: [] });
     return pending;
   },
+  activeThreadIds: [],
+  threadActivity: {},
+  setThreadActivity: (activity) =>
+    set({
+      threadActivity: activity,
+      activeThreadIds: Object.keys(activity).filter((threadId) => activity[threadId] === 'working'),
+    }),
 }));
+
+/** Whether the agent is working on (or has queued work for) a thread. */
+export function useAgentThreadActivity(threadId: string): AgentThreadActivity {
+  return useAgentBus((state) => state.threadActivity[threadId] ?? 'idle');
+}
 
 export const agentBus = {
   askAboutSelection: (chip: ContextChip) => useAgentBus.getState().askAboutSelection(chip),

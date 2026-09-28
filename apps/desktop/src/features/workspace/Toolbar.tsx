@@ -21,6 +21,7 @@ import {
 import { cn } from '@/lib/cn';
 import { modKey } from '@/lib/platform';
 import { openRepoInNewWindow, repoRoute } from '@/lib/window';
+import { FinishReview } from '@/features/comments/FinishReview';
 import { GitSyncButtons } from '@/features/pr/GitSyncButtons';
 import { pickFolder } from '@/features/welcome/open-repo';
 import { agentBus, useAgentBus } from './agent-bus';
@@ -36,7 +37,7 @@ const TABS: { value: WorkspaceTab; label: string }[] = [
 
 export function Toolbar(props: { onOpenSettings: () => void }) {
   const { onOpenSettings } = props;
-  const { ref } = useWorkspace();
+  const { ref, repoPath, sessionId, treeSessionId } = useWorkspace();
   const tab = useViewStore((s) => s.tab);
   const setTab = useViewStore((s) => s.setTab);
   const setShortcutsOpen = useViewStore((s) => s.setShortcutsOpen);
@@ -52,29 +53,42 @@ export function Toolbar(props: { onOpenSettings: () => void }) {
       <RefPicker />
       <Tabs variant="underline" className="ml-3 self-stretch" value={tab} onChange={setTab} items={TABS} />
       <div data-tauri-drag-region className="h-full min-w-4 flex-1" />
-      {tab === 'changes' && <DiffViewControls />}
-      <div className="mx-1 h-4 w-px bg-border" />
-      <Button variant="ghost" title="Ask the agent to review these changes" onClick={() => agentBus.runAction({ kind: 'review', ref })}>
-        <SparklesIcon size={14} className="text-accent" />
-        Review
-      </Button>
-      <Button variant="ghost" title="Summarize these changes" onClick={() => agentBus.runAction({ kind: 'summarize', ref })}>
-        <LightbulbIcon size={14} />
-        Summarize
-      </Button>
-      <div className="mx-1 h-4 w-px bg-border" />
+      {tab === 'changes' && (
+        <>
+          <DiffViewControls />
+          <Divider />
+        </>
+      )}
+      <div className="flex items-center gap-0.5">
+        <Button variant="ghost" title="Ask Claude to review these changes" onClick={() => agentBus.runAction({ kind: 'review', ref })}>
+          <SparklesIcon size={14} className="text-accent" />
+          AI review
+        </Button>
+        <IconButton label="Summarize changes" onClick={() => agentBus.runAction({ kind: 'summarize', ref })}>
+          <LightbulbIcon size={16} />
+        </IconButton>
+      </div>
+      {tab !== 'pr' && <FinishReview repoPath={repoPath} sessionId={tab === 'files' ? treeSessionId : sessionId} />}
+      <Divider />
       <GitSyncButtons />
-      <IconButton label="Keyboard shortcuts" shortcut="?" onClick={() => setShortcutsOpen(true)}>
-        <KeyboardIcon size={16} />
-      </IconButton>
-      <IconButton label="Settings" onClick={onOpenSettings}>
-        <SettingsIcon size={16} />
-      </IconButton>
-      <IconButton label={panelOpen ? 'Hide agent panel' : 'Show agent panel'} active={panelOpen} onClick={() => setPanelOpen(!panelOpen)}>
-        <PanelRightIcon size={16} mirrored />
-      </IconButton>
+      <Divider />
+      <div className="flex items-center gap-0.5">
+        <IconButton label="Keyboard shortcuts" shortcut="?" onClick={() => setShortcutsOpen(true)}>
+          <KeyboardIcon size={16} />
+        </IconButton>
+        <IconButton label="Settings" onClick={onOpenSettings}>
+          <SettingsIcon size={16} />
+        </IconButton>
+        <IconButton label={panelOpen ? 'Hide agent panel' : 'Show agent panel'} shortcut={`${modKey}L`} active={panelOpen} onClick={() => setPanelOpen(!panelOpen)}>
+          <PanelRightIcon size={16} mirrored />
+        </IconButton>
+      </div>
     </header>
   );
+}
+
+function Divider() {
+  return <div className="mx-1 h-4 w-px shrink-0 bg-border" />;
 }
 
 function RepoMenu() {
@@ -129,7 +143,7 @@ function DiffViewControls() {
   const toggleWordDiff = useViewStore((s) => s.toggleWordDiff);
 
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-0.5">
       <SegmentedToggle
         value={diffStyle}
         onChange={setDiffStyle}

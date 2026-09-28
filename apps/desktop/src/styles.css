@@ -7,7 +7,8 @@
  * Surfaces step up in lightness (dark) / stay white with grey panels (light);
  * separation comes from 1px borders, never from shadows.
  */
-:root {
+:root,
+[data-theme-preview='light'] {
   color-scheme: light;
 
   --canvas: #ffffff;
@@ -81,7 +82,8 @@
   }
 }
 
-:root[data-theme='dark'] {
+:root[data-theme='dark'],
+[data-theme-preview='dark'] {
   color-scheme: dark;
 
   --canvas: #0d1117;

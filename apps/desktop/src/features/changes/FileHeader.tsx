@@ -1,5 +1,6 @@
 import { toast } from 'sonner';
 import { CountBadge } from '@/components/ui/Badge';
+import { CheckMark } from '@/components/ui/Checkbox';
 import { IconButton } from '@/components/ui/IconButton';
 import { Menu, type MenuItem } from '@/components/ui/Menu';
 import { confirmDialog } from '@/components/ui/ConfirmDialog';
@@ -159,15 +160,20 @@ export function FileHeaderActions(props: FileHeaderActionsProps) {
           <BookIcon size={14} />
         </IconButton>
       )}
-      <label
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={viewed}
+        title="Mark as viewed (r)"
+        onClick={onToggleViewed}
         className={cn(
-          'ml-1 inline-flex h-6 cursor-default items-center gap-1.5 rounded-md border px-2 text-xs font-medium select-none',
-          viewed ? 'border-success/30 bg-success/10 text-success' : 'border-border bg-raised text-fg-muted hover:border-border-strong hover:text-fg',
+          'ml-1 inline-flex h-6 cursor-default items-center gap-1.5 rounded-md border pr-2 pl-1.5 text-xs font-medium select-none transition-colors',
+          viewed ? 'border-success/40 bg-success/10 text-success' : 'border-border bg-raised text-fg-muted hover:border-border-strong hover:text-fg',
         )}
       >
-        <input type="checkbox" checked={viewed} onChange={onToggleViewed} className="size-3 accent-[var(--success)]" />
+        <CheckMark checked={viewed} tone="success" />
         Viewed
-      </label>
+      </button>
       <Menu
         items={items}
         trigger={(trigger) => (

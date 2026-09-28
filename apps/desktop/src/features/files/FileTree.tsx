@@ -7,8 +7,6 @@ import {
   ExpandAllIcon,
   CommentIcon,
   CopyIcon,
-  FileIcon,
-  FolderIcon,
   LightbulbIcon,
   SearchIcon,
 } from '@/components/ui/icon';
@@ -19,6 +17,7 @@ import { MenuList, MenuRow } from '@/components/ui/Menu';
 import { Popover } from '@/components/ui/Popover';
 import { cn } from '@/lib/cn';
 import { agentBus } from '@/features/workspace/agent-bus';
+import { FileTypeIcon, FolderTypeIcon } from './FileTypeIcon';
 import { useFilesStore } from './files-store';
 import { allDirPaths, flattenTree, type TreeNode, type TreeRow } from './tree-model';
 
@@ -202,23 +201,23 @@ function TreeRowButton(props: TreeRowButtonProps) {
       }}
       className={cn(
         'absolute inset-x-0 flex cursor-default items-center gap-1.5 pr-3 text-left text-sm text-fg',
-        selected ? 'bg-selected' : 'hover:bg-hover',
+        selected ? 'bg-selected font-medium before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-accent' : 'hover:bg-hover',
       )}
     >
       {node.kind === 'dir' ? (
         <>
           <ChevronRightIcon size={12} className={cn('shrink-0 text-fg-subtle transition-transform', expanded && 'rotate-90')} />
-          <FolderIcon size={14} className="shrink-0 text-fg-subtle" />
+          <FolderTypeIcon open={expanded} />
         </>
       ) : (
         <>
           <span className="w-3 shrink-0" />
-          <FileIcon size={14} className="shrink-0 text-fg-subtle" />
+          <FileTypeIcon name={node.name} />
         </>
       )}
       <span className="min-w-0 flex-1 truncate">{node.name}</span>
       {comments > 0 && (
-        <CountBadge count={comments} />
+        <CountBadge count={comments} icon={<CommentIcon size={12} />} title={`${comments} open comments`} />
       )}
     </button>
   );

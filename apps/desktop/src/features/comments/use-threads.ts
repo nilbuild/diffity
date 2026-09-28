@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import * as api from '@/lib/api';
 import { queryClient, queryKeys } from '@/lib/query';
 import type { NewThread, Severity, Thread, ThreadStatus } from '@/lib/types';
+import { agentBus } from '@/features/workspace/agent-bus';
+import { invalidateReviews } from './use-review';
 
 const EMPTY: Thread[] = [];
 
@@ -23,6 +25,7 @@ export function useThreadsChangedListener() {
     api
       .onThreadsChanged((payload) => {
         void queryClient.invalidateQueries({ queryKey: queryKeys.threads(payload.sessionId) });
+        invalidateReviews(payload.sessionId);
         void queryClient.invalidateQueries({ queryKey: ['github', 'pushable'] });
       })
       .then((fn) => {
@@ -44,11 +47,20 @@ function onError(error: unknown) {
   toast.error(api.errorMessage(error));
 }
 
+function askAgentIfMentioned(thread: Thread) {
+  const latest = thread.comments[thread.comments.length - 1];
+  if (!latest || latest.pending || !latest.mentionsAgent) {
+    return;
+  }
+  agentBus.runAction({ kind: 'thread', threadId: thread.id });
+}
+
 export function useCommentActions(sessionId: string | null) {
   const invalidate = () => {
     if (!sessionId) {
       return;
     }
+    invalidateReviews(sessionId);
     return queryClient.invalidateQueries({ queryKey: queryKeys.threads(sessionId) });
   };
 
@@ -59,12 +71,19 @@ export function useCommentActions(sessionId: string | null) {
       }
       return api.createThread({ ...input, sessionId });
     },
-    onSuccess: invalidate,
+    onSuccess: (thread) => {
+      askAgentIfMentioned(thread);
+      return invalidate();
+    },
     onError,
   });
   const reply = useMutation({
-    mutationFn: (input: { threadId: string; body: string }) => api.addReply(input.threadId, input.body),
-    onSuccess: invalidate,
+    mutationFn: (input: { threadId: string; body: string; pending?: boolean }) =>
+      api.addReply(input.threadId, input.body, null, null, input.pending ?? false),
+    onSuccess: (thread) => {
+      askAgentIfMentioned(thread);
+      return invalidate();
+    },
     onError,
   });
   const edit = useMutation({
@@ -93,7 +112,7 @@ export function useCommentActions(sessionId: string | null) {
     onError,
   });
 
-  return { create, reply, edit, removeComment, removeThread, setStatus, removeAll };
+  return { sessionId, create, reply, edit, removeComment, removeThread, setStatus, removeAll };
 }
 
 export type CommentActions = ReturnType<typeof useCommentActions>;

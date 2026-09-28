@@ -2,7 +2,7 @@ import * as api from '@/lib/api';
 import { queryClient, queryKeys } from '@/lib/query';
 import type { AgentAction, AgentMode, Chat, ContextChip } from '@/lib/types';
 import { useAgentStore } from './agent-store';
-import { applyEvent, expirePermissions, localId, timelineFromMessages, type TimelineItem } from './timeline';
+import { applyEvent, expirePermissions, localId, timelineFromMessages, type RunMeta, type TimelineItem } from './timeline';
 
 export interface CreateChatInput {
   repoPath: string;
@@ -54,6 +54,7 @@ export interface SendInput {
   context: ContextChip[];
   action: AgentAction;
   agentName: string;
+  run?: RunMeta;
 }
 
 function moveToEnd(items: TimelineItem[], item: TimelineItem) {
@@ -66,7 +67,7 @@ export function friendlyAgentError(message: string, agentName: string) {
     return `${message}\n\n${agentName} is not logged in. Open a terminal, run the agent CLI once and complete the login, then try again.`;
   }
   if (lower.includes('not found') || lower.includes('not installed') || lower.includes('no such file')) {
-    return `${message}\n\n${agentName} could not be started. Check that it is installed, or set a custom binary path in Settings → Agents.`;
+    return `${message}\n\n${agentName} could not be started. Check that it is installed, or set a custom binary path in Settings → Claude Code.`;
   }
   return message;
 }
@@ -77,7 +78,7 @@ export async function sendToChat(input: SendInput) {
   const turnId = localId('turn');
   store.setItems(chatId, (items) => [
     ...expirePermissions(items),
-    { kind: 'user', id: turnId, text: input.displayText ?? input.text, context: input.context },
+    { kind: 'user', id: turnId, text: input.displayText ?? input.text, context: input.context, run: input.run },
   ]);
   store.setStreaming(chatId, true);
 

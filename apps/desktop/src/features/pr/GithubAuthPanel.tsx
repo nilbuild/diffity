@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
 import * as api from '@/lib/api';
 import { queryKeys } from '@/lib/query';
 import type { DeviceCode, GithubAuthStatus } from '@/lib/types';
-import { ExternalLinkIcon, GithubIcon, TerminalIcon } from '@/components/ui/icon';
+import { AlertIcon, ExternalLinkIcon, GithubIcon, GlobeIcon, KeyIcon, TerminalIcon } from '@/components/ui/icon';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
@@ -121,86 +121,141 @@ export function GithubAuthPanel(props: GithubAuthPanelProps) {
     setBusy(null);
   };
 
-  return (
-    <div className={compact ? 'space-y-4' : 'mx-auto max-w-[420px] space-y-5 py-10'}>
-      {!compact && (
-        <div className="text-center">
-          <div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-lg border border-border bg-panel text-fg">
-            <GithubIcon size={24} />
-          </div>
-          <h2 className="text-base font-semibold">Connect GitHub</h2>
-          <p className="mt-1 text-xs text-fg-muted">
-            Needed to see pull requests and sync review comments. Your token is stored in the macOS keychain.
-          </p>
-        </div>
+  const methods = (
+    <div className="divide-y divide-border-subtle">
+      <AuthMethod
+        icon={<TerminalIcon size={16} />}
+        title="Import from GitHub CLI"
+        description={
+          <>
+            Reuses the token from <code className="font-mono">gh auth login</code>. Recommended.
+          </>
+        }
+      >
+        <Button variant="primary" loading={busy === 'gh'} disabled={busy !== null} onClick={importGh}>
+          Import
+        </Button>
+      </AuthMethod>
+      {deviceFlowAvailable && (
+        <AuthMethod
+          icon={<GlobeIcon size={16} />}
+          title="Sign in with browser"
+          description="Authorize Diffity on github.com with a one-time code."
+        >
+          <Button loading={busy === 'device'} disabled={busy !== null} onClick={startDevice}>
+            Sign in
+          </Button>
+        </AuthMethod>
       )}
-
-      {device ? (
-        <div className="space-y-3 rounded-lg border border-border bg-raised p-4 text-center">
-          <p className="text-xs text-fg-muted">Enter this code on GitHub (copied to your clipboard):</p>
-          <div className="selectable font-mono text-2xl font-semibold tracking-[0.2em]">{device.userCode}</div>
-          <div className="flex items-center justify-center gap-2">
-            <Button size="md" onClick={() => openUrl(device.verificationUri).catch(() => undefined)}>
-              <ExternalLinkIcon size={14} />
-              Open {device.verificationUri.replace(/^https?:\/\//, '')}
-            </Button>
-            <Button size="md" variant="ghost" onClick={cancelDevice}>
-              Cancel
-            </Button>
-          </div>
-          <div className="flex items-center justify-center gap-2 text-2xs text-fg-subtle">
-            <Spinner size={12} /> Waiting for authorization…
-          </div>
-        </div>
-      ) : (
-        <>
-          <div className="space-y-2">
-            <Button variant="primary" size="lg" className="w-full" loading={busy === 'gh'} disabled={busy !== null} onClick={importGh}>
-              <TerminalIcon size={14} />
-              Import from GitHub CLI (gh)
-            </Button>
-            {deviceFlowAvailable && (
-              <Button size="lg" className="w-full" loading={busy === 'device'} disabled={busy !== null} onClick={startDevice}>
-                <GithubIcon size={14} />
-                Sign in with browser
+      <div className="px-4 py-3">
+        <div className="flex items-start gap-3">
+          <MethodIcon>
+            <KeyIcon size={16} />
+          </MethodIcon>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium text-fg">Personal access token</div>
+            <div className="mt-0.5 text-xs text-fg-muted">
+              Needs the <code className="font-mono">repo</code> scope (classic) or Pull requests read/write (fine-grained).
+            </div>
+            <form
+              className="mt-2.5 flex gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveToken();
+              }}
+            >
+              <Input
+                type="password"
+                mono
+                wrapperClassName="flex-1"
+                value={token}
+                onChange={(event) => setToken(event.target.value)}
+                placeholder="ghp_… or github_pat_…"
+              />
+              <Button type="submit" loading={busy === 'token'} disabled={busy !== null || !token.trim()}>
+                Save
               </Button>
-            )}
+            </form>
           </div>
-          <div className="flex items-center gap-2 text-2xs text-fg-subtle">
-            <span className="h-px flex-1 bg-border" /> or paste a personal access token <span className="h-px flex-1 bg-border" />
-          </div>
-          <form
-            className="flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void saveToken();
-            }}
-          >
-            <Input
-              type="password"
-              size="lg"
-              mono
-              wrapperClassName="flex-1"
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-              placeholder="ghp_… or github_pat_…"
-            />
-            <Button type="submit" size="lg" loading={busy === 'token'} disabled={busy !== null || !token.trim()}>
-              Save
-            </Button>
-          </form>
-          <p className="text-2xs text-fg-subtle">
-            Token needs the <code className="font-mono">repo</code> scope (classic) or Pull requests read/write
-            (fine-grained).
-          </p>
-        </>
-      )}
-
-      {error && (
-        <div className="selectable rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-xs whitespace-pre-wrap text-danger">
-          {error}
         </div>
-      )}
+      </div>
+    </div>
+  );
+
+  const deviceView = device && (
+    <div className="space-y-3 px-4 py-5 text-center">
+      <p className="text-xs text-fg-muted">Enter this code on GitHub. It is already on your clipboard.</p>
+      <div className="selectable mx-auto inline-flex rounded-md border border-border bg-canvas px-4 py-2 font-mono text-lg font-semibold tracking-[0.2em] text-fg">
+        {device.userCode}
+      </div>
+      <div className="flex items-center justify-center gap-2">
+        <Button onClick={() => openUrl(device.verificationUri).catch(() => undefined)}>
+          <ExternalLinkIcon size={14} />
+          Open {device.verificationUri.replace(/^https?:\/\//, '')}
+        </Button>
+        <Button variant="ghost" onClick={cancelDevice}>
+          Cancel
+        </Button>
+      </div>
+      <div className="flex items-center justify-center gap-2 text-2xs text-fg-subtle">
+        <Spinner size={12} /> Waiting for authorization…
+      </div>
+    </div>
+  );
+
+  const errorView = error && (
+    <div className="selectable flex items-start gap-2 border-t border-danger/30 bg-danger/10 px-4 py-2.5 text-xs whitespace-pre-wrap text-danger">
+      <AlertIcon size={14} className="mt-px shrink-0" />
+      <span className="min-w-0">{error}</span>
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div className="overflow-hidden rounded-lg border border-border bg-raised">
+        {deviceView || methods}
+        {errorView}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-[480px] py-12">
+      <div className="overflow-hidden rounded-lg border border-border bg-raised">
+        <div className="flex items-center gap-3 border-b border-border bg-panel px-4 py-3.5">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-raised text-fg">
+            <GithubIcon size={20} />
+          </span>
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-fg">Connect GitHub</h2>
+            <p className="text-xs text-fg-muted">See pull requests and sync review comments. Tokens stay in your keychain.</p>
+          </div>
+        </div>
+        {deviceView || methods}
+        {errorView}
+      </div>
+    </div>
+  );
+}
+
+function MethodIcon(props: { children: ReactNode }) {
+  return (
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-panel text-fg-muted">
+      {props.children}
+    </span>
+  );
+}
+
+function AuthMethod(props: { icon: ReactNode; title: string; description: ReactNode; children: ReactNode }) {
+  const { icon, title, description, children } = props;
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <MethodIcon>{icon}</MethodIcon>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium text-fg">{title}</div>
+        <div className="mt-0.5 text-xs text-fg-muted">{description}</div>
+      </div>
+      <div className="shrink-0">{children}</div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import * as api from '@/lib/api';
@@ -6,7 +6,20 @@ import { queryKeys } from '@/lib/query';
 import { cn } from '@/lib/cn';
 import type { AgentInfo } from '@/lib/types';
 import { agentHint, agentPathSetting, isAgentUsable } from '@/features/agent/agents';
-import { GithubIcon } from '@/components/ui/icon';
+import {
+  AlertIcon,
+  CheckIcon,
+  CodeIcon,
+  GithubIcon,
+  MonitorIcon,
+  MoonIcon,
+  PaletteIcon,
+  RefreshIcon,
+  SparklesIcon,
+  SunIcon,
+  type IconComponent,
+  type IconProps,
+} from '@/components/ui/icon';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
@@ -22,13 +35,13 @@ export interface SettingsDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type Section = 'agents' | 'github' | 'editor' | 'appearance';
+type Section = 'general' | 'agents' | 'github' | 'editor';
 
-const SECTIONS: { id: Section; label: string }[] = [
-  { id: 'agents', label: 'Claude Code' },
-  { id: 'github', label: 'GitHub' },
-  { id: 'editor', label: 'Editor' },
-  { id: 'appearance', label: 'Appearance' },
+const SECTIONS: { id: Section; label: string; icon: ComponentType<IconProps> }[] = [
+  { id: 'general', label: 'Appearance', icon: PaletteIcon },
+  { id: 'agents', label: 'Claude Code', icon: SparklesIcon },
+  { id: 'github', label: 'GitHub', icon: GithubIcon },
+  { id: 'editor', label: 'Editor', icon: CodeIcon },
 ];
 
 const EDITORS = [
@@ -57,51 +70,57 @@ function useSaveSetting() {
 
 export function SettingsDialog(props: SettingsDialogProps) {
   const { open, onOpenChange } = props;
-  const [section, setSection] = useState<Section>('agents');
+  const [section, setSection] = useState<Section>('general');
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="Settings" padded={false} className="h-[540px] w-[760px]">
+    <Dialog open={open} onOpenChange={onOpenChange} title="Settings" padded={false} className="h-[560px] w-[780px]">
       <div className="flex h-full min-h-0">
-        <nav className="w-[180px] shrink-0 border-r border-border bg-panel p-2">
-          <Tabs variant="list" value={section} onChange={setSection} items={SECTIONS.map((item) => ({ value: item.id, label: item.label }))} />
+        <nav className="w-[190px] shrink-0 border-r border-border bg-panel p-2">
+          <Tabs
+            variant="list"
+            value={section}
+            onChange={setSection}
+            items={SECTIONS.map((item) => ({ value: item.id, label: item.label, icon: <item.icon size={14} /> }))}
+          />
         </nav>
-        <div className="min-w-0 flex-1 overflow-auto px-6 py-5">
+        <div className="min-w-0 flex-1 overflow-auto bg-canvas px-6 py-5">
+          {section === 'general' && <AppearanceSection />}
           {section === 'agents' && <AgentsSection />}
           {section === 'github' && <GithubSection />}
           {section === 'editor' && <EditorSection />}
-          {section === 'appearance' && <AppearanceSection />}
         </div>
       </div>
     </Dialog>
   );
 }
 
-function SectionTitle(props: { title: string; description?: string }) {
+function SectionTitle(props: { title: string; description?: string; action?: ReactNode }) {
   return (
-    <div className="mb-5 border-b border-border pb-3">
-      <h3 className="text-base font-semibold text-fg">{props.title}</h3>
-      {props.description && <p className="mt-0.5 text-xs text-fg-muted">{props.description}</p>}
+    <div className="mb-4 flex items-start gap-3">
+      <div className="min-w-0 flex-1">
+        <h3 className="text-base font-semibold text-fg">{props.title}</h3>
+        {props.description && <p className="mt-0.5 text-xs text-fg-muted">{props.description}</p>}
+      </div>
+      {props.action}
     </div>
   );
 }
 
-function Field(props: { label: string; hint?: ReactNode; children: ReactNode }) {
-  return (
-    <div className="mb-4">
-      <div className="mb-1.5 text-sm font-medium text-fg">{props.label}</div>
-      {props.children}
-      {props.hint && <div className="mt-1 text-2xs text-fg-subtle">{props.hint}</div>}
-    </div>
-  );
+function SettingGroup(props: { children: ReactNode }) {
+  return <div className="divide-y divide-border-subtle rounded-lg border border-border bg-raised">{props.children}</div>;
 }
 
-function OptionCards<T extends string>(props: {
-  value: T;
-  options: { value: T; label: string }[];
-  onChange: (value: T) => void;
-}) {
-  const { value, options, onChange } = props;
-  return <SegmentedToggle value={value} options={options} onChange={onChange} />;
+function SettingRow(props: { label: string; description?: ReactNode; children?: ReactNode; stacked?: boolean }) {
+  const { label, description, children, stacked } = props;
+  return (
+    <div className={cn('px-4 py-3', stacked ? 'space-y-2.5' : 'flex items-center gap-4')}>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-medium text-fg">{label}</div>
+        {description && <div className="mt-0.5 text-xs text-fg-muted">{description}</div>}
+      </div>
+      {children && <div className={cn(!stacked && 'shrink-0')}>{children}</div>}
+    </div>
+  );
 }
 
 function AgentsSection() {
@@ -121,26 +140,48 @@ function AgentsSection() {
 
   return (
     <div>
-      <SectionTitle title="Claude Code" description="Diffity drives your local Claude Code install over ACP." />
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-xs font-medium">Detected install</div>
-        <Button size="sm" variant="ghost" loading={agentsQuery.isFetching} onClick={() => void redetect()}>
-          Re-detect
-        </Button>
-      </div>
+      <SectionTitle
+        title="Claude Code"
+        description="Diffity drives your local Claude Code install over ACP."
+        action={
+          <Button size="sm" loading={agentsQuery.isFetching} onClick={() => void redetect()}>
+            {!agentsQuery.isFetching && <RefreshIcon size={12} />}
+            Re-detect
+          </Button>
+        }
+      />
       {agentsQuery.isPending && (
         <div className="flex items-center gap-2 text-xs text-fg-subtle">
           <Spinner size={14} /> Detecting…
         </div>
       )}
       {agentsQuery.isError && <p className="text-xs text-danger">{api.errorMessage(agentsQuery.error)}</p>}
-      <div className="space-y-2">
+      <div className="space-y-4">
         {agents.map((agent) => (
           <AgentRow key={agent.id} agent={agent} />
         ))}
       </div>
     </div>
   );
+}
+
+function AgentStatus(props: { agent: AgentInfo }) {
+  const { agent } = props;
+  if (!agent.installed) {
+    return <Badge tone="warning">Not installed</Badge>;
+  }
+  if (agent.authenticated === true) {
+    return (
+      <Badge tone="success">
+        <CheckIcon size={12} />
+        Logged in
+      </Badge>
+    );
+  }
+  if (agent.authenticated === false) {
+    return <Badge tone="warning">Logged out</Badge>;
+  }
+  return <Badge>Auth unknown</Badge>;
 }
 
 function AgentRow(props: { agent: AgentInfo }) {
@@ -171,43 +212,59 @@ function AgentRow(props: { agent: AgentInfo }) {
   };
 
   return (
-    <div className="rounded-lg border border-border bg-raised p-3">
-      <div className="flex items-center gap-2">
-        <span
-          className={cn('h-2 w-2 rounded-full', isAgentUsable(agent) ? 'bg-success' : 'bg-warning')}
-          aria-hidden
-        />
-        <span className="text-sm font-medium">{agent.name}</span>
-        {!agent.installed && <Badge>Not installed</Badge>}
-        {agent.installed && agent.authenticated === true && <Badge tone="success">Logged in</Badge>}
-        {agent.installed && agent.authenticated === false && <Badge tone="warning">Logged out</Badge>}
-        {agent.installed && agent.authenticated === null && <Badge>Auth unknown</Badge>}
+    <SettingGroup>
+      <div className="flex items-center gap-3 px-4 py-3">
+        <span className="relative flex size-8 shrink-0 items-center justify-center rounded-md border border-accent/25 bg-accent-soft text-accent">
+          <SparklesIcon size={16} />
+          <span
+            aria-hidden
+            className={cn(
+              'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full border-2 border-raised',
+              isAgentUsable(agent) ? 'bg-success' : 'bg-warning',
+            )}
+          />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-fg">{agent.name}</span>
+            <AgentStatus agent={agent} />
+          </div>
+          <div className="selectable mt-0.5 truncate font-mono text-2xs text-fg-subtle" title={agent.binaryPath ?? undefined}>
+            {agent.binaryPath ?? 'No binary found'}
+          </div>
+        </div>
       </div>
-      {agent.binaryPath && (
-        <div className="selectable mt-1 truncate font-mono text-2xs text-fg-subtle" title={agent.binaryPath}>
-          {agent.binaryPath}
+      {hint && (
+        <div className="flex items-start gap-2 bg-warning/10 px-4 py-2 text-xs text-warning">
+          <AlertIcon size={14} className="mt-px shrink-0" />
+          <span>{hint}</span>
         </div>
       )}
-      {hint && <div className="mt-1 text-2xs text-fg-muted">{hint}</div>}
-      <form
-        className="mt-2 flex gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void commit();
-        }}
+      <SettingRow
+        stacked
+        label="Custom binary path"
+        description="Point to the claude CLI or claude-agent-acp. Leave empty to auto-detect."
       >
-        <Input
-          mono
-          wrapperClassName="flex-1"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="Custom binary path (leave empty to auto-detect)"
-        />
-        <Button type="submit" size="md" disabled={!dirty}>
-          Save
-        </Button>
-      </form>
-    </div>
+        <form
+          className="flex gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void commit();
+          }}
+        >
+          <Input
+            mono
+            wrapperClassName="flex-1"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Auto-detect"
+          />
+          <Button type="submit" size="md" variant={dirty ? 'primary' : 'secondary'} disabled={!dirty}>
+            Save
+          </Button>
+        </form>
+      </SettingRow>
+    </SettingGroup>
   );
 }
 
@@ -240,21 +297,31 @@ function GithubSection() {
         </div>
       )}
       {status?.authenticated && !reauth && (
-        <div className="flex items-center gap-3 rounded-lg border border-border bg-raised p-3">
-          <GithubIcon size={24} />
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium">{status.login ?? 'Authenticated'}</div>
-            <div className="text-2xs text-fg-subtle">
-              {status.source === 'gh' ? 'Token from GitHub CLI' : 'Token stored in keychain'}
+        <SettingGroup>
+          <div className="flex items-center gap-3 px-4 py-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md border border-border bg-panel text-fg">
+              <GithubIcon size={16} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-fg">{status.login ?? 'Authenticated'}</span>
+                <Badge tone="success">
+                  <CheckIcon size={12} />
+                  Connected
+                </Badge>
+              </div>
+              <div className="mt-0.5 text-2xs text-fg-subtle">
+                {status.source === 'gh' ? 'Token imported from the GitHub CLI' : 'Token stored in the macOS keychain'}
+              </div>
             </div>
+            <Button size="sm" onClick={() => setReauth(true)}>
+              Re-authenticate
+            </Button>
+            <Button size="sm" variant="ghost" className="hover:text-danger" loading={loggingOut} onClick={logout}>
+              Sign out
+            </Button>
           </div>
-          <Button size="md" onClick={() => setReauth(true)}>
-            Re-authenticate
-          </Button>
-          <Button size="md" variant="ghost" loading={loggingOut} onClick={logout}>
-            Sign out
-          </Button>
-        </div>
+        </SettingGroup>
       )}
       {status && (!status.authenticated || reauth) && (
         <div>
@@ -280,15 +347,62 @@ function EditorSection() {
   return (
     <div>
       <SectionTitle title="Editor" description="Used by “Open in editor” and file links." />
-      <Field label="Open files with" hint="Falls back to the system default app when the editor CLI is not on PATH.">
-        <OptionCards
-          value={editorQuery.data ?? 'code'}
-          options={EDITORS}
-          onChange={(value) => void save('editor', value)}
-        />
-      </Field>
+      <SettingGroup>
+        <SettingRow
+          label="Open files with"
+          description="Falls back to the system default app when the editor CLI is not on PATH."
+        >
+          <SegmentedToggle
+            value={editorQuery.data ?? 'code'}
+            options={EDITORS}
+            onChange={(value) => void save('editor', value)}
+          />
+        </SettingRow>
+      </SettingGroup>
     </div>
   );
+}
+
+const THEMES: { value: ThemePreference; label: string; icon: IconComponent }[] = [
+  { value: 'system', label: 'System', icon: MonitorIcon },
+  { value: 'light', label: 'Light', icon: SunIcon },
+  { value: 'dark', label: 'Dark', icon: MoonIcon },
+];
+
+function MiniWindow(props: { theme: 'light' | 'dark'; className?: string }) {
+  return (
+    <div data-theme-preview={props.theme} className={cn('flex h-full flex-col bg-canvas', props.className)}>
+      <div className="flex h-3 items-center gap-0.5 border-b border-border bg-panel px-1">
+        <span className="size-1 rounded-full bg-border-strong" />
+        <span className="size-1 rounded-full bg-border-strong" />
+        <span className="size-1 rounded-full bg-border-strong" />
+      </div>
+      <div className="flex min-h-0 flex-1">
+        <div className="w-5 border-r border-border bg-panel" />
+        <div className="flex-1 space-y-1 p-1.5">
+          <div className="h-1 w-3/4 rounded-full bg-muted" />
+          <div className="h-1 w-1/2 rounded-full bg-added/40" />
+          <div className="h-1 w-2/3 rounded-full bg-removed/40" />
+          <div className="h-1.5 w-6 rounded-sm bg-accent-solid" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ThemeSwatch(props: { value: ThemePreference }) {
+  const { value } = props;
+  if (value === 'system') {
+    return (
+      <div className="relative h-full">
+        <MiniWindow theme="light" className="absolute inset-0" />
+        <div className="absolute inset-0 [clip-path:polygon(100%_0,100%_100%,0_100%)]">
+          <MiniWindow theme="dark" />
+        </div>
+      </div>
+    );
+  }
+  return <MiniWindow theme={value} />;
 }
 
 function AppearanceSection() {
@@ -304,18 +418,44 @@ function AppearanceSection() {
 
   return (
     <div>
-      <SectionTitle title="Appearance" />
-      <Field label="Theme">
-        <OptionCards
-          value={theme}
-          options={[
-            { value: 'system', label: 'System' },
-            { value: 'light', label: 'Light' },
-            { value: 'dark', label: 'Dark' },
-          ]}
-          onChange={(value) => void change(value)}
-        />
-      </Field>
+      <SectionTitle title="Appearance" description="Choose how Diffity looks. System follows your macOS setting." />
+      <SettingGroup>
+        <SettingRow stacked label="Theme">
+          <div role="radiogroup" className="grid grid-cols-3 gap-3">
+            {THEMES.map((option) => {
+              const active = theme === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => void change(option.value)}
+                  className="group cursor-default text-left"
+                >
+                  <div
+                    className={cn(
+                      'h-[72px] overflow-hidden rounded-md border-2 transition-colors',
+                      active ? 'border-accent' : 'border-border group-hover:border-border-strong',
+                    )}
+                  >
+                    <ThemeSwatch value={option.value} />
+                  </div>
+                  <div
+                    className={cn(
+                      'mt-1.5 flex items-center gap-1.5 text-xs font-medium',
+                      active ? 'text-accent' : 'text-fg-muted group-hover:text-fg',
+                    )}
+                  >
+                    <option.icon size={12} />
+                    {option.label}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </SettingRow>
+      </SettingGroup>
     </div>
   );
 }

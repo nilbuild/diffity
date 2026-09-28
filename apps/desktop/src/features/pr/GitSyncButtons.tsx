@@ -115,41 +115,55 @@ export function GitSyncButtons() {
   const behind = status?.behind ?? 0;
   const ahead = status?.ahead ?? 0;
 
+  const branchTitle = status?.upstream
+    ? `${branch} → ${status.upstream}`
+    : branch
+      ? `${branch} (no upstream)`
+      : 'Detached HEAD';
+
   return (
-    <div className="flex items-center gap-0.5 text-xs">
-      <span
-        className="mr-1 flex max-w-[180px] items-center gap-1 truncate text-fg-muted"
-        title={status?.upstream ? `${branch} → ${status.upstream}` : (branch ?? 'Detached HEAD')}
-      >
-        <GitBranchIcon size={14} className="shrink-0" />
-        <span className="truncate">{branch ?? 'detached'}</span>
-      </span>
-      <SyncButton label={null} title="Fetch from remote" running={running === 'fetch'} disabled={running !== null} onClick={() => run('fetch')}>
-        <RefreshIcon size={14} />
-      </SyncButton>
+    <div className="flex h-7 items-stretch overflow-hidden rounded-md border border-border bg-raised text-xs">
+      <BranchLabel branch={branch} title={branchTitle} />
       <SyncButton
         label={behind > 0 ? String(behind) : null}
-        title={behind > 0 ? `Pull ${behind} commit${behind === 1 ? '' : 's'} (fast-forward)` : 'Pull'}
+        title={!hasUpstream ? 'Pull (no upstream)' : behind > 0 ? `Pull ${behind} commit${behind === 1 ? '' : 's'} (fast-forward)` : 'Pull · up to date'}
         running={running === 'pull'}
         disabled={running !== null || !hasUpstream}
         highlight={behind > 0}
         onClick={() => run('pull')}
       >
-        <ArrowDownIcon size={14} />
+        <ArrowDownIcon size={12} />
       </SyncButton>
       <SyncButton
         label={ahead > 0 ? String(ahead) : null}
         title={
-          !hasUpstream ? 'Push and set upstream' : ahead > 0 ? `Push ${ahead} commit${ahead === 1 ? '' : 's'}` : 'Push'
+          !hasUpstream ? 'Push and set upstream' : ahead > 0 ? `Push ${ahead} commit${ahead === 1 ? '' : 's'}` : 'Push · nothing to push'
         }
         running={running === 'push'}
         disabled={running !== null || branch === null}
         highlight={ahead > 0 || (!hasUpstream && branch !== null)}
         onClick={() => run('push')}
       >
-        <ArrowUpIcon size={14} />
+        <ArrowUpIcon size={12} />
+      </SyncButton>
+      <SyncButton label={null} title="Fetch from remote" running={running === 'fetch'} disabled={running !== null} onClick={() => run('fetch')}>
+        <RefreshIcon size={12} />
       </SyncButton>
     </div>
+  );
+}
+
+function BranchLabel(props: { branch: string | null; title: string }) {
+  const { branch, title } = props;
+  const { anchorProps, tooltip } = useTooltip(title);
+  return (
+    <>
+      <span className="flex max-w-[180px] min-w-0 items-center gap-1.5 px-2 text-fg-muted" {...anchorProps}>
+        <GitBranchIcon size={12} className="shrink-0 text-fg-subtle" />
+        <span className="truncate font-medium text-fg">{branch ?? 'detached'}</span>
+      </span>
+      {tooltip}
+    </>
   );
 }
 
@@ -166,20 +180,24 @@ function SyncButton(props: {
   const { anchorProps, tooltip } = useTooltip(title);
   return (
     <>
-      <button
-        type="button"
-        aria-label={title}
-        disabled={disabled}
-        onClick={onClick}
-        {...anchorProps}
-        className={cn(
-          'flex h-7 min-w-7 cursor-default items-center justify-center gap-1 rounded-md px-1.5 text-xs font-medium text-fg-muted hover:bg-hover hover:text-fg disabled:opacity-50 disabled:hover:bg-transparent',
-          highlight && 'text-accent hover:text-accent',
-        )}
-      >
-        {running ? <Spinner size={14} /> : children}
-        {label && <span className="tabular-nums">{label}</span>}
-      </button>
+      <span className="flex border-l border-border" {...anchorProps}>
+        <button
+          type="button"
+          aria-label={title}
+          aria-busy={running}
+          disabled={disabled}
+          onClick={onClick}
+          className={cn(
+            'flex min-w-7 cursor-default items-center justify-center gap-1 px-1.5 text-xs font-medium text-fg-muted tabular-nums transition-colors hover:bg-hover hover:text-fg disabled:text-fg-subtle disabled:hover:bg-transparent',
+            highlight && 'text-accent hover:text-accent',
+            running && 'text-accent disabled:text-accent',
+            disabled && !running && 'opacity-60',
+          )}
+        >
+          {running ? <Spinner size={12} /> : children}
+          {label && <span>{label}</span>}
+        </button>
+      </span>
       {tooltip}
     </>
   );

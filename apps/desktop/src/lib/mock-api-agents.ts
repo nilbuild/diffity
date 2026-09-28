@@ -456,6 +456,8 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
       );
       return { pulled: 1, updated: 0, skipped: 0 };
     },
+    github_pushable_threads: () =>
+      [...deps.threads.values()].filter((t) => !t.pending && t.status === 'open' && !t.githubThreadId),
     github_reply: (args) => {
       const thread = deps.threads.get(String(args.threadId));
       if (!thread) {

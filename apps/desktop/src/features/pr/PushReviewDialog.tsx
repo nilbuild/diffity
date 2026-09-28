@@ -5,7 +5,8 @@ import * as api from '@/lib/api';
 import { queryKeys } from '@/lib/query';
 import { cn } from '@/lib/cn';
 import { GENERAL_FILE_PATH, type AppError, type PullRequest, type PushResult, type ReviewEvent, type Thread } from '@/lib/types';
-import { AlertIcon, CheckIcon, SparklesIcon } from '@/components/ui/icon';
+import { AlertIcon, CheckCircleIcon, CheckIcon, CommentIcon, SparklesIcon, type IconComponent } from '@/components/ui/icon';
+import { CheckMark } from '@/components/ui/Checkbox';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Input';
@@ -21,11 +22,42 @@ export interface PushReviewDialogProps {
   localHeadSha: string | null;
 }
 
-const EVENTS: { value: ReviewEvent; label: string; hint: string }[] = [
-  { value: 'COMMENT', label: 'Comment', hint: 'Submit general feedback without explicit approval.' },
-  { value: 'APPROVE', label: 'Approve', hint: 'Submit feedback and approve merging these changes.' },
-  { value: 'REQUEST_CHANGES', label: 'Request changes', hint: 'Submit feedback that must be addressed before merging.' },
+const EVENTS: { value: ReviewEvent; label: string; hint: string; short: string; icon: IconComponent; tone: string }[] = [
+  {
+    value: 'COMMENT',
+    label: 'Comment',
+    hint: 'Submit general feedback without explicit approval.',
+    short: 'General feedback',
+    icon: CommentIcon,
+    tone: 'text-fg-muted',
+  },
+  {
+    value: 'APPROVE',
+    label: 'Approve',
+    hint: 'Submit feedback and approve merging these changes.',
+    short: 'Ready to merge',
+    icon: CheckCircleIcon,
+    tone: 'text-success',
+  },
+  {
+    value: 'REQUEST_CHANGES',
+    label: 'Request changes',
+    hint: 'Submit feedback that must be addressed before merging.',
+    short: 'Must be addressed',
+    icon: AlertIcon,
+    tone: 'text-danger',
+  },
 ];
+
+function severityTone(severity: string) {
+  if (severity === 'must-fix') {
+    return 'danger' as const;
+  }
+  if (severity === 'question') {
+    return 'warning' as const;
+  }
+  return 'neutral' as const;
+}
 
 export function isPushable(thread: Thread) {
   return thread.status === 'open' && !thread.githubThreadId;
@@ -187,7 +219,7 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
             Cancel
           </Button>
           <Button variant="primary" loading={submitting} disabled={!canSubmit} onClick={submit}>
-            Submit review
+            {selected.size > 0 ? `Submit review · ${selected.size}` : 'Submit review'}
           </Button>
         </>
       }
@@ -205,23 +237,24 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
 
         <section>
           <div className="mb-1.5 flex items-center justify-between">
-            <h3 className="text-xs font-semibold">
+            <h3 className="text-xs font-semibold text-fg">
               Comments <span className="font-normal text-fg-subtle">({selected.size}/{pushable.length})</span>
             </h3>
             {pushable.length > 0 && (
-              <button
-                type="button"
-                className="text-2xs text-accent hover:underline"
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-5 px-1.5 text-2xs text-accent hover:text-accent"
                 onClick={() => setSelected(allSelected ? new Set() : new Set(pushable.map((thread) => thread.id)))}
               >
                 {allSelected ? 'Select none' : 'Select all'}
-              </button>
+              </Button>
             )}
           </div>
           <p className="mb-1.5 text-2xs text-fg-subtle">
             Open comments from every view of this repo (uncommitted changes, branches, PR diff, files) on files in this PR.
           </p>
-          <div className="max-h-[260px] overflow-auto rounded-md border border-border">
+          <div className="max-h-[260px] overflow-auto rounded-md border border-border bg-canvas">
             {threadsQuery.isPending && (
               <div className="flex items-center gap-2 px-3 py-3 text-xs text-fg-subtle">
                 <Spinner size={14} /> Loading comments…
@@ -238,19 +271,19 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
             {pushable.map((thread) => {
               const first = thread.comments[0];
               const isAgent = first?.authorType === 'agent';
+              const checked = selected.has(thread.id);
               return (
-                <label
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
                   key={thread.id}
-                  className="flex cursor-default items-start gap-2.5 border-b border-border-subtle px-3 py-2 last:border-b-0 hover:bg-hover"
+                  onClick={() => toggle(thread.id)}
+                  className="flex w-full cursor-default items-start gap-2.5 border-b border-border-subtle px-3 py-2 text-left last:border-b-0 hover:bg-hover"
                 >
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 accent-[var(--accent)]"
-                    checked={selected.has(thread.id)}
-                    onChange={() => toggle(thread.id)}
-                  />
+                  <CheckMark checked={checked} className="mt-0.5" />
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex min-w-0 items-center gap-1.5">
                       <span className="truncate font-mono text-2xs text-fg-muted">{threadLocation(thread)}</span>
                       {isAgent && (
                         <Badge tone="accent" title={first?.authorName}>
@@ -258,19 +291,19 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
                           {first?.authorName || 'AI'}
                         </Badge>
                       )}
-                      {thread.severity && <Badge>{thread.severity}</Badge>}
+                      {thread.severity && <Badge tone={severityTone(thread.severity)}>{thread.severity}</Badge>}
                       {thread.sessionId !== sessionId && <Badge title="Left in another view of this repo">other view</Badge>}
                     </div>
-                    <p className="mt-0.5 line-clamp-2 text-xs">{first?.body ?? ''}</p>
+                    <p className="mt-0.5 line-clamp-2 text-xs text-fg">{first?.body ?? ''}</p>
                   </div>
-                </label>
+                </button>
               );
             })}
           </div>
         </section>
 
         <section>
-          <h3 className="mb-1.5 text-xs font-semibold">Summary</h3>
+          <h3 className="mb-1.5 text-xs font-semibold text-fg">Summary</h3>
           <Textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
@@ -280,28 +313,33 @@ export function PushReviewDialog(props: PushReviewDialogProps) {
           />
         </section>
 
-        <section className="space-y-1">
-          {EVENTS.map((option) => (
-            <label
-              key={option.value}
-              className={cn(
-                'flex cursor-default items-start gap-2.5 rounded-md border px-2 py-1.5',
-                event === option.value ? 'border-accent/40 bg-accent-soft' : 'border-transparent hover:bg-hover',
-              )}
-            >
-              <input
-                type="radio"
-                name="review-event"
-                className="mt-0.5 accent-[var(--accent)]"
-                checked={event === option.value}
-                onChange={() => setEvent(option.value)}
-              />
-              <span>
-                <span className="block text-xs font-medium">{option.label}</span>
-                <span className="block text-2xs text-fg-subtle">{option.hint}</span>
-              </span>
-            </label>
-          ))}
+        <section>
+          <h3 className="mb-1.5 text-xs font-semibold text-fg">Verdict</h3>
+          <div role="radiogroup" className="grid grid-cols-3 gap-2">
+            {EVENTS.map((option) => {
+              const active = event === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  title={option.hint}
+                  onClick={() => setEvent(option.value)}
+                  className={cn(
+                    'flex cursor-default flex-col items-start gap-0.5 rounded-md border px-2.5 py-2 text-left transition-colors',
+                    active ? 'border-accent bg-accent-soft' : 'border-border bg-canvas hover:border-border-strong',
+                  )}
+                >
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-fg">
+                    <option.icon size={14} className={option.tone} />
+                    {option.label}
+                  </span>
+                  <span className="text-2xs leading-snug text-fg-subtle">{option.short}</span>
+                </button>
+              );
+            })}
+          </div>
         </section>
 
         {error && (
