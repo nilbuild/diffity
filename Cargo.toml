@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/core",
+  "crates/agents",
+  "crates/mcp",
+  "crates/github",
+  "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+tokio = { version = "1.53.1", features = ["full"] }
+thiserror = "2.0.21"
+anyhow = "1.0.104"
+uuid = { version = "1.26.1", features = ["v4", "serde"] }
+chrono = { version = "0.4.45", features = ["serde"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+diffity-core = { path = "crates/core" }
+diffity-agents = { path = "crates/agents" }
+diffity-github = { path = "crates/github" }

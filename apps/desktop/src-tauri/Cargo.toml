@@ -1,0 +1,28 @@
+[package]
+name = "diffity-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "diffity_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.0", features = [] }
+
+[dependencies]
+diffity-core.workspace = true
+diffity-agents.workspace = true
+diffity-github.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tauri = { version = "2.12.0", features = [] }
+tauri-plugin-dialog = "2.8.0"
+tauri-plugin-opener = "2.6.0"
+tauri-plugin-window-state = "2.5.0"
+tauri-plugin-single-instance = "2.5.0"

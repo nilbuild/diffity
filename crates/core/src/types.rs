@@ -1,0 +1,226 @@
+use serde::{Deserialize, Serialize};
+
+pub const GENERAL_FILE_PATH: &str = "__general__";
+pub const TREE_REF: &str = "__tree__";
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum Side {
+    Old,
+    New,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ThreadStatus {
+    Open,
+    Resolved,
+    Dismissed,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum Severity {
+    MustFix,
+    Suggestion,
+    Nit,
+    Question,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AuthorType {
+    User,
+    Agent,
+    Github,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoInfo {
+    pub path: String,
+    pub name: String,
+    pub is_git: bool,
+    pub branch: Option<String>,
+    pub head_sha: Option<String>,
+    pub remote_url: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentRepo {
+    pub path: String,
+    pub name: String,
+    pub last_opened_at: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedRef {
+    #[serde(rename = "ref")]
+    pub r#ref: String,
+    pub label: String,
+    pub can_revert: bool,
+    pub base_sha: Option<String>,
+    pub head_sha: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum FileStatus {
+    Added,
+    Deleted,
+    Modified,
+    Renamed,
+    Copied,
+    Untracked,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffFileSummary {
+    pub path: String,
+    pub old_path: Option<String>,
+    pub status: FileStatus,
+    pub additions: u32,
+    pub deletions: u32,
+    pub binary: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffResult {
+    pub resolved: ResolvedRef,
+    pub files: Vec<DiffFileSummary>,
+    pub patch: String,
+    pub fingerprint: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FileVersions {
+    pub old_contents: Option<String>,
+    pub new_contents: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Commit {
+    pub sha: String,
+    pub short_sha: String,
+    pub subject: String,
+    pub author: String,
+    pub date: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Branch {
+    pub name: String,
+    pub is_remote: bool,
+    pub is_current: bool,
+    pub upstream: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStatus {
+    pub branch: Option<String>,
+    pub upstream: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
+    pub staged: u32,
+    pub unstaged: u32,
+    pub untracked: u32,
+    pub dirty: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum TreeEntryKind {
+    File,
+    Dir,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TreeEntry {
+    pub path: String,
+    pub kind: TreeEntryKind,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct FileContent {
+    pub path: String,
+    pub contents: Option<String>,
+    pub binary: bool,
+    pub size: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewSession {
+    pub id: String,
+    pub repo_path: String,
+    #[serde(rename = "ref")]
+    pub r#ref: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Comment {
+    pub id: String,
+    pub thread_id: String,
+    pub author_type: AuthorType,
+    pub author_name: String,
+    pub body: String,
+    pub created_at: String,
+    pub github_comment_id: Option<i64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Thread {
+    pub id: String,
+    pub session_id: String,
+    pub file_path: String,
+    pub side: Side,
+    pub start_line: u32,
+    pub end_line: u32,
+    pub status: ThreadStatus,
+    pub severity: Option<Severity>,
+    pub anchor_content: Option<String>,
+    pub github_thread_id: Option<String>,
+    pub comments: Vec<Comment>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct NewThread {
+    pub session_id: String,
+    pub file_path: String,
+    pub side: Side,
+    pub start_line: u32,
+    pub end_line: u32,
+    pub body: String,
+    #[serde(default)]
+    pub severity: Option<Severity>,
+    #[serde(default)]
+    pub anchor_content: Option<String>,
+    #[serde(default)]
+    pub author_type: Option<AuthorType>,
+    #[serde(default)]
+    pub author_name: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ViewedFile {
+    pub file_path: String,
+    pub content_hash: String,
+}

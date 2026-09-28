@@ -1,0 +1,119 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root {
+  color-scheme: light;
+  --bg: #fbfcfd;
+  --bg-subtle: #f4f6f8;
+  --bg-muted: #eceff3;
+  --bg-elevated: #ffffff;
+  --border: #dde2e8;
+  --border-strong: #c6cdd6;
+  --fg: #16191d;
+  --fg-muted: #5a6370;
+  --fg-subtle: #8a93a0;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-fg: #ffffff;
+  --accent-subtle: #e7efff;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --diff-add: #e6f6ea;
+  --diff-del: #fdebec;
+  --ring: #2563eb66;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #111317;
+    --bg-subtle: #16191e;
+    --bg-muted: #1d2127;
+    --bg-elevated: #1a1d22;
+    --border: #2a2f37;
+    --border-strong: #3a414b;
+    --fg: #e6e9ee;
+    --fg-muted: #9aa3b0;
+    --fg-subtle: #6b7482;
+    --accent: #3b82f6;
+    --accent-hover: #60a5fa;
+    --accent-fg: #ffffff;
+    --accent-subtle: #172642;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --danger: #f87171;
+    --diff-add: #13261b;
+    --diff-del: #2d1719;
+    --ring: #3b82f680;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #111317;
+  --bg-subtle: #16191e;
+  --bg-muted: #1d2127;
+  --bg-elevated: #1a1d22;
+  --border: #2a2f37;
+  --border-strong: #3a414b;
+  --fg: #e6e9ee;
+  --fg-muted: #9aa3b0;
+  --fg-subtle: #6b7482;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --accent-fg: #ffffff;
+  --accent-subtle: #172642;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #f87171;
+  --diff-add: #13261b;
+  --diff-del: #2d1719;
+  --ring: #3b82f680;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-bg-muted: var(--bg-muted);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-diff-add: var(--diff-add);
+  --color-diff-del: var(--diff-del);
+  --color-ring: var(--ring);
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+.selectable {
+  user-select: text;
+}

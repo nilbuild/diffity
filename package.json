@@ -1,0 +1,10 @@
+{
+  "name": "diffity-app",
+  "private": true,
+  "packageManager": "pnpm@11.18.0",
+  "scripts": {
+    "dev": "pnpm -C apps/desktop tauri dev",
+    "build": "pnpm -C apps/desktop tauri build",
+    "typecheck": "pnpm -C apps/desktop typecheck"
+  }
+}
