@@ -36,7 +36,11 @@ pub struct ContextChip {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum AgentAction {
     Chat,
     Review {
@@ -105,7 +109,11 @@ pub struct PermissionDiff {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(tag = "type", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum AgentEvent {
     Text {
         message_id: String,

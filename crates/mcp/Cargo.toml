@@ -13,3 +13,9 @@ serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
+rmcp = { version = "3.5.0", default-features = false, features = ["server", "transport-io"] }
+
+[dev-dependencies]
+diffity-agents.workspace = true
+diffity-core.workspace = true
+tempfile = "3.27.0"

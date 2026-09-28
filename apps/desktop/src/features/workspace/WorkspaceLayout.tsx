@@ -1,14 +1,26 @@
-import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
-import { cn } from '@/lib/cn';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useHotkeys } from 'react-hotkeys-hook';
+import { DiffSurfaceProvider } from '@/components/diff-surface';
+import { ResizeHandle } from '@/components/ui/ResizeHandle';
+import { queryClient, queryKeys } from '@/lib/query';
+import type { DiffResult } from '@/lib/types';
+import { repoRoute } from '@/lib/window';
 import { AgentPanel } from '@/features/agent/AgentPanel';
-import { GitSyncButtons } from '@/features/pr/GitSyncButtons';
+import { ChangesPage } from '@/features/changes/ChangesPage';
+import { useThreadsChangedListener } from '@/features/comments/use-threads';
+import { FilesPage } from '@/features/files/FilesPage';
 import { PrTab } from '@/features/pr/PrTab';
 import { SettingsDialog } from '@/features/settings/SettingsDialog';
-import { useAgentBus } from './agent-bus';
+import { pickFolder } from '@/features/welcome/open-repo';
+import { agentBus, setRevealLocationHandler, useAgentBus } from './agent-bus';
+import { useRepoWatcher } from './repo-events';
+import { useRevealStore } from './reveal-store';
+import { useSelection } from './selection';
+import { ShortcutsModal } from './ShortcutsModal';
+import { Toolbar } from './Toolbar';
+import { useViewStore, type WorkspaceTab } from './view-store';
 import { WorkspaceProvider, useWorkspace } from './workspace-context';
-
-type Tab = 'changes' | 'files' | 'pr';
 
 export function WorkspaceLayout() {
   const [params] = useSearchParams();
@@ -16,60 +28,129 @@ export function WorkspaceLayout() {
   if (!repoPath) {
     return (
       <div className="p-6 text-fg-muted">
-        No repository selected. <Link to="/" className="text-accent">Back</Link>
+        No repository selected.{' '}
+        <Link to="/" className="text-accent">
+          Back
+        </Link>
       </div>
     );
   }
   return (
-    <WorkspaceProvider repoPath={repoPath} initialRef={params.get('ref') ?? undefined}>
-      <WorkspaceShell />
+    <WorkspaceProvider key={repoPath} repoPath={repoPath} initialRef={params.get('ref') ?? undefined}>
+      <WorkspaceShell initialTab={params.get('pr') ? 'pr' : 'changes'} />
     </WorkspaceProvider>
   );
 }
 
-function WorkspaceShell() {
-  const { repoPath, repo, ref } = useWorkspace();
+function WorkspaceShell(props: { initialTab: WorkspaceTab }) {
+  const { initialTab } = props;
+  const { repoPath } = useWorkspace();
   const panelOpen = useAgentBus((s) => s.panelOpen);
-  const [tab, setTab] = useState<Tab>('changes');
+  const tab = useViewStore((s) => s.tab);
+  const setTab = useViewStore((s) => s.setTab);
+  const wordDiff = useViewStore((s) => s.wordDiff);
+  const agentPanelWidth = useViewStore((s) => s.agentPanelWidth);
+  const setAgentPanelWidth = useViewStore((s) => s.setAgentPanelWidth);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mounted, setMounted] = useState<Set<WorkspaceTab>>(() => new Set([initialTab]));
+
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab, setTab]);
+
+  useEffect(() => {
+    setMounted((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)));
+  }, [tab]);
+
+  useRepoWatcher(repoPath);
+  useThreadsChangedListener();
+  useRevealHandler();
+  useWorkspaceHotkeys();
 
   return (
-    <div className="flex h-full flex-col">
-      <header data-tauri-drag-region className="flex h-11 items-center gap-3 border-b border-border bg-bg-subtle pr-3 pl-20">
-        <span className="font-medium">{repo?.name ?? repoPath}</span>
-        <span className="text-fg-subtle">{ref}</span>
-        <nav className="ml-4 flex gap-1">
-          {(['changes', 'files', 'pr'] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={cn('rounded px-2 py-1 capitalize', tab === t ? 'bg-bg-muted text-fg' : 'text-fg-muted')}
-            >
-              {t === 'pr' ? 'PR' : t}
-            </button>
-          ))}
-        </nav>
-        <div className="ml-auto flex items-center gap-2">
-          <GitSyncButtons />
-          <button type="button" className="text-fg-muted" onClick={() => setSettingsOpen(true)}>
-            Settings
-          </button>
+    <DiffSurfaceProvider wordDiff={wordDiff}>
+      <div className="flex h-full flex-col">
+        <Toolbar onOpenSettings={() => setSettingsOpen(true)} />
+        <div className="flex min-h-0 flex-1">
+          <main className="relative min-w-0 flex-1">
+            {mounted.has('changes') && (
+              <div className="h-full" hidden={tab !== 'changes'}>
+                <ChangesPage />
+              </div>
+            )}
+            {mounted.has('files') && (
+              <div className="h-full" hidden={tab !== 'files'}>
+                <FilesPage />
+              </div>
+            )}
+            {tab === 'pr' && (
+              <div className="h-full overflow-auto">
+                <PrTab />
+              </div>
+            )}
+          </main>
+          {panelOpen && (
+            <>
+              <ResizeHandle value={agentPanelWidth} onChange={setAgentPanelWidth} min={300} max={760} direction="left" />
+              <aside style={{ width: agentPanelWidth }} className="flex shrink-0 flex-col border-l border-border bg-bg-subtle">
+                <AgentPanel />
+              </aside>
+            </>
+          )}
         </div>
-      </header>
-      <div className="flex min-h-0 flex-1">
-        <main className="min-w-0 flex-1 overflow-auto">
-          {tab === 'changes' && <div className="p-6 text-fg-muted">Changes (TODO)</div>}
-          {tab === 'files' && <div className="p-6 text-fg-muted">Files (TODO)</div>}
-          {tab === 'pr' && <PrTab />}
-        </main>
-        {panelOpen && (
-          <aside className="w-[380px] shrink-0 border-l border-border bg-bg-subtle">
-            <AgentPanel />
-          </aside>
-        )}
+        <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+        <ShortcutsModal />
       </div>
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
-    </div>
+    </DiffSurfaceProvider>
   );
+}
+
+function useRevealHandler() {
+  const { repoPath, ref } = useWorkspace();
+  const setTab = useViewStore((s) => s.setTab);
+
+  useEffect(
+    () =>
+      setRevealLocationHandler((path, line) => {
+        const { hideWhitespace } = useViewStore.getState();
+        const diff = queryClient.getQueryData<DiffResult>(queryKeys.diff(repoPath, ref, hideWhitespace));
+        const inDiff = diff?.files.some((f) => f.path === path) ?? false;
+        setTab(inDiff ? 'changes' : 'files');
+        useRevealStore.getState().reveal(path, line);
+      }),
+    [repoPath, ref, setTab],
+  );
+}
+
+function useWorkspaceHotkeys() {
+  const navigate = useNavigate();
+  const setDiffStyle = useViewStore((s) => s.setDiffStyle);
+  const setShortcutsOpen = useViewStore((s) => s.setShortcutsOpen);
+
+  useHotkeys(
+    'mod+l',
+    (event) => {
+      event.preventDefault();
+      const chip = useSelection.getState().selection;
+      if (chip) {
+        agentBus.askAboutSelection(chip);
+        return;
+      }
+      const { panelOpen, setPanelOpen } = useAgentBus.getState();
+      setPanelOpen(!panelOpen);
+    },
+    { enableOnFormTags: true },
+  );
+  useHotkeys('mod+o', (event) => {
+    event.preventDefault();
+    void pickFolder().then((path) => {
+      if (!path) {
+        return;
+      }
+      navigate(repoRoute(path));
+    });
+  });
+  useHotkeys('shift+slash', () => setShortcutsOpen(true), { useKey: true });
+  useHotkeys('u', () => setDiffStyle('unified'));
+  useHotkeys('s', () => setDiffStyle('split'));
 }

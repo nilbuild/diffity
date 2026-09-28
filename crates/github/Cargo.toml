@@ -13,3 +13,7 @@ thiserror.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 tracing.workspace = true
+rusqlite.workspace = true
+uuid.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+keyring = { version = "3", features = ["apple-native"] }

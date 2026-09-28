@@ -1,84 +1,86 @@
 use diffity_core::types::Thread;
 use diffity_core::AppError;
 use diffity_github::{DeviceCode, GitOpResult, GithubAuthStatus, PullRequest, PullResult, PushResult, ReviewEvent};
-use tauri::{AppHandle, State};
+use serde_json::json;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::state::AppState;
 
+fn emit_threads_changed(app: &AppHandle, session_id: &str) {
+    let _ = app.emit("threads-changed", json!({ "sessionId": session_id }));
+}
+
 #[tauri::command]
 pub async fn github_auth_status(state: State<'_, AppState>) -> Result<GithubAuthStatus, AppError> {
-    let _ = &state;
-    Err(AppError::not_implemented())
+    state.github.auth_status().await
 }
 
 #[tauri::command]
 pub async fn github_import_gh_token(state: State<'_, AppState>) -> Result<GithubAuthStatus, AppError> {
-    let _ = &state;
-    Err(AppError::not_implemented())
+    state.github.import_gh_token().await
 }
 
 #[tauri::command]
 pub async fn github_set_token(state: State<'_, AppState>, token: String) -> Result<GithubAuthStatus, AppError> {
-    let _ = (&state, token);
-    Err(AppError::not_implemented())
+    state.github.set_token(token).await
 }
 
 #[tauri::command]
 pub async fn github_device_start(state: State<'_, AppState>) -> Result<DeviceCode, AppError> {
-    let _ = &state;
-    Err(AppError::not_implemented())
+    state.github.device_start().await
 }
 
 #[tauri::command]
 pub async fn github_device_poll(state: State<'_, AppState>, device_code: String) -> Result<GithubAuthStatus, AppError> {
-    let _ = (&state, device_code);
-    Err(AppError::not_implemented())
+    state.github.device_poll(device_code).await
 }
 
 #[tauri::command]
 pub async fn github_logout(state: State<'_, AppState>) -> Result<(), AppError> {
-    let _ = &state;
-    Err(AppError::not_implemented())
+    state.github.logout().await
 }
 
 #[tauri::command]
-pub async fn git_fetch(state: State<'_, AppState>, repo_path: String) -> Result<GitOpResult, AppError> {
-    let _ = (&state, repo_path);
-    Err(AppError::not_implemented())
+pub async fn git_fetch(app: AppHandle, state: State<'_, AppState>, repo_path: String) -> Result<GitOpResult, AppError> {
+    let result = state.github.git_fetch(&repo_path).await?;
+    let _ = app.emit("repo-changed", json!({ "repoPath": repo_path }));
+    Ok(result)
 }
 
 #[tauri::command]
-pub async fn git_pull(state: State<'_, AppState>, repo_path: String) -> Result<GitOpResult, AppError> {
-    let _ = (&state, repo_path);
-    Err(AppError::not_implemented())
+pub async fn git_pull(app: AppHandle, state: State<'_, AppState>, repo_path: String) -> Result<GitOpResult, AppError> {
+    let result = state.github.git_pull(&repo_path).await?;
+    let _ = app.emit("repo-changed", json!({ "repoPath": repo_path }));
+    Ok(result)
 }
 
 #[tauri::command]
-pub async fn git_push(state: State<'_, AppState>, repo_path: String) -> Result<GitOpResult, AppError> {
-    let _ = (&state, repo_path);
-    Err(AppError::not_implemented())
+pub async fn git_push(app: AppHandle, state: State<'_, AppState>, repo_path: String) -> Result<GitOpResult, AppError> {
+    let result = state.github.git_push(&repo_path).await?;
+    let _ = app.emit("repo-changed", json!({ "repoPath": repo_path }));
+    Ok(result)
 }
 
 #[tauri::command]
 pub async fn find_pr(state: State<'_, AppState>, repo_path: String) -> Result<Option<PullRequest>, AppError> {
-    let _ = (&state, repo_path);
-    Err(AppError::not_implemented())
+    state.github.find_pr(&repo_path).await
 }
 
 #[tauri::command]
 pub async fn list_prs(state: State<'_, AppState>, repo_path: String) -> Result<Vec<PullRequest>, AppError> {
-    let _ = (&state, repo_path);
-    Err(AppError::not_implemented())
+    state.github.list_prs(&repo_path).await
 }
 
 #[tauri::command]
 pub async fn checkout_pr(
+    app: AppHandle,
     state: State<'_, AppState>,
     repo_path: String,
     url_or_number: String,
 ) -> Result<PullRequest, AppError> {
-    let _ = (&state, repo_path, url_or_number);
-    Err(AppError::not_implemented())
+    let pr = state.github.checkout_pr(&repo_path, url_or_number).await?;
+    let _ = app.emit("repo-changed", json!({ "repoPath": repo_path }));
+    Ok(pr)
 }
 
 #[tauri::command]
@@ -92,8 +94,12 @@ pub async fn push_review(
     body: Option<String>,
     thread_ids: Option<Vec<String>>,
 ) -> Result<PushResult, AppError> {
-    let _ = (&app, &state, repo_path, session_id, pr_number, event, body, thread_ids);
-    Err(AppError::not_implemented())
+    let result = state
+        .github
+        .push_review(&repo_path, &session_id, pr_number, event, body, thread_ids)
+        .await;
+    emit_threads_changed(&app, &session_id);
+    result
 }
 
 #[tauri::command]
@@ -104,8 +110,9 @@ pub async fn pull_review(
     session_id: String,
     pr_number: u64,
 ) -> Result<PullResult, AppError> {
-    let _ = (&app, &state, repo_path, session_id, pr_number);
-    Err(AppError::not_implemented())
+    let result = state.github.pull_review(&repo_path, &session_id, pr_number).await;
+    emit_threads_changed(&app, &session_id);
+    result
 }
 
 #[tauri::command]
@@ -115,8 +122,9 @@ pub async fn github_reply(
     thread_id: String,
     body: String,
 ) -> Result<Thread, AppError> {
-    let _ = (&app, &state, thread_id, body);
-    Err(AppError::not_implemented())
+    let thread = state.github.reply(&thread_id, body).await?;
+    emit_threads_changed(&app, &thread.session_id);
+    Ok(thread)
 }
 
 #[tauri::command]
@@ -126,6 +134,7 @@ pub async fn github_set_resolved(
     thread_id: String,
     resolved: bool,
 ) -> Result<Thread, AppError> {
-    let _ = (&app, &state, thread_id, resolved);
-    Err(AppError::not_implemented())
+    let thread = state.github.set_resolved(&thread_id, resolved).await?;
+    emit_threads_changed(&app, &thread.session_id);
+    Ok(thread)
 }

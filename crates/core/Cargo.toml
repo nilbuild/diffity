@@ -17,3 +17,8 @@ rusqlite.workspace = true
 notify = "8.2.0"
 notify-debouncer-full = "0.7.0"
 ignore = "0.4.33"
+base64 = "0.22.1"
+sha2 = "0.10.9"
+
+[dev-dependencies]
+tempfile = "3.27.0"

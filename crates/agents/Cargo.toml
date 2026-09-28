@@ -14,3 +14,10 @@ anyhow.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 tracing.workspace = true
+agent-client-protocol = "2.2.0"
+rusqlite.workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tracing-subscriber.workspace = true
+anyhow.workspace = true

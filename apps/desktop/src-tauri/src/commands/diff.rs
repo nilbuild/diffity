@@ -1,16 +1,19 @@
+use std::path::Path;
+
+use diffity_core::diff;
 use diffity_core::types::{DiffResult, FileVersions, ResolvedRef};
 use diffity_core::AppError;
 
+use super::repo::blocking;
+
 #[tauri::command]
 pub async fn resolve_ref(repo_path: String, r#ref: String) -> Result<ResolvedRef, AppError> {
-    let _ = (repo_path, r#ref);
-    Err(AppError::not_implemented())
+    blocking(move || diff::resolve_ref(Path::new(&repo_path), &r#ref)).await
 }
 
 #[tauri::command]
 pub async fn get_diff(repo_path: String, r#ref: String, ignore_whitespace: bool) -> Result<DiffResult, AppError> {
-    let _ = (repo_path, r#ref, ignore_whitespace);
-    Err(AppError::not_implemented())
+    blocking(move || diff::get_diff(Path::new(&repo_path), &r#ref, ignore_whitespace)).await
 }
 
 #[tauri::command]
@@ -20,24 +23,20 @@ pub async fn get_file_versions(
     path: String,
     old_path: Option<String>,
 ) -> Result<FileVersions, AppError> {
-    let _ = (repo_path, r#ref, path, old_path);
-    Err(AppError::not_implemented())
+    blocking(move || diff::get_file_versions(Path::new(&repo_path), &r#ref, &path, old_path.as_deref())).await
 }
 
 #[tauri::command]
 pub async fn diff_fingerprint(repo_path: String, r#ref: String) -> Result<String, AppError> {
-    let _ = (repo_path, r#ref);
-    Err(AppError::not_implemented())
+    blocking(move || diff::diff_fingerprint(Path::new(&repo_path), &r#ref)).await
 }
 
 #[tauri::command]
 pub async fn revert_file(repo_path: String, path: String) -> Result<(), AppError> {
-    let _ = (repo_path, path);
-    Err(AppError::not_implemented())
+    blocking(move || diff::revert_file(Path::new(&repo_path), &path)).await
 }
 
 #[tauri::command]
 pub async fn revert_hunk(repo_path: String, patch: String) -> Result<(), AppError> {
-    let _ = (repo_path, patch);
-    Err(AppError::not_implemented())
+    blocking(move || diff::revert_hunk(Path::new(&repo_path), &patch)).await
 }

@@ -224,3 +224,39 @@ Keyboard: j/k file, n/p hunk, u/s view, x / shift+x collapse, r viewed, / filter
 - Rust command params named `ref` are written `r#ref` (tauri-macros unraws them, so JS key stays `ref`).
 - `Store::conn()` returns a `MutexGuard<Connection>`; never hold it across `.await`.
 - `AgentManager::on_threads_changed(hook)` is wired in `lib.rs` to emit `threads-changed`.
+
+## Core API (for agents / github crates)
+
+All functions are synchronous (wrap in `spawn_blocking` from async code) and return `diffity_core::Result<T>`.
+Error codes: `not_a_repo`, `invalid_ref`, `not_found`, `git_failed`, `io`, `invalid`, `db`.
+
+Diff / git (`diffity_core::{diff, git, tree}`):
+- `diffity_core::diff_for_session(repo_path, ref, ignore_ws) -> DiffResult` (patch + files + fingerprint); `diff_for_session_id(&store, session_id)`; `diff_files(repo_path, ref)`.
+- `diff::plan(repo, ref) -> DiffPlan { resolved, args, include_untracked, old: Source, new: Source }` — `Source::{Commit(sha), EmptyTree, Index, WorkTree}`.
+- `diff::get_file_versions(repo, ref, path, old_path)`, `diff::side_line_count(repo, ref, path, old_path, Side) -> Option<u32>` (use to validate MCP `add_comment` line ranges).
+- `git::run / run_bytes / run_opt / run_with_codes / run_with_stdin(repo, args)` (always `-c core.quotepath=off`), `git::find_repo_root`, `git::head_sha`, `git::current_branch`, `git::remote_url`, `git::status`.
+- `ResolvedRef.baseSha` = old-side commit (null for empty tree); `headSha` = new-side commit, or current HEAD for working-tree refs. `a..b` and `a...b` both diff merge-base(a,b)..b and never include untracked files.
+
+Store (`diffity_core::Store`, all `pub`, `&self`):
+- Sessions: `get_or_create_session(repo_path, ref)`, `get_session_by_id(id)`.
+- Threads: `list_threads(session_id, Option<ThreadStatus>)`, `get_thread(id)`, `find_thread_by_prefix(prefix, Option<session_id>)` (exact id or unique ≥8-char prefix; ambiguous → `invalid`),
+  `create_thread(&NewThread)` (defaults author to user/"You"; swaps start/end if reversed),
+  `add_reply(thread_id, body, AuthorType, Option<author_name>) -> Thread` (a **user** reply reopens resolved/dismissed threads),
+  `set_thread_status(thread_id, status, Option<summary>)` (summary by Agent/"Agent") and `set_thread_status_as(thread_id, status, summary, AuthorType, Option<author_name>)`,
+  `edit_comment(comment_id, body) -> session_id`, `delete_comment(comment_id) -> session_id` (last comment deletes thread), `delete_thread(id) -> session_id`, `delete_all_threads(session_id)`, `get_comment(id)`.
+- GitHub: `update_thread_github_ids(thread_id, Option<github_thread_id>, Option<github_comment_id>)` (None keeps existing), `thread_github_comment_id(thread_id)`,
+  `set_comment_github_id(comment_id, id)`, `find_thread_by_github_id(session_id, github_thread_id) -> Option<Thread>`, `find_comment_by_github_id(id) -> Option<Comment>`,
+  `add_github_comment(thread_id, github_comment_id, author_name, body, Option<created_at>) -> UpsertOutcome::{Inserted, Updated, Unchanged}` (idempotent import).
+- Misc: `touch_repo`, `recent_repos(limit)`, `list_viewed`, `set_viewed`, `get_setting`, `set_setting`, `delete_setting`. Helpers `store::{now, new_id, side_str, status_str, severity_str, author_str}`.
+- Store methods do not emit events — callers emitting `threads-changed` is their job (desktop commands do; agents use `on_threads_changed`).
+
+Watcher: `watch::WatcherRegistry` (held in a static in `commands/repo.rs`); `watch(path, Arc<dyn Fn(&str)>)` is idempotent, `unwatch(path)`.
+
+## Agents implementation notes (agents workstream)
+
+- Launch (resolved in `diffity_agents::detect`, cached 30s): Claude → `claude-agent-acp` on PATH, else `npx -y @agentclientprotocol/claude-agent-acp@0.84.0`; Codex → `codex-acp` on PATH, else `npx -y @agentclientprotocol/codex-acp@2.0.0` with `CODEX_PATH=<installed codex>` (unless already set); Gemini → `gemini --acp` (`--experimental-acp` for old CLIs). Auth: `claude auth status --json` (`loggedIn`), `codex login status` (exit code), Gemini `null`.
+- ACP client: `agent-client-protocol` 2.2.0 (protocol v1). One agent process per chat, started lazily on first `send_prompt`, reused for follow-ups, `session/load` on restart when the agent supports it. Killed on `delete_chat` and on app exit (`AgentManager::shutdown`, wired to `RunEvent::Exit`).
+- Permission policy: `ask`/`review` auto-reject `edit|delete|move|execute` permission requests and refuse `fs/write_text_file`; `resolve`/`edit` forward everything, and `fs/write_text_file` asks with a diff unless the same path was just approved via `session/request_permission`. Diffity's own MCP tools are auto-approved (the bridge enforces mode).
+- Extra table owned by agents: `agent_chat_sessions(chat_id PK → chats.id, session_id)` binds a chat to its review session (created by `AgentManager::new`).
+- Bridge extras: pseudo-tool `__list_tools` returns the tool names allowed for the token's mode (the stdio server filters `tools/list` with it). `add_comment` accepts any line that exists on the chosen side (anchor filled when inside a hunk); `startLine: 0` = file-level comment.
+- `diffity-mcp` uses `rmcp` 3.5 and must set `ttlMs`/`cacheScope` on `tools/list` (Claude Code negotiates MCP `2026-07-28`).

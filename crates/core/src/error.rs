@@ -33,6 +33,22 @@ impl AppError {
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new("internal", message)
     }
+
+    pub fn not_a_repo(message: impl Into<String>) -> Self {
+        Self::new("not_a_repo", message)
+    }
+
+    pub fn invalid_ref(message: impl Into<String>) -> Self {
+        Self::new("invalid_ref", message)
+    }
+
+    pub fn git_failed(message: impl Into<String>) -> Self {
+        Self::new("git_failed", message)
+    }
+
+    pub fn io(message: impl Into<String>) -> Self {
+        Self::new("io", message)
+    }
 }
 
 impl From<std::io::Error> for AppError {

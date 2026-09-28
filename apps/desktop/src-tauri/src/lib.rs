@@ -110,6 +110,13 @@ pub fn run() {
             commands::github::github_reply,
             commands::github::github_set_resolved,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running diffity");
+        .build(tauri::generate_context!())
+        .expect("error while building diffity")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                if let Some(state) = app.try_state::<AppState>() {
+                    tauri::async_runtime::block_on(state.agents.shutdown());
+                }
+            }
+        });
 }

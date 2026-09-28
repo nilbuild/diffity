@@ -2,6 +2,7 @@ use diffity_core::types::{AuthorType, NewThread, ReviewSession, Thread, ThreadSt
 use diffity_core::AppError;
 use tauri::{AppHandle, State};
 
+use super::repo::emit_threads_changed;
 use crate::state::AppState;
 
 #[tauri::command]
@@ -10,14 +11,12 @@ pub async fn get_session(
     repo_path: String,
     r#ref: String,
 ) -> Result<ReviewSession, AppError> {
-    let _ = (&state, repo_path, r#ref);
-    Err(AppError::not_implemented())
+    state.store.get_or_create_session(&repo_path, &r#ref)
 }
 
 #[tauri::command]
 pub async fn list_threads(state: State<'_, AppState>, session_id: String) -> Result<Vec<Thread>, AppError> {
-    let _ = (&state, session_id);
-    Err(AppError::not_implemented())
+    state.store.list_threads(&session_id, None)
 }
 
 #[tauri::command]
@@ -26,8 +25,9 @@ pub async fn create_thread(
     state: State<'_, AppState>,
     input: NewThread,
 ) -> Result<Thread, AppError> {
-    let _ = (&app, &state, input);
-    Err(AppError::not_implemented())
+    let thread = state.store.create_thread(&input)?;
+    emit_threads_changed(&app, &thread.session_id);
+    Ok(thread)
 }
 
 #[tauri::command]
@@ -39,8 +39,14 @@ pub async fn add_reply(
     author_type: Option<AuthorType>,
     author_name: Option<String>,
 ) -> Result<Thread, AppError> {
-    let _ = (&app, &state, thread_id, body, author_type, author_name);
-    Err(AppError::not_implemented())
+    let thread = state.store.add_reply(
+        &thread_id,
+        &body,
+        author_type.unwrap_or(AuthorType::User),
+        author_name.as_deref(),
+    )?;
+    emit_threads_changed(&app, &thread.session_id);
+    Ok(thread)
 }
 
 #[tauri::command]
@@ -50,20 +56,23 @@ pub async fn edit_comment(
     comment_id: String,
     body: String,
 ) -> Result<(), AppError> {
-    let _ = (&app, &state, comment_id, body);
-    Err(AppError::not_implemented())
+    let session_id = state.store.edit_comment(&comment_id, &body)?;
+    emit_threads_changed(&app, &session_id);
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn delete_comment(app: AppHandle, state: State<'_, AppState>, comment_id: String) -> Result<(), AppError> {
-    let _ = (&app, &state, comment_id);
-    Err(AppError::not_implemented())
+    let session_id = state.store.delete_comment(&comment_id)?;
+    emit_threads_changed(&app, &session_id);
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn delete_thread(app: AppHandle, state: State<'_, AppState>, thread_id: String) -> Result<(), AppError> {
-    let _ = (&app, &state, thread_id);
-    Err(AppError::not_implemented())
+    let session_id = state.store.delete_thread(&thread_id)?;
+    emit_threads_changed(&app, &session_id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -72,8 +81,9 @@ pub async fn delete_all_threads(
     state: State<'_, AppState>,
     session_id: String,
 ) -> Result<(), AppError> {
-    let _ = (&app, &state, session_id);
-    Err(AppError::not_implemented())
+    state.store.delete_all_threads(&session_id)?;
+    emit_threads_changed(&app, &session_id);
+    Ok(())
 }
 
 #[tauri::command]
@@ -84,14 +94,14 @@ pub async fn set_thread_status(
     status: ThreadStatus,
     summary: Option<String>,
 ) -> Result<Thread, AppError> {
-    let _ = (&app, &state, thread_id, status, summary);
-    Err(AppError::not_implemented())
+    let thread = state.store.set_thread_status(&thread_id, status, summary.as_deref())?;
+    emit_threads_changed(&app, &thread.session_id);
+    Ok(thread)
 }
 
 #[tauri::command]
 pub async fn list_viewed(state: State<'_, AppState>, session_id: String) -> Result<Vec<ViewedFile>, AppError> {
-    let _ = (&state, session_id);
-    Err(AppError::not_implemented())
+    state.store.list_viewed(&session_id)
 }
 
 #[tauri::command]
@@ -102,6 +112,5 @@ pub async fn set_viewed(
     content_hash: String,
     viewed: bool,
 ) -> Result<(), AppError> {
-    let _ = (&state, session_id, file_path, content_hash, viewed);
-    Err(AppError::not_implemented())
+    state.store.set_viewed(&session_id, &file_path, &content_hash, viewed)
 }

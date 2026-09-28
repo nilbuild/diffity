@@ -1,4 +1,6 @@
-use diffity_agents::{AgentAction, AgentEvent, AgentInfo, Chat, ChatMessage, ContextChip, StartChat};
+use diffity_agents::{
+    AgentAction, AgentEvent, AgentInfo, Chat, ChatMessage, ContextChip, StartChat,
+};
 use diffity_core::AppError;
 use tauri::ipc::Channel;
 use tauri::State;
@@ -12,20 +14,23 @@ pub async fn list_agents(state: State<'_, AppState>) -> Result<Vec<AgentInfo>, A
 
 #[tauri::command]
 pub async fn start_chat(state: State<'_, AppState>, input: StartChat) -> Result<Chat, AppError> {
-    let _ = (&state, input);
-    Err(AppError::not_implemented())
+    state.agents.start_chat(input).await
 }
 
 #[tauri::command]
-pub async fn list_chats(state: State<'_, AppState>, repo_path: String) -> Result<Vec<Chat>, AppError> {
-    let _ = (&state, repo_path);
-    Err(AppError::not_implemented())
+pub async fn list_chats(
+    state: State<'_, AppState>,
+    repo_path: String,
+) -> Result<Vec<Chat>, AppError> {
+    state.agents.list_chats(&repo_path).await
 }
 
 #[tauri::command]
-pub async fn get_chat_messages(state: State<'_, AppState>, chat_id: String) -> Result<Vec<ChatMessage>, AppError> {
-    let _ = (&state, chat_id);
-    Err(AppError::not_implemented())
+pub async fn get_chat_messages(
+    state: State<'_, AppState>,
+    chat_id: String,
+) -> Result<Vec<ChatMessage>, AppError> {
+    state.agents.get_chat_messages(&chat_id).await
 }
 
 #[tauri::command]
@@ -37,14 +42,20 @@ pub async fn send_prompt(
     action: AgentAction,
     on_event: Channel<AgentEvent>,
 ) -> Result<(), AppError> {
-    let _ = (&state, chat_id, text, context, action, on_event);
-    Err(AppError::not_implemented())
+    let sink = Box::new(move |event: AgentEvent| {
+        if let Err(e) = on_event.send(event) {
+            tracing::debug!("agent event channel closed: {e}");
+        }
+    });
+    state
+        .agents
+        .send_prompt(&chat_id, text, context, action, sink)
+        .await
 }
 
 #[tauri::command]
 pub async fn cancel_prompt(state: State<'_, AppState>, chat_id: String) -> Result<(), AppError> {
-    let _ = (&state, chat_id);
-    Err(AppError::not_implemented())
+    state.agents.cancel_prompt(&chat_id).await
 }
 
 #[tauri::command]
@@ -53,12 +64,13 @@ pub async fn respond_permission(
     request_id: String,
     option_id: Option<String>,
 ) -> Result<(), AppError> {
-    let _ = (&state, request_id, option_id);
-    Err(AppError::not_implemented())
+    state
+        .agents
+        .respond_permission(&request_id, option_id)
+        .await
 }
 
 #[tauri::command]
 pub async fn delete_chat(state: State<'_, AppState>, chat_id: String) -> Result<(), AppError> {
-    let _ = (&state, chat_id);
-    Err(AppError::not_implemented())
+    state.agents.delete_chat(&chat_id).await
 }

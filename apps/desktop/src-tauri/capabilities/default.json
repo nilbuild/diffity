@@ -2,12 +2,17 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capabilities for Diffity windows",
-  "windows": ["main", "repo-*"],
+  "windows": [
+    "main",
+    "repo-*"
+  ],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
     "dialog:default",
     "opener:default",
-    "window-state:default"
+    "window-state:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-set-focus"
   ]
 }

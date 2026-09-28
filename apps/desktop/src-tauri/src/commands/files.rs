@@ -1,20 +1,22 @@
+use std::path::Path;
+
+use diffity_core::tree;
 use diffity_core::types::{FileContent, TreeEntry};
 use diffity_core::AppError;
 
+use super::repo::blocking;
+
 #[tauri::command]
 pub async fn list_tree(repo_path: String) -> Result<Vec<TreeEntry>, AppError> {
-    let _ = repo_path;
-    Err(AppError::not_implemented())
+    blocking(move || tree::list_tree(Path::new(&repo_path))).await
 }
 
 #[tauri::command]
 pub async fn read_file(repo_path: String, path: String) -> Result<FileContent, AppError> {
-    let _ = (repo_path, path);
-    Err(AppError::not_implemented())
+    blocking(move || tree::read_file(Path::new(&repo_path), &path)).await
 }
 
 #[tauri::command]
 pub async fn read_file_base64(repo_path: String, path: String) -> Result<String, AppError> {
-    let _ = (repo_path, path);
-    Err(AppError::not_implemented())
+    blocking(move || tree::read_file_base64(Path::new(&repo_path), &path)).await
 }

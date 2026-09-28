@@ -40,3 +40,26 @@ export const agentBus = {
   askAboutSelection: (chip: ContextChip) => useAgentBus.getState().askAboutSelection(chip),
   runAction: (action: AgentAction) => useAgentBus.getState().runAction(action),
 };
+
+export type RevealLocationHandler = (path: string, line: number | null) => void;
+
+let revealHandler: RevealLocationHandler | null = null;
+
+/** Core UI registers a navigator (switch tab + scroll to path:line). Returns an unregister fn. */
+export function setRevealLocationHandler(handler: RevealLocationHandler) {
+  revealHandler = handler;
+  return () => {
+    if (revealHandler === handler) {
+      revealHandler = null;
+    }
+  };
+}
+
+/** Returns false when no navigator is registered so callers can fall back (e.g. open in editor). */
+export function revealLocation(path: string, line: number | null): boolean {
+  if (!revealHandler) {
+    return false;
+  }
+  revealHandler(path, line);
+  return true;
+}
