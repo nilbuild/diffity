@@ -17,6 +17,8 @@ export const shortcuts = [
       { key: 'Shift+x', description: 'Collapse or expand all files' },
       { key: 'r', description: 'Mark file as viewed' },
       { key: '/', description: 'Filter files' },
+      { key: '⌥⌘C', description: 'Copy the focused file’s path' },
+      { key: '⇧⌥⌘C', description: 'Copy the focused file’s contents' },
     ],
   },
   {
@@ -66,7 +68,10 @@ export function ShortcutModal(props: ShortcutModalProps) {
     <dialog
       ref={dialogRef}
       className="bg-overlay text-text ring-1 ring-overlay-border rounded-xl w-[420px] max-w-[90vw] max-h-[80vh] overflow-y-auto backdrop:bg-black/60 backdrop:backdrop-blur-sm p-0 m-auto fixed inset-0 h-fit"
-      onClose={onClose}
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
       onClick={(e) => {
         if (e.target === dialogRef.current) {
           onClose();

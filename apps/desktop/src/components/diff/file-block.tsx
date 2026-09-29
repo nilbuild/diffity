@@ -17,6 +17,7 @@ import type { CommentActions } from '../../hooks/use-comment-actions';
 import type { CommentThread } from '../comments/types';
 import { GENERAL_THREAD_FILE_PATH, DEFAULT_AUTHOR } from '../comments/types';
 import { useLineSelection } from '../../hooks/use-line-selection';
+import { useThemeStore } from '../../hooks/use-theme';
 import { useCopy } from '../../hooks/use-copy';
 import { DiffStats } from './diff-stats';
 import { Badge } from '../ui/badge';
@@ -28,7 +29,9 @@ import { OrphanedThreads } from '../comments/orphaned-threads';
 import { ThreadBadge } from '../ui/thread-badge';
 import { buildExpansionSyntaxMap, renderExpansionRows } from './render-expansion-rows';
 import { ExpandRow } from './expand-row';
-import { CheckIcon, ChevronIcon, CodeIcon, CommentIcon, CopyIcon, EditorIcon, FileIcon, UndoIcon } from '../ui/icon';
+import { CheckIcon, ChevronIcon, CodeIcon, CommentIcon, CopyIcon, EditorIcon, EllipsisIcon, FileIcon, FileTextIcon, GitCompareIcon, UndoIcon } from '../ui/icon';
+import { MenuItem, MenuSeparator, Popover, useMenu } from '../ui/popover';
+import { contentsLabel, copyAbsolutePath, copyFileContents, copyFileDiff, copyRelativePath } from '../../lib/file-copy';
 import { useEditorName } from '../../hooks/use-editor-name';
 
 export const LARGE_DIFF_LINE_THRESHOLD = 200;
@@ -72,12 +75,12 @@ interface GapExpansion {
 
 const syntaxCache = new Map<string, Map<string, SyntaxToken[]>>();
 
-function syntaxCacheKey(file: DiffFile): string {
+function syntaxCacheKey(file: DiffFile, theme: string): string {
   let length = 0;
   for (const hunk of file.hunks) {
     length += hunk.lines.length;
   }
-  return `${getFilePath(file)}:${document.documentElement.dataset.theme ?? 'light'}:${length}:${file.additions}:${file.deletions}:${file.hunks[0]?.lines[0]?.content ?? ''}`;
+  return `${getFilePath(file)}:${theme}:${length}:${file.additions}:${file.deletions}:${file.hunks[0]?.lines[0]?.content ?? ''}`;
 }
 
 function rememberSyntax(key: string, map: Map<string, SyntaxToken[]>) {
@@ -88,6 +91,43 @@ function rememberSyntax(key: string, map: Map<string, SyntaxToken[]>) {
     }
   }
   syntaxCache.set(key, map);
+}
+
+function FileCardMenu(props: { file: DiffFile; path: string; viewRef: string }) {
+  const { file, path, viewRef } = props;
+  const menu = useMenu();
+  const deleted = file.status === 'deleted';
+  const run = (action: () => void) => () => {
+    menu.close();
+    action();
+  };
+
+  return (
+    <>
+      <button
+        ref={menu.anchorRef}
+        onClick={menu.toggle}
+        className="w-6 h-6 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
+        title="More file actions"
+        aria-label="More file actions"
+      >
+        <EllipsisIcon size="sm" />
+      </button>
+      <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} align="end" width={250}>
+        <MenuItem icon={<CopyIcon size="sm" />} label="Copy relative path" hint="⌥⌘C" onSelect={run(() => copyRelativePath(path))} />
+        <MenuItem icon={<CopyIcon size="sm" />} label="Copy absolute path" onSelect={run(() => copyAbsolutePath(path))} />
+        <MenuSeparator />
+        <MenuItem
+          icon={<FileTextIcon size="sm" />}
+          label={file.isBinary ? 'Copy file contents (binary file)' : deleted ? 'Copy file contents (deleted here)' : contentsLabel(viewRef)}
+          hint={file.isBinary || deleted ? undefined : '⇧⌥⌘C'}
+          disabled={file.isBinary || deleted}
+          onSelect={run(() => void copyFileContents(path, viewRef))}
+        />
+        <MenuItem icon={<GitCompareIcon size="sm" />} label={file.isBinary ? 'Copy diff (binary file)' : 'Copy diff'} disabled={file.isBinary} onSelect={run(() => copyFileDiff(file))} />
+      </Popover>
+    </>
+  );
 }
 
 export function FileBlock(props: FileBlockProps) {
@@ -264,7 +304,8 @@ export function FileBlock(props: FileBlockProps) {
   }, [isLineInSelection, pendingSelection, filePath, fileThreads]);
 
 
-  const cacheKey = useMemo(() => syntaxCacheKey(file), [file, highlightLine]);
+  const resolvedTheme = useThemeStore((state) => state.theme);
+  const cacheKey = useMemo(() => syntaxCacheKey(file, resolvedTheme), [file, highlightLine, resolvedTheme]);
   const [syntaxMap, setSyntaxMap] = useState<Map<string, SyntaxToken[]> | undefined>(() => (highlightLine ? syntaxCache.get(cacheKey) : undefined));
 
   useEffect(() => {
@@ -498,6 +539,7 @@ export function FileBlock(props: FileBlockProps) {
                 <UndoIcon className="w-3.5 h-3.5" />
               </button>
             )}
+            <FileCardMenu file={file} path={filePath} viewRef={baseRef ?? 'work'} />
           </div>
           {renderable && (
             <button
