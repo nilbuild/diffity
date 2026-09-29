@@ -215,10 +215,21 @@ pub fn ref_label(repo: &Path, r: &str) -> String {
             None => format!("Commit {short}"),
         };
     }
-    if r.contains("..") {
-        return r.to_string();
+    if let Some((base, head)) = r.split_once("...").or_else(|| r.split_once("..")) {
+        let head = if head.is_empty() { "HEAD" } else { head };
+        return format!("{} → {}", short_ref(base), short_ref(head));
     }
-    format!("Changes since {r}")
+    format!("Changes since {}", short_ref(r))
+}
+
+fn short_ref(r: &str) -> &str {
+    let r = r.strip_prefix("origin/").unwrap_or(r);
+    let is_sha = (8..=40).contains(&r.len()) && r.chars().all(|c| c.is_ascii_hexdigit());
+    if is_sha {
+        &r[..7]
+    } else {
+        r
+    }
 }
 
 fn excerpt(body: &str) -> String {
@@ -379,7 +390,12 @@ deleted file mode 100644
         let repo = Path::new("/nonexistent");
         assert_eq!(ref_label(repo, "work"), "Uncommitted changes");
         assert_eq!(ref_label(repo, TREE_REF), "Files");
-        assert_eq!(ref_label(repo, "main...feature"), "main...feature");
+        assert_eq!(ref_label(repo, "main...feature"), "main → feature");
+        assert_eq!(
+            ref_label(repo, "7081c9ac6589dd4011977f33f19ecd3164871cdf..HEAD"),
+            "7081c9a → HEAD"
+        );
+        assert_eq!(ref_label(repo, "85f5bf39c3edbd65e98bbfb3372e4aa1"), "Changes since 85f5bf3");
         assert_eq!(ref_label(repo, "v1.0"), "Changes since v1.0");
         assert_eq!(ref_label(repo, "abcdef1234~1..abcdef1234"), "Commit abcdef1");
     }

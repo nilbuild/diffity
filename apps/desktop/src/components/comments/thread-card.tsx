@@ -57,7 +57,7 @@ export function ThreadCard(props: ThreadCardProps) {
           {canAskClaude && (
             <button
               onClick={resolveWithClaude}
-              className="inline-flex items-center gap-1 text-xs text-text-secondary hover:text-accent transition-colors cursor-pointer mr-2"
+              className="inline-flex items-center gap-1 text-xs text-text-secondary hover:text-text transition-colors cursor-pointer mr-2"
               title="Ask Claude Code to address this thread"
             >
               <SparkleIcon className="w-3 h-3" />

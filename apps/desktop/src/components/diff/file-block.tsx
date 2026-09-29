@@ -28,7 +28,8 @@ import { OrphanedThreads } from '../comments/orphaned-threads';
 import { ThreadBadge } from '../ui/thread-badge';
 import { buildExpansionSyntaxMap, renderExpansionRows } from './render-expansion-rows';
 import { ExpandRow } from './expand-row';
-import { CheckIcon, ChevronIcon, CodeIcon, CommentIcon, CopyIcon, FileIcon, PencilIcon, UndoIcon } from '../ui/icon';
+import { CheckIcon, ChevronIcon, CodeIcon, CommentIcon, CopyIcon, EditorIcon, FileIcon, UndoIcon } from '../ui/icon';
+import { useEditorName } from '../../hooks/use-editor-name';
 
 export const LARGE_DIFF_LINE_THRESHOLD = 200;
 
@@ -110,6 +111,7 @@ export function FileBlock(props: FileBlockProps) {
     }
   }, [filePath, onRevert]);
 
+  const editorName = useEditorName();
   const handleOpenInEditor = useCallback(() => {
     const firstLine = file.hunks[0]?.newStart;
     openInEditor(filePath, file.status === 'deleted' ? undefined : firstLine).catch((error) => {
@@ -423,7 +425,7 @@ export function FileBlock(props: FileBlockProps) {
           <ChevronIcon expanded={!collapsed} />
         </IconButton>
         <button
-          className="flex min-w-0 font-mono text-[12.5px] text-left cursor-pointer hover:[&_span]:text-accent transition-colors"
+          className="flex min-w-0 font-mono text-[12.5px] text-left cursor-pointer hover:[&_span]:text-text transition-colors"
           onClick={() => onToggleCollapse(filePath)}
         >
           {showRename ? (
@@ -455,9 +457,9 @@ export function FileBlock(props: FileBlockProps) {
               <button
                 onClick={handleOpenInEditor}
                 className="w-6 h-6 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
-                title="Open in editor"
+                title={`Open in ${editorName}`}
               >
-                <PencilIcon className="w-3.5 h-3.5" />
+                <EditorIcon size="sm" />
               </button>
             )}
             {canRevert && (
@@ -532,7 +534,7 @@ export function FileBlock(props: FileBlockProps) {
             <div className="flex items-center justify-center gap-3 py-6 px-4 text-sm text-text-muted">
               <span>Large diff not rendered — {totalLines} lines</span>
               <button
-                className="text-accent hover:underline cursor-pointer font-medium"
+                className="text-text underline decoration-text-muted/50 underline-offset-2 cursor-pointer font-medium"
                 onClick={() => setLargeDiffExpanded(true)}
               >
                 Load diff

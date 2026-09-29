@@ -67,7 +67,7 @@ function StatusCard(props: { agent: AgentInfo | null; loading: boolean; busy: bo
   return (
     <div className="rounded-lg border border-border bg-bg-secondary">
       <div className="flex items-center gap-3 px-3.5 py-3">
-        <span className="relative flex size-8 shrink-0 items-center justify-center rounded-md bg-accent/10 text-accent">
+        <span className="relative flex size-8 shrink-0 items-center justify-center rounded-md bg-claude/12 text-claude">
           <SparkleIcon className="h-4 w-4" />
           {!loading && (
             <span

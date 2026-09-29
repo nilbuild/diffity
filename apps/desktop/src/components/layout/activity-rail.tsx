@@ -21,7 +21,7 @@ export function useInsideRail() {
 
 const ORDER_KEY = 'diffity-rail-order';
 const MAX_PROJECTS = 9;
-const SLOT = 44;
+const SLOT = 46;
 
 function readOrder(): string[] {
   try {
@@ -121,7 +121,7 @@ function ProjectTile(props: ProjectTileProps) {
         )}
       >
         {repoInitials(name)}
-        {busy && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent ring-2 ring-frame" title="Claude is working here" />}
+        {busy && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-claude ring-2 ring-frame" title="Claude is working here" />}
       </button>
       {!dragging && (
         <RailTooltip
@@ -365,7 +365,7 @@ function ActivityRail() {
       }}
     >
       <div data-tauri-drag-region className="h-11 w-full shrink-0" />
-      <div className="flex flex-col items-center gap-2 w-full pt-1">
+      <div className="flex flex-col items-center gap-2.5 w-full pt-1.5">
         {projects.map((path, index) => (
           <ProjectTile
             key={path}
@@ -384,7 +384,7 @@ function ActivityRail() {
             }}
           />
         ))}
-        <div className="group relative w-full flex justify-center">
+        <div className="group relative w-full flex justify-center mt-1.5">
           <button
             onClick={() => void openFolder()}
             aria-label="Open folder"

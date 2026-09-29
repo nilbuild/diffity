@@ -50,7 +50,7 @@ function PrRow(props: { pr: PullRequest; active: boolean; current: boolean; busy
         <span className="flex items-center gap-2">
           <span className="truncate text-[13px] font-medium text-text">{pr.title}</span>
           {pr.isDraft && <span className="shrink-0 rounded-full border border-border px-1.5 text-[10px] text-text-muted">Draft</span>}
-          {current && <span className="shrink-0 rounded-full bg-accent/10 px-1.5 text-[10px] font-medium text-accent">Checked out</span>}
+          {current && <span className="shrink-0 rounded-full bg-fill px-1.5 text-[10px] font-medium text-text-secondary">Checked out</span>}
         </span>
         <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-text-muted">
           <span className="shrink-0">#{pr.number}</span>
@@ -221,7 +221,7 @@ function PullRequestsBody() {
         <div className="px-4 py-6 text-xs">
           <div className="text-deleted">Could not load pull requests</div>
           <div className="mt-1 text-text-muted">{tauri.errorMessage(error)}</div>
-          <button onClick={() => void refetch()} className="mt-2 cursor-pointer text-accent hover:underline">
+          <button onClick={() => void refetch()} className="mt-2 cursor-pointer text-text underline decoration-text-muted/50 underline-offset-2">
             Try again
           </button>
         </div>

@@ -86,7 +86,7 @@ function ThemePicker() {
               <ThemeSwatch value={option.value} />
             </div>
             <div className="mt-1.5 flex items-baseline gap-1.5">
-              <span className={cn('text-xs font-medium', active ? 'text-accent' : 'text-text')}>{option.label}</span>
+              <span className={cn('text-xs font-medium', 'text-text')}>{option.label}</span>
               <span className="text-[11px] text-text-muted">{option.hint}</span>
             </div>
           </button>

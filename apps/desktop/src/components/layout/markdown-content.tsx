@@ -27,7 +27,7 @@ export function MarkdownContent(props: MarkdownContentProps) {
     },
     a({ href, children }) {
       return (
-        <a href={href} className="text-accent hover:underline" target="_blank" rel="noopener noreferrer">
+        <a href={href} className="text-text underline decoration-text-muted/50 underline-offset-2 hover:decoration-text" target="_blank" rel="noopener noreferrer">
           {children}
         </a>
       );

@@ -46,7 +46,7 @@ describe('viewLabel', () => {
     expect(viewLabel('work')).toBe('Uncommitted changes');
     expect(viewLabel('__tree__')).toBe('Files');
     expect(viewLabel('abcdef1234~1..abcdef1234')).toBe('Commit abcdef1');
-    expect(viewLabel('main...feature')).toBe('main...feature');
+    expect(viewLabel('main...feature')).toBe('main → feature');
   });
 });
 

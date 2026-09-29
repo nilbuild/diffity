@@ -154,7 +154,7 @@ function BranchSwitcherPanel(props: { current: string | null; onDone: () => void
               onDone();
               openSettingsAt('github');
             }}
-            className="flex items-center h-8 px-2.5 w-full rounded-md text-xs text-accent hover:bg-hover cursor-pointer"
+            className="flex items-center h-8 px-2.5 w-full rounded-md text-xs text-text hover:bg-hover cursor-pointer"
           >
             Sign in to GitHub to see open pull requests
           </button>

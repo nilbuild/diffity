@@ -40,6 +40,7 @@
   --color-diff-comment-gutter: #ecd364;
 
   --color-accent: #0969da;
+  --color-claude: #c96442;
   --color-accent-hover: #0757b8;
 
   --color-added: #1a7f37;
@@ -93,6 +94,7 @@
   --color-diff-comment-gutter: rgba(234, 179, 8, 0.3);
 
   --color-accent: #3b82f6;
+  --color-claude: #e08a6d;
   --color-accent-hover: #60a5fa;
 
   --color-added: #4ade80;
@@ -241,6 +243,21 @@ dialog {
   to {
     transform: translateX(0);
     opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.18s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

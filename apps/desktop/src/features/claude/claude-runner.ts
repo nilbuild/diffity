@@ -64,13 +64,13 @@ function modeFor(action: ClaudeAction): AgentMode {
 export function runLabel(action: ClaudeAction): string {
   switch (action.kind) {
     case 'review':
-      return 'Claude is reviewing…';
+      return 'Claude is reviewing';
     case 'resolve':
-      return action.threadId ? 'Claude is on a thread…' : 'Claude is resolving…';
+      return action.threadId ? 'Claude is on a thread' : 'Claude is resolving';
     case 'thread':
-      return 'Claude is replying…';
+      return 'Claude is replying';
     case 'reviewFeedback':
-      return 'Claude is on your review…';
+      return 'Claude is on your review';
   }
 }
 

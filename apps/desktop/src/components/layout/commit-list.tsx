@@ -237,7 +237,7 @@ export function CommitList(props: CommitListProps) {
       return (
         <div className="px-3 py-4 text-[13px] text-deleted flex items-center gap-3">
           Could not load commits.
-          <button onClick={() => void query.refetch()} className="text-accent hover:underline cursor-pointer">
+          <button onClick={() => void query.refetch()} className="text-text underline decoration-text-muted/50 underline-offset-2 cursor-pointer">
             Try again
           </button>
         </div>
@@ -272,7 +272,7 @@ export function CommitList(props: CommitListProps) {
       <div ref={sentinel} />
       {hasNextPage && !isFetchingNextPage && (
         <div className="px-3 py-3">
-          <button onClick={() => void fetchNextPage()} className="text-[13px] text-accent hover:underline cursor-pointer">
+          <button onClick={() => void fetchNextPage()} className="text-[13px] text-text-secondary hover:text-text cursor-pointer">
             Load more commits
           </button>
         </div>

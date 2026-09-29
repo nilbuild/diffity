@@ -49,7 +49,7 @@ export function OtherViewsNotice(props: OtherViewsNoticeProps) {
 
   return (
     <span className="inline-flex items-center gap-1.5 h-5 max-w-[420px] min-w-0 pl-2 pr-1 rounded-full border border-border bg-bg text-text-secondary">
-      <CommentIcon className="w-3 h-3 shrink-0 text-accent/80" />
+      <CommentIcon className="w-3 h-3 shrink-0 text-text-secondary" />
       <button
         onClick={openComments}
         className="min-w-0 truncate cursor-pointer hover:text-text"

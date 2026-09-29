@@ -13,11 +13,12 @@ interface PathCommentsProps {
   commentActions: CommentActions;
   label: string;
   children?: React.ReactNode;
+  actions?: React.ReactNode;
   focusedThreadId?: string | null;
 }
 
 export function PathComments(props: PathCommentsProps) {
-  const { pathKey, threads, commentActions, label, children, focusedThreadId } = props;
+  const { pathKey, threads, commentActions, label, children, actions, focusedThreadId } = props;
   const [isExpanded, setIsExpanded] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
@@ -65,15 +66,16 @@ export function PathComments(props: PathCommentsProps) {
               : 'Add comment'}
           </span>
         </button>
+        {actions}
       </div>
 
       {isExpanded && (
-        <div className={`mt-3 rounded-lg overflow-hidden ${threads.length > 0 ? 'bg-accent/5' : 'bg-bg-secondary'}`}>
+        <div className={`mt-3 rounded-lg overflow-hidden ${threads.length > 0 ? 'bg-bg-secondary' : 'bg-bg-secondary'}`}>
           <div className="flex items-center gap-2 px-3 py-2 text-sm">
             <CommentIcon className="w-3.5 h-3.5 text-text-muted" />
             <span className="text-text-secondary text-xs">Comments on {label}</span>
             {threads.length > 0 && (
-              <span className="text-xs font-medium bg-accent/15 text-accent px-1.5 py-0.5 rounded-full">{threads.length}</span>
+              <span className="text-xs font-medium bg-fill text-text-secondary px-1.5 py-0.5 rounded-full">{threads.length}</span>
             )}
             <div className="flex-1" />
             {!showForm && (

@@ -7,10 +7,10 @@ import { useBaseBranch, useGitHubPr, useGitStatus, useHasGitHubRemote } from '..
 import { openPullRequests } from '../../lib/ui-store';
 import { commitRef, descriptionForRef, fetchCommits, parseCommitRef, type Commit, type GitHubDetails } from '../../lib/api';
 import { cn } from '../../lib/cn';
-import { buttonIcon, buttonOutline, inputField } from '../ui/button-styles';
+import { buttonOutline, inputField } from '../ui/button-styles';
 import { Spinner } from '../icons/spinner';
-import { useCommitDetails, useBack } from './diff-context-bar';
-import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, GitBranchIcon, GitCommitIcon, GitCompareIcon, GitPullRequestIcon, PencilIcon, SearchIcon } from '../ui/icon';
+import { useCommitDetails } from './diff-context-bar';
+import { CheckIcon, ChevronDownIcon, GitBranchIcon, GitCommitIcon, GitCompareIcon, GitPullRequestIcon, PencilIcon, SearchIcon, XIcon } from '../ui/icon';
 
 interface RefMenuProps {
   diffRef: string;
@@ -23,6 +23,16 @@ export function prDiffRef(details: GitHubDetails): string {
 
 function shortBase(base: string): string {
   return base.replace(/^origin\//, '');
+}
+
+function shortRef(ref: string): string {
+  const name = shortBase(ref);
+  return /^[0-9a-f]{8,40}$/i.test(name) ? name.slice(0, 7) : name;
+}
+
+export function rangeParts(diffRef: string): { base: string; head: string } {
+  const [base, head] = diffRef.split(/\.{2,3}/);
+  return { base: shortRef(base.replace(/~1$/, '')), head: shortRef(head || 'HEAD') };
 }
 
 /** Short, human label for what is being reviewed. */
@@ -39,10 +49,11 @@ export function useTargetLabel(diffRef: string, branch: string | null): { label:
   }
   if (commitSha) {
     const short = commitSha.slice(0, 7);
-    return { label: commit ? `${short} · ${commit.message}` : `Commit ${short}`, icon: <GitCommitIcon className="w-3.5 h-3.5" /> };
+    return { label: commit ? `Commit ${short} · ${commit.message}` : `Commit ${short}`, icon: <GitCommitIcon className="w-3.5 h-3.5" /> };
   }
   if (diffRef.includes('..')) {
-    return { label: diffRef.replace(/\.{2,3}/, ' … '), icon: <GitCompareIcon className="w-3.5 h-3.5" /> };
+    const { base: from, head: to } = rangeParts(diffRef);
+    return { label: `${from} → ${to}`, icon: <GitCompareIcon className="w-3.5 h-3.5" /> };
   }
   return { label: descriptionForRef(diffRef), icon: <PencilIcon className="w-3.5 h-3.5" /> };
 }
@@ -140,29 +151,31 @@ export function RefMenu(props: RefMenuProps) {
   useDismiss(ref, open, close);
   const target = useTargetLabel(diffRef, branch);
 
-  const back = useBack();
   const isDefault = diffRef === 'work';
 
   return (
-    <div className="relative min-w-0 flex items-center gap-1" ref={ref}>
-      {!isDefault && (
-        <button onClick={back} className={buttonIcon} title="Back">
-          <ArrowLeftIcon size="md" />
+    <div className="relative min-w-0 flex items-center" ref={ref}>
+      <div className={cn(buttonOutline, 'max-w-[460px] min-w-0 p-0 gap-0', open && 'bg-control-hover')}>
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-1.5 min-w-0 h-full pl-2.5 pr-2 cursor-pointer"
+          title="Choose what to review"
+        >
+          <span className="shrink-0 text-text-secondary">{target.icon}</span>
+          <span className="truncate font-medium">{target.label}</span>
+          <ChevronDownIcon size="xs" className="shrink-0 text-text-secondary" />
         </button>
-      )}
-      <button
-        onClick={() => setOpen(!open)}
-        className={cn(
-          buttonOutline,
-          'max-w-[460px] min-w-0 px-2.5',
-          open && 'bg-control-hover',
+        {!isDefault && (
+          <button
+            onClick={() => nav.toDiff('work')}
+            className="flex items-center justify-center w-6 h-full border-l border-control-border text-text-muted hover:text-text hover:bg-control-hover cursor-pointer"
+            title="Back to uncommitted changes"
+            aria-label="Back to uncommitted changes"
+          >
+            <XIcon size="xs" />
+          </button>
         )}
-        title="Choose what to review"
-      >
-        <span className="shrink-0 text-text-secondary">{target.icon}</span>
-        <span className="truncate font-medium">{target.label}</span>
-        <ChevronDownIcon size="xs" className="shrink-0 text-text-secondary" />
-      </button>
+      </div>
       {open && (
         <RefMenuPanel
           diffRef={diffRef}

@@ -30,7 +30,7 @@ function Tracking() {
     return <span>Local only</span>;
   }
   if (!status.upstream) {
-    return <span>Not published</span>;
+    return null;
   }
   return (
     <span className="truncate font-mono text-[11px] text-text-muted" title={`Tracking ${status.upstream}`}>

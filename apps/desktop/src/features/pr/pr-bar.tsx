@@ -76,7 +76,7 @@ export function PrBar(props: { diffRef: string }) {
         <span className="min-w-0 truncate text-[13px] font-semibold text-text" title={pr.title}>
           {pr.title}
         </span>
-        <a href={pr.url} className="shrink-0 text-text-muted hover:text-accent" title="Open on GitHub">
+        <a href={pr.url} className="shrink-0 text-text-muted hover:text-text" title="Open on GitHub">
           #{pr.number}
         </a>
         <span className="hidden shrink-0 text-text-muted xl:inline">

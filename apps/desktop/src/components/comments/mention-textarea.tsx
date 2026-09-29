@@ -31,7 +31,7 @@ function MentionBackdrop(props: { value: string; className?: string; backdropRef
           return <span key={index}>{part.text}</span>;
         }
         return (
-          <mark key={index} className="rounded bg-accent/15 text-transparent ring-1 ring-accent/30">
+          <mark key={index} className="rounded bg-claude/15 text-transparent ring-1 ring-claude/30">
             {part.text}
           </mark>
         );
@@ -137,7 +137,7 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaPr
             }}
             className="flex items-center gap-2.5 w-full px-3 py-1.5 text-xs text-text bg-hover cursor-pointer text-left"
           >
-            <SparkleIcon className="w-3.5 h-3.5 text-accent" />
+            <SparkleIcon className="w-3.5 h-3.5 text-claude" />
             <span className="font-semibold">@claude</span>
             <span className="text-text-muted truncate">Ask Claude Code</span>
           </button>

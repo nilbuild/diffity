@@ -11,7 +11,8 @@ describe('descriptionForRef', () => {
 
   it('labels commits, ranges and single refs', () => {
     expect(descriptionForRef(commitRef('abcdef1234567'))).toBe('Commit abcdef1');
-    expect(descriptionForRef('main...HEAD')).toBe('main...HEAD');
+    expect(descriptionForRef('main...HEAD')).toBe('main → HEAD');
+    expect(descriptionForRef('7081c9ac6589dd4011977f33f19ecd3164871cdf..HEAD')).toBe('7081c9a → HEAD');
     expect(descriptionForRef('HEAD~3')).toBe('Changes since HEAD~3');
   });
 });

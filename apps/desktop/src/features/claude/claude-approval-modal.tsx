@@ -91,7 +91,7 @@ export function ClaudeApprovalModal() {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-overlay ring-1 ring-overlay-border rounded-xl w-full max-w-2xl mx-4 overflow-hidden font-sans">
         <div className="flex items-start gap-2.5 px-4 pt-4 pb-3">
-          <SparkleIcon className="w-4 h-4 mt-0.5 text-accent shrink-0" />
+          <SparkleIcon className="w-4 h-4 mt-0.5 text-claude shrink-0" />
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-text">Claude wants to {verb} a file</h3>
             <p className="text-xs text-text-muted font-mono break-all mt-0.5">{target}</p>

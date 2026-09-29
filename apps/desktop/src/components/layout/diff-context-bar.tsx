@@ -1,26 +1,11 @@
-import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { fetchCommit, parseCommitRef } from '../../lib/api';
-import { useRepoNav } from '../../hooks/use-repo';
 import { useCopy } from '../../hooks/use-copy';
 import { useGitHubPr } from '../../hooks/use-repo-state';
 import { AuthorAvatar } from './commit-list';
-import { prDiffRef } from './ref-menu';
-import { CheckIcon, CopyIcon } from '../ui/icon';
-
-export function useBack() {
-  const navigate = useNavigate();
-  const nav = useRepoNav();
-  return () => {
-    const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
-    if (idx > 0) {
-      navigate(-1);
-      return;
-    }
-    nav.toOverview();
-  };
-}
+import { prDiffRef, rangeParts } from './ref-menu';
+import { CheckIcon, CopyIcon, GitCompareIcon } from '../ui/icon';
 
 export function useCommitDetails(sha: string | null) {
   return useQuery({
@@ -78,16 +63,15 @@ export function DiffContextHeader(props: { diffRef: string }) {
   if (isPr || !diffRef.includes('..')) {
     return null;
   }
-  const [base, head] = diffRef.split(/\.{2,3}/);
+  const { base, head } = rangeParts(diffRef);
   return (
-    <div className="min-w-0">
-      <h2 className="text-[15px] font-semibold leading-6 text-text">
-        Comparing <span className="font-mono text-[13px]">{base}</span> <span className="text-text-muted">…</span>{' '}
-        <span className="font-mono text-[13px]">{head || 'HEAD'}</span>
-      </h2>
-      <p className="mt-0.5 text-xs text-text-secondary">
-        {diffRef.includes('...') ? `What changed on ${head || 'HEAD'} since it split from ${base}` : `Every change after ${base}, up to ${head || 'HEAD'}`}
-      </p>
+    <div className="flex items-center gap-2 min-w-0 text-xs text-text-secondary">
+      <GitCompareIcon size="sm" className="text-text-muted" />
+      <span className="truncate">
+        {diffRef.includes('...')
+          ? <>Changes on <code className="font-mono text-text">{head}</code> since it split from <code className="font-mono text-text">{base}</code></>
+          : <>Every change after <code className="font-mono text-text">{base}</code>, up to <code className="font-mono text-text">{head}</code></>}
+      </span>
     </div>
   );
 }

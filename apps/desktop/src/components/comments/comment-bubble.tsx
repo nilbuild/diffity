@@ -44,7 +44,7 @@ function AuthorAvatar(props: { name: string; avatarUrl?: string; type: 'user' | 
     );
   }
 
-  const tone = type === 'agent' ? 'bg-accent/15 text-accent' : 'bg-fill text-text-secondary';
+  const tone = type === 'agent' ? 'bg-claude/12 text-claude' : 'bg-fill text-text-secondary';
   const initial = name.charAt(0).toUpperCase();
 
   return (
@@ -102,7 +102,7 @@ export function CommentBubble(props: CommentBubbleProps) {
           <AuthorAvatar name={comment.author.name} avatarUrl={comment.author.avatarUrl} type={comment.author.type} />
           <span className="text-[13px] font-semibold text-text">{comment.author.name}</span>
           {comment.author.type === 'agent' && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/12 text-accent font-medium">bot</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-fill text-text-secondary font-medium">bot</span>
           )}
           <span className="text-xs text-text-muted">{formatRelativeTime(comment.createdAt)}</span>
           {comment.pending && <ThreadBadge variant="pending" />}

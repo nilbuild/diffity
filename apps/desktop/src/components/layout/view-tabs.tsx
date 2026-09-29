@@ -1,13 +1,13 @@
 import { useRepoNav } from '../../hooks/use-repo';
 import { cn } from '../../lib/cn';
-import { FileTextIcon, FolderSimpleIcon, HistoryIcon, type GlyphProps } from '../ui/icon';
+import { ChangesIcon, FolderSimpleIcon, HistoryIcon, type GlyphProps } from '../ui/icon';
 import type { ComponentType } from 'react';
 
 export type RepoView = 'diff' | 'tree' | 'overview';
 
 const TABS: { value: RepoView; label: string; hint: string; icon: ComponentType<GlyphProps> }[] = [
-  { value: 'diff', label: 'Changes', hint: 'Uncommitted changes', icon: FileTextIcon },
   { value: 'tree', label: 'Files', hint: 'Browse and comment on any file', icon: FolderSimpleIcon },
+  { value: 'diff', label: 'Changes', hint: 'Uncommitted changes', icon: ChangesIcon },
   { value: 'overview', label: 'History', hint: 'Commits, branches and comparisons', icon: HistoryIcon },
 ];
 
@@ -67,11 +67,11 @@ export function ViewTabs(props: { current: RepoView; vertical?: boolean }) {
             aria-current={active ? 'page' : undefined}
             title={tab.hint}
             className={cn(
-              'flex flex-1 min-w-0 items-center justify-center gap-1.5 h-7 px-2 rounded-md text-[13px] transition-colors cursor-pointer',
+              'flex flex-auto min-w-0 items-center justify-center gap-1.5 h-7 px-2 rounded-md text-[13px] transition-colors cursor-pointer',
               active ? 'bg-raised text-text font-medium ring-1 ring-control-border' : 'text-text-secondary hover:text-text',
             )}
           >
-            <Icon size="sm" className={active ? 'text-text' : 'text-text-muted'} />
+            <Icon size="md" className={active ? 'text-text' : 'text-text-muted'} />
             <span className="truncate">{tab.label}</span>
           </button>
         );

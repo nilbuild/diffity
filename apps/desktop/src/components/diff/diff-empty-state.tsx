@@ -117,20 +117,13 @@ function CleanOverview(props: { branch: string | null }) {
   return (
     <div className="flex-1 overflow-y-auto font-sans">
       <div className="max-w-[760px] mx-auto px-6 pt-12 pb-12">
-        <div className="flex items-start gap-3.5">
-          <span className="flex items-center justify-center w-10 h-10 rounded-full bg-added/12 text-added shrink-0">
-            <CheckCircleIcon size="xl" />
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-[18px] leading-6 font-semibold text-text">Everything is committed</h2>
-            <p className="mt-0.5 text-[13px] text-text-secondary">
-              {branch ? <>On <span className="font-mono text-xs text-text">{branch}</span>{sync ? `, ${sync}` : ''}. </> : null}
-              New edits show up here as you make them.
-            </p>
-          </div>
-        </div>
+        <h2 className="text-[18px] leading-6 font-semibold text-text">Everything is committed</h2>
+        <p className="mt-1 text-[13px] text-text-secondary">
+          {branch ? <>On <span className="font-mono text-xs text-text">{branch}</span>{sync ? `, ${sync}` : ''}. </> : null}
+          New edits show up here as you make them.
+        </p>
 
-        <div className="mt-8 grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-3">
+        <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-3">
           {last && (
             <Tile
               icon={<GitCommitIcon size="sm" />}

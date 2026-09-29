@@ -59,7 +59,7 @@ interface HastNode {
   children?: HastNode[];
 }
 
-const MENTION_CLASS = ['mention', 'px-0.5', 'rounded', 'bg-accent/10', 'text-accent', 'font-medium'];
+const MENTION_CLASS = ['mention', 'px-0.5', 'rounded', 'bg-claude/10', 'text-claude', 'font-medium'];
 
 function highlightChildren(node: HastNode) {
   if (!node.children || node.tagName === 'code' || node.tagName === 'pre' || node.tagName === 'a') {

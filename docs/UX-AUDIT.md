@@ -158,11 +158,40 @@ that fell out: **controls live next to what they change, and every region has on
   repo; a disabled submit says why.
 - `/` to focus the filter did nothing on the Changes view (selector looked for "Filter files..."); fixed.
 
+## Round 4 (feedback on the framed layout)
+
+- Tabs read Files · Changes · History (browse → review → past). A repo still opens on Changes.
+- Icons that looked odd (Changes, folder, PR, branch with hollow + filled nodes) are now a small custom set in
+  `ui/icon.tsx` drawn on a 20px grid in one style: rounded filled shapes, filled nodes, 1.9px round strokes for
+  connectors (Changes = rounded doc with ±, folder, clock, branch, pull request, commit, compare). Status-bar sync
+  uses Phosphor bold arrows.
+- File tree is neutral: grey filled folders (slightly lighter), outlined-filled grey files; colour only in status letters.
+- Blue is only for the primary button and focus. Claude has its own colour (`claude`, terracotta `#c96442` /
+  `#e08a6d` dark) for the sparkle, Claude avatars, @claude mentions and the rail activity dot; links are underlined
+  text, not blue.
+- Files page: "Open in Editor" is a ghost icon at the end of the header row (tooltip names the configured editor,
+  ⌘⇧E). File and folder rows have a context menu (Open in editor, Copy path, Collapse other folders); file cards keep
+  the hover editor button with the editor's name.
+- Clean state lost the big check icon: title + one line, aligned with the cards.
+- Ranges and commits use short SHAs and friendly labels everywhere (picker, comment groups, toasts):
+  "7081c9a → HEAD", "Commit 7081c9a · subject", "main → feature". The separate ← became a × inside the picker chip
+  ("Back to uncommitted changes"); the big "Comparing …" heading is a one-line context row.
+- Title-bar ⋯ has the same outlined chrome as its neighbours.
+- Comment previews render markdown inline (bold, code; lists and headings flattened), clamped to two lines.
+- Resolve collapses the thread at once (optimistic, short fade) with an Undo toast; undo reopens and expands it.
+- Claude running pill is neutral: terracotta spinner, "Claude is reviewing · 0:02", Stop; the count shows only once
+  Claude has left comments.
+- Rail: 10px between tiles and extra space before "+".
+- Comments drawer: each view group collapses; open by default for the current view and for groups with open Claude
+  comments; the choice is remembered per repository and view.
+- Status-bar sync is a labelled segmented control: Fetch (last fetch time in the tooltip) · Pull N · Push N. Without an
+  upstream it shows "Publish branch" (and no Pull); Push is inert with a reason when there is nothing to push.
+- @claude mentions always reach Claude, also when a PR review is posted with "Send to Claude" off.
+
 ## Remaining
 
 - Very large diffs (thousands of files) are still rendered eagerly apart from auto-collapsed files; no virtualisation.
 - The window title is only the repo name (no ref).
-- With "Send to Claude" off, @claude mentions in a submitted PR review are posted but not sent to Claude (the popover warns). Decide whether mentions should always go to Claude.
 - A PR review posted from a non-PR view (e.g. an old commit) can only post comments GitHub can anchor; unanchored ones are reported as failed.
 - The edit-rejected guard is per turn, so after one denial Claude can't resolve any thread in that run, even ones whose edits were approved (conservative by design).
 - PR picker lists the 30 most recently updated open PRs; older ones need `#number`. No device-flow sign-in in the new GitHub pane (only when `DIFFITY_GITHUB_CLIENT_ID` is set; import/token cover it).

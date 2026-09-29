@@ -14,7 +14,7 @@ export function StaleNotice(props: StaleNoticeProps) {
     >
       <span className="w-1.5 h-1.5 rounded-full bg-modified/80" />
       <span>{message}</span>
-      <span className="font-medium text-accent">Refresh</span>
+      <span className="font-medium text-text">Refresh</span>
     </button>
   );
 }

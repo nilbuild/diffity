@@ -87,7 +87,7 @@ function SendToClaude(props: { threads: CommentThread[] }) {
       return;
     }
     if (pendingCount > 0) {
-      await submit.mutateAsync({ body: '', verdict: null, claude: 'none', prNumber: null });
+      await submit.mutateAsync({ body: '', verdict: null, claude: 'skip', prNumber: null });
     }
     enqueueClaude({ kind: 'resolve' }, { repoPath: getRepoPath(), sessionId });
   };
@@ -238,7 +238,7 @@ function ItemList(props: { items: ReviewItem[]; highlightMentions: boolean }) {
         <li key={item.threadId} className="flex items-center gap-2 h-7 px-2 text-xs min-w-0">
           <span className="font-mono text-[11px] text-text-secondary shrink-0 max-w-[140px] truncate">{item.location}</span>
           <span className="text-text truncate min-w-0 flex-1">{item.body}</span>
-          {highlightMentions && item.mentions && <SparkleIcon size="xs" className="text-accent" title="Mentions @claude" />}
+          {highlightMentions && item.mentions && <SparkleIcon size="xs" className="text-claude" title="Mentions @claude" />}
         </li>
       ))}
     </ul>
@@ -405,7 +405,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[] 
           <Section
             checked={sendClaude}
             onToggle={() => setSendClaude(!sendClaude)}
-            title={<><SparkleIcon size="sm" className="text-accent" />Send to Claude</>}
+            title={<><SparkleIcon size="sm" className="text-claude" />Send to Claude</>}
             hint="Claude edits your local checkout of this PR branch and asks before each edit."
           >
             <div role="radiogroup" aria-label="What Claude gets">
@@ -429,7 +429,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[] 
           </Section>
           {!sendClaude && mentioned.length > 0 && (
             <div className="px-4 -mt-1 pb-2 text-xs text-text-muted">
-              {plural(mentioned.length, 'comment')} mention @claude but won’t be sent.
+              {plural(mentioned.length, 'comment')} mention @claude. Claude answers those on their own.
             </div>
           )}
 

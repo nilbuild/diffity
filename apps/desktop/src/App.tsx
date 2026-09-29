@@ -111,6 +111,7 @@ export function App() {
           },
           classNames: {
             description: '!text-text-secondary !text-xs',
+            actionButton: '!bg-raised !text-text !border !border-control-border hover:!bg-control-hover !h-6 !px-2 !rounded-md !text-xs !font-medium',
           },
         }}
       />

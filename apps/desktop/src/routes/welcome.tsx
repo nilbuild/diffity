@@ -145,7 +145,7 @@ export function WelcomePage() {
         </div>
       </div>
       {dragging && (
-        <div className="pointer-events-none absolute inset-3 flex flex-col items-center justify-center gap-2 rounded-xl border border-accent/40 bg-accent/5 text-sm font-medium text-accent">
+        <div className="pointer-events-none absolute inset-3 flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-text-muted/50 bg-hover text-sm font-medium text-text">
           <FolderOpenIcon className="w-6 h-6" />
           Drop a folder to open it
         </div>

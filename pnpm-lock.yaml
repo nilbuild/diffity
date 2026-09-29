@@ -14,7 +14,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/parser
       '@phosphor-icons/react':
-        specifier: ^2.1.10
+        specifier: 2.1.10
         version: 2.1.10(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@tailwindcss/vite':
         specifier: 4.3.3

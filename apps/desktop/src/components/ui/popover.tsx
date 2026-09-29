@@ -163,3 +163,17 @@ export function MenuLabel(props: { children: ReactNode }) {
 export function MenuSeparator() {
   return <div className="my-1 -mx-1 border-t border-overlay-border" />;
 }
+
+export function ContextMenu(props: { position: { x: number; y: number } | null; onClose: () => void; width?: number; children: ReactNode }) {
+  const { position, onClose, width = 220, children } = props;
+  const anchorRef = useRef<HTMLSpanElement>(null);
+
+  return (
+    <>
+      {position && <span ref={anchorRef} aria-hidden className="fixed w-0 h-0 pointer-events-none" style={{ left: position.x, top: position.y }} />}
+      <Popover open={position !== null} onClose={onClose} anchorRef={anchorRef} width={width}>
+        {children}
+      </Popover>
+    </>
+  );
+}

@@ -120,9 +120,15 @@ export function descriptionForRef(ref: string): string {
     return `Commit ${commit.slice(0, 7)}`;
   }
   if (ref.includes('..')) {
-    return ref;
+    const [base, head] = ref.split(/\.{2,3}/);
+    return `${shortRefName(base)} → ${shortRefName(head || 'HEAD')}`;
   }
-  return `Changes since ${ref}`;
+  return `Changes since ${shortRefName(ref)}`;
+}
+
+function shortRefName(ref: string): string {
+  const name = ref.replace(/^origin\//, '');
+  return /^[0-9a-f]{8,40}$/i.test(name) ? name.slice(0, 7) : name;
 }
 
 export function commitRef(hash: string): string {

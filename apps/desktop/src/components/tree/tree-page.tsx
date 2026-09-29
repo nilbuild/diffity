@@ -38,10 +38,10 @@ import { setFocusThread } from '../../lib/ui-store';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
 import { FinishReview } from '../../features/review/finish-review';
-import { buttonOutline } from '../ui/button-styles';
-import { cn } from '../../lib/cn';
 import { FileBlockSkeleton, hideStaticSplash } from '../layout/skeleton';
-import { CodeIcon, FileIcon, PencilIcon } from '../ui/icon';
+import { CodeIcon, EditorIcon, FileIcon } from '../ui/icon';
+import { useEditorName } from '../../hooks/use-editor-name';
+import { modKey } from '../../lib/platform';
 
 function formatTreeThreadsForCopy(threads: CommentThread[]): string {
   const unresolvedThreads = threads.filter(
@@ -309,11 +309,25 @@ export function TreePage() {
     return formatTreeThreadsForCopy(threads);
   }, [threads]);
 
+  const editorName = useEditorName();
+
   const handleOpenInEditor = useCallback(() => {
     openInEditor(navPath).catch((error) => {
       toast.error('Could not open the editor', { description: errorMessage(error) });
     });
   }, [navPath]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.key.toLowerCase() !== 'e') {
+        return;
+      }
+      event.preventDefault();
+      handleOpenInEditor();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleOpenInEditor]);
 
   const breadcrumbs = useMemo(() => {
     if (!navPath) {
@@ -416,6 +430,16 @@ export function TreePage() {
             commentActions={commentActions}
             label={navPath ? navPath.split('/').pop()! : (info.name ?? 'root')}
             focusedThreadId={focusedThreadId}
+            actions={info?.editor === 'vscode' && (
+              <button
+                className='w-7 h-7 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer'
+                onClick={handleOpenInEditor}
+                title={`Open in ${editorName} (${modKey}⇧E)`}
+                aria-label={`Open in ${editorName}`}
+              >
+                <EditorIcon size='md' />
+              </button>
+            )}
           >
             <button
               className={
@@ -461,15 +485,6 @@ export function TreePage() {
                   onChange={setPreviewMode}
                 />
               </div>
-            )}
-            {info?.editor === 'vscode' && (
-              <button
-                className={cn(buttonOutline, 'ml-3')}
-                onClick={handleOpenInEditor}
-              >
-                <PencilIcon className='w-3.5 h-3.5 text-text-secondary' />
-                Open in Editor
-              </button>
             )}
           </PathComments>
 

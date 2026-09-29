@@ -21,7 +21,10 @@ not a redesign.
    and there are no other icon libraries. Solid shapes use `fill`; line-only glyphs (chevrons, arrows, plus, x, check,
    search, refresh) use `bold` so they carry the same visual weight. Sizes via `size`: `xs` 12, `sm` 14, `md` 16 inline,
    `lg` 18 toolbar, `xl` 20 rail. Colour = `text-secondary`, active/hover = `text`. File-status letters stay coloured.
-   Only `components/icons/brand-logo.tsx` and `spinner.tsx` remain as custom SVGs.
+   Git and navigation glyphs (Changes, folder, history, branch, pull request, commit, compare) are custom 20px-grid
+   icons in the same file (`customGlyph`): rounded filled shapes, filled nodes, 1.9px round strokes. Only
+   `components/icons/brand-logo.tsx` and `spinner.tsx` live elsewhere. Tree icons are neutral grey; no blue icons.
+   Claude-related marks use the `claude` colour token (terracotta), everything else stays neutral.
 4. **Desktop chrome.** Every page's top bar is `components/layout/title-bar.tsx`: the web toolbar plus
    `data-tauri-drag-region` and a 78px left inset for the macOS traffic lights (overlay title bar, lights at 14,13).
 5. **Code style (mandatory for new or changed code):** destructure props inside the function body, never in the
@@ -74,7 +77,7 @@ not a redesign.
 - Dark theme mirrors the light structure: frame `#0e0e10`, sidebar `#141416`, content `#19191c`, borders `#2d2d32`,
   overlays `#232327`; dark diff rows (`#182b1f` added, `#2f191b` removed); neutral hunk band. Light diff colours are
   gentle GitHub tints (`#edfcf1` / `#fef1f0`, neutral blue-grey hunk band `#f3f6fa`). Accent `#0969da` / `#3b82f6`
-  only for primary buttons, focus and links. Selected states are soft neutral fills (`selected`, `active`).
+  only for primary buttons and focus; links are underlined text. `claude` (`#c96442` / `#e08a6d`) marks Claude. Selected states are soft neutral fills (`selected`, `active`).
 
 ## Desktop additions (styled like the web UI)
 
@@ -91,7 +94,7 @@ not a redesign.
 - Popovers and menus use `components/ui/popover.tsx` (`Popover`, `useMenu`, `MenuItem`, `MenuLabel`,
   `MenuSeparator`): rendered in a portal, positioned from the anchor, flipped above and shifted inside the viewport,
   max-height with scroll, so nothing clips at a sidebar edge.
-- Sidebar (`components/layout/sidebar-frame.tsx`, `sidebar` surface): Changes · Files · History as a segmented
+- Sidebar (`components/layout/sidebar-frame.tsx`, `sidebar` surface): Files · Changes · History as a segmented
   control; a filter row (filter input · "commented only" chip when there are comments · ⋯ with Tree/List and
   expand/collapse all folders); a quiet summary line ("3 files +7 −2" or "k of N viewed"); the tree (12px indent, guide
   lines, filled file/folder icons, coloured status letter, comment badges). Collapsing (title-bar toggle or ⌘\\) leaves a
@@ -101,8 +104,9 @@ not a redesign.
   re-sorts on select, pointer drag to reorder (others slide to open the slot), right-click removes, ⌘1–9 and ⌘⇧[ ]
   switch, ⌘-click opens a new window. Below the tiles a dashed "+" tile (Open folder, ⌘O); Settings gear at the bottom.
   Hover tooltips (name, shortcut, path) appear to the right after 300ms.
-- Status bar (32px, on the frame below the workspace): branch switcher, upstream (or "Local only" / "Not published" /
-  detached), fetch / pull / push with counts, notices as neutral pills, repo path, and the PR (#N title) shortcut.
+- Status bar (32px, on the frame below the workspace): branch switcher, upstream (or "Local only" / detached), a
+  labelled segmented sync control (Fetch · Pull N · Push N, or Fetch · Publish branch without an upstream), notices
+  as neutral pills, repo path, and the PR (#N title) shortcut.
 - Branch switcher (`features/pr/branch-switcher.tsx`, click the branch in the status bar): search, Local branches
   (current checked, ahead/behind), Remote branches (checked out as a local tracking branch), Pull requests (#, title,
   author, checks) and "Check out pull request #N" for a typed number or URL. Switching with uncommitted changes asks

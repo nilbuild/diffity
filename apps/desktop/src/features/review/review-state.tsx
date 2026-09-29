@@ -41,7 +41,8 @@ export function usePendingReview(sessionId: string | null): Review | null {
   return query.data ?? null;
 }
 
-export type ClaudeScope = 'all' | 'mentions' | 'none';
+/** `none` still answers @claude mentions; `skip` sends nothing (the caller starts its own run). */
+export type ClaudeScope = 'all' | 'mentions' | 'none' | 'skip';
 
 export interface SubmitReviewInput {
   body: string;
@@ -69,7 +70,7 @@ function successTitle(review: Review, pushed: boolean, claude: boolean): string 
 
 function triggerClaude(review: Review, scope: ClaudeScope): string | null {
   const context = { repoPath: getRepoPath(), sessionId: review.sessionId };
-  if (scope === 'none') {
+  if (scope === 'skip') {
     return null;
   }
   if (scope === 'all') {

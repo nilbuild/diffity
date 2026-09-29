@@ -45,19 +45,43 @@ export function useCommentActions(sessionId: string | null, enabled: boolean) {
     }, reportError);
   }, [enabled, invalidateThreads]);
 
-  const resolveThread = useCallback((threadId: string) => {
-    if (!enabled) {
-      return;
-    }
-    api.updateThreadStatus(threadId, 'resolved').then(invalidateThreads, reportError);
-  }, [enabled, invalidateThreads]);
+  const setLocalStatus = useCallback((threadId: string, status: CommentThread['status']) => {
+    queryClient.setQueryData<CommentThread[]>(['threads', sessionId], (threads) => {
+      if (!threads) {
+        return threads;
+      }
+      return threads.map((thread) => (thread.id === threadId ? { ...thread, status } : thread));
+    });
+  }, [queryClient, sessionId]);
 
   const unresolveThread = useCallback((threadId: string) => {
     if (!enabled) {
       return;
     }
-    api.updateThreadStatus(threadId, 'open').then(invalidateThreads, reportError);
-  }, [enabled, invalidateThreads]);
+    setLocalStatus(threadId, 'open');
+    api.updateThreadStatus(threadId, 'open').then(invalidateThreads, (error) => {
+      reportError(error);
+      invalidateThreads();
+    });
+  }, [enabled, invalidateThreads, setLocalStatus]);
+
+  const resolveThread = useCallback((threadId: string) => {
+    if (!enabled) {
+      return;
+    }
+    setLocalStatus(threadId, 'resolved');
+    api.updateThreadStatus(threadId, 'resolved').then(() => {
+      invalidateThreads();
+      toast('Comment resolved', {
+        id: `resolved-${threadId}`,
+        duration: 8000,
+        action: { label: 'Undo', onClick: () => unresolveThread(threadId) },
+      });
+    }, (error) => {
+      reportError(error);
+      invalidateThreads();
+    });
+  }, [enabled, invalidateThreads, setLocalStatus, unresolveThread]);
 
   const dismissThread = useCallback((threadId: string) => {
     if (!enabled) {

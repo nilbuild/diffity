@@ -51,6 +51,16 @@ export function CommentThread(props: CommentThreadProps) {
   } = props;
   const [isCollapsed, setIsCollapsed] = useState(isThreadResolved(thread));
   const rowRef = useRef<HTMLTableRowElement>(null);
+  const resolved = isThreadResolved(thread);
+  const wasResolved = useRef(resolved);
+
+  useEffect(() => {
+    if (wasResolved.current === resolved) {
+      return;
+    }
+    wasResolved.current = resolved;
+    setIsCollapsed(resolved);
+  }, [resolved]);
 
   useEffect(() => {
     const el = rowRef.current;
@@ -70,7 +80,7 @@ export function CommentThread(props: CommentThreadProps) {
       <td colSpan={colSpan} className="px-3 py-1 font-sans">
         <button
           onClick={() => setIsCollapsed(false)}
-          className='thread-card inline-flex items-center gap-1.5 px-2 py-1 text-xs text-text-muted hover:text-text-secondary hover:bg-hover rounded-md transition-colors cursor-pointer'
+          className='thread-card animate-fade-in inline-flex items-center gap-1.5 px-2 py-1 text-xs text-text-muted hover:text-text-secondary hover:bg-hover rounded-md transition-colors cursor-pointer'
         >
           <CommentIcon className='w-3.5 h-3.5' />
           <span>
