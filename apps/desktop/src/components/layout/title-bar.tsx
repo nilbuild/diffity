@@ -2,7 +2,13 @@ import { useEffect, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { isMac, isTauri, modKey } from '../../lib/platform';
 import { toggleSidebar, useUi } from '../../lib/ui-store';
-import { SidebarIcon } from '../ui/icon';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
+import { toast } from 'sonner';
+import { ChevronDownIcon, EditorIcon, FolderSimpleIcon, HomeIcon, SidebarIcon, SwapIcon } from '../ui/icon';
+import { MenuItem, MenuSeparator, Popover, useMenu } from '../ui/popover';
+import { errorMessage, openInEditor } from '../../lib/api';
+import { openQuickOpen } from '../../features/palette/quick-open';
+import { useEditorName } from '../../hooks/use-editor-name';
 import { useInsideRail } from './activity-rail';
 import { useRepoNav } from '../../hooks/use-repo';
 
@@ -89,20 +95,89 @@ export function TitleBarDivider() {
   return <span className="w-px h-4 bg-frame-border shrink-0 mx-1" />;
 }
 
-export function RepoTitle(props: { name: string | null | undefined; path?: string }) {
+function RepoCrumb(props: { name: string; path?: string }) {
   const { name, path } = props;
   const nav = useRepoNav();
+  const editor = useEditorName();
+  const menu = useMenu();
+  const run = (action: () => void) => () => {
+    menu.close();
+    action();
+  };
+
+  return (
+    <div className={cn('group/crumb flex items-center shrink-0 max-w-[220px] rounded-md hover:bg-hover transition-colors', menu.open && 'bg-hover')}>
+      <button
+        onClick={nav.toOverview}
+        className="flex items-center gap-1.5 h-7 min-w-0 pl-1.5 pr-1 rounded-l-md font-semibold text-text text-[13px] cursor-pointer"
+        title={`Home (${modKey}⇧H)${path ? `\n${path}` : ''}`}
+      >
+        <HomeIcon size="sm" className="shrink-0 text-text-muted group-hover/crumb:text-text-secondary transition-colors" />
+        <span className="truncate">{name}</span>
+      </button>
+      <button
+        ref={menu.anchorRef}
+        onClick={menu.toggle}
+        aria-label="Project actions"
+        aria-haspopup="menu"
+        aria-expanded={menu.open}
+        title="Project actions"
+        className={cn(
+          'flex items-center justify-center h-7 w-5 shrink-0 rounded-r-md text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer',
+          menu.open && 'text-text',
+        )}
+      >
+        <ChevronDownIcon size="xs" />
+      </button>
+      <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} width={240}>
+        <MenuItem icon={<HomeIcon size="sm" />} label="Home" hint={`${modKey}⇧H`} onSelect={run(nav.toOverview)} />
+        <MenuItem icon={<SwapIcon size="sm" />} label="Switch project…" hint={`${modKey}O`} onSelect={run(openQuickOpen)} />
+        <MenuSeparator />
+        <MenuItem
+          icon={<EditorIcon size="sm" />}
+          label={`Open in ${editor}`}
+          onSelect={run(() => {
+            openInEditor('').catch((error) => toast.error('Could not open the editor', { description: errorMessage(error) }));
+          })}
+        />
+        <MenuItem
+          icon={<FolderSimpleIcon size="sm" />}
+          label="Reveal in Finder"
+          onSelect={run(() => {
+            revealItemInDir(path ?? nav.repoPath).catch(() => undefined);
+          })}
+        />
+      </Popover>
+    </div>
+  );
+}
+
+export function CurrentCrumb(props: { children: ReactNode; icon?: ReactNode }) {
+  const { children, icon } = props;
+
+  return (
+    <span aria-current="page" className="flex items-center gap-1.5 h-7 px-1.5 min-w-0 font-medium text-text-secondary cursor-default">
+      {icon && <span className="shrink-0 text-text-muted">{icon}</span>}
+      <span className="truncate">{children}</span>
+    </span>
+  );
+}
+
+export function Breadcrumb(props: { name: string | null | undefined; path?: string; children?: ReactNode }) {
+  const { name, path, children } = props;
 
   if (!name) {
     return null;
   }
   return (
-    <button
-      onClick={nav.toOverview}
-      className="h-7 px-1.5 rounded-md font-semibold text-text text-[13px] truncate max-w-[180px] shrink-0 hover:bg-hover transition-colors cursor-pointer"
-      title={`${path ? `${path}\n` : ''}Home: history and what to review (${modKey}⇧H)`}
-    >
-      {name}
-    </button>
+    <nav aria-label="Breadcrumb" data-tauri-drag-region className="flex items-center gap-1 min-w-0 shrink">
+      <RepoCrumb name={name} path={path} />
+      {children && (
+        <>
+          <span aria-hidden className="shrink-0 px-0.5 text-text-muted/60 select-none">/</span>
+          <div className="flex items-center min-w-0 shrink">{children}</div>
+        </>
+      )}
+    </nav>
   );
 }

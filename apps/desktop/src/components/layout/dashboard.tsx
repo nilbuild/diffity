@@ -18,11 +18,11 @@ import { ListRow, StatCell } from '../ui/list-row';
 import { relative } from '../../features/pr/pr-meta';
 import { Spinner } from '../icons/spinner';
 import { hideStaticSplash } from './skeleton';
-import { RepoTitle, TitleBar, Workspace } from './title-bar';
+import { Breadcrumb, CurrentCrumb, TitleBar, Workspace } from './title-bar';
 import { OptionsMenu } from './options-menu';
 import { StatusBar } from './status-bar';
 import { commitRef, errorMessage, openInEditor } from '../../lib/api';
-import { HOME_REF, prDiffRef, RefMenu } from './ref-menu';
+import { prDiffRef } from './ref-menu';
 import { useRepoNav } from '../../hooks/use-repo';
 import { isOpenThread, useRepoThreads } from '../../hooks/use-repo-threads';
 import { openSettingsAt } from '../../lib/ui-store';
@@ -383,8 +383,9 @@ export function Dashboard(props: DashboardProps) {
     <div className="flex flex-col h-screen bg-frame text-text font-sans">
       <TitleBar sidebarToggle={false}>
         <div data-tauri-drag-region className="flex items-center gap-2.5 min-w-0 shrink">
-          <RepoTitle name={info?.name} />
-          <RefMenu diffRef={HOME_REF} branch={branch} />
+          <Breadcrumb name={info?.name}>
+            <CurrentCrumb>Home</CurrentCrumb>
+          </Breadcrumb>
         </div>
         <div data-tauri-drag-region className="flex-1 min-w-2 self-stretch" />
         <div className="flex items-center gap-2 shrink-0">

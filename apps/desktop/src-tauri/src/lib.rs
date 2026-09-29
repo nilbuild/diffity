@@ -64,22 +64,16 @@ pub fn run() {
             app.manage(state);
             #[cfg(target_os = "macos")]
             if let Some(window) = app.get_webview_window("main") {
-                traffic_lights::center(&window.as_ref().window());
+                traffic_lights::install(&window.as_ref().window());
             }
             Ok(())
         })
-        // AppKit rebuilds the title bar (and reclaims the buttons) on any of these.
         .on_window_event(|window, event| {
             #[cfg(target_os = "macos")]
-            if matches!(
-                event,
-                tauri::WindowEvent::Resized(_)
-                    | tauri::WindowEvent::Moved(_)
-                    | tauri::WindowEvent::Focused(_)
-                    | tauri::WindowEvent::ThemeChanged(_)
-                    | tauri::WindowEvent::ScaleFactorChanged { .. }
-            ) {
-                traffic_lights::center(window);
+            match event {
+                tauri::WindowEvent::ThemeChanged(_) => traffic_lights::install(window),
+                tauri::WindowEvent::Destroyed => traffic_lights::uninstall(window),
+                _ => {}
             }
             #[cfg(not(target_os = "macos"))]
             let _ = (window, event);
@@ -87,7 +81,7 @@ pub fn run() {
         // Covers `repo-*` windows opened from the frontend via `new WebviewWindow`.
         .on_page_load(|webview, _payload| {
             #[cfg(target_os = "macos")]
-            traffic_lights::center(&webview.window());
+            traffic_lights::install(&webview.window());
             #[cfg(not(target_os = "macos"))]
             let _ = webview;
         })
@@ -136,7 +130,6 @@ pub fn run() {
             commands::comments::submit_review,
             commands::comments::discard_review,
             commands::dev::log_frontend,
-            commands::window::realign_window_chrome,
             commands::dev::dev_launch_target,
             commands::agents::list_agents,
             commands::agents::start_chat,

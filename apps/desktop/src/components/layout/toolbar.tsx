@@ -4,7 +4,7 @@ import { OptionsMenu } from './options-menu';
 import { GENERAL_THREAD_FILE_PATH } from '../comments/types';
 import type { CommentThread } from '../comments/types';
 import { isThreadResolved } from '../comments/types';
-import { RepoTitle, TitleBar } from './title-bar';
+import { Breadcrumb, TitleBar } from './title-bar';
 import { CommentsButton } from '../../features/comments/comments-button';
 import { RefMenu } from './ref-menu';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
@@ -118,8 +118,9 @@ export function Toolbar(props: ToolbarProps) {
   return (
     <TitleBar>
       <div data-tauri-drag-region className="flex items-center gap-2.5 min-w-0 shrink">
-        <RepoTitle name={repoName} path={meta?.path} />
-        {diffRef && <RefMenu diffRef={diffRef} branch={branch} />}
+        <Breadcrumb name={repoName} path={meta?.path}>
+          {diffRef && <RefMenu diffRef={diffRef} branch={branch} />}
+        </Breadcrumb>
       </div>
       <div data-tauri-drag-region className="flex-1 min-w-2 self-stretch" />
       <div className="flex items-center gap-2 shrink-0">
