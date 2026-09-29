@@ -571,6 +571,23 @@ full webview reload.
   and the other-views notice). A PR slower than the budget still swaps the hero once (with a fade); the open-PR list
   can change height the first time a repo is opened (placeholder count unknown).
 
+## Round 18 (switching views keeps your place)
+
+- **Found:** Changes → Files → Changes reset the ref to Uncommitted, and every switch between Home, Files and Changes
+  dropped the scroll, filter, expanded folders, expanded context, open threads and the Code/Preview choice.
+- **Now:** each view is restored as you left it, per project (also after switching projects and back):
+  - Changes reopens the last ref (commit, PR, compare; the ref chip shows it) with the same scroll line, focused file,
+    collapsed files (incl. collapse/expand all), expanded context, whitespace toggle, open/collapsed threads, open reply
+    boxes, sidebar filter and folders. Files: the open file or folder, expanded folders, sidebar and file scroll,
+    Code/Preview, filter. Home: scroll and history search.
+  - Per-view locations live in `repo-locations` (`lastViewLocationFor`); UI state in `lib/view-state.ts` (in-memory,
+    per repository; `useViewState`, `useRestoredScroll`). The diff keeps the virtualizer's measured heights so the
+    restored offset lands on the same line. Query cache kept 30 minutes so returning never shows a skeleton.
+  - Chosen over keeping views mounted and hidden: hidden views would keep their keyboard shortcuts, palette actions
+    and 2,000-file DOMs alive.
+  - Verified with screenshots and 10 fps bursts: one frame change, then pixel-identical to before leaving (including
+    the 2,206-file scratch diff scrolled deep).
+
 ## Remaining
 
 - "Post to GitHub now" pushes only new threads; replies to existing GitHub threads still go out with the review.

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import type { CommentThread as CommentThreadType } from './types';
 import { isThreadResolved, DEFAULT_AUTHOR } from './types';
 import type { CommentActions } from '../../hooks/use-comment-actions';
@@ -7,6 +7,7 @@ import { useReviewState } from '../../features/review/review-state';
 import { ThreadBadge } from '../ui/thread-badge';
 import { ThreadCard } from './thread-card';
 import { CommentIcon } from '../ui/icon';
+import { useViewState } from '../../lib/view-state';
 
 interface PathCommentsProps {
   pathKey: string;
@@ -22,8 +23,8 @@ export function PathComments(props: PathCommentsProps) {
   const { pathKey, threads, commentActions, label, children, actions, focusedThreadId } = props;
   const { sessionId } = useReviewState();
   const draftOpen = hasDraft(sessionId, `path:${pathKey}`);
-  const [isExpanded, setIsExpanded] = useState(draftOpen);
-  const [showForm, setShowForm] = useState(draftOpen);
+  const [isExpanded, setIsExpanded] = useViewState(`path:${sessionId}:${pathKey}:expanded`, draftOpen);
+  const [showForm, setShowForm] = useViewState(`path:${sessionId}:${pathKey}:form`, draftOpen);
 
   useEffect(() => {
     if (!focusedThreadId) {

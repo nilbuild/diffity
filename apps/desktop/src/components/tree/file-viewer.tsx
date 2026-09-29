@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useCallback, useEffect, useRef } from 'react';
 import { useHighlighter } from '../../hooks/use-highlighter';
 import { useLineSelection } from '../../hooks/use-line-selection';
 import type { CommentThread as CommentThreadType, CommentAuthor, LineSelection, SubmitOptions } from '../comments/types';
@@ -7,6 +7,7 @@ import { CommentThread } from '../comments/comment-thread';
 import { CommentForm } from '../comments/comment-form';
 import { CommentLineNumber } from '../comments/comment-line-number';
 import { cn } from '../../lib/cn';
+import { useViewState } from '../../lib/view-state';
 
 interface LineHighlight {
   filePath: string;
@@ -41,7 +42,7 @@ export function FileViewer(props: FileViewerProps) {
     lineHighlight,
   } = props;
 
-  const [pendingSelection, setPendingSelection] = useState<LineSelection | null>(null);
+  const [pendingSelection, setPendingSelection] = useViewState<LineSelection | null>(`tree:composer:${filePath}`, null);
   const { highlight, ready } = useHighlighter();
   const tableRef = useRef<HTMLTableElement>(null);
 

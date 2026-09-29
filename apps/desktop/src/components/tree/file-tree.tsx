@@ -13,6 +13,7 @@ import {
 import { CommentCount, FileTreeRow, StatusLetter, TreeItemMenu } from './file-tree-item';
 import { getFilePath } from '../../lib/diff-utils';
 import { cn } from '../../lib/cn';
+import { readViewState, useRestoredScroll, useViewState } from '../../lib/view-state';
 
 interface FileTreeProps {
   files: DiffFile[];
@@ -22,6 +23,7 @@ interface FileTreeProps {
   commentCountsByFile: Map<string, number>;
   commentedFilesOnly: boolean;
   flat?: boolean;
+  stateKey: string;
   onFileClick: (path: string) => void;
   onExpandedStateChange?: (allExpanded: boolean) => void;
 }
@@ -52,6 +54,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     commentCountsByFile,
     commentedFilesOnly,
     flat,
+    stateKey,
     onFileClick,
     onExpandedStateChange,
   } = props;
@@ -60,13 +63,9 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     return sortTree(collapseSingleChildDirs(buildFileTree(files)));
   }, [files]);
 
-  const prevTreeRef = useRef(tree);
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set(collectAllDirPaths(tree)));
-
-  if (prevTreeRef.current !== tree) {
-    prevTreeRef.current = tree;
-    setExpandedDirs(new Set(collectAllDirPaths(tree)));
-  }
+  const allDirPaths = useMemo(() => collectAllDirPaths(tree), [tree]);
+  const [collapsedDirs, setCollapsedDirs] = useViewState<Set<string>>(`${stateKey}:collapsedDirs`, () => new Set());
+  const expandedDirs = useMemo(() => new Set(allDirPaths.filter((path) => !collapsedDirs.has(path))), [allDirPaths, collapsedDirs]);
 
   const commentedPaths = useMemo(
     () => new Set(commentCountsByFile.keys()),
@@ -94,12 +93,10 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     return expandedDirs;
   }, [search, commentedFilesOnly, displayTree, expandedDirs]);
 
-  const allDirPaths = useMemo(() => collectAllDirPaths(tree), [tree]);
-
   useImperativeHandle(ref, () => ({
-    expandAll: () => setExpandedDirs(new Set(allDirPaths)),
-    collapseAll: () => setExpandedDirs(new Set()),
-  }), [allDirPaths]);
+    expandAll: () => setCollapsedDirs(new Set()),
+    collapseAll: () => setCollapsedDirs(new Set(allDirPaths)),
+  }), [allDirPaths, setCollapsedDirs]);
 
   useEffect(() => {
     if (!onExpandedStateChange || allDirPaths.length === 0) {
@@ -109,7 +106,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
   }, [expandedDirs, allDirPaths, onExpandedStateChange]);
 
   const handleToggleDir = useCallback((path: string) => {
-    setExpandedDirs(prev => {
+    setCollapsedDirs(prev => {
       const next = new Set(prev);
       if (next.has(path)) {
         next.delete(path);
@@ -118,7 +115,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
       }
       return next;
     });
-  }, []);
+  }, [setCollapsedDirs]);
 
   const [flatMenu, setFlatMenu] = useState<{ path: string; binary: boolean; at: { x: number; y: number } } | null>(null);
 
@@ -151,7 +148,9 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
   );
   const rowCount = flat ? flatFiles.length : treeRows.length;
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollKey = `${stateKey}:scroll`;
   const virtualizer = useVirtualizer({
+    initialOffset: () => readViewState<number>(scrollKey, 0),
     count: rowCount,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
@@ -167,6 +166,8 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     }
     return treeRows.findIndex((row) => row.node.path === activeFile);
   }, [activeFile, flat, flatFiles, treeRows]);
+
+  useRestoredScroll(scrollRef, scrollKey);
 
   useEffect(() => {
     if (activeIndex < 0) {

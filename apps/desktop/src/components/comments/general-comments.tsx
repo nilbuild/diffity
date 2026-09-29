@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { GENERAL_THREAD_FILE_PATH, isThreadResolved, DEFAULT_AUTHOR } from './types';
 import type { CommentThread as CommentThreadType } from './types';
 import type { CommentActions } from '../../hooks/use-comment-actions';
@@ -7,6 +6,7 @@ import { useReviewState } from '../../features/review/review-state';
 import { ThreadBadge } from '../ui/thread-badge';
 import { ThreadCard } from './thread-card';
 import { ChevronIcon, CommentIcon } from '../ui/icon';
+import { useViewState } from '../../lib/view-state';
 
 interface GeneralCommentsProps {
   threads: CommentThreadType[];
@@ -19,8 +19,8 @@ export function GeneralComments(props: GeneralCommentsProps) {
   const threads = allThreads.filter(t => t.filePath === GENERAL_THREAD_FILE_PATH);
   const { sessionId } = useReviewState();
   const draftOpen = hasDraft(sessionId, 'general');
-  const [isExpanded, setIsExpanded] = useState(threads.length > 0 || draftOpen);
-  const [showForm, setShowForm] = useState(draftOpen);
+  const [isExpanded, setIsExpanded] = useViewState(`general:${sessionId}:expanded`, threads.length > 0 || draftOpen);
+  const [showForm, setShowForm] = useViewState(`general:${sessionId}:form`, draftOpen);
 
   return (
     <div className="rounded-lg overflow-hidden border border-border bg-bg">

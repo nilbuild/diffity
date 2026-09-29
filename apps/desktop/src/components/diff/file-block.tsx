@@ -34,6 +34,7 @@ import { OrphanedThreads } from '../comments/orphaned-threads';
 import { ThreadBadge } from '../ui/thread-badge';
 import { buildExpansionSyntaxMap, renderExpansionRows } from './render-expansion-rows';
 import { ExpandRow } from './expand-row';
+import { useViewState } from '../../lib/view-state';
 import { CheckIcon, ChevronIcon, CodeIcon, CommentIcon, CopyIcon, EditorIcon, EllipsisIcon, FileIcon, FileTextIcon, GitCompareIcon, UndoIcon } from '../ui/icon';
 import { MenuItem, MenuSeparator, Popover, useMenu } from '../ui/popover';
 import { contentsLabel, copyAbsolutePath, copyFileContents, copyFileDiff, copyRelativePath } from '../../lib/file-copy';
@@ -174,10 +175,11 @@ function FileCard(props: FileCardProps) {
   } = props;
 
   const rendersLines = !collapsed && !heldBack && !loadingPatch && !file.isBinary && file.hunks.length > 0;
-  const [expansions, setExpansions] = useState<Map<string, GapExpansion>>(new Map());
+  const filePath = getFilePath(file);
+  const hunkShape = useMemo(() => file.hunks.map((hunk) => `${hunk.oldStart},${hunk.oldCount},${hunk.newStart},${hunk.newCount}`).join(';'), [file.hunks]);
+  const [expansions, setExpansions] = useViewState<Map<string, GapExpansion>>(`diff:${baseRef ?? 'work'}:expanded:${filePath}:${hunkShape}`, () => new Map());
   const [loadingGap, setLoadingGap] = useState<{ id: string; direction: 'up' | 'down' | 'all' } | null>(null);
 
-  const filePath = getFilePath(file);
   const showRename = file.status === 'renamed' && file.oldPath !== file.newPath;
   const isNewFile = file.status === 'added';
 
@@ -465,7 +467,7 @@ function FileCard(props: FileCardProps) {
     });
 
     setLoadingGap(null);
-  }, [fileContentPath, queryClient, baseRef]);
+  }, [fileContentPath, queryClient, baseRef, setExpansions]);
 
   const getGapRemaining = useCallback((gap: ExpandableGap): { total: number; up: number; down: number } => {
     const expansion = expansions.get(gap.id);

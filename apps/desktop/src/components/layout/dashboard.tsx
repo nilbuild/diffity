@@ -33,6 +33,7 @@ import { cn } from '../../lib/cn';
 import { buttonClaude, buttonIconSmall, buttonOutline, buttonPrimary, inputField } from '../ui/button-styles';
 import { ChangesIcon, ChevronDownIcon, CommentIcon, EditorIcon, FolderSimpleIcon, CheckCircleIcon, GitCompareIcon, GitPullRequestIcon, SearchIcon, SparkleIcon, SwapIcon, XIcon, GitHubIcon } from '../ui/icon';
 import { Popover } from '../ui/popover';
+import { useRestoredScroll, useViewState } from '../../lib/view-state';
 
 interface DashboardProps {
   onNavigate: (ref: string) => void;
@@ -352,8 +353,10 @@ export function Dashboard(props: DashboardProps) {
   const repoThreads = threadsQuery.data;
   const branch = status?.branch ?? info?.branch ?? null;
   const base = useBaseBranch(details?.baseRef ?? null, branch);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useViewState('home:search', '');
   const [searching, setSearching] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
+  useRestoredScroll(mainRef, 'home:scroll');
   const [compareSignal, setCompareSignal] = useState(0);
   const recentQuery = useRecentCommits(1);
   const recent = recentQuery.data;
@@ -503,7 +506,7 @@ export function Dashboard(props: DashboardProps) {
       </TitleBar>
 
       <Workspace>
-        <main className="flex-1 min-h-0 overflow-y-auto">
+        <main ref={mainRef} className="flex-1 min-h-0 overflow-y-auto">
           <div className="max-w-[1000px] mx-auto px-8 pt-7 pb-12">
             <header className="flex items-center gap-3">
               <h1 className="text-[18px] leading-6 font-semibold text-text truncate">{info?.name ?? 'Repository'}</h1>

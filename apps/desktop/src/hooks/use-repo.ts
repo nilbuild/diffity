@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { create } from 'zustand';
 import * as tauri from '../lib/tauri';
 import { queryClient } from '../lib/query-client';
+import { lastViewLocationFor } from '../lib/repo-locations';
 
 export function useRepoPath(): string {
   const params = useParams();
@@ -22,7 +23,20 @@ export function useRepoNav() {
     navigate(`${base}/diff?ref=${encodeURIComponent(ref)}`);
   }, [navigate, base]);
 
+  /** Changes as you left it: the same ref (commit, PR, compare), falling back to uncommitted changes. */
+  const toLastDiff = useCallback(() => {
+    navigate(lastViewLocationFor(repoPath, 'diff') ?? `${base}/diff?ref=work`);
+  }, [navigate, repoPath, base]);
+
+  /** Without a path, Files opens where you left it. */
   const toTree = useCallback((path?: string, type?: 'file' | 'dir') => {
+    if (path === undefined) {
+      const last = lastViewLocationFor(repoPath, 'tree');
+      if (last) {
+        navigate(last);
+        return;
+      }
+    }
     const params = new URLSearchParams();
     if (path) {
       params.set('path', path);
@@ -32,7 +46,7 @@ export function useRepoNav() {
     }
     const query = params.toString();
     navigate(`${base}/tree${query ? `?${query}` : ''}`);
-  }, [navigate, base]);
+  }, [navigate, repoPath, base]);
 
   const toOverview = useCallback(() => {
     navigate(`${base}/overview`);
@@ -42,7 +56,7 @@ export function useRepoNav() {
     navigate('/');
   }, [navigate]);
 
-  return { repoPath, toDiff, toTree, toOverview, toWelcome };
+  return { repoPath, toDiff, toLastDiff, toTree, toOverview, toWelcome };
 }
 
 interface RepoChangeState {

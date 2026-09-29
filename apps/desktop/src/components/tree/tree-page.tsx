@@ -43,6 +43,7 @@ import { CodeIcon, EditorIcon, FileIcon } from '../ui/icon';
 import { useEditorName } from '../../hooks/use-editor-name';
 import { modKey } from '../../lib/platform';
 import { handleCopyShortcut } from '../../lib/file-copy';
+import { useRestoredScroll, useViewState } from '../../lib/view-state';
 
 function formatTreeThreadsForCopy(threads: CommentThread[]): string {
   const unresolvedThreads = threads.filter(
@@ -120,9 +121,10 @@ export function TreePage() {
   useEffect(() => {
     hideStaticSplash();
   }, []);
-  const [previewMode, setPreviewMode] = useState<'preview' | 'code'>('preview');
+  const [previewMode, setPreviewMode] = useViewState<'preview' | 'code'>('tree:preview', 'preview');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const mainRef = useRef<HTMLElement>(null);
+  useRestoredScroll(mainRef, `tree:scroll:${navType}:${navPath}`);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -188,19 +190,13 @@ export function TreePage() {
     (path: string) => {
       setNav(path, 'file');
       setPreviewMode('preview');
-      if (mainRef.current) {
-        mainRef.current.scrollTop = 0;
-      }
     },
-    [setNav],
+    [setNav, setPreviewMode],
   );
 
   const handleDirClick = useCallback(
     (path: string) => {
       setNav(path, 'dir');
-      if (mainRef.current) {
-        mainRef.current.scrollTop = 0;
-      }
     },
     [setNav],
   );

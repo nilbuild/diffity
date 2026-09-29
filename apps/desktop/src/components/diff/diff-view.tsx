@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, useCallback, useImperativeHandle, useEffect, useLayoutEffect } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
+import { useViewStateSlot } from '../../lib/view-state';
 import type { ParsedDiff } from '@diffity/parser';
 import { FileBlock } from './file-block';
 import { ConfirmDialog } from '../ui/confirm-dialog';
@@ -62,6 +63,8 @@ interface DiffViewProps {
   initialScrollTop?: number;
   onScrollTopChange?: (top: number) => void;
   hideWhitespace?: boolean;
+  /** Where the measured file heights are kept, so the restored scroll offset lands on the same line. */
+  memoryKey?: string;
 }
 
 function estimateFileHeight(file: DiffFile, collapsed: boolean, heldBack: boolean): number {
@@ -114,15 +117,12 @@ export function DiffView(props: DiffViewProps) {
     handle, baseRef, canRevert, onRevert,
     threads, commentsEnabled, commentActions, onAddThread,
     pendingSelection, onPendingSelectionChange, initialScrollTop = 0, onScrollTopChange, hideWhitespace = false,
+    memoryKey = 'diff',
   } = props;
+  const measurements = useViewStateSlot<VirtualItem[]>(`${memoryKey}:measurements`);
+  const [initialMeasurements] = useState(() => measurements.read([]));
   const { highlight } = useHighlighter();
   const scrollElementRef = useRef<HTMLElement>(null);
-
-  useLayoutEffect(() => {
-    if (scrollElementRef.current && initialScrollTop > 0) {
-      scrollElementRef.current.scrollTop = initialScrollTop;
-    }
-  }, []);
 
   const outsideThreads = useMemo(() => {
     const paths = new Set(diff.files.map((file) => getFilePath(file)));
@@ -172,6 +172,8 @@ export function DiffView(props: DiffViewProps) {
 
   const virtualizer = useVirtualizer({
     initialOffset: initialScrollTop,
+    initialMeasurementsCache: initialMeasurements,
+    getItemKey: (index) => getFilePath(diff.files[index]),
     scrollMargin,
     count: diff.files.length,
     getScrollElement: () => scrollElementRef.current,
@@ -181,6 +183,10 @@ export function DiffView(props: DiffViewProps) {
     },
     overscan: VIRTUALIZER_OVERSCAN,
   });
+
+  const virtualizerRef = useRef(virtualizer);
+  virtualizerRef.current = virtualizer;
+  useEffect(() => () => measurements.write(virtualizerRef.current.takeSnapshot()), [measurements]);
 
   const scrollTargetRef = useRef<string | null>(null);
   const [highlightedFile, setHighlightedFile] = useState<string | null>(null);
@@ -337,6 +343,17 @@ export function DiffView(props: DiffViewProps) {
   }, [getTopVisibleFile, onActiveFileChange, onScrollTopChange]);
 
   const items = virtualizer.getVirtualItems();
+  const scrollRestored = useRef(initialScrollTop <= 0);
+  useLayoutEffect(() => {
+    const el = scrollElementRef.current;
+    if (scrollRestored.current || !el || items.length === 0) {
+      return;
+    }
+    scrollRestored.current = true;
+    if (Math.abs(el.scrollTop - initialScrollTop) >= 1) {
+      el.scrollTop = initialScrollTop;
+    }
+  });
   const [paddingTop, paddingBottom] = items.length > 0
     ? [
         items[0].start - scrollMargin,

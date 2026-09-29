@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DiffFile, ParsedDiff } from '@diffity/parser';
 import { DiffStats } from '../diff/diff-stats';
 import { setSidebarFlat, useUi } from '../../lib/ui-store';
+import { useViewState } from '../../lib/view-state';
 import { FileTree } from '../tree/file-tree';
 import type { FileTreeHandle } from '../tree/file-tree';
 import { CommentedOnlyToggle, SidebarFilter, SidebarFrame, SidebarMenu, SidebarSummary } from './sidebar-frame';
@@ -16,6 +17,8 @@ interface SidebarProps {
   onFileClick: (path: string) => void;
   onCommentedFileClick: (path: string) => void;
   stats?: ParsedDiff['stats'];
+  /** Remembers the filter, folders and scroll per view. */
+  stateKey: string;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -27,10 +30,11 @@ export function Sidebar(props: SidebarProps) {
     onFileClick,
     onCommentedFileClick,
     stats,
+    stateKey,
   } = props;
   const fileTreeRef = useRef<FileTreeHandle>(null);
-  const [search, setSearch] = useState('');
-  const [commentedFilesOnly, setCommentedFilesOnly] = useState(false);
+  const [search, setSearch] = useViewState(`${stateKey}:filter`, '');
+  const [commentedFilesOnly, setCommentedFilesOnly] = useViewState(`${stateKey}:commentedOnly`, false);
   const [allExpanded, setAllExpanded] = useState(true);
   const flat = useUi((state) => state.sidebarFlat);
   const setFlat = setSidebarFlat;
@@ -50,7 +54,7 @@ export function Sidebar(props: SidebarProps) {
     if (commentedFileCount === 0 && commentedFilesOnly) {
       setCommentedFilesOnly(false);
     }
-  }, [commentedFileCount, commentedFilesOnly]);
+  }, [commentedFileCount, commentedFilesOnly, setCommentedFilesOnly]);
 
   const handleTreeFileClick = (path: string) => {
     if (commentedFilesOnly && commentCountsByFile.has(path)) {
@@ -117,6 +121,7 @@ export function Sidebar(props: SidebarProps) {
         commentCountsByFile={commentCountsByFile}
         commentedFilesOnly={commentedFilesOnly}
         flat={flat}
+        stateKey={stateKey}
         onFileClick={handleTreeFileClick}
         onExpandedStateChange={setAllExpanded}
       />

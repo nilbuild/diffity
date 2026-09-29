@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect, forwardRef } from 'react';
+import { useMemo, useCallback, useEffect, useRef, forwardRef } from 'react';
 import {
   buildFileTreeFromPaths,
   collapseSingleChildDirs,
@@ -11,6 +11,7 @@ import { FileTreeItem } from './file-tree-item';
 import { CommentedOnlyToggle, SidebarFilter, SidebarFrame, SidebarMenu, SidebarSummary } from '../layout/sidebar-frame';
 import { MenuItem } from '../ui/popover';
 import { CollapseAllIcon, ExpandAllIcon } from '../ui/icon';
+import { useRestoredScroll, useViewState } from '../../lib/view-state';
 
 interface TreeSidebarProps {
   paths: string[];
@@ -29,9 +30,11 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
     onDirClick,
   } = props;
 
-  const [search, setSearch] = useState('');
-  const [expandedDirs, setExpandedDirs] = useState<Set<string> | null>(null);
-  const [commentedFilesOnly, setCommentedFilesOnly] = useState(false);
+  const [search, setSearch] = useViewState('tree:filter', '');
+  const [expandedDirs, setExpandedDirs] = useViewState<Set<string> | null>('tree:expandedDirs', null);
+  const [commentedFilesOnly, setCommentedFilesOnly] = useViewState('tree:commentedOnly', false);
+  const listRef = useRef<HTMLDivElement>(null);
+  useRestoredScroll(listRef, 'tree:sidebarScroll');
 
   const tree = useMemo(() => {
     return sortTree(collapseSingleChildDirs(buildFileTreeFromPaths(paths)));
@@ -63,7 +66,7 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
       }
       return next;
     });
-  }, [activeFile, allDirPaths]);
+  }, [activeFile, allDirPaths, setExpandedDirs]);
 
   const effectiveExpanded = useMemo(() => {
     if (search || effectiveCommentedOnly) {
@@ -94,7 +97,7 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
       return next;
     });
     onDirClick(path);
-  }, [onDirClick]);
+  }, [onDirClick, setExpandedDirs]);
 
   const handleCollapseDir = useCallback((path: string) => {
     setExpandedDirs(prev => {
@@ -102,7 +105,7 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
       next.delete(path);
       return next;
     });
-  }, []);
+  }, [setExpandedDirs]);
 
   const handleExpandOnly = useCallback((path: string) => {
     const parts = path.split('/');
@@ -111,7 +114,7 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
       next.add(parts.slice(0, i).join('/'));
     }
     setExpandedDirs(next);
-  }, []);
+  }, [setExpandedDirs]);
 
   const emptyReviewedFiles = useMemo(() => new Set<string>(), []);
 
@@ -155,7 +158,7 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
       <SidebarSummary>
         {paths.length} file{paths.length === 1 ? '' : 's'}
       </SidebarSummary>
-      <div className="flex-1 overflow-y-auto px-2 pb-3">
+      <div ref={listRef} className="flex-1 overflow-y-auto px-2 pb-3">
         {displayTree.length === 0 ? (
           <div className="px-4 py-6 text-center text-xs text-text-muted">
             {search

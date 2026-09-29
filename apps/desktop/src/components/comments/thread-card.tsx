@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { CommentThread as CommentThreadType, SubmitOptions } from './types';
 import { isThreadResolved } from './types';
 import { CommentBubble } from './comment-bubble';
@@ -14,6 +13,7 @@ import * as api from '../../lib/api';
 import { useGitHubPr } from '../../hooks/use-repo-state';
 import { DEFAULT_AUTHOR } from './types';
 import { hasDraft } from './comment-form';
+import { useViewState } from '../../lib/view-state';
 
 interface ThreadCardProps {
   thread: CommentThreadType;
@@ -112,7 +112,7 @@ export function ThreadCard(props: ThreadCardProps) {
   } = props;
   const review = useReviewState();
   const replyKey = `reply:${thread.id}`;
-  const [showReply, setShowReply] = useState(() => hasDraft(review.sessionId, replyKey));
+  const [showReply, setShowReply] = useViewState(`thread:${thread.id}:reply`, () => hasDraft(review.sessionId, replyKey));
   const claudeThread = thread.comments[0]?.author.type === 'agent';
   const resolved = isThreadResolved(thread);
   const activity = useThreadActivity(thread.id);

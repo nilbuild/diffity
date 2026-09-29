@@ -8,7 +8,7 @@ export type RepoView = 'diff' | 'tree' | 'overview';
 
 const TABS: { value: RepoView; label: string; hint: string; icon: ComponentType<GlyphProps> }[] = [
   { value: 'tree', label: 'Files', hint: 'Browse and comment on any file', icon: FolderSimpleIcon },
-  { value: 'diff', label: 'Changes', hint: 'Uncommitted changes', icon: ChangesIcon },
+  { value: 'diff', label: 'Changes', hint: 'Review changes', icon: ChangesIcon },
 ];
 
 export function ViewTabs(props: { current: RepoView; vertical?: boolean }) {
@@ -16,11 +16,11 @@ export function ViewTabs(props: { current: RepoView; vertical?: boolean }) {
   const nav = useRepoNav();
 
   const go = (view: RepoView) => {
-    if (view === current && view !== 'diff') {
+    if (view === current) {
       return;
     }
     if (view === 'diff') {
-      nav.toDiff('work');
+      nav.toLastDiff();
       return;
     }
     if (view === 'tree') {
