@@ -6,7 +6,8 @@ import { CommentForm } from './comment-form';
 import { cn } from '../../lib/cn';
 import { enqueueClaude, useThreadActivity } from '../../features/claude/claude-runner';
 import { useReviewState } from '../../features/review/review-state';
-import { GitHubIcon, GitPullRequestIcon, SparkleIcon, TrashIcon } from '../ui/icon';
+import { EllipsisIcon, GitHubIcon, GitPullRequestIcon, SparkleIcon } from '../ui/icon';
+import { Popover, useMenu } from '../ui/popover';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import * as api from '../../lib/api';
@@ -26,6 +27,41 @@ interface ThreadCardProps {
   headerRight?: React.ReactNode;
   className?: string;
   children?: React.ReactNode;
+  /** Narrow cards: secondary actions move into the ⋯ menu. */
+  compact?: boolean;
+}
+
+function ThreadMenu(props: { items: { label: string; onSelect: () => void; danger?: boolean }[] }) {
+  const { items } = props;
+  const menu = useMenu();
+
+  return (
+    <>
+      <button
+        ref={menu.anchorRef}
+        onClick={menu.toggle}
+        className="w-6 h-6 inline-flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer"
+        title="More"
+        aria-label="More thread actions"
+      >
+        <EllipsisIcon size="sm" />
+      </button>
+      <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} align="end" width={200}>
+        {items.map((item) => (
+          <button
+            key={item.label}
+            onClick={() => {
+              menu.close();
+              item.onSelect();
+            }}
+            className={cn('flex items-center w-full h-8 px-2.5 rounded-md text-left text-[13px] hover:bg-hover cursor-pointer', item.danger ? 'text-deleted' : 'text-text')}
+          >
+            {item.label}
+          </button>
+        ))}
+      </Popover>
+    </>
+  );
 }
 
 function OriginBadge(props: { thread: CommentThreadType; prMode: boolean; prUrl: string | null }) {
@@ -72,6 +108,7 @@ export function ThreadCard(props: ThreadCardProps) {
     headerRight,
     className,
     children,
+    compact = false,
   } = props;
   const review = useReviewState();
   const replyKey = `reply:${thread.id}`;
@@ -117,57 +154,50 @@ export function ThreadCard(props: ThreadCardProps) {
 
   return (
     <div className={cn('rounded-lg overflow-hidden border border-border', className)} data-thread-id={thread.id}>
-      <div className="flex items-center justify-between h-9 px-3 bg-bg-secondary border-b border-border-muted">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 h-9 px-3 bg-bg-secondary border-b border-border-muted whitespace-nowrap">
+        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
           {headerLeft}
           <OriginBadge thread={thread} prMode={review.prMode} prUrl={details?.pr?.url ?? null} />
         </div>
-        <div className="flex items-center gap-1">
-          {canPromote && (
+        <div className="flex items-center gap-1 shrink-0">
+          {headerRight}
+          {!compact && canPromote && (
             <button
               onClick={() => void promote()}
-              className="inline-flex items-center gap-1 text-xs text-text-secondary hover:text-text transition-colors cursor-pointer mr-2"
+              className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
               title="Copy Claude's comment into your GitHub review as a draft you can edit"
             >
               <GitPullRequestIcon size="xs" className="text-added" />
               Add to my review
             </button>
           )}
-          {canAskClaude && !canPromote && (
+          {!compact && canAskClaude && !canPromote && (
             <button
               onClick={resolveWithClaude}
-              className="inline-flex items-center gap-1 text-xs text-text-secondary hover:text-text transition-colors cursor-pointer mr-2"
+              className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
               title="Ask Claude Code to address this thread"
             >
               <SparkleIcon className="w-3 h-3 text-claude" />
-              Resolve with Claude
+              Ask Claude
             </button>
           )}
-          {onResolve && onUnresolve && (
-            resolved ? (
-              <button
-                onClick={onUnresolve}
-                className="h-6 px-2 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
-              >
-                Reopen
-              </button>
-            ) : (
-              <button
-                onClick={onResolve}
-                className="h-6 px-2 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
-              >
-                Resolve
-              </button>
-            )
+          {!compact && onResolve && onUnresolve && (
+            <button
+              onClick={resolved ? onUnresolve : onResolve}
+              className="h-6 px-2 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
+            >
+              {resolved ? 'Reopen' : 'Resolve'}
+            </button>
           )}
-          {headerRight}
-          <button
-            onClick={onDeleteThread}
-            className="w-6 h-6 inline-flex items-center justify-center rounded-md text-text-muted hover:text-deleted hover:bg-hover transition-colors cursor-pointer"
-            title="Delete thread"
-          >
-            <TrashIcon className="w-3.5 h-3.5" />
-          </button>
+          <ThreadMenu
+            items={[
+              ...(compact && onResolve && onUnresolve && !resolved ? [{ label: 'Mark as addressed', onSelect: onResolve }] : []),
+              ...(compact && onUnresolve && resolved ? [{ label: 'Reopen', onSelect: onUnresolve }] : []),
+              ...(compact && canAskClaude ? [{ label: 'Ask Claude about it', onSelect: resolveWithClaude }] : []),
+              ...(compact && canPromote ? [{ label: 'Add to my review', onSelect: () => void promote() }] : []),
+              { label: 'Delete thread', onSelect: onDeleteThread, danger: true },
+            ]}
+          />
         </div>
       </div>
       {children}
@@ -209,12 +239,12 @@ export function ThreadCard(props: ThreadCardProps) {
             />
           </div>
         ) : (
-          <div className="px-3 pb-3">
+          <div className="pl-10 pr-3 pb-3">
             <button
               onClick={() => setShowReply(true)}
-              className="h-7 px-2.5 -ml-2.5 rounded-md text-[13px] text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
+              className="flex items-center w-full h-8 px-2.5 rounded-md border border-control-border bg-raised text-left text-[13px] text-text-muted hover:border-focus hover:text-text-secondary transition-colors cursor-text"
             >
-              Reply
+              Reply…
             </button>
           </div>
         )

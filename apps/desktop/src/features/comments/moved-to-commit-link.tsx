@@ -25,7 +25,7 @@ export function MovedToCommitLink(props: MovedToCommitLinkProps) {
         const params = new URLSearchParams({ ref: movedTo.ref, file: filePath });
         navigate(`/r/${encodeURIComponent(repoPath)}/diff?${params.toString()}`);
       }}
-      className="text-[11px] text-text-secondary underline decoration-text-muted/40 underline-offset-2 hover:text-text cursor-pointer mr-2"
+      className="h-6 px-2 rounded-md text-xs font-medium text-text hover:bg-hover whitespace-nowrap cursor-pointer"
       title={movedTo.subject}
     >
       View in commit {movedTo.shortSha}

@@ -58,8 +58,11 @@ export function hasDraft(sessionId: string | null, key: string): boolean {
   return readDraft(`${sessionId ?? 'none'}:${key}`).trim().length > 0;
 }
 
-function destinationHint(input: { reviewMode: boolean; prNumber: number | null; mentions: boolean }): string {
-  const { reviewMode, prNumber, mentions } = input;
+function destinationHint(input: { reviewMode: boolean; prNumber: number | null; mentions: boolean; ownPr?: number | null }): string {
+  const { reviewMode, prNumber, mentions, ownPr } = input;
+  if (ownPr) {
+    return mentions ? `A note on your PR #${ownPr}, kept in Diffity · Claude will reply` : `A note for Claude on your PR #${ownPr}, kept in Diffity`;
+  }
   if (reviewMode && prNumber) {
     return mentions ? `Goes into your review on PR #${prNumber} · Claude will reply` : `Goes into your review on PR #${prNumber}, posted when you submit`;
   }
@@ -142,10 +145,30 @@ export function CommentForm(props: CommentFormProps) {
 
   const renderButtons = () => {
     if (!reviewMode) {
+      const ownPr = review.ownPrNumber;
       return (
-        <button onClick={() => submit(false)} disabled={!body.trim()} className={primaryClass}>
-          {submitLabel}
-        </button>
+        <>
+          {ownPr && !isReply && (
+            <button
+              onClick={() => {
+                const trimmed = body.trim();
+                if (!trimmed) {
+                  return;
+                }
+                onSubmit(trimmed, { pending: false, postToGitHub: ownPr });
+                setBody('');
+              }}
+              disabled={!body.trim()}
+              className={secondaryClass}
+              title={`Also post this comment to your pull request #${ownPr} on GitHub`}
+            >
+              Comment & post to GitHub
+            </button>
+          )}
+          <button onClick={() => submit(false)} disabled={!body.trim()} className={primaryClass}>
+            {submitLabel}
+          </button>
+        </>
       );
     }
     if (threadPending) {
@@ -199,7 +222,7 @@ export function CommentForm(props: CommentFormProps) {
       </div>
       {review.enabled && (
         <div className="px-3 pb-2 text-xs text-text-muted" title={`${modKey}Enter submits`}>
-          {destinationHint({ reviewMode, prNumber, mentions: mentionsAgent(body) })}
+          {destinationHint({ reviewMode, prNumber, mentions: mentionsAgent(body), ownPr: review.ownPrNumber })}
         </div>
       )}
       <div className="flex items-center justify-end gap-2 px-2 pb-2">

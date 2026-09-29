@@ -5,6 +5,7 @@ import { useRepoNav } from '../../hooks/use-repo';
 import { useGitStatus, useRecentCommits, useRepoMeta } from '../../hooks/use-repo-state';
 import { commitRef, parseCommitRef } from '../../lib/api';
 import { EyeIcon } from '../ui/icon';
+import { buttonOutline } from '../ui/button-styles';
 import { CheckCircleIcon, ChevronRightIcon, FolderOpenIcon, GitBranchIcon, GitCommitIcon, HomeIcon, PencilIcon } from '../ui/icon';
 
 interface DiffEmptyStateProps {
@@ -124,15 +125,28 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
 
   if (diffRef === 'work' || diffRef === '.') {
     return (
-      <Shell
-        title="No uncommitted changes"
-        message={branch ? <>Everything on <span className="font-mono text-xs">{branch}</span> is committed. New edits show up here as you make them.</> : 'Everything is committed. New edits show up here as you make them.'}
-        actions={[
-          { label: 'Go to Home', detail: 'what to review next', icon: <HomeIcon size="sm" />, onClick: nav.toOverview },
-          ...(last ? [{ label: 'Review last commit', detail: last.message, icon: <GitCommitIcon size="sm" />, onClick: () => nav.toDiff(commitRef(last.hash)) }] : []),
-          browseFiles,
-        ]}
-      />
+      <div className="w-full max-w-[760px] mx-auto px-6 pt-10 font-sans">
+        <h2 className="text-[15px] font-semibold text-text">No uncommitted changes</h2>
+        <p className="mt-0.5 text-[13px] text-text-secondary">
+          {branch ? <>Everything on <span className="font-mono text-xs text-text">{branch}</span> is committed. New edits show up here as you make them.</> : 'Everything is committed. New edits show up here as you make them.'}
+        </p>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button onClick={nav.toOverview} className={buttonOutline}>
+            <HomeIcon size="sm" className="text-text-secondary" />
+            Home
+          </button>
+          {last && (
+            <button onClick={() => nav.toDiff(commitRef(last.hash))} className={buttonOutline} title={last.message}>
+              <GitCommitIcon size="sm" className="text-text-secondary" />
+              Last commit <code className="font-mono text-xs text-text-muted">{last.shortHash}</code>
+            </button>
+          )}
+          <button onClick={() => nav.toTree()} className={buttonOutline}>
+            <FolderOpenIcon size="sm" className="text-text-secondary" />
+            Browse files
+          </button>
+        </div>
+      </div>
     );
   }
 

@@ -158,6 +158,8 @@ export const githubLogout = () => invoke<void>('github_logout');
 export const gitFetch = (repoPath: string) => invoke<GitOpResult>('git_fetch', { repoPath });
 export const gitPull = (repoPath: string) => invoke<GitOpResult>('git_pull', { repoPath });
 export const gitPush = (repoPath: string) => invoke<GitOpResult>('git_push', { repoPath });
+export const gitCommitAll = (repoPath: string, message: string) => invoke<GitOpResult>('git_commit_all', { repoPath, message });
+export const githubPostComment = (commentId: string) => invoke<Thread>('github_post_comment', { commentId });
 export const findPr = (repoPath: string) => invoke<PullRequest | null>('find_pr', { repoPath });
 export const listPrs = (repoPath: string) => invoke<PullRequest[]>('list_prs', { repoPath });
 export const checkoutPr = (repoPath: string, urlOrNumber: string) =>

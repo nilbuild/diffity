@@ -17,6 +17,8 @@ export interface ClaudeRunContext {
   repoPath: string;
   sessionId: string | null;
   ref?: string | null;
+  /** GitHub threads whose new Claude reply should be posted back to GitHub when the run ends. */
+  postRepliesToGitHub?: string[];
 }
 
 export interface ClaudeRun {
@@ -259,6 +261,30 @@ function finishedMessage(run: ClaudeRun, added: number): string {
   return `Claude finished${where}`;
 }
 
+async function postRepliesToGitHub(sessionId: string, threadIds: string[]): Promise<number> {
+  if (threadIds.length === 0) {
+    return 0;
+  }
+  const threads = await tauri.listThreads(sessionId).catch(() => []);
+  let posted = 0;
+  for (const thread of threads.filter((item) => threadIds.includes(item.id))) {
+    const last = thread.comments[thread.comments.length - 1];
+    if (!last || last.authorType !== 'agent' || last.githubCommentId) {
+      continue;
+    }
+    try {
+      await tauri.githubPostComment(last.id);
+      posted += 1;
+    } catch (error) {
+      toast.error('Could not post Claude’s reply to GitHub', { description: tauri.errorMessage(error) });
+    }
+  }
+  if (posted > 0) {
+    queryClient.invalidateQueries({ queryKey: ['threads', sessionId] });
+  }
+  return posted;
+}
+
 async function batchOutcome(sessionId: string, threadIds: string[]): Promise<string | null> {
   if (threadIds.length === 0) {
     return null;
@@ -363,8 +389,9 @@ async function execute(run: ClaudeRun) {
   const finished = { ...latest, ref, newThreadIds };
   const hasTarget = !!ref && (added > 0 || finished.threadIds.length > 0);
   const batch = run.action.kind === 'resolve' ? await batchOutcome(sessionId, finished.threadIds) : null;
+  const posted = await postRepliesToGitHub(sessionId, run.context.postRepliesToGitHub ?? []);
   toast.success(batch ?? finishedMessage(finished, added), {
-    description: batch ? 'Edits are in your working tree; each thread has Claude’s reply.' : undefined,
+    description: batch ? `Edits are in your working tree; each thread has Claude’s reply.${posted > 0 ? ` Posted ${posted} repl${posted === 1 ? 'y' : 'ies'} to GitHub.` : ''}` : undefined,
     duration: hasTarget ? 12_000 : undefined,
     action: hasTarget ? { label: batch ? 'Review changes' : 'View', onClick: () => openRunResult(finished) } : undefined,
   });

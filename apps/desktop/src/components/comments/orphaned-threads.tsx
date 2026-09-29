@@ -19,6 +19,22 @@ interface OrphanedThreadsProps {
   showFilePath?: boolean;
   renderExtra?: (thread: CommentThreadType) => ReactNode;
   className?: string;
+  /** A plain labelled section (used on an empty view) instead of the collapsible strip. */
+  section?: boolean;
+}
+
+function MiddlePath(props: { path: string }) {
+  const { path } = props;
+  const slash = path.lastIndexOf('/');
+  const dir = slash >= 0 ? path.slice(0, slash + 1) : '';
+  const name = slash >= 0 ? path.slice(slash + 1) : path;
+
+  return (
+    <span className="flex min-w-0 font-mono text-[11px]" title={path}>
+      {dir && <span className="truncate text-text-muted">{dir}</span>}
+      <span className="shrink-0 text-text-secondary">{name}</span>
+    </span>
+  );
 }
 
 function lineLabel(thread: CommentThreadType): string {
@@ -47,6 +63,7 @@ export function OrphanedThreads(props: OrphanedThreadsProps) {
     showFilePath,
     renderExtra,
     className,
+    section = false,
   } = props;
   const focusThreadId = useUi((state) => state.focusThreadId);
   const [isExpanded, setIsExpanded] = useState(() => threads.some(thread => !isThreadResolved(thread)));
@@ -67,6 +84,42 @@ export function OrphanedThreads(props: OrphanedThreadsProps) {
     return null;
   }
 
+  const cards = threads.map((thread) => (
+    <ThreadCard
+      key={thread.id}
+      thread={thread}
+      compact={section}
+      onEditComment={(commentId, body) => onEditComment(commentId, body)}
+      onDeleteComment={(commentId) => onDeleteComment(thread.id, commentId)}
+      onDeleteThread={() => onDeleteThread(thread.id)}
+      onReply={onReply ? (body, options) => onReply(thread.id, body, options) : undefined}
+      onResolve={onResolve ? () => onResolve(thread.id) : undefined}
+      onUnresolve={onUnresolve ? () => onUnresolve(thread.id) : undefined}
+      className="thread-card border border-border bg-bg"
+      headerLeft={
+        <>
+          {showFilePath && thread.filePath !== GENERAL_THREAD_FILE_PATH && <MiddlePath path={thread.filePath} />}
+          <span className="shrink-0 text-[11px] text-text-muted font-mono">{lineLabel(thread)}</span>
+          {(thread.status === 'resolved' || thread.status === 'dismissed') && <ThreadBadge variant={thread.status} />}
+        </>
+      }
+      headerRight={renderExtra?.(thread)}
+    >
+      {thread.anchorContent && (
+        <pre className="px-3 py-2 text-xs font-mono text-text-muted bg-bg-tertiary/50 border-b border-border overflow-x-auto whitespace-pre max-h-24 overflow-y-auto">{thread.anchorContent}</pre>
+      )}
+    </ThreadCard>
+  ));
+
+  if (section) {
+    return (
+      <section className={className}>
+        <h3 className="mb-2 text-[13px] font-semibold text-text">{title}</h3>
+        <div className="space-y-3">{cards}</div>
+      </section>
+    );
+  }
+
   return (
     <div className={cn('border-b border-border bg-bg-secondary/50', className)}>
       <button
@@ -81,40 +134,8 @@ export function OrphanedThreads(props: OrphanedThreadsProps) {
         <ThreadBadge variant="outdated" />
       </button>
       {isExpanded && (
-        <div className="px-3 pb-2 space-y-2">
-          {threads.map((thread) => (
-            <ThreadCard
-              key={thread.id}
-              thread={thread}
-              onEditComment={(commentId, body) => onEditComment(commentId, body)}
-              onDeleteComment={(commentId) => onDeleteComment(thread.id, commentId)}
-              onDeleteThread={() => onDeleteThread(thread.id)}
-              onReply={onReply ? (body, options) => onReply(thread.id, body, options) : undefined}
-              onResolve={onResolve ? () => onResolve(thread.id) : undefined}
-              onUnresolve={onUnresolve ? () => onUnresolve(thread.id) : undefined}
-              className="thread-card border border-border max-w-[700px] bg-bg"
-              headerLeft={
-                <>
-                  {showFilePath && thread.filePath !== GENERAL_THREAD_FILE_PATH && (
-                    <span className="text-[11px] text-text-secondary font-mono truncate max-w-[320px]" title={thread.filePath}>
-                      {thread.filePath}
-                    </span>
-                  )}
-                  <span className="text-[11px] text-text-muted font-mono">{lineLabel(thread)}</span>
-                  <ThreadBadge variant="outdated" />
-                  {(thread.status === 'resolved' || thread.status === 'dismissed') && (
-                    <ThreadBadge variant={thread.status} />
-                  )}
-                  {thread.pending && <ThreadBadge variant="pending" />}
-                </>
-              }
-              headerRight={renderExtra?.(thread)}
-            >
-              {thread.anchorContent && (
-                <pre className="px-3 py-2 text-xs font-mono text-text-muted bg-bg-tertiary/50 border-b border-border overflow-x-auto whitespace-pre max-h-24 overflow-y-auto">{thread.anchorContent}</pre>
-              )}
-            </ThreadCard>
-          ))}
+        <div className="px-3 pb-2 space-y-2 [&>*]:max-w-[700px]">
+          {cards}
         </div>
       )}
     </div>

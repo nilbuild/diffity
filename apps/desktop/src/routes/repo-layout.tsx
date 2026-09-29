@@ -15,6 +15,7 @@ import { CommentsPanel } from '../features/comments/comments-panel';
 import { toggleComments } from '../lib/ui-store';
 import { PullRequestsDialog } from '../features/pr/pull-requests-dialog';
 import { CheckoutGuardDialog } from '../features/pr/checkout-guard-dialog';
+import { CommitDialog } from '../features/pr/commit-dialog';
 import { checkoutPullRequest } from '../features/pr/pr-checkout';
 import { RailFrame } from '../components/layout/activity-rail';
 import { activateRepoCache, rememberLocation } from '../lib/repo-locations';
@@ -149,6 +150,7 @@ export function RepoLayout() {
       <CommentsPanel />
       <PullRequestsDialog />
       <CheckoutGuardDialog />
+      <CommitDialog />
     </>
   );
 }

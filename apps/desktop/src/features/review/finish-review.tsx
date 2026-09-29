@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { create } from 'zustand';
 import { useQuery } from '@tanstack/react-query';
 import { buttonClaudeSolid, buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 import { cn } from '../../lib/cn';
@@ -15,6 +16,7 @@ import { GENERAL_THREAD_FILE_PATH, type CommentThread } from '../../components/c
 import { toast } from 'sonner';
 import { MentionTextarea } from '../../components/comments/mention-textarea';
 import { useReviewActions, useReviewState, type ClaudeScope } from './review-state';
+import { useOwnPr } from '../../hooks/use-repo-state';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, GitHubIcon, GitPullRequestIcon, SendIcon, SparkleIcon } from '../../components/ui/icon';
 import { Popover } from '../../components/ui/popover';
 
@@ -80,12 +82,13 @@ export function canSendToClaude(diffRef: string | null | undefined): boolean {
 export function FinishReview(props: FinishReviewProps) {
   const { githubDetails, threads = [], diffRef } = props;
   const { enabled } = useReviewState();
+  const ownPr = useOwnPr();
 
   if (!enabled) {
     return null;
   }
-  const send = canSendToClaude(diffRef) ? <SendToClaude threads={threads} /> : null;
-  if (!githubDetails) {
+  const send = canSendToClaude(diffRef) ? <SendToClaude threads={threads} includeGitHub={ownPr} /> : null;
+  if (!githubDetails || ownPr) {
     return send;
   }
   return (
@@ -104,8 +107,25 @@ function threadLocation(thread: CommentThread): string {
   return range;
 }
 
-function SendToClaude(props: { threads: CommentThread[] }) {
-  const { threads } = props;
+/** Open GitHub review threads whose latest comment is from a reviewer (not you or Claude). */
+export function reviewerThreads(threads: CommentThread[]): CommentThread[] {
+  return threads.filter((thread) => {
+    if (thread.status !== 'open' || thread.pending || !thread.githubThreadId) {
+      return false;
+    }
+    const last = thread.comments[thread.comments.length - 1];
+    return !!last && last.author.type === 'github';
+  });
+}
+
+export const useSendRequest = create<{ open: number }>(() => ({ open: 0 }));
+
+export function requestSendToClaude() {
+  useSendRequest.setState((state) => ({ open: state.open + 1 }));
+}
+
+function SendToClaude(props: { threads: CommentThread[]; includeGitHub?: boolean }) {
+  const { threads, includeGitHub = false } = props;
   const { sessionId, pendingReview, prMode } = useReviewState();
   const { submit } = useReviewActions(sessionId);
   const busy = useBusyThreadIds();
@@ -114,19 +134,33 @@ function SendToClaude(props: { threads: CommentThread[] }) {
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const anchorRef = useRef<HTMLButtonElement>(null);
   const pendingCount = prMode ? 0 : pendingReview?.pendingCount ?? 0;
-  const candidates = unaddressedThreads(threads).filter((thread) => !busy.has(thread.id) && !thread.githubThreadId);
+  const [postReplies, setPostReplies] = useState(false);
+  const openRequest = useSendRequest((state) => state.open);
+  const local = unaddressedThreads(threads).filter((thread) => !busy.has(thread.id) && !thread.githubThreadId);
+  const remote = includeGitHub ? reviewerThreads(threads).filter((thread) => !busy.has(thread.id)) : [];
+  const candidates = [...local, ...remote];
+  const remoteSelected = remote.filter((thread) => !excluded.has(thread.id));
+
+  const seenRequest = useRef(openRequest);
+  useEffect(() => {
+    if (openRequest === seenRequest.current) {
+      return;
+    }
+    seenRequest.current = openRequest;
+    setOpen(true);
+  }, [openRequest]);
   const selected = candidates.filter((thread) => !excluded.has(thread.id));
   const count = candidates.length + pendingCount;
   const claudeProblem = useClaudeProblem(count > 0);
 
   const groups = useMemo(() => {
     const byFile = new Map<string, CommentThread[]>();
-    for (const thread of candidates) {
+    for (const thread of local) {
       const key = thread.filePath === GENERAL_THREAD_FILE_PATH ? 'General comments' : thread.filePath;
       byFile.set(key, [...(byFile.get(key) ?? []), thread]);
     }
     return [...byFile.entries()];
-  }, [candidates]);
+  }, [local]);
 
   if (count === 0) {
     return null;
@@ -147,7 +181,7 @@ function SendToClaude(props: { threads: CommentThread[] }) {
         threadIds: [...new Set([...selected.map((thread) => thread.id), ...(pendingCount > 0 ? pendingReview?.threadIds ?? [] : [])])],
         note: note.trim() || undefined,
       },
-      { repoPath: getRepoPath(), sessionId },
+      { repoPath: getRepoPath(), sessionId, postRepliesToGitHub: postReplies ? remoteSelected.map((thread) => thread.id) : undefined },
     );
     setNote('');
     setExcluded(new Set());
@@ -209,6 +243,28 @@ function SendToClaude(props: { threads: CommentThread[] }) {
                 ))}
               </div>
             ))}
+            {remote.length > 0 && (
+              <div className="pb-1">
+                <div className="flex items-center gap-1.5 px-2 pt-2 pb-1 text-[11px] font-medium text-text-muted">
+                  <GitHubIcon size={11} />
+                  Reviewer comments from GitHub
+                </div>
+                {remote.map((thread) => (
+                  <label key={thread.id} className="flex items-start gap-2.5 px-2 py-1.5 rounded-md hover:bg-hover cursor-pointer">
+                    <input type="checkbox" checked={!excluded.has(thread.id)} onChange={() => toggle(thread.id)} className="mt-0.5 accent-claude" />
+                    <span className="shrink-0 w-24 pt-px font-mono text-[11px] text-text-muted truncate" title={thread.filePath}>{thread.filePath.split('/').pop()} {threadLocation(thread)}</span>
+                    <span className="min-w-0 flex-1 text-xs leading-5 text-text line-clamp-2">
+                      <span className="font-medium">{thread.comments[thread.comments.length - 1]?.author.name}: </span>
+                      {thread.comments[thread.comments.length - 1]?.body}
+                    </span>
+                  </label>
+                ))}
+                <label className="flex items-center gap-2 px-2 pt-1.5 text-xs text-text-secondary cursor-pointer">
+                  <input type="checkbox" checked={postReplies} onChange={() => setPostReplies(!postReplies)} className="accent-claude" disabled={remoteSelected.length === 0} />
+                  Post Claude’s replies to these GitHub threads
+                </label>
+              </div>
+            )}
             {pendingCount > 0 && <div className="px-2 py-1 text-xs text-text-secondary">+ {plural(pendingCount, 'draft comment')} (submitted first)</div>}
           </div>
           <div className="px-4 pt-2 pb-3 border-t border-overlay-border">

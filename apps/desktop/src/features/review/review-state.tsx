@@ -13,16 +13,18 @@ interface ReviewStateValue {
   pendingReview: Review | null;
   /** A GitHub pull request is checked out: comments can be drafted and posted as one review. */
   prMode: boolean;
+  /** Viewing your own PR: comments are local notes for Claude; this is the PR number for optional posting. */
+  ownPrNumber: number | null;
 }
 
-const ReviewStateContext = createContext<ReviewStateValue>({ enabled: false, sessionId: null, pendingReview: null, prMode: false });
+const ReviewStateContext = createContext<ReviewStateValue>({ enabled: false, sessionId: null, pendingReview: null, prMode: false, ownPrNumber: null });
 
-export function ReviewStateProvider(props: { sessionId: string | null; prMode?: boolean; children: ReactNode }) {
-  const { sessionId, prMode = false, children } = props;
+export function ReviewStateProvider(props: { sessionId: string | null; prMode?: boolean; ownPrNumber?: number | null; children: ReactNode }) {
+  const { sessionId, prMode = false, ownPrNumber = null, children } = props;
   const pendingReview = usePendingReview(sessionId);
 
   return (
-    <ReviewStateContext.Provider value={{ enabled: sessionId !== null, sessionId, pendingReview, prMode }}>
+    <ReviewStateContext.Provider value={{ enabled: sessionId !== null, sessionId, pendingReview, prMode, ownPrNumber }}>
       {children}
     </ReviewStateContext.Provider>
   );

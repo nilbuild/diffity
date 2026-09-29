@@ -64,6 +64,20 @@ pub async fn git_push(app: AppHandle, state: State<'_, AppState>, repo_path: Str
 }
 
 #[tauri::command]
+pub async fn git_commit_all(app: AppHandle, state: State<'_, AppState>, repo_path: String, message: String) -> Result<GitOpResult, AppError> {
+    let result = state.github.git_commit_all(&repo_path, &message).await?;
+    let _ = app.emit("repo-changed", json!({ "repoPath": repo_path }));
+    Ok(result)
+}
+
+#[tauri::command]
+pub async fn github_post_comment(app: AppHandle, state: State<'_, AppState>, comment_id: String) -> Result<Thread, AppError> {
+    let thread = state.github.post_comment_to_github(&comment_id).await?;
+    emit_threads_changed(&app, &thread.session_id);
+    Ok(thread)
+}
+
+#[tauri::command]
 pub async fn find_pr(state: State<'_, AppState>, repo_path: String) -> Result<Option<PullRequest>, AppError> {
     state.github.find_pr(&repo_path).await
 }

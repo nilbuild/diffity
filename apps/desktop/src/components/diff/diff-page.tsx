@@ -32,7 +32,12 @@ import { MovedComposer, selectionInDiff } from '../comments/moved-composer';
 import { Workspace } from '../layout/title-bar';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { useViewedFiles } from '../../hooks/use-viewed-files';
-import { useGitHubPr } from '../../hooks/use-repo-state';
+import { useGitHubPr, useOwnPr } from '../../hooks/use-repo-state';
+import { prDiffRef } from '../layout/ref-menu';
+import { openCommitDialog } from '../../features/pr/commit-dialog';
+import { GitPullRequestIcon } from '../ui/icon';
+import { buttonPrimary } from '../ui/button-styles';
+import { cn } from '../../lib/cn';
 
 interface DiffPageProps {
   diffRef: string;
@@ -63,6 +68,7 @@ export function DiffPage(props: DiffPageProps) {
   const canRevert = !!info?.capabilities?.revert;
   const { isStale, resetStaleness } = useDiffStaleness(refParam, !!info?.capabilities?.staleness);
   const { details: githubDetails } = useGitHubPr();
+  const ownPr = useOwnPr();
   const { reviewedFiles, setReviewed } = useViewedFiles(sessionId, diff);
 
   useEffect(() => {
@@ -385,7 +391,7 @@ export function DiffPage(props: DiffPageProps) {
   const allPaths = diff.files.map((file) => getFilePath(file));
 
   return (
-    <ReviewStateProvider sessionId={reviewsEnabled ? sessionId : null} prMode={!!githubDetails}>
+    <ReviewStateProvider sessionId={reviewsEnabled ? sessionId : null} prMode={!!githubDetails && !ownPr} ownPrNumber={ownPr && githubDetails && refParam === prDiffRef(githubDetails) ? githubDetails.prNumber : null}>
     <div className="flex flex-col h-screen bg-frame text-text font-sans">
       <Toolbar
         theme={theme}
@@ -415,26 +421,38 @@ export function DiffPage(props: DiffPageProps) {
         />
         {isEmpty ? (
           <div className="flex flex-1 min-w-0 flex-col overflow-y-auto">
-            {reviewsEnabled && (
-              <OutsideThreads
-                threads={threads}
-                commentActions={commentActions}
-                viewEmpty
-                className="mx-auto mt-4 w-full max-w-2xl rounded-lg border border-border"
-              />
-            )}
-            {composerMoved && pendingSelection && (
-              <MovedComposer selection={pendingSelection} onSubmit={handleAddThread} onCancel={() => setPendingSelection(null)} />
-            )}
             <DiffEmptyState
               diffRef={refParam}
               hideWhitespace={hideWhitespace}
               onShowWhitespace={() => setHideWhitespace(false)}
               branch={info?.branch || null}
             />
+            {reviewsEnabled && (
+              <OutsideThreads
+                threads={threads}
+                commentActions={commentActions}
+                viewEmpty
+                className="mx-auto mt-8 mb-10 w-full max-w-[760px] px-6"
+              />
+            )}
+            {composerMoved && pendingSelection && (
+              <MovedComposer selection={pendingSelection} onSubmit={handleAddThread} onCancel={() => setPendingSelection(null)} />
+            )}
           </div>
         ) : (
           <div className="flex flex-1 min-w-0 flex-col">
+            {ownPr && githubDetails && refParam === 'work' && (
+              <div className="flex items-center gap-3 h-10 shrink-0 px-5 border-b border-border-muted bg-claude/6 text-[13px]">
+                <GitPullRequestIcon size="sm" className="text-added" />
+                <span className="min-w-0 truncate text-text-secondary">
+                  These changes are on the branch of your PR <span className="font-medium text-text">#{githubDetails.prNumber}</span>
+                </span>
+                <span className="flex-1" />
+                <button onClick={() => openCommitDialog(githubDetails.prNumber)} className={cn(buttonPrimary, 'h-7')}>
+                  Commit & push
+                </button>
+              </div>
+            )}
             <DiffBar
               viewMode={viewMode}
               onViewModeChange={setViewMode}

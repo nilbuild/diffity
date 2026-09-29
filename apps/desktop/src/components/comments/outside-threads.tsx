@@ -21,7 +21,7 @@ export function OutsideThreads(props: OutsideThreadsProps) {
 
   const count = `${threads.length} comment${threads.length === 1 ? '' : 's'}`;
   const title = viewEmpty
-    ? `${count} left on changes that are no longer here`
+    ? `Comments on code that's since been committed (${threads.length})`
     : `${count} on files that are no longer changed in this view`;
 
   return (
@@ -29,6 +29,7 @@ export function OutsideThreads(props: OutsideThreadsProps) {
       threads={threads}
       title={title}
       showFilePath
+      section={viewEmpty}
       className={className}
       onEditComment={commentActions.editComment}
       onDeleteComment={commentActions.deleteComment}

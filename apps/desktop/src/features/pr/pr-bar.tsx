@@ -5,7 +5,9 @@ import * as tauri from '../../lib/tauri';
 import { cn } from '../../lib/cn';
 import type { PullRequest } from '../../lib/types';
 import { useRepoNav } from '../../hooks/use-repo';
-import { useGitHubPr } from '../../hooks/use-repo-state';
+import { useGitHubPr, useGitStatus, useOwnPr } from '../../hooks/use-repo-state';
+import { openCommitDialog } from './commit-dialog';
+import { requestSendToClaude, reviewerThreads } from '../review/finish-review';
 import { MarkdownContent } from '../../components/layout/markdown-content';
 import { Spinner } from '../../components/icons/spinner';
 import { buttonClaude, buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
@@ -253,6 +255,8 @@ export function PrBar(props: { diffRef: string; threads?: CommentThread[] }) {
   const { data: point } = useReturnPoint(nav.repoPath);
   const busy = useCheckoutState((state) => state.busy);
   const [dialog, setDialog] = useState(false);
+  const ownPr = useOwnPr();
+  const { data: status } = useGitStatus();
   const { syncing, sync, syncedAt } = useCommentSync(nav.repoPath, onPr ? pr : null);
 
   if (!onPr || !pr) {
@@ -260,6 +264,22 @@ export function PrBar(props: { diffRef: string; threads?: CommentThread[] }) {
   }
 
   const prRef = prRefFor(pr);
+  const reviewerOpen = reviewerThreads(threads).length;
+  const uncommitted = status ? status.staged + status.unstaged + status.untracked : 0;
+  const ahead = status?.ahead ?? 0;
+  const pushNow = async () => {
+    const id = toast.loading('Pushing…');
+    try {
+      const result = await tauri.gitPush(nav.repoPath);
+      if (result.ok) {
+        toast.success(`Pushed to PR #${pr.number}`, { id });
+      } else {
+        toast.error('Push failed', { id, description: result.output });
+      }
+    } catch (error) {
+      toast.error('Push failed', { id, description: tauri.errorMessage(error) });
+    }
+  };
   const showBack = !!point && point.prNumber === pr.number && (point.branch ?? point.sha) !== null;
   const checks = checksInfo(pr.checks);
   const synced = threads.filter((thread) => thread.githubThreadId).length;
@@ -288,12 +308,34 @@ export function PrBar(props: { diffRef: string; threads?: CommentThread[] }) {
           {pr.title}
         </button>
         <span className="shrink-0 text-[13px] text-text-muted tabular-nums">#{pr.number}</span>
+        <span
+          className={cn('shrink-0 px-1.5 py-0.5 rounded-full text-[11px] font-medium', ownPr ? 'bg-claude/12 text-claude' : 'bg-fill text-text-secondary')}
+          title={ownPr ? 'You opened this pull request: comments are notes for Claude; reviewers’ comments can be sent to Claude too' : 'Someone else’s pull request: your comments form a GitHub review'}
+        >
+          {ownPr ? 'Your PR' : `Reviewing @${pr.author}’s PR`}
+        </span>
         {checks && (
           <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center" title={checks.label}>
             {checks.icon}
           </span>
         )}
         <span className="min-w-2 flex-1" />
+        {ownPr && reviewerOpen > 0 && (
+          <button onClick={requestSendToClaude} className={cn(buttonClaude, 'h-7 px-2.5')} title="Send reviewers’ open comments to Claude; you pick which and whether its replies go back to GitHub">
+            <SparkleIcon size="sm" />
+            Address {reviewerOpen} reviewer comment{reviewerOpen === 1 ? '' : 's'}
+          </button>
+        )}
+        {ownPr && uncommitted > 0 && (
+          <button onClick={() => openCommitDialog(pr.number)} className={cn(buttonPrimary, 'h-7 px-2.5')} title={`${uncommitted} uncommitted file${uncommitted === 1 ? '' : 's'} on this branch`}>
+            Commit & push
+          </button>
+        )}
+        {ownPr && uncommitted === 0 && ahead > 0 && (
+          <button onClick={() => void pushNow()} className={cn(buttonPrimary, 'h-7 px-2.5')} title="Push your local commits so the pull request updates">
+            Push {ahead} commit{ahead === 1 ? '' : 's'}
+          </button>
+        )}
         <button onClick={() => void sync(true)} disabled={syncing} className={cn(buttonGhost, 'relative h-7 px-2')} title={syncTitle}>
           {syncing ? <Spinner className="h-3.5 w-3.5" /> : <CommentIcon size="sm" />}
           {syncing ? 'Syncing…' : 'Sync comments'}

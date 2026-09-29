@@ -159,24 +159,33 @@ export function RefMenu(props: RefMenuProps) {
 
   return (
     <div className="relative min-w-0 flex items-center" ref={ref}>
-      <div className={cn(buttonOutline, 'max-w-[460px] min-w-0 p-0 gap-0', open && 'bg-control-hover')}>
-        <button
-          onClick={() => setOpen(!open)}
-          className="flex items-center gap-1.5 min-w-0 h-full pl-2.5 pr-2 cursor-pointer"
-          title="Choose what to review"
-        >
-          <span className="shrink-0 text-text-secondary">{target.icon}</span>
-          <span className="truncate font-medium">{target.label}</span>
-          <ChevronDownIcon size="xs" className="shrink-0 text-text-secondary" />
-        </button>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen(!open)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setOpen(!open);
+          }
+        }}
+        className={cn(buttonOutline, 'max-w-[460px] min-w-0 pl-2.5 gap-1.5', isDefault ? 'pr-2' : 'pr-1', open && 'bg-control-hover')}
+        title="Choose what to review"
+      >
+        <span className="shrink-0 text-text-secondary">{target.icon}</span>
+        <span className="truncate font-medium">{target.label}</span>
+        <ChevronDownIcon size="xs" className="shrink-0 text-text-secondary" />
         {!isDefault && (
           <button
-            onClick={() => nav.toDiff('work')}
-            className="flex items-center justify-center w-6 h-full border-l border-control-border text-text-muted hover:text-text hover:bg-control-hover cursor-pointer"
+            onClick={(event) => {
+              event.stopPropagation();
+              nav.toDiff('work');
+            }}
+            className="ml-0.5 flex items-center justify-center w-5 h-5 rounded-full text-text-muted hover:text-text hover:bg-fill-hover transition-colors cursor-pointer"
             title="Back to uncommitted changes"
             aria-label="Back to uncommitted changes"
           >
-            <XIcon size="xs" />
+            <XIcon size={10} />
           </button>
         )}
       </div>

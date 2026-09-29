@@ -729,6 +729,42 @@ impl GithubService {
         db::get_thread(&self.store, thread_id)
     }
 
+    /// Posts an existing local comment (e.g. Claude's reply) to its GitHub review thread as a reply.
+    pub async fn post_comment_to_github(&self, comment_id: &str) -> Result<Thread> {
+        let comment = self.store.get_comment(comment_id)?;
+        if comment.github_comment_id.is_some() {
+            return db::get_thread(&self.store, &comment.thread_id);
+        }
+        let thread = db::get_thread(&self.store, &comment.thread_id)?;
+        let Some(github_thread_id) = thread.github_thread_id.clone() else {
+            return Err(AppError::invalid("this thread is not on GitHub"));
+        };
+        let token = self.require_token().await?;
+        let body = if comment.author_type == AuthorType::Agent {
+            format!("{}\n\n<sub>Reply drafted by {} in Diffity.</sub>", comment.body.trim_end(), comment.author_name)
+        } else {
+            comment.body.clone()
+        };
+        if let Some(id) = self.post_reply(&token, &github_thread_id, &body).await? {
+            db::set_comment_github_id(&self.store, comment_id, id)?;
+        }
+        db::get_thread(&self.store, &comment.thread_id)
+    }
+
+    /// Stages everything and commits it (no amend, no hooks bypass).
+    pub async fn git_commit_all(&self, repo_path: &str, message: &str) -> Result<GitOpResult> {
+        let message = message.trim();
+        if message.is_empty() {
+            return Err(AppError::invalid("a commit message is required"));
+        }
+        let add = gitcli::run(repo_path, &["add", "-A"]).await?;
+        if !add.ok {
+            return Ok(GitOpResult { ok: false, output: add.output });
+        }
+        let out = gitcli::run(repo_path, &["commit", "-m", message]).await?;
+        Ok(GitOpResult { ok: out.ok, output: out.output })
+    }
+
     pub async fn set_resolved(&self, thread_id: &str, resolved: bool) -> Result<Thread> {
         let thread = db::get_thread(&self.store, thread_id)?;
         if let Some(github_thread_id) = &thread.github_thread_id {

@@ -47,6 +47,15 @@ export function useGitHubPr() {
   return { details: query.data ?? null, loading: hasRemote && query.isLoading, hasRemote };
 }
 
+/** The checked-out PR is yours (you authored it), so review comments are notes for Claude rather than a GitHub review. */
+export function useOwnPr(): boolean {
+  const { details } = useGitHubPr();
+  const { data: auth } = useGitHubAuth();
+  const author = details?.pr?.author?.toLowerCase();
+  const login = auth?.login?.toLowerCase();
+  return !!author && !!login && author === login;
+}
+
 export function useBranches() {
   return useQuery({
     queryKey: ['branches'],

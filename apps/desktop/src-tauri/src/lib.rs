@@ -150,6 +150,8 @@ pub fn run() {
             commands::github::git_fetch,
             commands::github::git_pull,
             commands::github::git_push,
+            commands::github::git_commit_all,
+            commands::github::github_post_comment,
             commands::github::find_pr,
             commands::github::list_prs,
             commands::github::checkout_pr,

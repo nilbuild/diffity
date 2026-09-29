@@ -313,6 +313,35 @@ full webview reload.
 | Past commit or a range not ending at HEAD | — | Ask Claude to review (no Send to Claude: Claude edits the working tree) |
 | Files | — | Send N to Claude for file comments |
 
+## Round 9 (your own PR, thread cards, committed comments, traffic lights)
+
+- **Your PR vs someone else's.** A checked-out PR whose author is the signed-in GitHub user is "Your PR" (terracotta
+  chip in the PR bar); otherwise "Reviewing @author's PR".
+  - Your PR: comments are local notes for Claude (primary "Comment", secondary "Comment & post to GitHub"; hint "A note
+    for Claude on your PR #N, kept in Diffity"); the title bar shows "Send N to Claude", no Submit review.
+  - Reviewers' open GitHub threads are listed in the Send popover under "Reviewer comments from GitHub", and the PR bar
+    offers "Address N reviewer comments" (opens that popover). Opt-in "Post Claude's replies to these GitHub threads"
+    posts each new Claude reply as a GitHub reply when the run ends (new `github_post_comment` command; replies end
+    with a small "Reply drafted by Claude Code in Diffity" line).
+  - After Claude edits files: "Commit & push" in the PR bar and a banner on Uncommitted ("These changes are on the
+    branch of your PR #N · Commit & push"); "Push N commits" when commits are waiting. The commit dialog stages all
+    files, commits with a message prefilled from Claude's resolve summaries, then pushes (`git_commit_all` + push; no
+    amend or rebase).
+  - Someone else's PR keeps the draft-review flow from round 8.
+  - Verified with a mocked login on the scratch PR clone and a seeded reviewer thread; nothing was committed or pushed.
+- **Thread cards.** Headers never wrap: the left side truncates, actions are no-wrap ("Ask Claude", "Resolve") and
+  Delete moved into a ⋯ menu. Reply is a full-width "Reply…" field aligned with the comment text (40px inset).
+- **Empty view with comments on committed code.** The Uncommitted view now shows a compact "No uncommitted changes"
+  line with Home / Last commit / Browse files buttons, then "Comments on code that's since been committed (N)" with
+  compact cards: middle-truncated path + line range, "View in commit abc1234" as the one visible action, everything
+  else (Mark as addressed, Ask Claude about it, Delete) in ⋯.
+- **Ref picker.** The clear × sits inside the chip after the chevron as a small round ghost button.
+- **Traffic lights.** The positioning is now idempotent: every pass puts all three buttons in one container and lays
+  them out from scratch (fixed 20px stride), repairing whatever AppKit did (reclaimed buttons, reset frames, hidden
+  buttons, stacked at x = 0). It runs on window events, focus/blur/visibility and once a second while visible (a
+  cheap frame compare). Repairs are logged (`traffic_lights: repaired …`). Stress-tested: project switching, ⌘\,
+  Settings, ⌘R, theme switch, focus loss; no repair was needed after the first layout.
+
 ## Remaining
 
 - "Post to GitHub now" pushes only new threads; replies to existing GitHub threads still go out with the review.
