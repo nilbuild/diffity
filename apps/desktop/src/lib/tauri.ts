@@ -204,3 +204,21 @@ export const onRepoChanged = (handler: (payload: RepoChangedPayload) => void): P
 export const onThreadsChanged = (handler: (payload: ThreadsChangedPayload) => void): Promise<UnlistenFn> =>
   listen<ThreadsChangedPayload>('threads-changed', (event) => handler(event.payload));
 export const gitClone = (parent: string, url: string) => invoke<string>('git_clone', { parent, url });
+
+export interface DirSuggestion {
+  path: string;
+  name: string;
+  isGit: boolean;
+  branch: string | null;
+}
+
+export interface DirSuggestions {
+  dir: string;
+  segment: string;
+  entries: DirSuggestion[];
+}
+
+export const quickOpenRoots = () => invoke<{ home: string; roots: string[] }>('quick_open_roots');
+export const listDirSuggestions = (pathPrefix: string) => invoke<DirSuggestions>('list_dir_suggestions', { pathPrefix });
+export const resolveRepoRoot = (path: string) => invoke<{ path: string; exists: boolean; repoRoot: string | null }>('resolve_repo_root', { path });
+export const cloneRepo = (url: string, parent: string) => invoke<string>('clone_repo', { url, parent });

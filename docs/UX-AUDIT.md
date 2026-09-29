@@ -366,6 +366,24 @@ full webview reload.
 - **Diff order = sidebar order.** File cards follow the sidebar: depth-first tree order (folders first, sorted the
   same way) in tree mode, list order in list mode; switching modes reorders the diff, and j/k follow it.
 
+## Round 11 (quick open)
+
+- ⌘O (also the rail "+" tile and the start screen's Open) opens a quick-open palette in the ⌘K style instead of the
+  system dialog:
+  - Empty: recent projects, then starting folders (`~/` plus `~/lab`, `~/Code`, `~/Projects`, `~/Developer`, …
+    whichever exist).
+  - Typing a path (`~/…`, `/…`, or relative to home) lists child folders live: Git repositories first with a branch
+    icon and their current branch (read from `.git/HEAD`, no git process), plain folders after; hidden folders only
+    when the segment starts with `.`. Tab completes, → enters a folder, ⌫ at a `/` goes up, ↵ opens. A folder inside a
+    repository opens the repository root (with a toast saying so); a non-git folder explains why it can't open.
+  - A GitHub repo URL offers "Clone owner/repo…", then the same path input picks the parent folder (default: last
+    used, else ~/Code or ~/lab); progress lines stream from `git clone --progress`; the clone opens on Home.
+  - A PR URL opens the matching local clone and checks the PR out, or offers to clone first.
+  - "Browse…" (⌘⇧O) opens the system dialog; drag-and-drop on the start screen still works.
+- Backend (`diffity_core::quick_open` + commands `quick_open_roots`, `list_dir_suggestions`, `resolve_repo_root`,
+  `clone_repo` with `clone-progress` events, `GIT_TERMINAL_PROMPT=0`), with tests for expansion, splitting,
+  suggestions/repo marking and root resolution. Verified by cloning octocat/Hello-World into the scratchpad.
+
 ## Remaining
 
 - "Post to GitHub now" pushes only new threads; replies to existing GitHub threads still go out with the review.

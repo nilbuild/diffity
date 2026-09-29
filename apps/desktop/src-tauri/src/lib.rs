@@ -93,6 +93,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::repo::open_repo,
+            commands::repo::quick_open_roots,
+            commands::repo::list_dir_suggestions,
+            commands::repo::resolve_repo_root,
+            commands::repo::clone_repo,
             commands::repo::recent_repos,
             commands::repo::watch_repo,
             commands::repo::unwatch_repo,

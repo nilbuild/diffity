@@ -6,12 +6,12 @@ import { useRepoNav } from '../../hooks/use-repo';
 import { openSettings } from '../../lib/ui-store';
 import { modKey } from '../../lib/platform';
 import { openRepoAt, shortPath, useRecentRepos } from '../../features/welcome/recent-repos';
-import { pickFolder } from '../../features/welcome/open-repo';
 import { repoInitials } from '../../features/welcome/repo-badge';
 import { useActiveRun } from '../../features/claude/claude-runner';
 import { lastLocationFor } from '../../lib/repo-locations';
 import { PlusIcon, SettingsIcon } from '../ui/icon';
 import { useSidebarShortcut } from './title-bar';
+import { openQuickOpen } from '../../features/palette/quick-open';
 
 const RailContext = createContext(false);
 
@@ -222,22 +222,10 @@ function ActivityRail() {
     void openRepoAt(path, navigate);
   }, [nav, navigate]);
 
-  const openFolder = useCallback(async () => {
-    const path = await pickFolder();
-    if (!path) {
-      return;
-    }
-    await openRepoAt(path, navigate);
-  }, [navigate]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.altKey) {
-        return;
-      }
-      if (!event.shiftKey && event.key.toLowerCase() === 'o') {
-        event.preventDefault();
-        void openFolder();
         return;
       }
       if (!event.shiftKey && /^[1-9]$/.test(event.key)) {
@@ -262,7 +250,7 @@ function ActivityRail() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [projects, nav.repoPath, openProject, openFolder]);
+  }, [projects, nav.repoPath, openProject]);
 
   const targetIndex = drag?.active ? Math.max(0, Math.min(projects.length - 1, drag.from + Math.round(drag.dy / SLOT))) : null;
 
@@ -372,13 +360,13 @@ function ActivityRail() {
         ))}
         <div className="group relative w-full flex justify-center mt-1.5">
           <button
-            onClick={() => void openFolder()}
+            onClick={openQuickOpen}
             aria-label="Open folder"
             className={cn(tileBase, 'border border-dashed border-control-border text-text-muted hover:text-text hover:border-text-muted hover:bg-hover cursor-pointer')}
           >
             <PlusIcon size="md" />
           </button>
-          <RailTooltip title="Open folder" detail="Add a repository to this sidebar" shortcut={`${modKey}O`} />
+          <RailTooltip title="Open…" detail="A folder, a recent project or a GitHub URL" shortcut={`${modKey}O`} />
         </div>
       </div>
       <div data-tauri-drag-region className="flex-1 w-full" />

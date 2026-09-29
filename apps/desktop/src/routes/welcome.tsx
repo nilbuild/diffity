@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
-import { useHotkeys } from 'react-hotkeys-hook';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { toast } from 'sonner';
@@ -10,6 +9,7 @@ import { isTauri, modKey } from '../lib/platform';
 import { setRepoPath } from '../lib/api';
 import type { RecentRepo } from '../lib/types';
 import { parsePrUrl, pickFolder, remoteMatches } from '../features/welcome/open-repo';
+import { openQuickOpen } from '../features/palette/quick-open';
 import { openRepoAt, parentPath, useRecentRepos } from '../features/welcome/recent-repos';
 import { RepoBadge } from '../features/welcome/repo-badge';
 import { useTheme } from '../hooks/use-theme';
@@ -72,18 +72,8 @@ export function WelcomePage() {
 
   const openRepo = (path: string, newWindow = false, extra?: Record<string, string>) => openRepoAt(path, navigate, { newWindow, extra });
 
-  const openFolder = async (newWindow = false) => {
-    const path = await pickFolder();
-    if (!path) {
-      return;
-    }
-    await openRepo(path, newWindow);
-  };
 
-  useHotkeys('mod+o', (event) => {
-    event.preventDefault();
-    void openFolder();
-  });
+
 
   useFolderDrop((path) => void openRepo(path), setDragging);
 
@@ -112,7 +102,7 @@ export function WelcomePage() {
               icon={<FolderOpenIcon className="w-[18px] h-[18px]" />}
               title="Open folder"
               detail={`A local Git repository · ${modKey}O`}
-              onClick={() => void openFolder()}
+              onClick={openQuickOpen}
             />
             <StartCard
               icon={<DownloadIcon className="w-[18px] h-[18px]" />}

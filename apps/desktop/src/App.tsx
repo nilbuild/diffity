@@ -12,6 +12,7 @@ import { DiffRoute } from './routes/diff';
 import { TreeRoute } from './routes/tree';
 import { OverviewRoute } from './routes/overview';
 import { SettingsDialog } from './features/settings/settings-dialog';
+import { QuickOpen, useQuickOpenShortcut } from './features/palette/quick-open';
 import { ShortcutModal } from './components/layout/shortcut-modal';
 import { TopProgress, hideStaticSplash } from './components/layout/skeleton';
 import { closeShortcuts, openSettings, openShortcuts, useUi } from './lib/ui-store';
@@ -107,6 +108,12 @@ function useExternalLinks() {
   }, []);
 }
 
+function QuickOpenHost() {
+  useQuickOpenShortcut();
+
+  return <QuickOpen />;
+}
+
 export function App() {
   useExternalLinks();
   useWindowChrome();
@@ -132,6 +139,7 @@ export function App() {
         </Routes>
         <SettingsDialog />
         <GlobalShortcutModal />
+        <QuickOpenHost />
       </HashRouter>
       <TopProgress />
       <Toaster
