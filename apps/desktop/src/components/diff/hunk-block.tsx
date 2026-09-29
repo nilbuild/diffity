@@ -212,11 +212,10 @@ export function HunkBlock(props: HunkBlockProps) {
     flushRows(false, -1);
   }
 
-  const tbodyClass = expandControls?.wasExpanded && expandControls.remainingLines <= 0 ? '' : 'border-t border-border-muted';
 
   return (
     <>
-      <tbody className={tbodyClass}>
+      <tbody>
         <HunkHeader hunk={hunk} expandControls={expandControls} />
         {expansionRows}
       </tbody>

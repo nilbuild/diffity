@@ -301,3 +301,57 @@ pub struct Review {
     pub created_at: String,
     pub submitted_at: Option<String>,
 }
+
+/// Where a stored thread stands against its view's current diff.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ThreadAnchor {
+    /// Shown on its lines (or the view shows it as a file / general comment).
+    Current,
+    /// The file is still in the view but the commented lines are not.
+    Outdated,
+    /// The view has changes, but none in this file.
+    FileGone,
+    /// The view has no changes at all (e.g. uncommitted changes that were committed).
+    ViewEmpty,
+    /// The view's ref no longer resolves (deleted branch, rewritten history).
+    Unknown,
+}
+
+/// A commit whose diff now contains an outdated thread's code.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitPointer {
+    #[serde(rename = "ref")]
+    pub r#ref: String,
+    pub sha: String,
+    pub short_sha: String,
+    pub subject: String,
+}
+
+/// One thread of a repo, with the view it lives in, for the repo-wide comments list.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoThread {
+    pub id: String,
+    pub session_id: String,
+    #[serde(rename = "ref")]
+    pub r#ref: String,
+    pub ref_label: String,
+    pub file_path: String,
+    pub side: Side,
+    pub start_line: u32,
+    pub end_line: u32,
+    pub status: ThreadStatus,
+    pub severity: Option<Severity>,
+    pub anchor_content: Option<String>,
+    pub author_type: AuthorType,
+    pub author_name: String,
+    pub excerpt: String,
+    pub reply_count: u32,
+    pub created_at: String,
+    pub updated_at: String,
+    pub pending: bool,
+    pub anchor: ThreadAnchor,
+    pub moved_to: Option<CommitPointer>,
+}

@@ -1,10 +1,11 @@
+use diffity_core::repo_threads;
 use diffity_core::types::{
-    AuthorType, NewThread, Review, ReviewSession, ReviewVerdict, Thread, ThreadStatus, ViewedFile,
+    AuthorType, NewThread, RepoThread, Review, ReviewSession, ReviewVerdict, Thread, ThreadStatus, ViewedFile,
 };
 use diffity_core::AppError;
 use tauri::{AppHandle, State};
 
-use super::repo::emit_threads_changed;
+use super::repo::{blocking, emit_threads_changed};
 use crate::state::AppState;
 
 #[tauri::command]
@@ -19,6 +20,14 @@ pub async fn get_session(
 #[tauri::command]
 pub async fn list_threads(state: State<'_, AppState>, session_id: String) -> Result<Vec<Thread>, AppError> {
     state.store.list_threads(&session_id, None)
+}
+
+/// Every thread of the repo across its views (uncommitted, commits, ranges, file browser), with a label for
+/// the view and whether the thread is still anchored in that view's current diff.
+#[tauri::command]
+pub async fn list_repo_threads(state: State<'_, AppState>, repo_path: String) -> Result<Vec<RepoThread>, AppError> {
+    let store = state.store.clone();
+    blocking(move || repo_threads::list_repo_threads(&store, &repo_path)).await
 }
 
 #[tauri::command]

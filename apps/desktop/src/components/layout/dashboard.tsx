@@ -29,6 +29,7 @@ import { TitleBar } from './title-bar';
 import { PageSwitcher } from './page-switcher';
 import { GitSyncActions } from './git-sync-actions';
 import { OptionsMenu } from './options-menu';
+import { CommentsButton } from '../../features/comments/comments-button';
 import { commitRef, parseGitHubRemote } from '../../lib/api';
 import { openSettings } from '../../lib/ui-store';
 import { prDiffRef } from './ref-menu';
@@ -273,6 +274,7 @@ export function Dashboard(props: DashboardProps) {
         </div>
         <div className="flex items-center gap-2 ml-auto shrink-0">
           <GitSyncActions />
+          <CommentsButton />
           <OptionsMenu theme={theme} onToggleTheme={toggleTheme} />
         </div>
       </TitleBar>

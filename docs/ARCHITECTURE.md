@@ -156,6 +156,7 @@ read_file(repoPath, path) -> FileContent        // text up to 2MB, binary flag o
 read_file_base64(repoPath, path) -> string      // for images
 get_session(repoPath, ref) -> ReviewSession     // get-or-create
 list_threads(sessionId) -> Thread[]
+list_repo_threads(repoPath) -> RepoThread[]     // every thread of the repo across views, newest first (see "Finding comments")
 create_thread(input: NewThread) -> Thread
 add_reply(threadId, body, authorType: Option, authorName: Option, pending: Option<bool>) -> Thread   // published user reply reopens
 get_pending_review(sessionId) -> Option<Review>; start_review(sessionId) -> Review; get_review(reviewId) -> Review
@@ -309,6 +310,15 @@ GitHub-style pending reviews plus `@claude` mentions.
 - **GitHub push of a review.** `push_review(..., reviewId)` requires a submitted review; it sends the threads the review started (any status, unsynced, `review::select_review`), posts review replies on already-linked threads via `addPullRequestReviewThreadReply`, and defaults `body`/`event` to the review's body/verdict (`comment→COMMENT`, `approve→APPROVE`, `requestChanges→REQUEST_CHANGES`). The `threadIds` / session paths are unchanged apart from skipping pending threads/comments.
 - **Migration.** `user_version` 1 → 2 in one transaction: create `reviews` (+ indexes), `ALTER TABLE` add `threads.review_id`, `comments.pending`, `comments.review_id`. Fresh DBs run v1 schema then v2.
 - **Smoke.** `cargo run -p diffity-agents --example smoke -- claude - thread` leaves a `@claude` question on the scratch repo and runs the `thread` action.
+
+## Finding comments across views
+
+Threads live in the session of the view they were left in (`work`, a commit `<sha>~1..<sha>`, a range, `__tree__`).
+- **Backend.** `Store::list_repo_threads(repo)` → `(ReviewSession, Thread)` for all sessions of the repo. `diffity_core::repo_threads::list_repo_threads(store, repo)` turns them into `RepoThread { id, sessionId, ref, refLabel, filePath, side, startLine, endLine, status, severity, anchorContent, authorType/authorName (first comment), excerpt, replyCount, createdAt, updatedAt, pending, anchor, movedTo }`. `refLabel` via `ref_label` ("Uncommitted changes", "Commit abc1234 · subject", "main...feature", "Changes since X", "Files"). `anchor` is computed against each view's current diff (one `get_diff` per view with threads): `current` (lines in a hunk, file/general comments), `outdated` (file in diff, lines not), `fileGone`, `viewEmpty` (e.g. `work` after committing), `unknown` (ref no longer resolves). For working-tree views, a non-current thread whose code (same lines, same `anchorContent`) is in HEAD's commit diff gets `movedTo { ref, sha, shortSha, subject }`.
+- **Frontend.** `hooks/use-repo-threads` (`['repo-threads', repoPath]`, invalidated on `threads-changed` and `repo-changed`). `features/comments/`: `CommentsPanel` (right drawer in `RepoLayout`, toggled by the toolbar `CommentsButton` with the open count, or `c`; grouped by view (current first) then file; filters Open/Resolved/All × Everyone/Claude/You), `OtherViewsBanner` (diff + file browser: "N open comments in Uncommitted changes · Show"), `MovedToCommitLink`.
+- **Deep links.** `lib/thread-location.ts`: `threadPath(repo, { ref, threadId })` → `diff?ref=…&thread=<id>` or `tree?thread=<id>`; `diff?ref=…&file=<path>` scrolls to a file. The pages consume and drop the params, set `ui-store.focusThreadId` (collapsed outdated sections expand) and scroll/flash the thread.
+- **Not-in-diff threads.** The diff page shows threads whose file is not in the diff ("N comments on files that are no longer changed in this view") above the files, and every thread of an empty view above the empty state, with reply/resolve and "View in commit abc1234" (`OutsideThreads`, built on `OrphanedThreads`).
+- **Claude runs** keep `ref` and `newThreadIds` on the run record. The status pill shows "on <view>" when you are elsewhere and the comment count links to the run's view; the finish toast says "Claude left 3 comments on Uncommitted changes" with **View** (navigates by hash, so it works from any page).
 
 ## Integration notes
 

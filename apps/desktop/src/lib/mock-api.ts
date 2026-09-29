@@ -302,6 +302,20 @@ function simulateAgent(args: Args) {
   });
 }
 
+function mockRefLabel(ref: string): string {
+  if (ref === '__tree__') {
+    return 'Files';
+  }
+  if (ref === 'work' || ref === '.') {
+    return 'Uncommitted changes';
+  }
+  const commit = /^([0-9a-f]{7,40})~1\.\.\1$/i.exec(ref);
+  if (commit) {
+    return `Commit ${commit[1].slice(0, 7)}`;
+  }
+  return ref.includes('..') ? ref : `Changes since ${ref}`;
+}
+
 const handlers: Record<string, (args: Args) => unknown> = {
   open_repo: (args) => ({
     path: args.path,
@@ -354,6 +368,38 @@ const handlers: Record<string, (args: Args) => unknown> = {
     [...threads.values()]
       .filter((t) => t.sessionId === args.sessionId)
       .map((t) => ({ ...t, comments: [...t.comments] })),
+  list_repo_threads: (args) => {
+    const bySession = new Map([...sessions.values()].map((session) => [session.id, session]));
+    return [...threads.values()]
+      .filter((t) => bySession.get(t.sessionId)?.repoPath === args.repoPath)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+      .map((t) => {
+        const ref = bySession.get(t.sessionId)?.ref ?? 'work';
+        const first = t.comments[0];
+        return {
+          id: t.id,
+          sessionId: t.sessionId,
+          ref,
+          refLabel: mockRefLabel(ref),
+          filePath: t.filePath,
+          side: t.side,
+          startLine: t.startLine,
+          endLine: t.endLine,
+          status: t.status,
+          severity: t.severity,
+          anchorContent: t.anchorContent,
+          authorType: first?.authorType ?? 'user',
+          authorName: first?.authorName ?? 'You',
+          excerpt: (first?.body ?? '').replace(/\s+/g, ' ').trim().slice(0, 160),
+          replyCount: Math.max(0, t.comments.length - 1),
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt,
+          pending: t.pending,
+          anchor: 'current',
+          movedTo: null,
+        };
+      });
+  },
   create_thread: (args) => touch(insertThread(args.input as NewThread)),
   add_reply: (args) => {
     const thread = threads.get(String(args.threadId));

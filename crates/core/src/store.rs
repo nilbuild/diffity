@@ -595,6 +595,33 @@ impl Store {
             .collect()
     }
 
+    /// Every thread in every review session of a repo, with its session, most recently updated first.
+    pub fn list_repo_threads(&self, repo_path: &str) -> Result<Vec<(ReviewSession, Thread)>> {
+        let conn = self.conn()?;
+        let cols = THREAD_COLS
+            .split(", ")
+            .map(|c| format!("t.{c}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let mut stmt = conn.prepare_cached(&format!(
+            "SELECT {cols}, s.ref FROM threads t JOIN review_sessions s ON s.id = t.session_id \
+             WHERE s.repo_path = ?1 ORDER BY t.updated_at DESC, t.rowid DESC"
+        ))?;
+        let rows = stmt
+            .query_map([repo_path], |r| Ok((row_to_thread(r)?, r.get::<_, String>(13)?)))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        rows.into_iter()
+            .map(|(thread, r#ref)| {
+                let session = ReviewSession {
+                    id: thread.session_id.clone(),
+                    repo_path: repo_path.to_string(),
+                    r#ref,
+                };
+                Ok((session, with_comments(&conn, thread)?))
+            })
+            .collect()
+    }
+
     pub fn get_thread(&self, thread_id: &str) -> Result<Thread> {
         load_thread(&*self.conn()?, thread_id)
     }

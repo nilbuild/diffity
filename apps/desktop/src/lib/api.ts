@@ -27,6 +27,16 @@ export function getRepoPath(): string {
 
 export const errorMessage = tauri.errorMessage;
 
+const sessionRefs = new Map<string, string>();
+
+/** The view (ref) of a review session this window has opened. */
+export function refForSession(sessionId: string | null | undefined): string | null {
+  if (!sessionId) {
+    return null;
+  }
+  return sessionRefs.get(sessionId) ?? null;
+}
+
 export interface GitHubRemote {
   owner: string;
   repo: string;
@@ -162,6 +172,7 @@ export async function fetchRepoInfo(ref?: string): Promise<RepoInfo> {
     tauri.resolveRef(repoPath, effectiveRef),
     tauri.getSession(repoPath, effectiveRef),
   ]);
+  sessionRefs.set(session.id, effectiveRef);
   return {
     name: repo.name,
     branch: repo.branch ?? '',
@@ -423,6 +434,7 @@ export async function fetchTreeEntries(dirPath?: string): Promise<{ entries: Tre
 export async function fetchTreeInfo(): Promise<RepoInfo> {
   const repoPath = getRepoPath();
   const [repo, session] = await Promise.all([tauri.openRepo(repoPath), tauri.getSession(repoPath, TREE_REF)]);
+  sessionRefs.set(session.id, TREE_REF);
   return {
     name: repo.name,
     branch: repo.branch ?? '',

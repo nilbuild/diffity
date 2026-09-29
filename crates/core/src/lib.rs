@@ -3,6 +3,7 @@ pub mod editor;
 pub mod error;
 pub mod git;
 pub mod mentions;
+pub mod repo_threads;
 pub mod store;
 pub mod tree;
 pub mod types;

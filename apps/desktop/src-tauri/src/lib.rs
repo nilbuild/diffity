@@ -114,6 +114,7 @@ pub fn run() {
             commands::files::read_file_base64,
             commands::comments::get_session,
             commands::comments::list_threads,
+            commands::comments::list_repo_threads,
             commands::comments::create_thread,
             commands::comments::add_reply,
             commands::comments::edit_comment,

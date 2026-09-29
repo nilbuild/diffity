@@ -339,3 +339,27 @@ fn migrates_v1_database() {
     let store = Store::open(&db).unwrap();
     assert_eq!(store.list_reviews("s1").unwrap().len(), 1);
 }
+
+#[test]
+fn lists_threads_across_a_repos_sessions() {
+    let store = Store::open_in_memory().unwrap();
+    let work = store.get_or_create_session("/repo", "work").unwrap();
+    let commit = store.get_or_create_session("/repo", "abc1234~1..abc1234").unwrap();
+    let other = store.get_or_create_session("/other", "work").unwrap();
+    let a = store.create_thread(&new_thread(&work.id, "in work")).unwrap();
+    let b = store.create_thread(&new_thread(&commit.id, "in commit")).unwrap();
+    store.create_thread(&new_thread(&other.id, "other repo")).unwrap();
+    let a = store.add_reply(&a.id, "reply", AuthorType::Agent, Some("Claude")).unwrap();
+
+    let rows = store.list_repo_threads("/repo").unwrap();
+    assert_eq!(rows.len(), 2);
+    let ids: Vec<&str> = rows.iter().map(|(_, t)| t.id.as_str()).collect();
+    assert!(ids.contains(&a.id.as_str()) && ids.contains(&b.id.as_str()));
+    let (session, thread) = rows.iter().find(|(_, t)| t.id == a.id).unwrap();
+    assert_eq!(session.r#ref, "work");
+    assert_eq!(session.repo_path, "/repo");
+    assert_eq!(thread.comments.len(), 2);
+    let (session, _) = rows.iter().find(|(_, t)| t.id == b.id).unwrap();
+    assert_eq!(session.r#ref, "abc1234~1..abc1234");
+    assert!(store.list_repo_threads("/nowhere").unwrap().is_empty());
+}

@@ -41,6 +41,12 @@ branch) and in the browser mock.
 - `@claude` wasn't highlighted in rendered comments → a rehype plugin highlights whole-word mentions outside code/links (same rules as `mentionsAgent`, tests added).
 - Status pill text was long enough to squeeze the toolbar → shorter labels ("Claude is on your review…").
 
+## Finding comments
+
+- Claude reviewed uncommitted changes, the user switched views (or committed) and the comments vanished with no pointer back → a repo-wide Comments drawer (toolbar chip with the open count, `c`), grouped by view and file, filters Open/Resolved/All and Everyone/Claude/You; clicking a row opens that view and flashes the thread. Other views' open comments are announced by a banner ("3 open comments in Uncommitted changes · 2 from Claude · Show").
+- After committing, `work` was empty and its threads were invisible → the empty view lists them ("3 comments left on changes that are no longer here") with the stored snippet, reply/resolve and "View in commit abc1234" when the code is in HEAD's commit; threads on files that left a view show above the diff. The drawer marks them "Changes were committed" / "Code changed since".
+- Claude's finish toast said "Claude finished reviewing — 3 comments" with no location → "Claude left 3 comments on Uncommitted changes · View" (works from any page); the running pill says "on <view>" when you are elsewhere and its comment count links there.
+
 ## Toolbar and layout
 
 - At 1280–1400px the view toggle label and files-changed chip were hidden → view toggle (with labels), stats and Hide whitespace moved to the context bar; comment navigation became one compact group ("2/5 open", prev/next, copy, delete); the GitHub button is an icon (+ "#N"); the branch chip hides below 1180px. Fits at 1280 with Claude running.

@@ -17,6 +17,7 @@ import { RefMenu } from './ref-menu';
 import { GitSyncActions } from './git-sync-actions';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
 import { FinishReview } from '../../features/review/finish-review';
+import { CommentsButton } from '../../features/comments/comments-button';
 import { useRepoNav } from '../../hooks/use-repo';
 import type { GitHubDetails } from '../../lib/api';
 
@@ -171,6 +172,7 @@ export function Toolbar(props: ToolbarProps) {
             {githubDetails && <span className="font-mono">#{githubDetails.prNumber}</span>}
           </button>
         )}
+        <CommentsButton />
         <CommentToolbarActions
           threads={threads}
           onScrollToThread={onScrollToThread}

@@ -3,6 +3,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ParsedDiff } from '@diffity/parser';
 import { FileBlock, LARGE_DIFF_LINE_THRESHOLD } from './file-block';
 import { GeneralComments } from '../comments/general-comments';
+import { OutsideThreads } from '../comments/outside-threads';
+import { GENERAL_THREAD_FILE_PATH } from '../comments/types';
 import { useHighlighter } from '../../hooks/use-highlighter';
 import { type ViewMode, getFilePath } from '../../lib/diff-utils';
 import type { CommentThread, LineSelection } from '../comments/types';
@@ -76,6 +78,11 @@ export function DiffView(props: DiffViewProps) {
   } = props;
   const { highlight } = useHighlighter();
   const scrollElementRef = useRef<HTMLElement>(null);
+
+  const outsideThreads = useMemo(() => {
+    const paths = new Set(diff.files.map((file) => getFilePath(file)));
+    return threads.filter((thread) => thread.filePath !== GENERAL_THREAD_FILE_PATH && !paths.has(thread.filePath));
+  }, [diff.files, threads]);
 
   const highlighters = useMemo(() => {
     const map = new Map<string, (code: string) => ReturnType<typeof highlight>>();
@@ -178,8 +185,8 @@ export function DiffView(props: DiffViewProps) {
       if (index >= 0) {
         scrollTargetRef.current = filePath;
         virtualizer.scrollToIndex(index, { align: 'start' });
-        setPendingThreadScroll(threadId);
       }
+      setPendingThreadScroll(threadId);
     },
   }), [diff.files, virtualizer, settleScrollToElement]);
 
@@ -264,6 +271,13 @@ export function DiffView(props: DiffViewProps) {
         <GeneralComments
           threads={threads}
           commentActions={commentActions}
+        />
+      )}
+      {commentsEnabled && (
+        <OutsideThreads
+          threads={outsideThreads}
+          commentActions={commentActions}
+          className="mx-4 mt-3 rounded-lg border border-border"
         />
       )}
       <div className="py-2" style={{ paddingTop, paddingBottom }}>

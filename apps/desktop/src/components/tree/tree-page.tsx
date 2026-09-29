@@ -38,8 +38,12 @@ import { SegmentedToggle } from '../ui/segmented-toggle';
 import { RepoImage } from './repo-image';
 import { openInEditor, errorMessage } from '../../lib/api';
 import { toast } from 'sonner';
+import { focusThreadElement } from '../../lib/dom-utils';
+import { setFocusThread } from '../../lib/ui-store';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
+import { CommentsButton } from '../../features/comments/comments-button';
+import { OtherViewsBanner } from '../../features/comments/other-views-banner';
 import { FinishReview } from '../../features/review/finish-review';
 import { useRepoNav } from '../../hooks/use-repo';
 import { PencilIcon } from '../icons/pencil-icon';
@@ -146,7 +150,7 @@ export function TreePage() {
   const { data: treeData } = useSuspenseQuery(treePathsOptions());
   const { data: info } = useSuspenseQuery(treeInfoOptions());
   const sessionId = info?.sessionId ?? null;
-  const { data: threads = [] } = useReviewThreads(sessionId);
+  const { data: threads = [], isFetched: threadsFetched } = useReviewThreads(sessionId);
   const commentActions = useCommentActions(sessionId, !!sessionId);
 
   const isFileMode = navType === 'file' && !!navPath;
@@ -271,6 +275,35 @@ export function TreePage() {
     [navPath, navType, queryClient, paths, scrollToThreadElement, setNav],
   );
 
+  const targetThreadId = searchParams.get('thread');
+  const handledTarget = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!targetThreadId || !threadsFetched || handledTarget.current === targetThreadId) {
+      return;
+    }
+    handledTarget.current = targetThreadId;
+    const thread = threads.find((item) => item.id === targetThreadId);
+    if (!thread) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('thread');
+      setSearchParams(next, { replace: true });
+      toast.info('That comment no longer exists');
+      return;
+    }
+    setFocusThread(thread.id);
+    const isPathComment = thread.filePath.startsWith('__path__:');
+    if (!isPathComment && thread.filePath !== navPath) {
+      setNav(thread.filePath, 'file');
+      focusThreadElement(thread.id, 30);
+      return;
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('thread');
+    setSearchParams(next, { replace: true });
+    void handleScrollToThread(thread.id, thread.filePath);
+  }, [targetThreadId, threadsFetched, threads, searchParams, setSearchParams, navPath, setNav, handleScrollToThread]);
+
   const handleRefreshTree = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['tree-paths'] });
     queryClient.invalidateQueries({ queryKey: ['tree-entries'] });
@@ -375,6 +408,7 @@ export function TreePage() {
         </div>
         <div className='flex items-center gap-2 ml-auto shrink-0'>
           <GitSyncActions />
+          <CommentsButton />
           <CommentToolbarActions
             threads={threads}
             onScrollToThread={handleScrollToThread}
@@ -387,6 +421,7 @@ export function TreePage() {
         </div>
       </TitleBar>
 
+      <OtherViewsBanner sessionId={sessionId} />
       {isStale && (
         <StaleDiffBanner
           onRefresh={handleRefreshTree}

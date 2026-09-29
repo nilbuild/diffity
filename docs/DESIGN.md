@@ -49,5 +49,8 @@ not a redesign.
   a thin top progress bar for first-time loads and mutations, loading toasts for git/revert operations.
 - Settings dialog (⌘,): theme, editor, Claude Code status/path, GitHub account, shortcuts.
 - `@claude` autocomplete in comment and reply forms.
+- Comments across views: toolbar "Comments N" chip (all open threads of the repo, `c`) opens a right-hand drawer grouped
+  by view then file; a slim banner under the context bar points at open comments in other views; outdated / committed
+  threads show their anchor snippet with an "Outdated" badge and "View in commit abc1234".
 - GitHub dialog: the web app's push/pull dialog plus sign-in (import from `gh`, paste a token) and sign-out.
 - File headers: Preview toggle for Markdown/SVG (rich diff), open in editor, revert file.

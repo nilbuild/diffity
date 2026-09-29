@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router';
+import { toast } from 'sonner';
 import { useDiff } from '../../hooks/use-diff';
 import { useInfo } from '../../hooks/use-info';
 import { useTheme } from '../../hooks/use-theme';
@@ -17,7 +19,10 @@ import { openShortcuts } from '../../lib/ui-store';
 import { useDiffStaleness } from '../../hooks/use-diff-staleness';
 import { type ViewMode, getFilePath, getAutoCollapsedPaths } from '../../lib/diff-utils';
 import { buildFirstOpenThreadByFile, buildThreadCountsByFile } from '../../lib/comment-navigation';
-import { getHunkHeaders, scrollToElement } from '../../lib/dom-utils';
+import { focusThreadElement, getHunkHeaders, scrollToElement } from '../../lib/dom-utils';
+import { setFocusThread } from '../../lib/ui-store';
+import { OutsideThreads } from '../comments/outside-threads';
+import { OtherViewsBanner } from '../../features/comments/other-views-banner';
 import type { LineSelection } from '../comments/types';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { useViewedFiles } from '../../hooks/use-viewed-files';
@@ -265,6 +270,39 @@ export function DiffPage(props: DiffPageProps) {
     diffViewRef.current?.scrollToThread(threadId, filePath);
   }, []);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const targetThreadId = searchParams.get('thread');
+  const targetFile = searchParams.get('file');
+
+  useEffect(() => {
+    if (!targetThreadId && !targetFile) {
+      return;
+    }
+    if (!diff || (reviewsEnabled && !threadsFetched)) {
+      return;
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('thread');
+    next.delete('file');
+    setSearchParams(next, { replace: true });
+
+    if (!targetThreadId && targetFile) {
+      requestAnimationFrame(() => diffViewRef.current?.scrollToFile(targetFile));
+      return;
+    }
+    const thread = threads.find((item) => item.id === targetThreadId);
+    if (!thread) {
+      toast.info('That comment no longer exists');
+      return;
+    }
+    setFocusThread(thread.id);
+    if (!diffViewRef.current) {
+      focusThreadElement(thread.id);
+      return;
+    }
+    requestAnimationFrame(() => handleScrollToThread(thread.id, thread.filePath));
+  }, [targetThreadId, targetFile, diff, threads, threadsFetched, reviewsEnabled, searchParams, setSearchParams, handleScrollToThread]);
+
   const handleSidebarCommentedFileClick = useCallback((path: string) => {
     const threadId = firstOpenThreadByFile.get(path);
     if (!threadId) {
@@ -326,9 +364,20 @@ export function DiffPage(props: DiffPageProps) {
         hideWhitespace={hideWhitespace}
         onHideWhitespaceChange={setHideWhitespace}
       />
+      {reviewsEnabled && <OtherViewsBanner sessionId={sessionId} />}
       {isStale && <StaleDiffBanner onRefresh={handleRefreshDiff} />}
       {isEmpty ? (
-        <DiffEmptyState diffRef={refParam} hideWhitespace={hideWhitespace} branch={info?.branch || null} />
+        <div className="flex flex-1 flex-col overflow-y-auto">
+          {reviewsEnabled && (
+            <OutsideThreads
+              threads={threads}
+              commentActions={commentActions}
+              viewEmpty
+              className="mx-4 mt-4 rounded-lg border border-border"
+            />
+          )}
+          <DiffEmptyState diffRef={refParam} hideWhitespace={hideWhitespace} branch={info?.branch || null} />
+        </div>
       ) : (
       <div className="flex flex-1 overflow-hidden">
         <Sidebar

@@ -12,6 +12,8 @@ import { useRepoEvents, useRepoNav, useRepoPath } from '../hooks/use-repo';
 import { useTheme } from '../hooks/use-theme';
 import { ClaudeApprovalModal } from '../features/claude/claude-approval-modal';
 import { RouteErrorBoundary } from './route-error-boundary';
+import { CommentsPanel } from '../features/comments/comments-panel';
+import { toggleComments } from '../lib/ui-store';
 
 function repoName(repoPath: string) {
   return repoPath.split('/').filter(Boolean).pop() ?? 'repository';
@@ -64,6 +66,31 @@ function usePrCheckout() {
   }, [pr, params, setParams, nav]);
 }
 
+function isTyping(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) {
+    return false;
+  }
+  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable;
+}
+
+function useCommentsShortcut() {
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'c' || event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) {
+        return;
+      }
+      if (document.querySelector('dialog[open]')) {
+        return;
+      }
+      event.preventDefault();
+      toggleComments();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+}
+
 export function RepoLayout() {
   const repoPath = useRepoPath();
   const client = useQueryClient();
@@ -82,6 +109,7 @@ export function RepoLayout() {
   useWindowTitle(repoPath);
   useRepoEvents(repoPath);
   usePrCheckout();
+  useCommentsShortcut();
 
   useEffect(() => {
     tauri.openRepo(repoPath).catch(() => undefined);
@@ -109,6 +137,7 @@ export function RepoLayout() {
         </Suspense>
       </RouteErrorBoundary>
       <ClaudeApprovalModal />
+      <CommentsPanel />
     </>
   );
 }

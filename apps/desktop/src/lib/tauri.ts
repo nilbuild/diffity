@@ -26,6 +26,7 @@ import type {
   RecentRepo,
   RepoChangedPayload,
   RepoInfo,
+  RepoThread,
   ResolvedRef,
   Review,
   ReviewEvent,
@@ -90,6 +91,7 @@ export const readFileBase64 = (repoPath: string, path: string) =>
 // comments
 export const getSession = (repoPath: string, ref: string) => invoke<ReviewSession>('get_session', { repoPath, ref });
 export const listThreads = (sessionId: string) => invoke<Thread[]>('list_threads', { sessionId });
+export const listRepoThreads = (repoPath: string) => invoke<RepoThread[]>('list_repo_threads', { repoPath });
 export const createThread = (input: NewThread) => invoke<Thread>('create_thread', { input });
 export const addReply = (
   threadId: string,

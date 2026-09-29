@@ -3,7 +3,9 @@ import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import { queryClient } from '../../lib/query-client';
 import { openSettings } from '../../lib/ui-store';
-import type { AgentAction, AgentInfo, AgentMode, PermissionDiff, PermissionOption } from '../../lib/types';
+import type { AgentAction, AgentInfo, AgentMode, PermissionDiff, PermissionOption, RepoThread } from '../../lib/types';
+import { refForSession } from '../../lib/api';
+import { goToThread, viewLabel } from '../../lib/thread-location';
 import type { CommentThread } from '../../components/comments/types';
 
 export type ClaudeAction = Extract<
@@ -14,6 +16,7 @@ export type ClaudeAction = Extract<
 export interface ClaudeRunContext {
   repoPath: string;
   sessionId: string | null;
+  ref?: string | null;
 }
 
 export interface ClaudeRun {
@@ -26,6 +29,10 @@ export interface ClaudeRun {
   commentsAdded: number;
   chatId: string | null;
   sessionId: string | null;
+  /** The view (ref) the run works in; where its comments land. */
+  ref: string | null;
+  /** Threads Claude started during the run, oldest first. */
+  newThreadIds: string[];
 }
 
 export interface ClaudePermission {
@@ -129,6 +136,8 @@ export function enqueueClaude(action: ClaudeAction, context: ClaudeRunContext) {
     commentsAdded: 0,
     chatId: null,
     sessionId: null,
+    ref: action.kind === 'review' ? action.ref : context.ref ?? refForSession(context.sessionId),
+    newThreadIds: [],
   };
   useClaude.setState((state) => ({ runs: [...state.runs, run] }));
   void pump();
@@ -204,17 +213,44 @@ function friendlyError(message: string): string {
   return message;
 }
 
+function cachedRepoThreads(repoPath: string): RepoThread[] {
+  return queryClient.getQueryData<RepoThread[]>(['repo-threads', repoPath]) ?? [];
+}
+
+/** Label for a run's view, preferring the backend label (it knows commit subjects). */
+export function runViewLabel(repoPath: string, ref: string): string {
+  return cachedRepoThreads(repoPath).find((thread) => thread.ref === ref)?.refLabel ?? viewLabel(ref);
+}
+
+function refForThread(repoPath: string, threadId: string): string | null {
+  const thread = cachedRepoThreads(repoPath).find((item) => item.id === threadId);
+  if (thread) {
+    return thread.ref;
+  }
+  return refForSession(cachedThreads().find((item) => item.id === threadId)?.sessionId);
+}
+
+/** Opens the run's view, scrolled to its first new thread (or the thread it worked on). */
+export function openRunResult(run: Pick<ClaudeRun, 'context' | 'ref' | 'newThreadIds' | 'threadIds'>) {
+  if (!run.ref) {
+    return;
+  }
+  const threadId = run.newThreadIds[0] ?? run.threadIds[0] ?? null;
+  goToThread(run.context.repoPath, { ref: run.ref, threadId });
+}
+
 function finishedMessage(run: ClaudeRun, added: number): string {
+  const where = run.ref ? ` on ${runViewLabel(run.context.repoPath, run.ref)}` : '';
   if (run.action.kind === 'review') {
     if (added === 0) {
-      return 'Claude finished reviewing — no comments';
+      return `Claude finished reviewing${where} — no comments`;
     }
-    return `Claude finished reviewing — ${added} comment${added === 1 ? '' : 's'}`;
+    return `Claude left ${added} comment${added === 1 ? '' : 's'}${where}`;
   }
   if (run.action.kind === 'thread') {
-    return 'Claude replied';
+    return `Claude replied${where}`;
   }
-  return 'Claude finished';
+  return `Claude finished${where}`;
 }
 
 async function execute(run: ClaudeRun) {
@@ -229,6 +265,8 @@ async function execute(run: ClaudeRun) {
     return;
   }
   const sessionId = await resolveSession(run);
+  const ref = run.ref ?? refForSession(sessionId) ?? threadRef(run);
+  run = { ...run, ref };
   const chat = await tauri.startChat({
     repoPath: run.context.repoPath,
     agentId: agent.id,
@@ -236,11 +274,12 @@ async function execute(run: ClaudeRun) {
     sessionId,
     title: chatTitle(run.action),
   });
-  patchRun(run.id, { chatId: chat.id, sessionId, startedAt: Date.now() });
+  patchRun(run.id, { chatId: chat.id, sessionId, startedAt: Date.now(), ref });
 
   const before = await tauri.listThreads(sessionId).catch(() => []);
   const baseline = new Set(before.map((thread) => thread.id));
   let added = 0;
+  let newThreadIds: string[] = [];
   const unlisten = await tauri
     .onThreadsChanged(async (payload) => {
       if (payload.sessionId !== sessionId) {
@@ -250,8 +289,11 @@ async function execute(run: ClaudeRun) {
       if (!threads) {
         return;
       }
-      added = threads.filter((thread) => !baseline.has(thread.id) && thread.comments[0]?.authorType === 'agent').length;
-      patchRun(run.id, { commentsAdded: added });
+      newThreadIds = threads
+        .filter((thread) => !baseline.has(thread.id) && thread.comments[0]?.authorType === 'agent')
+        .map((thread) => thread.id);
+      added = newThreadIds.length;
+      patchRun(run.id, { commentsAdded: added, newThreadIds });
     })
     .catch(() => null);
 
@@ -294,7 +336,21 @@ async function execute(run: ClaudeRun) {
     toast.info('Claude was stopped');
     return;
   }
-  toast.success(finishedMessage(run, added));
+  const latest = useClaude.getState().runs.find((item) => item.id === run.id) ?? run;
+  const finished = { ...latest, ref, newThreadIds };
+  const hasTarget = !!ref && (added > 0 || finished.threadIds.length > 0);
+  toast.success(finishedMessage(finished, added), {
+    duration: hasTarget ? 10_000 : undefined,
+    action: hasTarget ? { label: 'View', onClick: () => openRunResult(finished) } : undefined,
+  });
+}
+
+function threadRef(run: ClaudeRun): string | null {
+  const threadId = run.action.kind === 'thread' || run.action.kind === 'resolve' ? run.action.threadId : undefined;
+  if (!threadId) {
+    return null;
+  }
+  return refForThread(run.context.repoPath, threadId);
 }
 
 async function pump() {

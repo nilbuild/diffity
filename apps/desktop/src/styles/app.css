@@ -133,6 +133,21 @@ dialog {
   animation: slide-down 0.2s ease-out;
 }
 
+@keyframes slide-in-right {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.15s ease-out;
+}
+
 @keyframes flash-highlight {
   0% {
     background-color: var(--color-diff-comment-bg);
@@ -168,7 +183,8 @@ dialog {
   }
 }
 
-.flash-thread .thread-card {
+.flash-thread .thread-card,
+.flash-thread.thread-card {
   animation: flash-thread 1.5s ease-out;
 }
 

@@ -333,6 +333,39 @@ export interface RepoChangedPayload {
   repoPath: string;
 }
 
+export type ThreadAnchor = 'current' | 'outdated' | 'fileGone' | 'viewEmpty' | 'unknown';
+
+export interface CommitPointer {
+  ref: string;
+  sha: string;
+  shortSha: string;
+  subject: string;
+}
+
+/** A thread of any view of the repo (`list_repo_threads`), with where it lives and whether it is still anchored. */
+export interface RepoThread {
+  id: string;
+  sessionId: string;
+  ref: string;
+  refLabel: string;
+  filePath: string;
+  side: Side;
+  startLine: number;
+  endLine: number;
+  status: ThreadStatus;
+  severity: Severity | null;
+  anchorContent: string | null;
+  authorType: AuthorType;
+  authorName: string;
+  excerpt: string;
+  replyCount: number;
+  createdAt: string;
+  updatedAt: string;
+  pending: boolean;
+  anchor: ThreadAnchor;
+  movedTo: CommitPointer | null;
+}
+
 export interface ThreadsChangedPayload {
   sessionId: string;
 }

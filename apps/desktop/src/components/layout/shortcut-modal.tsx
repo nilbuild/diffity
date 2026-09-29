@@ -26,6 +26,7 @@ const shortcuts = [
       { key: `${modKey} Enter`, description: 'Submit comment' },
       { key: 'Esc', description: 'Cancel comment / close dialog' },
       { key: '@claude', description: 'Ask Claude Code in a comment' },
+      { key: 'c', description: 'All comments in every view' },
     ],
   },
   {

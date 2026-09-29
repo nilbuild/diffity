@@ -8,7 +8,8 @@ import { useDismiss } from '../../hooks/use-dismiss';
 import { getRepoPath } from '../../lib/api';
 import { TREE_REF } from '../../lib/types';
 import type { CommentThread } from '../../components/comments/types';
-import { enqueueClaude, runLabel, stopClaude, useActiveRun, useQueuedCount } from './claude-runner';
+import { enqueueClaude, openRunResult, runLabel, runViewLabel, stopClaude, useActiveRun, useQueuedCount } from './claude-runner';
+import { useCurrentViewRef } from '../../hooks/use-current-view';
 
 export const REVIEW_FOCUSES = [
   { value: 'security', label: 'Security' },
@@ -49,24 +50,43 @@ export function ClaudeStatus() {
   const run = useActiveRun();
   const queued = useQueuedCount();
   const now = useNow(run !== null);
+  const currentRef = useCurrentViewRef();
 
   if (!run) {
     return null;
   }
 
-  const parts = [runLabel(run.action)];
-  if (run.action.kind === 'review' || run.commentsAdded > 0) {
-    parts.push(`${run.commentsAdded} comment${run.commentsAdded === 1 ? '' : 's'}`);
-  }
-  if (run.startedAt) {
-    parts.push(formatElapsed(now - run.startedAt));
-  }
+  const elsewhere = !!run.ref && run.ref !== currentRef;
+  const where = run.ref ? runViewLabel(run.context.repoPath, run.ref) : null;
+  const showCount = run.action.kind === 'review' || run.commentsAdded > 0;
+  const countLabel = `${run.commentsAdded} comment${run.commentsAdded === 1 ? '' : 's'}`;
+  const canOpen = !!run.ref && (run.commentsAdded > 0 || elsewhere);
 
   return (
-    <div className="flex items-stretch bg-accent/10 rounded-md overflow-hidden text-xs">
-      <span className="flex items-center gap-1.5 px-2 py-1 text-accent font-medium whitespace-nowrap">
-        <span className="inline-block w-3 h-3 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
-        {parts.join(' · ')}
+    <div className="flex items-stretch bg-accent/10 rounded-md overflow-hidden text-xs min-w-0">
+      <span
+        className="flex items-center gap-1.5 px-2 py-1 text-accent font-medium whitespace-nowrap min-w-0"
+        title={where ? `Working on ${where}` : undefined}
+      >
+        <span className="inline-block w-3 h-3 border-2 border-accent/30 border-t-accent rounded-full animate-spin shrink-0" />
+        {runLabel(run.action)}
+        {elsewhere && where && (
+          <span className="font-normal truncate max-w-[180px]">on {where}</span>
+        )}
+        {showCount && (
+          canOpen ? (
+            <button
+              onClick={() => openRunResult(run)}
+              className="font-medium underline decoration-dotted underline-offset-2 hover:decoration-solid cursor-pointer"
+              title={where ? `Show Claude's comments on ${where}` : "Show Claude's comments"}
+            >
+              · {countLabel}
+            </button>
+          ) : (
+            <span>· {countLabel}</span>
+          )
+        )}
+        {run.startedAt && <span>· {formatElapsed(now - run.startedAt)}</span>}
         {queued > 0 && <span className="text-text-muted font-normal">+{queued} queued</span>}
       </span>
       <button
