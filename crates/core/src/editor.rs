@@ -51,14 +51,29 @@ fn system_open(file: &str) -> std::io::Result<()> {
     spawn_detached(cmd)
 }
 
+/// An empty path or "." means the repository root.
+fn resolve_target(repo: &Path, path: &str) -> Result<std::path::PathBuf> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() || trimmed == "." {
+        return Ok(repo.canonicalize()?);
+    }
+    resolve_in_repo(repo, trimmed)
+}
+
 /// Opens `path` in `editor` (`code`, `cursor`, `zed`, or any command taking a file argument),
 /// falling back to the OS default opener when no editor is given or it cannot be launched.
 pub fn open_in_editor(repo: &Path, path: &str, line: Option<u32>, editor: Option<&str>) -> Result<()> {
-    let full = resolve_in_repo(repo, path)?;
+    let full = resolve_target(repo, path)?;
     let file = full.to_string_lossy().into_owned();
     let editor = editor.map(str::trim).filter(|e| !e.is_empty());
     if let Some(editor) = editor {
-        let mut cmd = editor_command(editor, &file, line);
+        let mut cmd = if full.is_dir() {
+            let mut cmd = Command::new(editor);
+            cmd.arg(&file);
+            cmd
+        } else {
+            editor_command(editor, &file, line)
+        };
         cmd.current_dir(repo);
         if spawn_detached(cmd).is_ok() {
             return Ok(());
@@ -66,4 +81,20 @@ pub fn open_in_editor(repo: &Path, path: &str, line: Option<u32>, editor: Option
         tracing::warn!("failed to launch editor '{editor}', falling back to system opener");
     }
     system_open(&file).map_err(|e| AppError::io(format!("failed to open {path}: {e}")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_or_dot_path_resolves_to_repo_root() {
+        let dir = std::env::temp_dir().join(format!("diffity-editor-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let root = dir.canonicalize().unwrap();
+        assert_eq!(resolve_target(&dir, "").unwrap(), root);
+        assert_eq!(resolve_target(&dir, " . ").unwrap(), root);
+        assert!(resolve_target(&dir, "../outside").is_err());
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }
