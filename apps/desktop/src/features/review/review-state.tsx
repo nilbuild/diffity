@@ -11,16 +11,18 @@ interface ReviewStateValue {
   enabled: boolean;
   sessionId: string | null;
   pendingReview: Review | null;
+  /** A GitHub pull request is checked out: comments can be drafted and posted as one review. */
+  prMode: boolean;
 }
 
-const ReviewStateContext = createContext<ReviewStateValue>({ enabled: false, sessionId: null, pendingReview: null });
+const ReviewStateContext = createContext<ReviewStateValue>({ enabled: false, sessionId: null, pendingReview: null, prMode: false });
 
-export function ReviewStateProvider(props: { sessionId: string | null; children: ReactNode }) {
-  const { sessionId, children } = props;
+export function ReviewStateProvider(props: { sessionId: string | null; prMode?: boolean; children: ReactNode }) {
+  const { sessionId, prMode = false, children } = props;
   const pendingReview = usePendingReview(sessionId);
 
   return (
-    <ReviewStateContext.Provider value={{ enabled: sessionId !== null, sessionId, pendingReview }}>
+    <ReviewStateContext.Provider value={{ enabled: sessionId !== null, sessionId, pendingReview, prMode }}>
       {children}
     </ReviewStateContext.Provider>
   );

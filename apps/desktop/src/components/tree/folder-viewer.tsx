@@ -10,34 +10,23 @@ interface FolderViewerProps {
 export function FolderViewer(props: FolderViewerProps) {
   const { entries, onNavigate } = props;
 
-  const dirs = entries.filter(e => e.type === 'tree');
-  const files = entries.filter(e => e.type === 'blob');
+  const dirs = entries.filter((entry) => entry.type === 'tree');
+  const files = entries.filter((entry) => entry.type === 'blob');
   const sorted = [...dirs, ...files];
 
   return (
-    <div className="border border-border rounded-md overflow-hidden">
-      <table className="w-full text-sm">
-        <tbody>
-          {sorted.map((entry, i) => (
-            <tr
-              key={entry.path}
-              className={`hover:bg-hover cursor-pointer ${i > 0 ? 'border-t border-border/70' : ''}`}
-              onClick={() => onNavigate(entry.path, entry.type === 'tree' ? 'dir' : 'file')}
-            >
-              <td className="px-3 h-8">
-                <div className="flex items-center gap-2">
-                  {entry.type === 'tree' ? (
-                    <FolderIcon open={false} />
-                  ) : (
-                    <FileIcon />
-                  )}
-                  <span className="text-text">{entry.name}</span>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <ul className="-mx-2">
+      {sorted.map((entry) => (
+        <li key={entry.path}>
+          <button
+            className="flex items-center gap-2.5 w-full h-8 px-2 rounded-md text-left text-[13px] text-text hover:bg-hover transition-colors cursor-pointer"
+            onClick={() => onNavigate(entry.path, entry.type === 'tree' ? 'dir' : 'file')}
+          >
+            {entry.type === 'tree' ? <FolderIcon open={false} /> : <FileIcon className="w-3.5 h-3.5 shrink-0 text-text-muted" />}
+            <span className="truncate">{entry.name}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

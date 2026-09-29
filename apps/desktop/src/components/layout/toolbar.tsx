@@ -13,11 +13,10 @@ import { RepoTitle, TitleBar, TitleBarDivider } from './title-bar';
 import { PageSwitcher } from './page-switcher';
 import { RefMenu } from './ref-menu';
 import { SegmentedToggle } from '../ui/segmented-toggle';
-import { buttonIcon } from '../ui/button-styles';
+import { buttonIconOutline } from '../ui/button-styles';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
 import { FinishReview } from '../../features/review/finish-review';
 import { CommentsButton } from '../../features/comments/comments-button';
-import { PullRequestsButton } from '../../features/pr/pull-requests-button';
 import { useRepoMeta } from '../../hooks/use-repo-state';
 import { cn } from '../../lib/cn';
 import type { GitHubDetails } from '../../lib/api';
@@ -146,11 +145,10 @@ export function Toolbar(props: ToolbarProps) {
 
   return (
     <TitleBar>
-      <div data-tauri-drag-region className="flex items-center gap-2 min-w-0 shrink">
+      <div data-tauri-drag-region className="flex items-center gap-2.5 min-w-0 shrink">
         <RepoTitle name={repoName} path={meta?.path} />
         <PageSwitcher current="diff" />
         {diffRef && <RefMenu diffRef={diffRef} branch={branch} />}
-        <PullRequestsButton />
         {hasChanges && (
           <>
             <TitleBarDivider />
@@ -160,7 +158,7 @@ export function Toolbar(props: ToolbarProps) {
         {(hasChanges || hideWhitespace) && (
           <button
             onClick={() => onHideWhitespaceChange(!hideWhitespace)}
-            className={cn(buttonIcon, hideWhitespace && 'bg-accent/10 text-accent hover:bg-accent/15 hover:text-accent')}
+            className={cn(buttonIconOutline, hideWhitespace && 'bg-selected border-accent/40 text-accent hover:bg-selected hover:text-accent')}
             title={hideWhitespace ? 'Whitespace changes are hidden — show them' : 'Hide whitespace-only changes'}
             aria-pressed={hideWhitespace}
           >
@@ -169,7 +167,7 @@ export function Toolbar(props: ToolbarProps) {
         )}
       </div>
       <div data-tauri-drag-region className="flex-1 min-w-2 self-stretch" />
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         <CommentToolbarActions
           threads={threads}
           onScrollToThread={onScrollToThread}
@@ -180,7 +178,7 @@ export function Toolbar(props: ToolbarProps) {
         {(hasChanges || threads.length > 0) && (
           <>
             <ClaudeToolbar diffRef={diffRef ?? null} sessionId={sessionId ?? null} threads={threads} hasChanges={hasChanges} />
-            <FinishReview githubDetails={props.githubDetails ?? null} hasGitHubRemote={!!props.hasGitHubRemote} />
+            <FinishReview githubDetails={props.githubDetails ?? null} threads={threads} />
           </>
         )}
         <OptionsMenu theme={theme} onToggleTheme={onToggleTheme} onShowHelp={onShowHelp} />

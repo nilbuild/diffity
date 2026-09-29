@@ -1,11 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useInfo } from '../../hooks/use-info';
 import { useTheme } from '../../hooks/use-theme';
+import { useDismiss } from '../../hooks/use-dismiss';
 import { useBaseBranch, useBranches, useGitHubPr, useGitStatus } from '../../hooks/use-repo-state';
-import { CommitList } from './commit-list';
+import { CommitList, HistoryRow, SectionHeader } from './commit-list';
 import { GitCompareIcon } from '../icons/git-compare-icon';
 import { PencilIcon } from '../icons/pencil-icon';
 import { GitPullRequestIcon } from '../icons/git-pull-request-icon';
+import { SearchIcon } from '../icons/search-icon';
+import { SwapIcon } from '../icons/swap-icon';
+import { XIcon } from '../icons/x-icon';
+import { ChevronDownIcon } from '../icons/chevron-down-icon';
+import { Spinner } from '../icons/spinner';
 import { hideStaticSplash } from './skeleton';
 import { RepoTitle, TitleBar } from './title-bar';
 import { PageSwitcher } from './page-switcher';
@@ -14,75 +20,152 @@ import { StatusBar } from './status-bar';
 import { CommentsButton } from '../../features/comments/comments-button';
 import { commitRef } from '../../lib/api';
 import { prDiffRef } from './ref-menu';
-import { buttonOutline } from '../ui/button-styles';
+import { cn } from '../../lib/cn';
+import { buttonIconSmall, buttonOutline, buttonPrimary, inputField, overlayPanel } from '../ui/button-styles';
 
 interface DashboardProps {
   onNavigate: (ref: string) => void;
 }
 
-const inputClass = 'flex-1 min-w-0 h-7 text-xs font-mono bg-bg border border-border rounded-md px-2.5 text-text placeholder:text-text-muted focus:outline-none focus:border-accent';
-
-function CompareForm(props: { onNavigate: (ref: string) => void; defaultBase: string | null }) {
-  const { onNavigate, defaultBase } = props;
-  const { data: branches } = useBranches();
-  const [base, setBase] = useState('');
-  const [head, setHead] = useState('HEAD');
-  const effectiveBase = base.trim() || defaultBase || '';
+function RefInput(props: { value: string; onChange: (value: string) => void; placeholder: string; options: string[]; autoFocus?: boolean }) {
+  const { value, onChange, placeholder, options, autoFocus } = props;
+  const [focused, setFocused] = useState(false);
+  const [active, setActive] = useState(0);
+  const needle = value.trim().toLowerCase();
+  const suggestions = options.filter((option) => option.toLowerCase().includes(needle) && option !== value).slice(0, 6);
+  const show = focused && needle.length > 0 && suggestions.length > 0;
 
   return (
-    <form
-      id="compare"
-      className="flex items-center gap-1.5"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!effectiveBase) {
-          return;
-        }
-        onNavigate(`${effectiveBase}...${head.trim() || 'HEAD'}`);
-      }}
-      title="Shows what changed on head since it split from base, like a pull request"
-    >
-      <GitCompareIcon className="w-3.5 h-3.5 text-text-muted shrink-0" />
+    <div className="relative flex-1 min-w-0">
       <input
+        autoFocus={autoFocus}
         type="text"
-        list="diffity-branches"
-        value={base}
-        onChange={(event) => setBase(event.target.value)}
-        placeholder={defaultBase ? `base (${defaultBase})` : 'base branch, tag or commit'}
-        className={inputClass}
+        value={value}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setActive(0);
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={(event) => {
+          if (!show) {
+            return;
+          }
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setActive((index) => Math.min(index + 1, suggestions.length - 1));
+            return;
+          }
+          if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            setActive((index) => Math.max(index - 1, 0));
+            return;
+          }
+          if (event.key === 'Tab' || (event.key === 'Enter' && needle && suggestions[active])) {
+            event.preventDefault();
+            onChange(suggestions[active]);
+          }
+        }}
+        placeholder={placeholder}
+        spellCheck={false}
+        autoComplete="off"
+        className={cn(inputField, 'font-mono text-xs')}
       />
-      <span className="text-text-muted text-xs font-mono">...</span>
-      <input
-        type="text"
-        list="diffity-branches"
-        value={head}
-        onChange={(event) => setHead(event.target.value)}
-        placeholder="head"
-        className={inputClass}
-      />
-      <button type="submit" disabled={!effectiveBase} className={buttonOutline}>
-        Compare
-      </button>
-      <datalist id="diffity-branches">
-        <option value="HEAD" />
-        {branches?.map((branch) => <option key={branch.name} value={branch.name} />)}
-      </datalist>
-    </form>
+      {show && (
+        <ul className="absolute left-0 right-0 top-full mt-1 z-10 p-1 bg-overlay rounded-md ring-1 ring-overlay-border">
+          {suggestions.map((option, index) => (
+            <li key={option}>
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  onChange(option);
+                }}
+                onMouseEnter={() => setActive(index)}
+                className={cn(
+                  'flex items-center w-full h-7 px-2 rounded text-left font-mono text-xs text-text truncate cursor-pointer',
+                  index === active && 'bg-hover',
+                )}
+              >
+                {option}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
-function Shortcut(props: { icon: React.ReactNode; label: string; detail?: string; onClick: () => void }) {
-  const { icon, label, detail, onClick } = props;
+function ComparePopover(props: { onNavigate: (ref: string) => void; defaultBase: string | null }) {
+  const { onNavigate, defaultBase } = props;
+  const { data: branches } = useBranches();
+  const [open, setOpen] = useState(false);
+  const [base, setBase] = useState('');
+  const [head, setHead] = useState('HEAD');
+  const ref = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(ref, open, close);
+  const effectiveBase = base.trim() || defaultBase || '';
+  const refOptions = ['HEAD', ...(branches ?? []).map((branch) => branch.name)];
 
   return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-2 w-full h-8 px-2 text-left text-xs rounded hover:bg-hover transition-colors cursor-pointer min-w-0"
-    >
-      <span className="text-text-muted shrink-0">{icon}</span>
-      <span className="text-text font-medium shrink-0">{label}</span>
-      {detail && <span className="text-text-muted truncate">{detail}</span>}
-    </button>
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={cn(buttonOutline, open && 'bg-fill-hover')}
+        title="Compare two branches, tags or commits"
+      >
+        <GitCompareIcon className="w-3.5 h-3.5 text-text-secondary" />
+        Compare
+        <ChevronDownIcon className="w-3 h-3 text-text-secondary" />
+      </button>
+      {open && (
+        <form
+          className={cn(overlayPanel, 'absolute right-0 top-full mt-1.5 w-[340px] p-3 z-50')}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!effectiveBase) {
+              return;
+            }
+            close();
+            onNavigate(`${effectiveBase}...${head.trim() || 'HEAD'}`);
+          }}
+        >
+          <div className="text-[13px] font-medium text-text">Compare changes</div>
+          <p className="mt-0.5 mb-3 text-xs text-text-secondary">What changed on compare since it split from base, like a pull request.</p>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="w-14 shrink-0 text-xs text-text-secondary">Base</span>
+                <RefInput autoFocus value={base} onChange={setBase} placeholder={defaultBase ?? 'branch, tag or commit'} options={refOptions} />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-14 shrink-0 text-xs text-text-secondary">Compare</span>
+                <RefInput value={head} onChange={setHead} placeholder="HEAD" options={refOptions} />
+              </div>
+            </div>
+            <button
+              type="button"
+              className={buttonIconSmall}
+              title="Swap base and compare"
+              onClick={() => {
+                const nextBase = head.trim() || 'HEAD';
+                setHead(effectiveBase);
+                setBase(nextBase);
+              }}
+            >
+              <SwapIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="flex justify-end mt-3">
+            <button type="submit" disabled={!effectiveBase} className={buttonPrimary}>
+              Compare
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 
@@ -94,6 +177,8 @@ export function Dashboard(props: DashboardProps) {
   const { details } = useGitHubPr();
   const branch = status?.branch ?? info?.branch ?? null;
   const base = useBaseBranch(details?.baseRef ?? null, branch);
+  const [search, setSearch] = useState('');
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     hideStaticSplash();
@@ -101,56 +186,95 @@ export function Dashboard(props: DashboardProps) {
 
   const uncommitted = status ? status.staged + status.unstaged + status.untracked : 0;
   const showBranch = !details && base && branch && branch !== base && `origin/${branch}` !== base;
+  const hasWorking = uncommitted > 0 || !!details || !!showBranch;
+
+  const working = hasWorking ? (
+    <section>
+      <SectionHeader>Working</SectionHeader>
+      <ul>
+        {uncommitted > 0 && (
+          <HistoryRow
+            icon={<PencilIcon className="w-3.5 h-3.5" />}
+            title="Uncommitted changes"
+            meta={<span>{uncommitted} file{uncommitted === 1 ? '' : 's'} · staged, unstaged and new</span>}
+            onClick={() => onNavigate('work')}
+          />
+        )}
+        {details && (
+          <HistoryRow
+            icon={<GitPullRequestIcon className="w-3.5 h-3.5 text-added" />}
+            title={details.prTitle}
+            meta={<span className="truncate">Pull request #{details.prNumber} · into {details.baseRef}</span>}
+            onClick={() => onNavigate(prDiffRef(details))}
+          />
+        )}
+        {showBranch && base && (
+          <HistoryRow
+            icon={<GitCompareIcon className="w-3.5 h-3.5" />}
+            title={`${branch} vs ${base.replace(/^origin\//, '')}`}
+            meta={<span>Every commit on this branch</span>}
+            onClick={() => onNavigate(`${base}...HEAD`)}
+          />
+        )}
+      </ul>
+    </section>
+  ) : null;
 
   return (
     <div className="flex flex-col h-screen bg-bg text-text font-sans">
       <TitleBar>
-        <div data-tauri-drag-region className="flex items-center gap-2 min-w-0 shrink">
+        <div data-tauri-drag-region className="flex items-center gap-2.5 min-w-0 shrink">
           <RepoTitle name={info?.name} />
           <PageSwitcher current="overview" />
         </div>
         <div data-tauri-drag-region className="flex-1 min-w-2 self-stretch" />
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           <CommentsButton />
           <OptionsMenu theme={theme} onToggleTheme={toggleTheme} />
         </div>
       </TitleBar>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto px-4 py-4 space-y-2">
-          {(uncommitted > 0 || details || showBranch) && (
-            <div className="rounded-md border border-border p-1">
-              {uncommitted > 0 && (
-                <Shortcut
-                  icon={<PencilIcon className="w-3.5 h-3.5" />}
-                  label="Uncommitted changes"
-                  detail={`${uncommitted} file${uncommitted === 1 ? '' : 's'}`}
-                  onClick={() => onNavigate('work')}
-                />
-              )}
-              {details && (
-                <Shortcut
-                  icon={<GitPullRequestIcon className="w-3.5 h-3.5 text-added" />}
-                  label={`Pull request #${details.prNumber}`}
-                  detail={details.prTitle}
-                  onClick={() => onNavigate(prDiffRef(details))}
-                />
-              )}
-              {showBranch && base && (
-                <Shortcut
-                  icon={<GitCompareIcon className="w-3.5 h-3.5" />}
-                  label={`${branch} vs ${base.replace(/^origin\//, '')}`}
-                  detail="every commit on this branch"
-                  onClick={() => onNavigate(`${base}...HEAD`)}
-                />
+        <div className="max-w-[880px] mx-auto px-6 pt-5 pb-10">
+          <div className="flex items-center gap-2 px-1">
+            <div className="relative flex-1 max-w-[420px]">
+              <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+              <input
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                type="text"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    setSearch('');
+                  }
+                }}
+                placeholder="Search commits by message, author or hash"
+                className={cn(inputField, 'pl-8 pr-8')}
+              />
+              {searching && <Spinner className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3" />}
+              {!searching && search && (
+                <button
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 inline-flex items-center justify-center rounded text-text-muted hover:text-text hover:bg-hover cursor-pointer"
+                  onClick={() => setSearch('')}
+                  title="Clear search"
+                >
+                  <XIcon className="w-3 h-3" />
+                </button>
               )}
             </div>
-          )}
-          <CompareForm onNavigate={onNavigate} defaultBase={base} />
-          <h2 className="text-xs font-medium text-text-muted pt-2">Commits</h2>
-          <div className="border border-border rounded-md overflow-hidden">
-            <CommitList onCommitClick={(hash) => onNavigate(commitRef(hash))} onCompareFrom={(hash) => onNavigate(`${hash}..HEAD`)} />
+            <div className="flex-1" />
+            <ComparePopover onNavigate={onNavigate} defaultBase={base} />
           </div>
+          <CommitList
+            search={search}
+            header={working}
+            onFetchingChange={setSearching}
+            onCommitClick={(hash) => onNavigate(commitRef(hash))}
+            onCompareFrom={(hash) => onNavigate(`${hash}..HEAD`)}
+          />
         </div>
       </div>
       <StatusBar />

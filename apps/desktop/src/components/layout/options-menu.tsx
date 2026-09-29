@@ -11,7 +11,7 @@ import { openSettings, openShortcuts } from '../../lib/ui-store';
 import { modKey } from '../../lib/platform';
 import { buttonIcon } from '../ui/button-styles';
 
-export const menuItemClass = 'flex items-center gap-2 w-full h-7 px-2.5 rounded-[5px] text-xs text-text-secondary hover:bg-hover hover:text-text transition-colors cursor-pointer text-left';
+export const menuItemClass = 'flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-[13px] text-text hover:bg-hover transition-colors cursor-pointer text-left [&>svg]:text-text-secondary';
 
 interface OptionsMenuProps {
   theme: 'light' | 'dark';
@@ -51,7 +51,7 @@ export function OptionsMenu(props: OptionsMenuProps) {
         <EllipsisIcon className="w-4 h-4" />
       </button>
       {showMenu && (
-        <div className="absolute right-0 top-full mt-1 w-56 p-1 bg-bg-secondary rounded-lg shadow-lg ring-1 ring-border z-50">
+        <div className="absolute right-0 top-full mt-1 w-56 p-1 bg-overlay rounded-lg ring-1 ring-overlay-border z-50">
           {renderExtraItems && renderExtraItems(close)}
           <button
             className={menuItemClass}
@@ -85,7 +85,7 @@ export function OptionsMenu(props: OptionsMenuProps) {
             Settings…
             <span className="ml-auto text-text-muted">{modKey},</span>
           </button>
-          <div className="border-t border-border my-1" />
+          <div className="border-t border-overlay-border my-1 -mx-1" />
           <button
             className={menuItemClass}
             onClick={() => {

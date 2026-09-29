@@ -25,7 +25,7 @@ export interface DiffViewHandle {
 const VIRTUALIZER_OVERSCAN = 3;
 const FILE_HEADER_HEIGHT = 56;
 const EMPTY_CONTENT_HEIGHT = 100;
-const LINE_HEIGHT = 24;
+const LINE_HEIGHT = 22;
 const HUNK_HEADER_HEIGHT = 32;
 const FILE_BLOCK_PADDING = 16;
 
@@ -268,19 +268,19 @@ export function DiffView(props: DiffViewProps) {
       className="flex-1 overflow-y-auto pb-12"
     >
       {commentsEnabled && (
-        <GeneralComments
-          threads={threads}
-          commentActions={commentActions}
-        />
+        <div className="flex flex-col gap-4 px-5 pt-4">
+          <GeneralComments
+            threads={threads}
+            commentActions={commentActions}
+          />
+          <OutsideThreads
+            threads={outsideThreads}
+            commentActions={commentActions}
+            className="rounded-lg border border-border"
+          />
+        </div>
       )}
-      {commentsEnabled && (
-        <OutsideThreads
-          threads={outsideThreads}
-          commentActions={commentActions}
-          className="mx-4 mt-3 rounded-lg border border-border"
-        />
-      )}
-      <div className="py-2" style={{ paddingTop, paddingBottom }}>
+      <div className="pt-4" style={{ paddingTop, paddingBottom }}>
         {items.map((virtualItem) => {
           const file = diff.files[virtualItem.index];
           const filePath = getFilePath(file);
@@ -289,6 +289,7 @@ export function DiffView(props: DiffViewProps) {
               key={filePath + '-' + virtualItem.index}
               data-index={virtualItem.index}
               ref={virtualizer.measureElement}
+              className="px-5 pb-4"
             >
               <FileBlock
                 highlighted={highlightedFile === filePath}

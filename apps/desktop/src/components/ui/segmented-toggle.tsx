@@ -28,11 +28,11 @@ export function SegmentedToggle<T extends string>(props: SegmentedToggleProps<T>
             title={option.label}
             aria-pressed={isActive}
             className={cn(
-              'flex items-center justify-center gap-1.5 h-6 rounded-[5px] text-xs transition-colors duration-150 cursor-pointer',
-              iconOnly ? 'w-7' : 'px-2.5',
+              'flex items-center justify-center gap-1.5 h-[22px] rounded-[4px] text-[13px] transition-colors duration-150 cursor-pointer',
+              iconOnly ? 'w-6' : 'px-2.5',
               isActive
-                ? 'bg-toggle text-text font-medium shadow-[0_1px_2px_rgba(0,0,0,0.08)] ring-1 ring-border/60'
-                : 'text-text-muted hover:text-text'
+                ? 'bg-selected text-accent font-medium'
+                : 'text-text-secondary hover:text-text hover:bg-hover'
             )}
             onClick={() => onChange(option.value)}
           >

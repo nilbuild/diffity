@@ -4,9 +4,9 @@ import { DiffStats } from '../diff/diff-stats';
 import { FileTree } from '../tree/file-tree';
 import type { FileTreeHandle } from '../tree/file-tree';
 import { SidebarIcon } from '../icons/sidebar-icon';
-import { SearchIcon } from '../icons/search-icon';
-import { XIcon } from '../icons/x-icon';
-import { CommentIcon } from '../icons/comment-icon';
+import { ListIcon } from '../icons/list-icon';
+import { TreeIcon } from '../icons/tree-icon';
+import { CommentedOnlyToggle, SidebarFilter, SidebarFrame, SidebarHeader, SidebarIconButton } from './sidebar-frame';
 import { CollapseAllIcon } from '../icons/collapse-all-icon';
 import { ExpandAllIcon } from '../icons/expand-all-icon';
 
@@ -18,6 +18,16 @@ interface SidebarProps {
   onFileClick: (path: string) => void;
   onCommentedFileClick: (path: string) => void;
   stats?: ParsedDiff['stats'];
+}
+
+const FLAT_KEY = 'diffity-sidebar-flat';
+
+function readFlat() {
+  try {
+    return localStorage.getItem(FLAT_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -35,9 +45,18 @@ export function Sidebar(props: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [commentedFilesOnly, setCommentedFilesOnly] = useState(false);
   const [allExpanded, setAllExpanded] = useState(true);
+  const [flat, setFlatState] = useState(readFlat);
+
+  const setFlat = (value: boolean) => {
+    setFlatState(value);
+    try {
+      localStorage.setItem(FLAT_KEY, value ? '1' : '0');
+    } catch {
+      return;
+    }
+  };
 
   const commentedFileCount = commentCountsByFile.size;
-  const commentedFileCountLabel = commentedFileCount > 99 ? '99+' : String(commentedFileCount);
   const countLabel = useMemo(() => {
     if (commentedFilesOnly) {
       return `${commentedFileCount} of ${files.length} files`;
@@ -62,98 +81,55 @@ export function Sidebar(props: SidebarProps) {
     onFileClick(path);
   };
 
-  if (collapsed) {
-    return (
-      <div className="w-9 min-w-9 border-r border-border bg-bg-secondary flex items-start justify-center pt-1.5">
-        <button
-          className="p-1.5 rounded-md text-text-muted hover:text-text hover:bg-hover cursor-pointer"
-          onClick={() => setCollapsed(false)}
-          title="Show sidebar"
-        >
-          <SidebarIcon className="w-4 h-4" />
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <aside className="w-64 min-w-64 border-r border-border bg-bg-secondary flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between gap-2 h-9 pl-3 pr-1.5 shrink-0">
-        <span className="text-xs font-medium text-text-secondary flex items-center gap-2 min-w-0">
-          <span className="truncate">{countLabel}</span>
-          {stats && <DiffStats additions={stats.totalAdditions} deletions={stats.totalDeletions} />}
-        </span>
-        <div className="flex items-center gap-0.5">
-          <button
-            className="p-1 rounded-md text-text-muted hover:text-text hover:bg-hover cursor-pointer"
-            onClick={() => {
-              if (allExpanded) {
-                fileTreeRef.current?.collapseAll();
-              } else {
-                fileTreeRef.current?.expandAll();
-              }
-            }}
-            title={allExpanded ? 'Collapse all' : 'Expand all'}
-          >
-            {allExpanded ? (
-              <CollapseAllIcon className="w-3.5 h-3.5" />
-            ) : (
-              <ExpandAllIcon className="w-3.5 h-3.5" />
+    <SidebarFrame collapsed={collapsed} onExpand={() => setCollapsed(false)}>
+      <SidebarHeader
+        title={
+          <>
+            <span className="truncate">{countLabel}</span>
+            {stats && <DiffStats additions={stats.totalAdditions} deletions={stats.totalDeletions} />}
+          </>
+        }
+        actions={
+          <>
+            <SidebarIconButton
+              title={flat ? 'Show as tree' : 'Show as flat list'}
+              onClick={() => setFlat(!flat)}
+            >
+              {flat ? <TreeIcon className="w-3.5 h-3.5" /> : <ListIcon className="w-3.5 h-3.5" />}
+            </SidebarIconButton>
+            {!flat && (
+              <SidebarIconButton
+                title={allExpanded ? 'Collapse all' : 'Expand all'}
+                onClick={() => {
+                  if (allExpanded) {
+                    fileTreeRef.current?.collapseAll();
+                    return;
+                  }
+                  fileTreeRef.current?.expandAll();
+                }}
+              >
+                {allExpanded ? <CollapseAllIcon className="w-3.5 h-3.5" /> : <ExpandAllIcon className="w-3.5 h-3.5" />}
+              </SidebarIconButton>
             )}
-          </button>
-          <button
-            className="p-1 rounded-md text-text-muted hover:text-text hover:bg-hover cursor-pointer"
-            onClick={() => setCollapsed(true)}
-            title="Hide sidebar"
-          >
-            <SidebarIcon className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-      <div className="flex items-center gap-1.5 px-2 pb-2 shrink-0">
-        <div className="relative flex-1">
-          <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
-          <input
-            className="w-full h-7 pl-7 pr-7 border border-border rounded-md bg-bg text-xs outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 placeholder:text-text-muted"
-            type="text"
-            placeholder="Filter files..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
+            <SidebarIconButton title="Hide sidebar" onClick={() => setCollapsed(true)}>
+              <SidebarIcon className="w-3.5 h-3.5" />
+            </SidebarIconButton>
+          </>
+        }
+      />
+      <SidebarFilter
+        value={search}
+        onChange={setSearch}
+        placeholder="Filter files"
+        trailing={commentedFileCount > 0 && (
+          <CommentedOnlyToggle
+            active={commentedFilesOnly}
+            count={commentedFileCount}
+            onToggle={() => setCommentedFilesOnly((prev) => !prev)}
           />
-          {search && (
-            <button
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text cursor-pointer"
-              onClick={() => setSearch('')}
-            >
-              <XIcon className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-        {commentedFileCount > 0 && (
-          <button
-            className={`inline-flex items-center gap-1.5 shrink-0 h-7 px-2 rounded-md border transition-colors cursor-pointer ${
-              commentedFilesOnly
-                ? 'border-accent bg-accent/8 text-accent'
-                : 'border-border bg-bg hover:bg-hover text-text-secondary hover:text-text'
-            }`}
-            onClick={() => setCommentedFilesOnly((prev) => !prev)}
-            title={commentedFilesOnly ? 'Show all files' : 'Show only files with open comments'}
-            aria-pressed={commentedFilesOnly}
-            aria-label={`${commentedFilesOnly ? 'Show all files' : 'Show only files with open comments'} (${commentedFileCountLabel} files)`}
-          >
-            <CommentIcon className="w-3.5 h-3.5" />
-            <span
-              className={`inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full text-[9px] font-semibold leading-none tabular-nums ${
-                commentedFilesOnly
-                  ? 'bg-bg text-accent'
-                  : 'bg-bg-tertiary text-text-secondary'
-              }`}
-            >
-              {commentedFileCountLabel}
-            </span>
-          </button>
         )}
-      </div>
+      />
       <FileTree
         ref={fileTreeRef}
         files={files}
@@ -162,9 +138,10 @@ export function Sidebar(props: SidebarProps) {
         reviewedFiles={reviewedFiles}
         commentCountsByFile={commentCountsByFile}
         commentedFilesOnly={commentedFilesOnly}
+        flat={flat}
         onFileClick={handleTreeFileClick}
         onExpandedStateChange={setAllExpanded}
       />
-    </aside>
+    </SidebarFrame>
   );
 }

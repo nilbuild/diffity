@@ -11,7 +11,6 @@ import { useCommentActions } from '../../hooks/use-comment-actions';
 import { Toolbar } from '../layout/toolbar';
 import { DiffView, type DiffViewHandle } from './diff-view';
 import { Sidebar } from '../layout/sidebar';
-import { StaleDiffBanner } from '../layout/stale-diff-banner';
 import { DiffSkeleton, hideStaticSplash } from '../layout/skeleton';
 import { DiffContextBar } from '../layout/diff-context-bar';
 import { PrBar } from '../../features/pr/pr-bar';
@@ -24,7 +23,6 @@ import { buildFirstOpenThreadByFile, buildThreadCountsByFile } from '../../lib/c
 import { focusThreadElement, getHunkHeaders, scrollToElement } from '../../lib/dom-utils';
 import { setFocusThread } from '../../lib/ui-store';
 import { OutsideThreads } from '../comments/outside-threads';
-import { OtherViewsBanner } from '../../features/comments/other-views-banner';
 import type { LineSelection } from '../comments/types';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { useViewedFiles } from '../../hooks/use-viewed-files';
@@ -337,7 +335,7 @@ export function DiffPage(props: DiffPageProps) {
   const isEmpty = diff.files.length === 0;
 
   return (
-    <ReviewStateProvider sessionId={reviewsEnabled ? sessionId : null}>
+    <ReviewStateProvider sessionId={reviewsEnabled ? sessionId : null} prMode={!!githubDetails}>
     <div className="flex flex-col h-screen bg-bg text-text font-sans">
       <Toolbar
         hideWhitespace={hideWhitespace}
@@ -360,8 +358,6 @@ export function DiffPage(props: DiffPageProps) {
       />
       <DiffContextBar diffRef={refParam} />
       <PrBar diffRef={refParam} />
-      {reviewsEnabled && <OtherViewsBanner sessionId={sessionId} />}
-      {isStale && <StaleDiffBanner onRefresh={handleRefreshDiff} />}
       {isEmpty ? (
         <div className="flex flex-1 flex-col overflow-y-auto">
           {reviewsEnabled && (
@@ -412,7 +408,11 @@ export function DiffPage(props: DiffPageProps) {
         ) : null}
       </div>
       )}
-      <StatusBar diffRef={refParam} />
+      <StatusBar
+        diffRef={refParam}
+        sessionId={reviewsEnabled ? sessionId : null}
+        stale={isStale ? { onRefresh: handleRefreshDiff } : null}
+      />
     </div>
     </ReviewStateProvider>
   );

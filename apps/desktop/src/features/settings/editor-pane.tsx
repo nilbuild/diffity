@@ -79,6 +79,8 @@ export function EditorPane() {
             }}
           >
             <input
+              autoComplete="off"
+              autoCorrect="off"
               value={custom}
               onChange={(event) => setCustom(event.target.value)}
               placeholder={known ? 'Not set' : ''}

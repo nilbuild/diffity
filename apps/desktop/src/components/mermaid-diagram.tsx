@@ -80,7 +80,7 @@ export function MermaidDiagram(props: { chart: string }) {
             onClick={() => dialogRef.current?.showModal()}
             className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-bg/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
           >
-            <span className="mb-3 px-3 py-1.5 text-xs font-medium rounded-md bg-bg border border-border text-text shadow-sm">
+            <span className="mb-3 px-3 py-1.5 text-xs font-medium rounded-md bg-bg border border-border text-text">
               View full diagram
             </span>
           </button>
@@ -89,14 +89,14 @@ export function MermaidDiagram(props: { chart: string }) {
 
       <dialog
         ref={dialogRef}
-        className="bg-bg text-text border border-border rounded-xl shadow-lg w-[90vw] max-h-[90vh] overflow-auto backdrop:bg-black/60 backdrop:backdrop-blur-sm p-0 m-auto fixed inset-0 h-fit"
+        className="bg-overlay text-text ring-1 ring-overlay-border rounded-xl w-[90vw] max-h-[90vh] overflow-auto backdrop:bg-black/60 backdrop:backdrop-blur-sm p-0 m-auto fixed inset-0 h-fit"
         onClick={(e) => {
           if (e.target === dialogRef.current) {
             dialogRef.current?.close();
           }
         }}
       >
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-overlay-border">
           <h2 className="text-sm font-semibold">Diagram</h2>
           <button
             className="p-1 rounded-md text-text-muted hover:text-text hover:bg-hover cursor-pointer"

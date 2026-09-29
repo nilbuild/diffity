@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboa
 import { useQuery } from '@tanstack/react-query';
 import * as tauri from '../../lib/tauri';
 import { cn } from '../../lib/cn';
+import { buttonPrimary } from '../../components/ui/button-styles';
 import type { PullRequest } from '../../lib/types';
 import { closePullRequests, openSettingsAt, useUi } from '../../lib/ui-store';
 import { useRepoNav } from '../../hooks/use-repo';
@@ -96,7 +97,7 @@ function EmptyState(props: { title: string; detail: string; action?: { label: st
       {action && (
         <button
           onClick={action.onClick}
-          className="mt-3 inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md bg-accent px-3 text-xs font-medium text-white hover:bg-accent-hover"
+          className={cn(buttonPrimary, 'mt-3')}
         >
           <GitHubIcon className="h-3 w-3" />
           {action.label}
@@ -281,11 +282,13 @@ function PullRequestsBody() {
         aria-label="Pull requests"
         onKeyDown={handleKey}
         onMouseDown={(event) => event.stopPropagation()}
-        className="mx-4 flex max-h-[70vh] w-[640px] max-w-full flex-col overflow-hidden rounded-xl border border-border bg-bg shadow-lg"
+        className="mx-4 flex max-h-[70vh] w-[640px] max-w-full flex-col overflow-hidden rounded-xl bg-overlay ring-1 ring-overlay-border"
       >
-        <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+        <div className="flex items-center gap-2 border-b border-overlay-border px-4 py-2.5">
           <SearchIcon className="h-3.5 w-3.5 shrink-0 text-text-muted" />
           <input
+            autoComplete="off"
+            autoCorrect="off"
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -311,7 +314,7 @@ function PullRequestsBody() {
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">{renderBody()}</div>
-        <div className="flex items-center justify-between border-t border-border bg-bg-secondary px-4 py-1.5 text-[11px] text-text-muted">
+        <div className="flex items-center justify-between border-t border-overlay-border px-4 py-2 text-xs text-text-muted">
           <span>
             {prs ? `${prs.length} open pull request${prs.length === 1 ? '' : 's'}` : 'Pull requests'}
           </span>

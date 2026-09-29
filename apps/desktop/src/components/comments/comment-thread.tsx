@@ -110,7 +110,7 @@ export function CommentThread(props: CommentThreadProps) {
       : `Lines ${thread.startLine}–${thread.endLine}`;
 
   const threadContent = (
-    <td colSpan={colSpan} className="px-3 py-2 font-sans">
+    <td colSpan={colSpan} className="px-4 py-3 font-sans">
       <ThreadCard
         thread={thread}
         onReply={(body, options) => onReply(thread.id, body, currentAuthor, options)}

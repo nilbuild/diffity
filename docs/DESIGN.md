@@ -9,13 +9,13 @@ not a redesign.
 
 1. **Reuse before adding.** New UI (desktop-only screens, Claude, reviews, GitHub sign-in) is built from the patterns
    that already exist: the button styles in `components/ui/button-styles.ts` (primary / outline / ghost / icon /
-   group), `SegmentedToggle`, the options-menu dropdown (`bg-bg-secondary rounded-lg p-1 shadow-lg ring-1 ring-border`,
-   `menuItemClass`), the dialog shell of `github-dialog.tsx` / `confirm-dialog.tsx`, bordered lists
-   (`rounded-md border border-border p-1` with `h-8` rows), `CommentForm` buttons and `ThreadBadge`.
+   group), `SegmentedToggle`, the options-menu dropdown (`overlayPanel`: `bg-overlay rounded-lg p-1 ring-1 ring-overlay-border`, no shadow,
+   `menuItemClass`), the dialog shell of `github-dialog.tsx` / `confirm-dialog.tsx`, borderless lists
+   (`h-7`/`h-8` rows with hover and selected fills), `CommentForm` buttons and `ThreadBadge`.
 2. **Colours come from the tokens in `src/styles/app.css`** (`bg`, `bg-secondary`, `bg-tertiary`, `border`,
-   `text`, `text-secondary`, `text-muted`, `accent`, `added`, `deleted`, `modified`, `diff-*`, `hover`, `raised`, `toggle`). Dark mode
+   `text`, `text-secondary`, `text-muted`, `accent`, `added`, `deleted`, `modified`, `diff-*`, `hover`, `active`, `selected`, `fill`, `fill-hover`, `raised`, `control-border`, `control-hover`, `overlay`, `overlay-border`). Dark mode
    is `[data-theme='dark']` on `<html>`, toggled by `hooks/use-theme.ts` (stored in `localStorage['diffity-theme']`).
-   Fonts are Geist (UI) and Geist Mono (code), bundled locally (see Type and density).
+   Fonts are Geist (UI, bundled locally) and the original diffity mono stack for code (see Type and density).
 3. **Icons live in `src/components/icons`**, one component per file. The web app's icons are used as they are;
    new ones (sparkle, stop, refresh, external-link, folder-open, key, brand-logo) follow the same 16px, 1.5px stroke,
    `currentColor` style. No icon libraries.
@@ -27,25 +27,45 @@ not a redesign.
 
 ## Type and density
 
-- Fonts: `@fontsource-variable/geist` and `@fontsource-variable/geist-mono`, imported in `main.tsx` (no CDN).
-  `--font-sans` = Geist, `--font-mono` = Geist Mono (ligatures off). Mono is for code, diffs, paths, shas, line
-  numbers and branch names; everything else is sans.
-- Sizes (Tailwind tokens redefined in `app.css`): `text-xs` 12/16, `text-sm` 13/20 (UI base, body is 13px),
-  `text-base` 14/20, `text-lg` 16/24; meta text `text-[11px]`. Code uses the `.code-text` class: 12.5px / 20px rows
-  (diff rows, file viewer, hunk headers); line numbers 11.5px tabular. Don't use `text-sm leading-6` for code.
-- Heights: title bar 44px (traffic lights are positioned for it), buttons 28px (`h-7`), small buttons 24px (`h-6`),
-  context/banner rows 32px (`h-8`), file headers 32px, hunk/expand rows 24px, tree and menu rows 24–28px, status bar
-  24px, sidebar 256px. Spacing scale: 4 / 6 / 8 / 12px; file blocks `mx-3 my-2`, radius `rounded-md` (menus `rounded-lg`).
-- Buttons come from `components/ui/button-styles.ts`: `buttonPrimary` (accent), `buttonOutline` (bordered, `bg-raised`,
-  the default secondary), `buttonGhost`, `buttonIcon` (28px square), `buttonGroup` + `buttonGroupItem` for split /
-  grouped buttons. `SegmentedToggle` is a tertiary track with a raised active pill (`bg-toggle`), `iconOnly` for icons.
-- Fewer boxes: one border per thing. Threads are a single bordered card (header strip, comments separated by hairlines);
-  the composer is one bordered box; empty states and History use a single bordered list, not cards in cards.
+- Fonts: `@fontsource-variable/geist` (UI, imported in `main.tsx`, no CDN). Code keeps the original diffity mono stack:
+  `'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', 'Menlo', monospace` (ligatures off). Mono is for
+  code, diffs, paths, shas, line numbers and branch names; everything else is sans.
+- Never change the root font size: `html` stays at 16px so Tailwind rem sizes are real pixels; `body` is 13px / 20px.
+- Sizes: `text-xs` 12/16, `text-[13px]` UI base, `text-sm` 13/20, `text-base` 14/20; meta 11–12px. Code uses `.code-text`
+  (13px / 22px rows); gutter numbers 12px tabular.
+- Heights: title bar 44px (traffic lights are positioned for it), buttons and inputs 28px (`h-7`, `px-3`), small 24px,
+  tree / list / menu rows 28–32px (`h-7`/`h-8`), file and thread headers 36px (`h-9`), History rows ~52px, context bar
+  36px, status bar 28px. Sidebar 300px default, resizable 220px…50% of the window (drag the edge, double-click to reset,
+  stored in `localStorage['diffity-sidebar-width']`).
+- Spacing scale 4 / 8 / 12 / 16 / 20 / 24px. Sidebar inner padding 12px (header, filter and tree share one left edge);
+  content padding 20–24px; diff blocks (general comments, outdated threads, file cards) are separate cards with a 16px gap.
+  Radii: `rounded-md` controls and rows, `rounded-lg` cards, popovers and menus, `rounded-xl` dialogs.
+
+## Surfaces, borders and colour
+
+- **No shadows anywhere** (buttons, chips, popovers, menus, dialogs, toasts). Separation comes from a 1px border plus a
+  surface colour.
+- **Few borders.** Structural lines only: title bar bottom, context/PR bar bottom, sidebar edge, status bar top, card
+  outlines, diff table internals, popover outline. Lists never get per-row borders or a box: rows use hover
+  (`bg-hover`) and selected (`bg-selected` + accent icon/check) fills.
+- Surfaces: `bg` content, `bg-secondary` chrome (title bar, sidebar, status bar, card headers), `overlay` +
+  `ring-overlay-border` for popovers/menus/dialogs/toasts (white on a tinted page in light, lifted `#232323` in dark),
+  `fill` / `fill-hover` for soft inputs and tracks, `raised` + `control-border` / `control-hover` for outlined buttons.
+- Buttons (`components/ui/button-styles.ts`): `buttonPrimary` (accent solid; disabled = neutral fill, muted text),
+  `buttonOutline` (1px `control-border`, raised fill, the default toolbar button), `buttonGhost`, `buttonIcon` /
+  `buttonIconOutline`, `buttonGroup` (outlined split button with a visible divider). Toggles show their active state
+  with `bg-selected text-accent`.
+- Inputs (`inputField`): soft filled (`bg-fill`), no border until focus; focus = `border-accent/45`, no ring or glow.
+  No native `<datalist>`/`<select>` popups and no browser autocomplete (`autoComplete="off"`, `autoCorrect="off"`,
+  `spellCheck={false}`); suggestions use our own dropdown.
+- Colour is soft: tinted badges (`bg-x/12 text-x`), avatars as tinted initials, notices as neutral pills with a small
+  coloured dot/icon. Text contrast: `text-secondary` and `text-muted` both meet AA on their surfaces.
+- Section labels are sentence case, 11–12px medium `text-secondary` (no uppercase tracking).
 - Paths: `PathLabel` renders the directory muted and the file name bright (file headers).
 - Diff rows: changed lines get a 2px coloured left edge and tinted line numbers (`td.diff-gutter` rules in `app.css`);
-  the bottom expand band says "N unmodified lines".
-- Dark theme (reference: a native git client): near-black neutrals `#141414` page, `#1a1a1a` bars/sidebar, `#242424`
-  tertiary, `#282828` borders; saturated but dark diff rows (`#182a1d` added, `#2e1819` removed, darker gutters);
+  long lines wrap at word boundaries (`overflow-wrap:anywhere`); the bottom expand band says "N unmodified lines".
+- Dark theme (reference: a native git client): near-black neutrals `#141414` page, `#1a1a1a` bars/sidebar, `#262626`
+  fills, `#2a2a2a` borders, `#232323` overlays; saturated but dark diff rows (`#182a1d` added, `#2e1819` removed);
   neutral hunk band `#1c1c1c` with blue-grey text; accent `#3b82f6`. Light theme keeps the GitHub palette.
 
 ## Desktop additions (styled like the web UI)
@@ -53,37 +73,49 @@ not a redesign.
 - Welcome screen (`routes/welcome.tsx`): mark + one-line tagline + Open folder (⌘O) on one row, a compact Recent
   list (name, muted parent path, relative time, remove on hover, ⌘-click = new window), a small "Open a pull request
   URL…" input and a drop-a-folder hint. Settings and theme are icon buttons in the title bar.
-- Title bar (one row, 44px): repo name · page switcher (Changes | Files | History) · "what to review" picker
-  (Uncommitted / Staged only / Unstaged only, the PR or "branch vs base", recent commits, "All commits, ranges and
-  branches…") · Unified/Split (icons) · Hide whitespace (icon) … comment nav group · Comments · Claude · Submit · ⋯.
-  Claude and Submit are hidden on an empty view with no comments. A slim 32px context bar appears only for a commit
-  (Back, sha, subject, author, date), a PR or a compared range; plain views have no second bar.
-- Sidebar header shows "N files +a −d" (or "k of N viewed"), then the filter. Files changed stats live there.
-- Status bar (24px, bottom of Changes/Files/History): branch, upstream (or "Local only" / "Not published" / detached),
-  fetch / pull / push with ahead/behind counts, repo path, and the GitHub button (PR #N + title, or "GitHub") that
-  opens the GitHub dialog.
-- History page (`/overview`, `components/layout/dashboard.tsx`): one calm column: quick picks (uncommitted, the PR or
-  branch vs base, only when they exist), a one-line Compare form (base ... head), and the searchable commit list
-  (single-line rows: subject, +/−, author, time, sha; "Changes since" on hover).
+- Title bar (one row, 44px, bottom border): repo name · page tabs (plain text tabs, subtle fill on the active one) ·
+  "what to review" picker · Unified/Split (icons) · Hide whitespace (icon) … comment nav group · Comments · Claude ·
+  Send to Claude / Review #N · ⋯. The picker popover (440px): search field (filters commits; a sha or `a..b` range
+  offers "Open …"), one "Uncommitted changes · N files" row with an All · Staged · Unstaged segmented control (empty
+  segments disabled, explanations in tooltips), the PR or "branch vs base", one-line commit rows (sha · subject · age,
+  author in the tooltip, loads more on scroll), and "All commits, ranges and branches…" as a footer. A 36px context bar
+  (bottom border) appears only for a commit (Back, sha, subject, author, date), a PR or a compared range.
+- Sidebar (`components/layout/sidebar-frame.tsx`): header "N files +a −d" (or "k of N viewed") with tree/flat toggle,
+  expand/collapse and hide; soft filter input; tree rows with 12px indent and guide lines, small file icons, the status
+  as a coloured letter on the right, comment counts as tiny badges, full path in the tooltip. The flat list shows the
+  file name bright and the directory dim. Single-child folder chains are collapsed ("apps/desktop/src").
+- Status bar (28px, bottom of Changes/Files/History): branch switcher, upstream (or "Local only" / "Not published" /
+  detached), fetch / pull / push with ahead/behind counts, notices as neutral pills ("Files changed on disk · Refresh",
+  "N open comments in commit abc1234 · ×"), repo path, and the GitHub button that opens the GitHub dialog.
+- Branch switcher (`features/pr/branch-switcher.tsx`, click the branch in the status bar): search, Local branches
+  (current checked, ahead/behind), Remote branches (checked out as a local tracking branch), Pull requests (#, title,
+  author, checks) and "Check out pull request #N" for a typed number or URL. Switching with uncommitted changes asks
+  first (Cancel / Stash and switch). There is no separate Pull requests toolbar button.
+- History page (`/overview`, `components/layout/dashboard.tsx`): centred 880px column. A slim header with a soft search
+  field and a "Compare" button whose popover takes base / compare refs (own autocomplete, swap button). The list starts
+  with a "Working" group (uncommitted changes, the PR or branch vs base) and then commits grouped by day (Today,
+  Yesterday, Mon, Sep 26) under sticky headers. Rows (~52px, no borders): subject, then a muted line with sha ·
+  avatar initial + author · age; +/− on the right, replaced by "Changes since" on hover.
 - Claude: "Review with Claude" split button with focus menu and "Resolve open comments"; a status pill
   ("Claude is reviewing… · 3 comments · 0:42", Stop) replaces it while a run is active; "Resolve with Claude" on
   each open thread; "Claude Code is working…" inside threads being addressed; file-write approval modal with a
   diff preview (Deny / Allow once / Always allow).
-- Draft reviews: comment forms offer "Comment now" and "Start a review" / "Add to review"; drafts carry a "Draft"
-  badge. The toolbar button is "Submit comments" (no PR) or "Review #N" (PR for the branch). Without a PR the popover
-  offers "Send to Claude" vs "Just save the comments" (no verdict); with a PR it offers "Post to GitHub pull request
-  #N" with Comment / Approve / Request changes, plus "Also send to Claude". Button labels say what happens
-  ("Send 3 comments to Claude", "Publish 3 comments", "Post review to #N").
+- Local review (no pull request): no drafts. The composer has one "Comment" button (saved at once; `@claude` still
+  asks Claude on that thread). The toolbar shows "Send N to Claude" (open comments whose last reply is not Claude's),
+  one click, hidden when there are none.
+- Pull request review (a PR is checked out): GitHub-style drafting ("Comment now" / "Start a review" / "Add to review",
+  "Draft" badges). The toolbar button is "Review #N" (accent when drafts exist) → popover with summary, Post to GitHub
+  with Comment / Approve / Request changes, and "Also send to Claude".
 - Loading: branded static splash in `index.html` → `AppSplash` while a repo opens, `DiffSkeleton` / file skeletons,
   a thin top progress bar for first-time loads and mutations, loading toasts for git/revert operations.
 - Settings dialog (⌘,), time.fyi style: left rail with search and grouped icon tabs (App: General, Editor, Keyboard shortcuts;
   Connections: Claude Code, GitHub; Diffity: About), pane title + close, grouped label/hint rows with a fixed control column,
   theme swatches, status cards for Claude Code and the GitHub account, inline confirm for sign-out.
-- Pull requests: toolbar button and ref-picker entry open a searchable picker; checking one out shows a PR bar above the
+- Pull requests: the branch switcher and the ref-picker entry check one out; a PR bar (bottom border) sits above the
   diff (state, title, base ← head, checks, description, Sync comments, Back to <branch>).
 - `@claude` autocomplete in comment and reply forms.
 - Comments across views: toolbar "Comments N" chip (all open threads of the repo, `c`) opens a right-hand drawer grouped
-  by view then file; a slim banner under the context bar points at open comments in other views; outdated / committed
+  by view then file; a neutral status-bar pill points at open comments in other views; outdated / committed
   threads show their anchor snippet with an "Outdated" badge and "View in commit abc1234".
 - GitHub dialog: the web app's push/pull dialog plus sign-in (import from `gh`, paste a token) and sign-out.
 - File headers: Preview toggle for Markdown/SVG (rich diff), open in editor, revert file.

@@ -153,6 +153,8 @@ function PathRow(props: { onSaved: () => Promise<void> }) {
         }}
       >
         <input
+          autoComplete="off"
+          autoCorrect="off"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder="Detect automatically"

@@ -1,3 +1,5 @@
+import { buttonOutline, buttonPrimary, inputField } from '../ui/button-styles';
+import { cn } from '../../lib/cn';
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
@@ -88,7 +90,7 @@ export function GitHubDialog(props: GitHubDialogProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="bg-bg rounded-xl shadow-lg w-full max-w-sm mx-4 font-sans"
+        className="bg-overlay ring-1 ring-overlay-border rounded-xl w-full max-w-sm mx-4 font-sans"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-start justify-between px-4 pt-4 pb-2">
@@ -122,7 +124,7 @@ export function GitHubDialog(props: GitHubDialogProps) {
         {renderBody()}
 
         {auth?.authenticated && (
-          <div className="flex items-center justify-between px-4 py-2.5 border-t border-border text-[11px] text-text-muted">
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-overlay-border text-xs text-text-muted">
             <span>
               Signed in as <span className="font-medium text-text-secondary">{auth.login ?? 'unknown'}</span>
               {auth.source === 'gh' ? ' via GitHub CLI' : ''}
@@ -182,7 +184,7 @@ export function SignInPanel(props: { onSignedIn: (status: GithubAuthStatus) => v
         <button
           onClick={importFromGh}
           disabled={busy !== null}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+          className={buttonPrimary}
         >
           {busy === 'gh' ? <span className={`${buttonSpinner} border-white/30 border-t-white`} /> : <GitHubIcon className="w-3 h-3" />}
           Import
@@ -200,16 +202,19 @@ export function SignInPanel(props: { onSignedIn: (status: GithubAuthStatus) => v
           }}
         >
           <input
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
             type="password"
             value={token}
             onChange={(e) => setToken(e.target.value)}
             placeholder="ghp_…"
-            className="flex-1 min-w-0 text-xs bg-bg border border-border rounded-md px-2.5 py-1.5 text-text placeholder:text-text-muted focus:outline-none focus:border-accent"
+            className={cn(inputField, 'flex-1 min-w-0 bg-bg')}
           />
           <button
             type="submit"
             disabled={busy !== null || !token.trim()}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-bg-tertiary text-text-secondary hover:text-text transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+            className={buttonOutline}
           >
             {busy === 'token' ? <span className={`${buttonSpinner} border-text-muted/30 border-t-text-muted`} /> : <KeyIcon className="w-3 h-3" />}
             Save
@@ -305,7 +310,7 @@ function PrPanel(props: { details: GitHubDetails; currentRef?: string; onPulled:
           <button
             onClick={handlePush}
             disabled={pushing}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+            className={buttonPrimary}
           >
             {pushing ? (
               <span className={`${buttonSpinner} border-white/30 border-t-white`} />
@@ -328,7 +333,7 @@ function PrPanel(props: { details: GitHubDetails; currentRef?: string; onPulled:
           <button
             onClick={handlePull}
             disabled={pulling}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-bg-tertiary text-text-secondary hover:text-text transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+            className={buttonOutline}
           >
             {pulling ? (
               <span className={`${buttonSpinner} border-text-muted/30 border-t-text-muted`} />

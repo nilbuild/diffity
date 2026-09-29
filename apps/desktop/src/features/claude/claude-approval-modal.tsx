@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { cn } from '../../lib/cn';
+import { buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 import { getRepoPathOrNull } from '../../lib/api';
 import { collapseContext, diffLines } from '../../lib/line-diff';
 import { SparkleIcon } from '../../components/icons/sparkle-icon';
@@ -88,7 +89,7 @@ export function ClaudeApprovalModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-bg border border-border rounded-xl shadow-lg w-full max-w-2xl mx-4 overflow-hidden font-sans">
+      <div className="bg-overlay ring-1 ring-overlay-border rounded-xl w-full max-w-2xl mx-4 overflow-hidden font-sans">
         <div className="flex items-start gap-2.5 px-4 pt-4 pb-3">
           <SparkleIcon className="w-4 h-4 mt-0.5 text-accent shrink-0" />
           <div className="min-w-0">
@@ -100,7 +101,7 @@ export function ClaudeApprovalModal() {
         <div className="flex items-center justify-end gap-2 px-4 py-3">
           <button
             onClick={() => void answerClaudePermission(reject?.id ?? null)}
-            className="px-3 py-1.5 text-xs rounded-md border border-border text-text hover:bg-hover cursor-pointer"
+            className={buttonOutline}
           >
             Deny
           </button>
@@ -110,10 +111,7 @@ export function ClaudeApprovalModal() {
               <button
                 key={option.id}
                 onClick={() => void answerClaudePermission(option.id)}
-                className={cn(
-                  'px-3 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer',
-                  primary ? 'bg-accent text-white hover:bg-accent-hover' : 'bg-bg-tertiary text-text-secondary hover:text-text',
-                )}
+                className={primary ? buttonPrimary : buttonOutline}
               >
                 {optionLabel(option)}
               </button>

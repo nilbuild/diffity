@@ -13,15 +13,15 @@ export function CommentsButton() {
       onClick={toggleComments}
       className={cn(
         buttonOutline,
-        'px-2',
-        open && 'border-accent/40 bg-accent/10 text-accent hover:bg-accent/15 hover:text-accent',
+        'px-2.5',
+        open && 'bg-selected border-accent/40 text-accent hover:bg-selected',
       )}
       title={`All comments in this repository, across every view${count > 0 ? ` (${count} open)` : ''} — C`}
     >
       <CommentIcon className="w-3.5 h-3.5" />
       <span className="hidden min-[1440px]:inline">Comments</span>
       {count > 0 && (
-        <span className="min-w-4 px-1 rounded-full bg-accent text-white text-[10px] font-semibold leading-4 text-center tabular-nums">
+        <span className="min-w-4 px-1 rounded-full bg-accent/15 text-accent text-[10px] font-semibold leading-4 text-center tabular-nums">
           {count}
         </span>
       )}

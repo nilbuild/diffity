@@ -10,7 +10,8 @@ import { TREE_REF } from '../../lib/types';
 import type { CommentThread } from '../../components/comments/types';
 import { enqueueClaude, openRunResult, runLabel, runViewLabel, stopClaude, useActiveRun, useQueuedCount } from './claude-runner';
 import { useCurrentViewRef } from '../../hooks/use-current-view';
-import { buttonGroup, buttonGroupItem } from '../../components/ui/button-styles';
+import { buttonGroup, buttonGroupItem, sectionLabel } from '../../components/ui/button-styles';
+import { useReviewState } from '../review/review-state';
 
 export const REVIEW_FOCUSES = [
   { value: 'security', label: 'Security' },
@@ -109,6 +110,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
   const close = useCallback(() => setOpen(false), []);
   useDismiss(menuRef, open, close);
   const run = useActiveRun();
+  const { prMode } = useReviewState();
 
   const openThreads = threads.filter((thread) => thread.status === 'open' && !thread.pending);
   const reviewRef = diffRef && diffRef !== TREE_REF && hasChanges ? diffRef : null;
@@ -128,6 +130,9 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
 
   if (run) {
     return <ClaudeStatus />;
+  }
+  if (!reviewRef && !prMode) {
+    return null;
   }
 
   return (
@@ -154,35 +159,37 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
         )}
         <button
           onClick={() => setOpen(!open)}
-          className="flex items-center px-1.5 border-l border-border text-text-muted hover:bg-hover hover:text-text transition-colors cursor-pointer"
+          className="flex items-center px-1.5 border-l border-control-border text-text-secondary hover:bg-control-hover hover:text-text transition-colors cursor-pointer"
           title="More Claude actions"
         >
           <ChevronDownIcon className="w-3.5 h-3.5" />
         </button>
       </div>
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-60 p-1 bg-bg-secondary rounded-lg shadow-lg ring-1 ring-border z-50">
+        <div className="absolute right-0 top-full mt-1 w-60 p-1 bg-overlay rounded-lg ring-1 ring-overlay-border z-50">
           {reviewRef && (
             <>
-              <div className="px-3 pt-1 pb-1.5 text-[10px] font-semibold text-text-muted uppercase tracking-widest">Review with a focus</div>
+              <div className={sectionLabel}>Review with a focus</div>
               {REVIEW_FOCUSES.map((focus) => (
                 <button key={focus.value} className={menuItemClass} onClick={() => review(focus.value)}>
                   <SparkleIcon className="w-3.5 h-3.5" />
                   {focus.label}
                 </button>
               ))}
-              <div className="border-t border-border my-1" />
+              {prMode && <div className="border-t border-overlay-border my-1 -mx-1" />}
             </>
           )}
-          <button
-            className={`${menuItemClass} disabled:opacity-50 disabled:cursor-default`}
-            disabled={openThreads.length === 0}
-            onClick={resolveAll}
-          >
-            <CommentIcon className="w-3.5 h-3.5" />
-            Resolve open comments
-            <span className="ml-auto text-text-muted">{openThreads.length}</span>
-          </button>
+          {prMode && (
+            <button
+              className={`${menuItemClass} disabled:opacity-50 disabled:cursor-default`}
+              disabled={openThreads.length === 0}
+              onClick={resolveAll}
+            >
+              <CommentIcon className="w-3.5 h-3.5" />
+              Resolve open comments
+              <span className="ml-auto text-text-muted">{openThreads.length}</span>
+            </button>
+          )}
         </div>
       )}
     </div>

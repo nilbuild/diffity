@@ -28,7 +28,6 @@ import { OptionsMenu } from '../layout/options-menu';
 import { RepoTitle, TitleBar } from '../layout/title-bar';
 import { StatusBar } from '../layout/status-bar';
 import { PageSwitcher } from '../layout/page-switcher';
-import { StaleDiffBanner } from '../layout/stale-diff-banner';
 import { useTreeStaleness } from '../../hooks/use-tree-staleness';
 import { isRenderableFile, isMarkdownFile, isImageFile } from '../../lib/file-types';
 import { CodeIcon } from '../icons/code-icon';
@@ -42,9 +41,10 @@ import { setFocusThread } from '../../lib/ui-store';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
 import { CommentsButton } from '../../features/comments/comments-button';
-import { OtherViewsBanner } from '../../features/comments/other-views-banner';
 import { FinishReview } from '../../features/review/finish-review';
 import { PencilIcon } from '../icons/pencil-icon';
+import { buttonOutline } from '../ui/button-styles';
+import { cn } from '../../lib/cn';
 import { FileBlockSkeleton, hideStaticSplash } from '../layout/skeleton';
 
 function formatTreeThreadsForCopy(threads: CommentThread[]): string {
@@ -382,12 +382,12 @@ export function TreePage() {
     <ReviewStateProvider sessionId={sessionId}>
     <div className='flex flex-col h-screen bg-bg text-text'>
       <TitleBar>
-        <div data-tauri-drag-region className='flex items-center gap-2 min-w-0 shrink'>
+        <div data-tauri-drag-region className='flex items-center gap-2.5 min-w-0 shrink'>
           <RepoTitle name={info?.name} />
           <PageSwitcher current='tree' />
         </div>
         <div data-tauri-drag-region className='flex-1 min-w-2 self-stretch' />
-        <div className='flex items-center gap-1.5 shrink-0'>
+        <div className='flex items-center gap-2 shrink-0'>
           <CommentToolbarActions
             threads={threads}
             onScrollToThread={handleScrollToThread}
@@ -398,20 +398,13 @@ export function TreePage() {
           {threads.length > 0 && (
             <>
               <ClaudeToolbar diffRef={null} sessionId={sessionId} threads={threads} />
-              <FinishReview githubDetails={null} />
+              <FinishReview githubDetails={null} threads={threads} />
             </>
           )}
           <OptionsMenu theme={theme} onToggleTheme={toggleTheme} />
         </div>
       </TitleBar>
 
-      <OtherViewsBanner sessionId={sessionId} />
-      {isStale && (
-        <StaleDiffBanner
-          onRefresh={handleRefreshTree}
-          message='Files have changed since this tree was loaded'
-        />
-      )}
 
       <div className='flex flex-1 overflow-hidden'>
         <TreeSidebar
@@ -423,7 +416,7 @@ export function TreePage() {
           onDirClick={handleDirClick}
         />
 
-        <main ref={mainRef} className='flex-1 overflow-y-auto px-4 py-3'>
+        <main ref={mainRef} className='flex-1 min-w-0 overflow-y-auto px-6 pt-4 pb-8'>
           <PathComments
             pathKey={pathKey}
             threads={pathThreads}
@@ -457,7 +450,7 @@ export function TreePage() {
               </span>
             ))}
             {isFileMode && fileContent && isRenderableFile(navPath) && (
-              <div className='ml-3 -mr-2'>
+              <div className='ml-3'>
                 <SegmentedToggle
                   options={[
                     {
@@ -478,10 +471,10 @@ export function TreePage() {
             )}
             {info?.editor === 'vscode' && (
               <button
-                className='ml-3 shrink-0 flex items-center gap-1.5 h-6 px-2 rounded-md border border-border bg-raised text-xs text-text-secondary hover:bg-hover hover:text-text cursor-pointer transition-colors'
+                className={cn(buttonOutline, 'ml-3')}
                 onClick={handleOpenInEditor}
               >
-                <PencilIcon className='w-3 h-3' />
+                <PencilIcon className='w-3.5 h-3.5 text-text-secondary' />
                 Open in Editor
               </button>
             )}
@@ -500,7 +493,10 @@ export function TreePage() {
           )}
         </main>
       </div>
-      <StatusBar />
+      <StatusBar
+        sessionId={sessionId}
+        stale={isStale ? { onRefresh: handleRefreshTree, message: 'Files changed on disk' } : null}
+      />
     </div>
     </ReviewStateProvider>
   );

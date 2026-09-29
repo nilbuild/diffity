@@ -15,7 +15,8 @@ export interface ReturnPoint {
 
 export type CheckoutGuard =
   | { kind: 'checkout'; repoPath: string; input: string; label: string; status: GitStatus }
-  | { kind: 'back'; repoPath: string; point: ReturnPoint; status: GitStatus };
+  | { kind: 'back'; repoPath: string; point: ReturnPoint; status: GitStatus }
+  | { kind: 'branch'; repoPath: string; branch: string; status: GitStatus };
 
 interface CheckoutState {
   guard: CheckoutGuard | null;
@@ -214,6 +215,55 @@ export async function returnFromPullRequest(repoPath: string, toDiff: ToDiff, op
         .catch(() => ` ${describeStash(stash)}`);
     }
     toast.error(`Could not switch back to ${label}`, { id, description: `${tauri.errorMessage(error)}${restored}` });
+  } finally {
+    useCheckoutState.setState({ busy: null });
+  }
+}
+
+/** `origin/feature` → `feature`, so git creates (or reuses) a local tracking branch instead of a detached HEAD. */
+export function localNameFor(branch: string, isRemote: boolean): string {
+  if (!isRemote) {
+    return branch;
+  }
+  const slash = branch.indexOf('/');
+  return slash > 0 ? branch.slice(slash + 1) : branch;
+}
+
+export async function switchBranch(repoPath: string, branch: string, toDiff: ToDiff, options?: { stash?: boolean }) {
+  const status = await tauri.gitStatus(repoPath);
+  if (status.branch === branch) {
+    return;
+  }
+  if (hasTrackedChanges(status) && !options?.stash) {
+    useCheckoutState.setState({ guard: { kind: 'branch', repoPath, branch, status } });
+    return;
+  }
+  useCheckoutState.setState({ guard: null, busy: branch });
+  const id = toast.loading(`Switching to ${branch}…`);
+  let stash: StashResult | null = null;
+  try {
+    if (options?.stash) {
+      stash = await tauri.gitStashPush(repoPath, `diffity: before switching to ${branch}`);
+    }
+    await tauri.gitCheckout(repoPath, branch);
+    queryClient.invalidateQueries();
+    toDiff('work');
+    toast.success(`Switched to ${branch}`, { id, description: describeStash(stash) ?? undefined });
+  } catch (error) {
+    if (tauri.isAppError(error) && error.code === 'dirty') {
+      toast.dismiss(id);
+      const fresh = await tauri.gitStatus(repoPath);
+      useCheckoutState.setState({ guard: { kind: 'branch', repoPath, branch, status: fresh } });
+      return;
+    }
+    let restored = '';
+    if (stash?.sha) {
+      restored = await tauri
+        .gitStashRestore(repoPath, stash.sha)
+        .then(() => ' Your stashed changes were put back.')
+        .catch(() => ` ${describeStash(stash)}`);
+    }
+    toast.error(`Could not switch to ${branch}`, { id, description: `${tauri.errorMessage(error)}${restored}` });
   } finally {
     useCheckoutState.setState({ busy: null });
   }

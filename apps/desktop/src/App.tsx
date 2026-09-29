@@ -96,12 +96,21 @@ export function App() {
       <TopProgress />
       <Toaster
         position="bottom-right"
+        offset={{ bottom: 40, right: 16 }}
+        gap={8}
         toastOptions={{
           style: {
-            background: 'var(--color-bg-secondary)',
+            background: 'var(--color-overlay)',
             color: 'var(--color-text)',
-            border: '1px solid var(--color-border)',
+            border: '1px solid var(--color-overlay-border)',
+            borderRadius: '10px',
+            boxShadow: 'none',
             fontSize: '13px',
+            fontFamily: 'var(--font-sans)',
+            padding: '12px 14px',
+          },
+          classNames: {
+            description: '!text-text-secondary !text-xs',
           },
         }}
       />

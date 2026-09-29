@@ -275,7 +275,7 @@ export function FileViewer(props: FileViewerProps) {
 
   return (
     <div className={cn(
-      'border border-border rounded-md overflow-x-auto',
+      'border border-border rounded-lg overflow-x-auto',
       isFullFileHighlight && 'border-l-2 border-l-accent',
     )}>
       <table ref={tableRef} className="w-full border-collapse">

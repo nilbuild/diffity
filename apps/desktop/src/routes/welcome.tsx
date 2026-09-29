@@ -24,7 +24,7 @@ import { hideStaticSplash } from '../components/layout/skeleton';
 import { SettingsIcon } from '../components/icons/settings-icon';
 import { openSettings } from '../lib/ui-store';
 import { cn } from '../lib/cn';
-import { buttonIcon, buttonOutline, buttonPrimary } from '../components/ui/button-styles';
+import { buttonIcon, buttonOutline, buttonPrimary, inputField } from '../components/ui/button-styles';
 
 dayjs.extend(relativeTime);
 
@@ -156,12 +156,12 @@ export function WelcomePage() {
         </button>
       </div>
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-[480px] mx-auto px-4 pt-[10vh] pb-10">
-          <div className="flex items-center gap-3 mb-6">
+        <div className="max-w-[560px] mx-auto px-6 pt-[12vh] pb-10">
+          <div className="flex items-center gap-3 mb-8">
             <BrandLogo className="w-8 h-8 shrink-0" />
             <div className="min-w-0">
               <h1 className="text-base font-semibold text-text leading-5">diffity</h1>
-              <p className="text-xs text-text-muted truncate">Review code and hand comments to Claude</p>
+              <p className="text-[13px] text-text-secondary truncate">Review code and hand comments to Claude</p>
             </div>
             <button onClick={() => void openFolder()} className={cn(buttonPrimary, 'ml-auto')} title="Open a Git repository (⌘-click a recent one to open it in a new window)">
               <FolderOpenIcon className="w-3.5 h-3.5" />
@@ -171,18 +171,18 @@ export function WelcomePage() {
           </div>
 
           <div className="flex items-center justify-between h-7 mb-1">
-            <h2 className="text-xs font-medium text-text-muted">Recent</h2>
+            <h2 className="text-xs font-medium text-text-secondary">Recent</h2>
           </div>
           <RecentList repos={recent.repos} loading={recent.loading} onOpen={openRepo} onRemove={recent.remove} />
 
-          <div className="mt-6">
+          <div className="mt-8">
             <PrUrlForm recent={recent.all} onOpen={openRepo} />
           </div>
-          <p className="mt-6 text-center text-[11px] text-text-muted">Or drop a folder anywhere on this window</p>
+          <p className="mt-8 text-center text-xs text-text-muted">Or drop a folder anywhere on this window</p>
         </div>
       </div>
       {dragging && (
-        <div className="pointer-events-none absolute inset-3 flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-accent bg-accent/5 text-sm font-medium text-accent">
+        <div className="pointer-events-none absolute inset-3 flex flex-col items-center justify-center gap-2 rounded-xl border border-accent/40 bg-accent/5 text-sm font-medium text-accent">
           <FolderOpenIcon className="w-6 h-6" />
           Drop a folder to open it
         </div>
@@ -206,7 +206,7 @@ function RecentList(props: RecentListProps) {
   }
   if (repos.length === 0) {
     return (
-      <p className="text-xs text-text-muted px-2 py-3 rounded-md border border-dashed border-border text-center">
+      <p className="text-[13px] text-text-secondary px-3 py-4 rounded-lg bg-bg-secondary text-center">
         Repositories you open show up here
       </p>
     );
@@ -228,16 +228,16 @@ function RecentRow(props: { repo: RecentRepo; onOpen: (path: string, newWindow?:
     <li className="group relative flex items-center rounded-md hover:bg-hover transition-colors">
       <button
         onClick={(event) => onOpen(repo.path, event.metaKey || event.ctrlKey)}
-        className="flex flex-1 min-w-0 items-center gap-2 h-8 px-2 text-left cursor-pointer"
+        className="flex flex-1 min-w-0 items-center gap-2.5 h-9 px-2 text-left cursor-pointer"
         title={repo.path}
       >
         <span className="text-[13px] font-medium text-text truncate shrink-0 max-w-[60%]">{repo.name}</span>
         <span className="text-xs text-text-muted font-mono truncate min-w-0 flex-1">{parent}</span>
-        <span className="text-[11px] text-text-muted shrink-0 group-hover:invisible">{dayjs(repo.lastOpenedAt).fromNow()}</span>
+        <span className="text-xs text-text-muted shrink-0 group-hover:invisible">{dayjs(repo.lastOpenedAt).fromNow()}</span>
       </button>
       <button
         onClick={() => onRemove(repo.path)}
-        className="absolute right-1 p-1 rounded text-text-muted hover:text-text hover:bg-hover invisible group-hover:visible cursor-pointer"
+        className="absolute right-1.5 w-6 h-6 inline-flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-hover invisible group-hover:visible cursor-pointer"
         title="Remove from recent"
       >
         <XIcon className="w-3.5 h-3.5" />
@@ -288,11 +288,14 @@ function PrUrlForm(props: { recent: RecentRepo[]; onOpen: (path: string, newWind
       <div className="relative flex-1 min-w-0">
         <GitHubIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
         <input
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
           type="text"
           value={url}
           onChange={(event) => setUrl(event.target.value)}
           placeholder="Open a pull request URL…"
-          className="w-full h-7 text-xs bg-bg border border-border rounded-md pl-8 pr-3 text-text placeholder:text-text-muted focus:outline-none focus:border-accent"
+          className={cn(inputField, 'pl-8')}
         />
       </div>
       {url.trim() && (

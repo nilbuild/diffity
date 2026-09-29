@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useRepoNav } from '../../hooks/use-repo';
 import type { GitStatus } from '../../lib/types';
 import { AlertCircleIcon } from '../../components/icons/alert-circle-icon';
-import { checkoutPullRequest, dismissGuard, returnFromPullRequest, returnLabel, useCheckoutState } from './pr-checkout';
+import { checkoutPullRequest, dismissGuard, returnFromPullRequest, returnLabel, switchBranch, useCheckoutState } from './pr-checkout';
+import { buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 
 function plural(count: number, word: string) {
   return `${count} ${word}${count === 1 ? '' : 's'}`;
@@ -47,11 +48,16 @@ export function CheckoutGuardDialog() {
   }
 
   const branch = guard.status.branch ?? 'this commit';
-  const isBack = guard.kind === 'back';
+  const isBack = guard.kind === 'back' || guard.kind === 'branch';
   const title = `Uncommitted changes on ${branch}`;
-  const target = isBack ? returnLabel(guard.point) : `pull request ${guard.label}`;
+  const target = guard.kind === 'back' ? returnLabel(guard.point) : guard.kind === 'branch' ? guard.branch : `pull request ${guard.label}`;
+  const confirmLabel = guard.kind === 'checkout' ? `Stash and check out ${guard.label}` : `Stash and switch to ${target}`;
 
   const stashAndContinue = () => {
+    if (guard.kind === 'branch') {
+      void switchBranch(guard.repoPath, guard.branch, nav.toDiff, { stash: true });
+      return;
+    }
     if (guard.kind === 'back') {
       void returnFromPullRequest(guard.repoPath, nav.toDiff, { stash: true });
       return;
@@ -66,7 +72,7 @@ export function CheckoutGuardDialog() {
         aria-modal="true"
         aria-label={title}
         onMouseDown={(event) => event.stopPropagation()}
-        className="mx-4 w-full max-w-[440px] rounded-xl border border-border bg-bg p-5 shadow-lg"
+        className="mx-4 w-full max-w-[440px] rounded-xl bg-overlay p-5 ring-1 ring-overlay-border"
       >
         <div className="flex items-start gap-3">
           <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-modified/10 text-modified">
@@ -96,15 +102,15 @@ export function CheckoutGuardDialog() {
           <button
             ref={cancelRef}
             onClick={dismissGuard}
-            className="h-7 cursor-pointer rounded-md border border-border px-3 text-xs text-text hover:bg-hover"
+            className={buttonOutline}
           >
             Cancel
           </button>
           <button
             onClick={stashAndContinue}
-            className="h-7 cursor-pointer rounded-md bg-accent px-3 text-xs font-medium text-white hover:bg-accent-hover"
+            className={buttonPrimary}
           >
-            Stash and {isBack ? `switch to ${target}` : `check out ${guard.label}`}
+            {confirmLabel}
           </button>
         </div>
       </div>

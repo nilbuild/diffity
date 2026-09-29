@@ -36,35 +36,35 @@ export function CommentToolbarActions(props: CommentToolbarActionsProps) {
   return (
     <>
       <div className={buttonGroup}>
-        <span className="flex items-center text-xs text-text-secondary px-2 whitespace-nowrap tabular-nums">
+        <span className="flex items-center text-[13px] text-text-secondary px-2.5 whitespace-nowrap tabular-nums">
           {currentIndex >= 0
             ? `${currentIndex + 1}/${unresolvedCount} open`
             : `${unresolvedCount} open`}
         </span>
         <button
           onClick={goToPrevious}
-          className="flex items-center px-1.5 text-text-muted hover:bg-hover hover:text-text transition-colors cursor-pointer"
+          className="flex items-center px-1.5 text-text-secondary hover:bg-control-hover hover:text-text transition-colors cursor-pointer"
           title="Previous open comment"
         >
           <ChevronUpIcon className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={goToNext}
-          className="flex items-center px-1.5 text-text-muted hover:bg-hover hover:text-text transition-colors cursor-pointer"
+          className="flex items-center px-1.5 text-text-secondary hover:bg-control-hover hover:text-text transition-colors cursor-pointer"
           title="Next open comment"
         >
           <ChevronDownIcon className="w-3.5 h-3.5" />
         </button>
         <button
           onClick={() => copy(formatForCopy())}
-          className="flex items-center px-1.5 border-l border-border text-text-muted hover:bg-hover hover:text-text transition-colors cursor-pointer"
+          className="flex items-center px-1.5 border-l border-control-border text-text-secondary hover:bg-control-hover hover:text-text transition-colors cursor-pointer"
           title="Copy open comments as Markdown (paste into any AI chat)"
         >
           {copied ? <CheckIcon className="w-3.5 h-3.5 text-added" /> : <CopyIcon className="w-3.5 h-3.5" />}
         </button>
         <button
           onClick={() => setShowDeleteConfirm(true)}
-          className="flex items-center px-1.5 text-text-muted hover:bg-hover hover:text-deleted transition-colors cursor-pointer"
+          className="flex items-center px-1.5 text-text-secondary hover:bg-control-hover hover:text-deleted transition-colors cursor-pointer"
           title="Delete all comments"
         >
           <TrashIcon className="w-3.5 h-3.5" />

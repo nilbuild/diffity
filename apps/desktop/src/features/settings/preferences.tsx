@@ -110,7 +110,7 @@ export function SegmentedControl<T extends string>(props: {
             onClick={() => onChange(option.value)}
             className={cn(
               'h-6 min-w-0 cursor-pointer truncate rounded-md px-2.5 text-xs transition-colors',
-              active ? 'bg-toggle text-text shadow-sm' : 'text-text-secondary hover:text-text',
+              active ? 'bg-toggle text-text' : 'text-text-secondary hover:text-text',
             )}
           >
             {option.label}
@@ -122,7 +122,7 @@ export function SegmentedControl<T extends string>(props: {
 }
 
 export const settingsInputClass =
-  'h-7 min-w-0 flex-1 rounded-md border border-border bg-raised px-2.5 text-xs text-text placeholder:text-text-muted focus:border-accent focus:outline-none';
+  'h-7 min-w-0 flex-1 rounded-md border border-border bg-raised px-2.5 text-xs text-text placeholder:text-text-muted focus:border-accent/45 focus:outline-none';
 
 export function InlineConfirm(props: {
   message: ReactNode;

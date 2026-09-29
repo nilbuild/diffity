@@ -86,6 +86,9 @@ function SignInRows(props: { onSignedIn: () => void }) {
           }}
         >
           <input
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
             type="password"
             value={token}
             onChange={(event) => setToken(event.target.value)}

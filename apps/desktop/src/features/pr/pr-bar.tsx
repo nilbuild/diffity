@@ -73,8 +73,8 @@ export function PrBar(props: { diffRef: string }) {
   const showBack = !!point && point.prNumber === pr.number && (point.branch ?? point.sha) !== null;
 
   return (
-    <div className="shrink-0 border-b border-border bg-bg-secondary font-sans">
-      <div className="flex h-9 items-center gap-2.5 px-3 text-xs">
+    <div className="shrink-0 bg-bg-secondary border-b border-border font-sans">
+      <div className="flex h-10 items-center gap-2.5 px-3 text-xs">
         <PrStateBadge pr={pr} />
         <span className="min-w-0 truncate text-[13px] font-semibold text-text" title={pr.title}>
           {pr.title}
@@ -124,7 +124,7 @@ export function PrBar(props: { diffRef: string }) {
         )}
       </div>
       {expanded && (
-        <div className="max-h-[40vh] overflow-y-auto border-t border-border px-4 py-3 text-xs leading-relaxed text-text-secondary">
+        <div className="max-h-[40vh] overflow-y-auto border-t border-border-muted px-4 py-3 text-[13px] leading-relaxed text-text-secondary">
           {body ? <MarkdownContent content={body} /> : <span className="text-text-muted">No description provided.</span>}
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-text-muted">
             <span>

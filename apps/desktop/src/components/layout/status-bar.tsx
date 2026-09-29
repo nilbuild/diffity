@@ -1,17 +1,21 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useGitHubPr, useGitStatus, useRepoMeta } from '../../hooks/use-repo-state';
-import { GitBranchIcon } from '../icons/git-branch-icon';
+import { BranchSwitcher } from '../../features/pr/branch-switcher';
 import { GitHubIcon } from '../icons/github-icon';
 import { GitPullRequestIcon } from '../icons/git-pull-request-icon';
 import { GitSyncActions } from './git-sync-actions';
 import { GitHubDialog } from './github-dialog';
+import { StaleNotice } from './stale-notice';
+import { OtherViewsNotice } from '../../features/comments/other-views-notice';
 
 interface StatusBarProps {
   diffRef?: string;
+  sessionId?: string | null;
+  stale?: { onRefresh: () => void; message?: string } | null;
 }
 
-const itemClass = 'inline-flex items-center gap-1 h-5 px-1.5 rounded min-w-0';
+const itemClass = 'inline-flex items-center gap-1.5 h-5 px-1.5 rounded min-w-0';
 
 function Tracking() {
   const { data: status } = useGitStatus();
@@ -30,14 +34,14 @@ function Tracking() {
     return <span>Not published</span>;
   }
   return (
-    <span className="truncate font-mono text-[11px]" title={`Tracking ${status.upstream}`}>
+    <span className="truncate font-mono text-[11px] text-text-muted" title={`Tracking ${status.upstream}`}>
       {status.upstream}
     </span>
   );
 }
 
 export function StatusBar(props: StatusBarProps) {
-  const { diffRef } = props;
+  const { diffRef, sessionId, stale } = props;
   const queryClient = useQueryClient();
   const { data: status } = useGitStatus();
   const { data: meta } = useRepoMeta();
@@ -47,19 +51,16 @@ export function StatusBar(props: StatusBarProps) {
   const path = meta?.path.replace(/^\/Users\/[^/]+/, '~');
 
   return (
-    <div className="flex items-center gap-1 h-6 shrink-0 px-2 border-t border-border bg-bg-secondary text-[11px] text-text-muted font-sans select-none">
-      {branch && (
-        <span className={`${itemClass} text-text-secondary`} title={`On branch ${branch}`}>
-          <GitBranchIcon className="w-3 h-3 shrink-0" />
-          <span className="truncate max-w-[220px] font-mono">{branch}</span>
-        </span>
-      )}
+    <div className="flex items-center gap-1.5 h-7 shrink-0 px-2.5 border-t border-border-muted bg-bg-secondary text-xs text-text-secondary font-sans select-none">
+      {(branch || status) && <BranchSwitcher branch={branch} className={`${itemClass} text-text-secondary`} />}
       <span className={itemClass}>
         <Tracking />
       </span>
       <GitSyncActions />
+      {stale && <StaleNotice onRefresh={stale.onRefresh} message={stale.message} />}
+      {sessionId && <OtherViewsNotice sessionId={sessionId} />}
       <span className="flex-1" />
-      {path && <span className="truncate font-mono hidden lg:inline min-w-0 px-1.5" title={meta?.path}>{path}</span>}
+      {path && <span className="truncate font-mono text-[11px] text-text-muted hidden lg:inline min-w-0 px-1.5" title={meta?.path}>{path}</span>}
       {hasRemote && (
         <button
           onClick={() => setShowGitHub(true)}

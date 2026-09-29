@@ -38,10 +38,10 @@ function CommitSummary(props: { sha: string }) {
 
   return (
     <span className="flex items-center gap-2 min-w-0">
-      <span className="text-text-muted shrink-0">Commit</span>
+      <span className="text-text-secondary shrink-0">Commit</span>
       <button
         onClick={() => copy(sha)}
-        className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-bg-tertiary text-accent hover:bg-hover shrink-0 cursor-pointer"
+        className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-fill text-accent hover:bg-fill-hover shrink-0 cursor-pointer"
         title="Copy full commit hash"
       >
         {copied ? <CheckIcon className="inline w-3 h-3 text-added" /> : sha.slice(0, 7)}
@@ -104,11 +104,11 @@ export function DiffContextBar(props: DiffContextBarProps) {
   }
 
   return (
-    <div className="flex items-center gap-2 h-8 shrink-0 px-3 bg-bg border-b border-border font-sans text-xs">
+    <div className="flex items-center gap-2 h-9 shrink-0 px-3 bg-bg-secondary border-b border-border font-sans text-[13px]">
       {!isPr && (
         <button
           onClick={back}
-          className="inline-flex items-center gap-1 h-6 px-1.5 -ml-1 rounded-md text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer shrink-0"
+          className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer shrink-0"
           title="Back"
         >
           <ArrowLeftIcon className="w-3.5 h-3.5" />

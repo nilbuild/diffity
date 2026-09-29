@@ -1,12 +1,19 @@
-const base = 'inline-flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap rounded-md text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default';
+const base = 'inline-flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap rounded-md text-[13px] transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-default';
 
-export const buttonPrimary = `${base} h-7 px-2.5 font-medium bg-accent text-white hover:bg-accent-hover`;
-export const buttonOutline = `${base} h-7 px-2.5 border border-border bg-raised text-text-secondary hover:bg-hover hover:text-text`;
-export const buttonGhost = `${base} h-7 px-2 text-text-secondary hover:bg-hover hover:text-text`;
-export const buttonIcon = `${base} w-7 h-7 text-text-muted hover:bg-hover hover:text-text`;
+export const buttonPrimary = `${base} h-7 px-3 font-medium bg-accent text-white hover:bg-accent-hover disabled:opacity-100 disabled:bg-fill disabled:text-text-muted disabled:hover:bg-fill`;
+export const buttonOutline = `${base} h-7 px-3 border border-control-border bg-raised text-text hover:bg-control-hover disabled:hover:bg-raised`;
+export const buttonGhost = `${base} h-7 px-2.5 text-text-secondary hover:bg-hover hover:text-text`;
+export const buttonIcon = `${base} w-7 h-7 text-text-secondary hover:bg-hover hover:text-text`;
+export const buttonIconOutline = `${base} w-7 h-7 border border-control-border bg-raised text-text-secondary hover:bg-control-hover hover:text-text`;
 export const buttonIconSmall = `${base} w-6 h-6 text-text-muted hover:bg-hover hover:text-text`;
-export const buttonSmall = `${base} h-6 px-2`;
+export const buttonSmall = `${base} h-6 px-2 text-xs`;
 
-export const buttonGroup = 'flex items-stretch h-7 shrink-0 rounded-md border border-border bg-raised overflow-hidden';
-export const buttonGroupItem = 'flex items-center gap-1.5 px-2 text-xs text-text-secondary hover:bg-hover hover:text-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default';
-export const buttonGroupDivider = 'border-l border-border';
+export const buttonGroup = 'flex items-stretch h-7 shrink-0 rounded-md border border-control-border bg-raised overflow-hidden';
+export const buttonGroupItem = 'flex items-center gap-1.5 px-2.5 text-[13px] text-text hover:bg-control-hover transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-default';
+export const buttonGroupDivider = 'border-l border-control-border';
+
+export const inputField = 'w-full h-7 px-2.5 rounded-md bg-fill border border-transparent text-[13px] placeholder:font-sans text-text placeholder:text-text-muted outline-none transition-colors hover:bg-fill-hover focus:bg-bg focus:hover:bg-bg focus:border-accent/45';
+
+export const overlayPanel = 'bg-overlay rounded-lg ring-1 ring-overlay-border';
+
+export const sectionLabel = 'px-2.5 pt-2 pb-1 text-[11px] font-medium text-text-secondary';

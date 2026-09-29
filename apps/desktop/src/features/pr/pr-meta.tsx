@@ -44,15 +44,15 @@ export function PrStateBadge(props: { pr: PullRequest }) {
   const { pr } = props;
   const [label, tone] = (() => {
     if (pr.state === 'MERGED') {
-      return ['Merged', 'bg-[#8250df] text-white'];
+      return ['Merged', 'bg-[#8250df]/12 text-[#8250df]'];
     }
     if (pr.state === 'CLOSED') {
-      return ['Closed', 'bg-deleted text-white'];
+      return ['Closed', 'bg-deleted/12 text-deleted'];
     }
     if (pr.isDraft) {
-      return ['Draft', 'bg-text-muted text-white'];
+      return ['Draft', 'bg-fill text-text-secondary'];
     }
-    return ['Open', 'bg-added text-white'];
+    return ['Open', 'bg-added/12 text-added'];
   })();
 
   return (

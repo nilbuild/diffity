@@ -21,8 +21,8 @@ export function GeneralComments(props: GeneralCommentsProps) {
   const [showForm, setShowForm] = useState(false);
 
   return (
-    <div className={`rounded-md mx-3 mt-2 overflow-hidden border ${threads.length > 0 ? 'border-accent/30 bg-accent/5' : 'border-border border-dashed'}`}>
-      <div className="flex items-center gap-1.5 h-8 pl-1.5 pr-3 text-xs select-none">
+    <div className="rounded-lg overflow-hidden border border-border bg-bg">
+      <div className="flex items-center gap-1.5 h-9 pl-2 pr-3 text-[13px] bg-bg-secondary select-none">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="w-5 h-5 shrink-0 flex items-center justify-center rounded hover:bg-hover cursor-pointer"
@@ -36,7 +36,7 @@ export function GeneralComments(props: GeneralCommentsProps) {
           <CommentIcon className="w-3.5 h-3.5 text-text-muted" />
           <span className="text-text-secondary">General comments</span>
           {threads.length > 0 && (
-            <span className="text-[11px] leading-4 font-medium bg-accent/15 text-accent px-1.5 rounded-full">{threads.length}</span>
+            <span className="text-[11px] leading-4 font-medium bg-accent/12 text-accent px-1.5 rounded-full">{threads.length}</span>
           )}
         </button>
         <div className="flex-1" />
@@ -46,7 +46,7 @@ export function GeneralComments(props: GeneralCommentsProps) {
             setIsExpanded(true);
             setShowForm(true);
           }}
-          className="text-xs text-accent hover:text-accent-hover transition-colors cursor-pointer"
+          className="text-[13px] text-accent hover:text-accent-hover transition-colors cursor-pointer"
         >
           Add comment
         </button>

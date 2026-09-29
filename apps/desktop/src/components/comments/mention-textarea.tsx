@@ -128,7 +128,7 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaPr
         className={cn(className, 'relative bg-transparent')}
       />
       {query && (
-        <div className="absolute left-2 top-full -mt-1 z-30 w-60 py-1 bg-bg-secondary rounded-md shadow-lg ring-1 ring-border">
+        <div className="absolute left-2 top-full -mt-1 z-30 w-60 py-1 bg-overlay rounded-lg ring-1 ring-overlay-border">
           <button
             type="button"
             onMouseDown={(e) => {

@@ -3,6 +3,7 @@ import type { SubmitOptions } from './types';
 import { MentionTextarea } from './mention-textarea';
 import { useReviewState } from '../../features/review/review-state';
 import { modKey } from '../../lib/platform';
+import { buttonGhost, buttonOutline, buttonPrimary } from '../ui/button-styles';
 
 interface CommentFormProps {
   onSubmit: (body: string, options: SubmitOptions) => void;
@@ -15,8 +16,8 @@ interface CommentFormProps {
   threadPending?: boolean;
 }
 
-const primaryClass = 'h-7 px-2.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
-const secondaryClass = 'h-7 px-2.5 text-xs font-medium rounded-md bg-bg text-text-secondary hover:text-text hover:bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
+const primaryClass = buttonPrimary;
+const secondaryClass = buttonOutline;
 
 export function CommentForm(props: CommentFormProps) {
   const {
@@ -32,7 +33,7 @@ export function CommentForm(props: CommentFormProps) {
   const [body, setBody] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const review = useReviewState();
-  const reviewMode = reviewable && review.enabled;
+  const reviewMode = reviewable && review.enabled && review.prMode;
   const hasPendingReview = review.pendingReview !== null;
 
   useEffect(() => {
@@ -100,13 +101,13 @@ export function CommentForm(props: CommentFormProps) {
   };
 
   return (
-    <div className="rounded-md border border-border bg-bg-secondary pt-1.5">
+    <div className="rounded-lg border border-border bg-bg-secondary pt-2">
       {lineLabel && (
-        <div className="px-2.5 pb-1">
+        <div className="px-3 pb-1.5">
           <span className="text-xs text-text-secondary font-medium">{lineLabel}</span>
         </div>
       )}
-      <div className="mx-1.5 mb-1.5 rounded-md">
+      <div className="mx-2 mb-2">
         <MentionTextarea
           ref={textareaRef}
           value={body}
@@ -114,17 +115,14 @@ export function CommentForm(props: CommentFormProps) {
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           rows={3}
-          className="block w-full px-2.5 py-1.5 text-sm bg-bg text-text rounded-md border border-border focus:border-accent resize-y outline-none placeholder:text-text-muted min-h-[64px]"
+          className="block w-full px-3 py-2 text-[13px] leading-5 bg-bg text-text rounded-md border border-border focus:border-accent/45 resize-y outline-none placeholder:text-text-muted min-h-[72px]"
         />
       </div>
-      <div className="flex items-center gap-2 px-1.5 pb-1.5">
-        <span className="flex-1 pl-1.5 text-[11px] text-text-muted truncate" title={`${modKey}Enter submits`}>
+      <div className="flex items-center gap-2 px-2 pb-2">
+        <span className="flex-1 pl-1 text-xs text-text-muted truncate" title={`${modKey}Enter submits`}>
           {review.enabled ? '@claude to ask Claude' : ''}
         </span>
-        <button
-          onClick={onCancel}
-          className="h-7 px-2.5 text-xs font-medium rounded-md text-text-secondary hover:bg-hover transition-colors cursor-pointer"
-        >
+        <button onClick={onCancel} className={buttonGhost}>
           Cancel
         </button>
         {renderButtons()}
