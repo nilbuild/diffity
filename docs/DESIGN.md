@@ -129,8 +129,9 @@ not a redesign.
 - Settings dialog (⌘,), time.fyi style: left rail with search and grouped icon tabs (App: General, Editor, Keyboard shortcuts;
   Connections: Claude Code, GitHub; Diffity: About), pane title + close, grouped label/hint rows with a fixed control column,
   theme swatches, status cards for Claude Code and the GitHub account, inline confirm for sign-out.
-- Pull requests: the branch switcher and the ref-picker entry check one out; a PR bar (bottom border) sits above the
-  diff (state, title, base ← head, checks, description, Sync comments, Back to <branch>).
+- Pull requests: the branch switcher and the ref-picker entry check one out; a 40px PR bar (bottom border) sits above
+  the diff: state icon · title · #N … checks icon · Sync comments (badge) · Open on GitHub · Details chevron (· Back to
+  <branch>). Details expands a panel with branches, author, checks, changes and the description.
 - `@claude` autocomplete in comment and reply forms.
 - Comments across views: toolbar "Comments N" chip (all open threads of the repo, `c`) opens a right-hand drawer grouped
   by view then file; a neutral status-bar pill points at open comments in other views; outdated / committed

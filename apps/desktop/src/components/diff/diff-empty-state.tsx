@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { diffOptions } from '../../queries/diff';
 import { useRepoNav } from '../../hooks/use-repo';
 import { useBaseBranch, useGitHubPr, useGitStatus, useRecentCommits, useRepoMeta } from '../../hooks/use-repo-state';
 import { commitRef, parseCommitRef } from '../../lib/api';
@@ -206,10 +208,15 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
   const nav = useRepoNav();
   const { data: meta } = useRepoMeta();
   const { data: status } = useGitStatus();
+  const unfiltered = useQuery({ ...diffOptions(false, diffRef), enabled: hideWhitespace });
   const browseFiles = { label: 'Browse files', icon: <FolderOpenIcon className="w-3.5 h-3.5" />, onClick: () => nav.toTree() };
   const browseCommits = { label: 'Pick a commit or compare branches', icon: <GitBranchIcon className="w-3.5 h-3.5" />, onClick: nav.toOverview };
 
-  if (hideWhitespace) {
+  if (hideWhitespace && unfiltered.isLoading) {
+    return null;
+  }
+
+  if (hideWhitespace && (unfiltered.data?.files.length ?? 0) > 0) {
     return (
       <Shell
         title="Only whitespace changed"

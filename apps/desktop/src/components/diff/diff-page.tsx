@@ -354,7 +354,7 @@ export function DiffPage(props: DiffPageProps) {
         sessionId={sessionId}
       />
       <Workspace>
-      <PrBar diffRef={refParam} />
+      <PrBar diffRef={refParam} threads={threads} />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar
           files={diff.files}

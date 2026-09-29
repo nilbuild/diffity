@@ -187,6 +187,12 @@ that fell out: **controls live next to what they change, and every region has on
 - Status-bar sync is a labelled segmented control: Fetch (last fetch time in the tooltip) · Pull N · Push N. Without an
   upstream it shows "Publish branch" (and no Pull); Push is inert with a reason when there is nothing to push.
 - @claude mentions always reach Claude, also when a PR review is posted with "Send to Claude" off.
+- PR bar was one crowded line (state pill, title, #, "wants to merge into", branches, checks, updated, Description,
+  Sync comments, GitHub). Now: state icon (open/draft/merged/closed colour) · title (takes the space) · #N muted …
+  icon buttons only: checks status (tooltip), Sync comments (badge = review threads on GitHub not pulled yet; tooltip
+  shows last sync), Open on GitHub, and a Details chevron. Details opens a light panel: status + review decision,
+  copyable base ← head branches, author / opened / updated, checks, changes, and the markdown description (collapsible).
+- Empty state only says "Only whitespace changed" when whitespace hiding is on and the unfiltered diff has files.
 
 ## Remaining
 
