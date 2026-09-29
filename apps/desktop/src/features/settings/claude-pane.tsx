@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import type { AgentInfo } from '../../lib/types';
 import { cn } from '../../lib/cn';
-import { Spinner } from '../../components/icons/spinner';
 import {
   PreferencesGroup,
   PreferencesPane,
@@ -14,6 +13,7 @@ import {
   settingsInputClass,
 } from './preferences';
 import { AlertCircleIcon, CheckIcon, RefreshIcon, SparkleIcon } from '../../components/ui/icon';
+import { Skeleton, useRevealClass } from '../../components/ui/skeleton';
 import { PERMISSION_OPTIONS, savePermissionSetting, usePermissionSetting, type PermissionSetting } from '../claude/permission-setting';
 
 const CLAUDE_PATH_KEY = 'agent.claude.path';
@@ -64,6 +64,7 @@ function useRedetect() {
 function StatusCard(props: { agent: AgentInfo | null; loading: boolean; busy: boolean; onRedetect: () => void }) {
   const { agent, loading, busy, onRedetect } = props;
   const status = statusOf(agent);
+  const reveal = useRevealClass(loading);
 
   return (
     <div className="rounded-lg border border-border bg-bg-secondary">
@@ -83,19 +84,16 @@ function StatusCard(props: { agent: AgentInfo | null; loading: boolean; busy: bo
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-semibold text-text">Claude Code</span>
             {loading ? (
-              <span className="flex items-center gap-1.5 text-[11px] text-text-muted">
-                <Spinner className="h-3 w-3" />
-                Checking…
-              </span>
+              <Skeleton className="h-5 w-20 rounded-full" />
             ) : (
-              <StatusBadge tone={status.tone}>
+              <StatusBadge tone={status.tone} className={reveal}>
                 {status.tone === 'success' && <CheckIcon className="h-3 w-3" />}
                 {status.label}
               </StatusBadge>
             )}
           </div>
-          <div className="mt-0.5 truncate font-mono text-[11px] text-text-muted select-text" title={agent?.binaryPath ?? undefined}>
-            {agent?.binaryPath ?? (loading ? '' : 'No binary found')}
+          <div className="mt-0.5 flex items-center h-4 min-w-0 font-mono text-[11px] text-text-muted select-text" title={agent?.binaryPath ?? undefined}>
+            {loading ? <Skeleton className="h-2.5 w-56" /> : <span className={cn('truncate', reveal)}>{agent?.binaryPath ?? 'No binary found'}</span>}
           </div>
         </div>
         <SettingsButton busy={busy} onClick={onRedetect}>

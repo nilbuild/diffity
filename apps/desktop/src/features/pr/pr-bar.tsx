@@ -5,7 +5,9 @@ import * as tauri from '../../lib/tauri';
 import { cn } from '../../lib/cn';
 import type { PullRequest } from '../../lib/types';
 import { useRepoNav } from '../../hooks/use-repo';
-import { useGitHubPr, useGitStatus, useOwnPr } from '../../hooks/use-repo-state';
+import { useGitHubAuth, useGitHubPr, useGitStatus, useOwnPr } from '../../hooks/use-repo-state';
+import { Skeleton, useRevealClass } from '../../components/ui/skeleton';
+import { isPrShapedRef } from '../../components/layout/ref-menu';
 import { openCommitDialog } from './commit-dialog';
 import { requestSendToClaude, reviewerThreads } from '../review/finish-review';
 import { MarkdownContent } from '../../components/layout/markdown-content';
@@ -246,10 +248,29 @@ function PrDetailsDialog(props: DetailsDialogProps) {
   );
 }
 
+/** The PR bar's box while the pull request for a branch-vs-base view is still being looked up. */
+function PrBarSkeleton() {
+  return (
+    <div aria-busy className="shrink-0 border-b border-border-muted bg-bg font-sans">
+      <div className="flex h-10 items-center gap-2 pl-4 pr-3">
+        <Skeleton circle className="h-4 w-4" />
+        <Skeleton className="h-3 w-72" />
+        <Skeleton className="h-3 w-10" />
+        <Skeleton className="ml-1 h-5 w-36 rounded-full" />
+        <span className="min-w-2 flex-1" />
+        <Skeleton className="h-7 w-32 rounded-md" />
+        <Skeleton className="h-7 w-20 rounded-md" />
+      </div>
+    </div>
+  );
+}
+
 export function PrBar(props: { diffRef: string; threads?: CommentThread[] }) {
   const { diffRef, threads = [] } = props;
   const nav = useRepoNav();
-  const { details } = useGitHubPr();
+  const { details, loading } = useGitHubPr();
+  const { isPending: authPending, isError: authFailed } = useGitHubAuth();
+  const reveal = useRevealClass(loading);
   const pr = details?.pr ?? null;
   const onPr = !!pr && diffRef === prRefFor(pr);
   const { data: point } = useReturnPoint(nav.repoPath);
@@ -260,6 +281,9 @@ export function PrBar(props: { diffRef: string; threads?: CommentThread[] }) {
   const { syncing, sync, syncedAt } = useCommentSync(nav.repoPath, onPr ? pr : null);
 
   if (!onPr || !pr) {
+    if (loading && isPrShapedRef(diffRef)) {
+      return <PrBarSkeleton />;
+    }
     return null;
   }
 
@@ -295,7 +319,7 @@ export function PrBar(props: { diffRef: string; threads?: CommentThread[] }) {
     : null;
 
   return (
-    <div className="shrink-0 border-b border-border-muted bg-bg font-sans">
+    <div className={cn('shrink-0 border-b border-border-muted bg-bg font-sans', reveal)}>
       <div className="flex h-10 items-center gap-2 pl-4 pr-3">
         <span className="flex shrink-0 items-center" title={stateLabel(pr)}>
           <PrStateIcon pr={pr} className="h-4 w-4" />
@@ -313,12 +337,14 @@ export function PrBar(props: { diffRef: string; threads?: CommentThread[] }) {
             {checks.icon}
           </span>
         )}
-        <span
-          className={cn('ml-1 shrink-0 inline-flex h-5 items-center px-2.5 rounded-full text-[11px] font-medium', ownPr ? 'bg-claude/12 text-claude' : 'bg-fill text-text-secondary')}
-          title={ownPr ? 'You opened this pull request: comments are notes for Claude; reviewers’ comments can be sent to Claude too' : 'Someone else’s pull request: your comments form a GitHub review'}
-        >
-          {ownPr ? 'Your PR' : `Reviewing @${pr.author}’s PR`}
-        </span>
+        {authPending && !authFailed ? <Skeleton className="ml-1 h-5 w-36 rounded-full" /> : (
+          <span
+            className={cn('ml-1 shrink-0 inline-flex h-5 items-center px-2.5 rounded-full text-[11px] font-medium', ownPr ? 'bg-claude/12 text-claude' : 'bg-fill text-text-secondary')}
+            title={ownPr ? 'You opened this pull request: comments are notes for Claude; reviewers’ comments can be sent to Claude too' : 'Someone else’s pull request: your comments form a GitHub review'}
+          >
+            {ownPr ? 'Your PR' : `Reviewing @${pr.author}’s PR`}
+          </span>
+        )}
         <button onClick={() => setDialog(true)} className={cn(buttonOutline, 'h-6 px-2 text-xs')} title="Description, branches, checks and actions">
           Details
         </button>

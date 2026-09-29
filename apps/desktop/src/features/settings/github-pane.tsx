@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import type { GithubAuthStatus } from '../../lib/types';
-import { Spinner } from '../../components/icons/spinner';
 import {
   InlineConfirm,
   PreferencesGroup,
@@ -14,6 +13,7 @@ import {
   settingsInputClass,
 } from './preferences';
 import { CheckIcon, GitHubIcon } from '../../components/ui/icon';
+import { Skeleton } from '../../components/ui/skeleton';
 
 function useAuthChanged() {
   const queryClient = useQueryClient();
@@ -177,10 +177,26 @@ export function GitHubPane() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-2 text-xs text-text-muted">
-        <Spinner className="h-3 w-3" />
-        Checking your GitHub account…
-      </div>
+      <PreferencesPane>
+        <PreferencesGroup label="Account">
+          <div aria-busy className="pt-1.5">
+            <div className="flex items-center gap-3 rounded-lg border border-border bg-bg-secondary px-3.5 py-3">
+              <Skeleton circle className="size-8" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 h-5">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </div>
+                <div className="mt-0.5 flex items-center h-4">
+                  <Skeleton className="h-2.5 w-48" />
+                </div>
+              </div>
+              <Skeleton className="h-7 w-16 rounded-md" />
+              <Skeleton className="h-7 w-20 rounded-md" />
+            </div>
+          </div>
+        </PreferencesGroup>
+      </PreferencesPane>
     );
   }
 

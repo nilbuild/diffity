@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
 import { BrandLogo } from '../icons/brand-logo';
 import { cn } from '../../lib/cn';
+import { Skeleton } from '../ui/skeleton';
 import { TitleBar, Workspace } from './title-bar';
 import { endOpening } from '../../lib/opening';
+import { HomeSkeletonMain } from './home-skeleton';
 
 /** Removes the static splash from index.html once React has painted something equivalent. */
 export function hideStaticSplash() {
@@ -41,7 +43,7 @@ export function AppSplash(props: { label?: string }) {
 
 function Bar(props: { className?: string }) {
   const { className } = props;
-  return <div className={cn('rounded bg-bg-tertiary animate-pulse', className)} />;
+  return <Skeleton className={className} />;
 }
 
 function storedSidebarWidth() {
@@ -85,8 +87,8 @@ function useDelayed(ms: number) {
  * skeleton form. Bars appear after 150ms so cached switches never flash; a step label appears after 400ms and a
  * way back after a few seconds.
  */
-export function OpeningSkeleton(props: { repoName: string; onCancel?: () => void }) {
-  const { repoName, onCancel } = props;
+export function OpeningSkeleton(props: { repoName: string; onCancel?: () => void; home?: boolean }) {
+  const { repoName, onCancel, home = false } = props;
   const bars = useDelayed(150);
   const status = useDelayed(400);
   const slow = useDelayed(4000);
@@ -103,32 +105,36 @@ export function OpeningSkeleton(props: { repoName: string; onCancel?: () => void
 
   return (
     <div className="flex flex-col h-screen bg-frame font-sans">
-      <TitleBar>
+      <TitleBar sidebarToggle={!home}>
         <span className="font-semibold text-text text-[13px] truncate max-w-[180px] px-1.5">{repoName}</span>
-        {bars && <Bar className="w-48 h-7" />}
+        {bars && !home && <Bar className="w-48 h-7" />}
       </TitleBar>
       <Workspace>
         <div className="relative flex flex-1 overflow-hidden">
-          <div className="shrink-0 border-r border-border bg-sidebar p-3 space-y-3" style={{ width: storedSidebarWidth() }}>
-            {bars && (
-              <>
-                <Bar className="h-8 w-full" />
-                <Bar className="h-7 w-full" />
-                {[70, 55, 80, 45, 62, 50].map((width, index) => (
-                  <div key={index} className="flex items-center gap-2" style={{ paddingLeft: (index % 3) * 12 }}>
-                    <Bar className="w-3.5 h-3.5" />
-                    <div style={{ width: `${width}%` }}><Bar className="h-3" /></div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-          <div className="flex-1 min-w-0 flex flex-col">
-            <div className="h-10 shrink-0 border-b border-border-muted" />
-            <div className="flex-1 px-5 py-4 space-y-4 overflow-hidden">
-              {bars && [0, 1, 2].map((i) => <FileBlockSkeleton key={i} lines={i === 0 ? 8 : 5} />)}
+          {home ? <HomeSkeletonMain repoName={repoName} /> : (
+          <>
+            <div className="shrink-0 border-r border-border bg-sidebar p-3 space-y-3" style={{ width: storedSidebarWidth() }}>
+              {bars && (
+                <>
+                  <Bar className="h-8 w-full" />
+                  <Bar className="h-7 w-full" />
+                  {[70, 55, 80, 45, 62, 50].map((width, index) => (
+                    <div key={index} className="flex items-center gap-2" style={{ paddingLeft: (index % 3) * 12 }}>
+                      <Bar className="w-3.5 h-3.5" />
+                      <div style={{ width: `${width}%` }}><Bar className="h-3" /></div>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
-          </div>
+            <div className="flex-1 min-w-0 flex flex-col">
+              <div className="h-10 shrink-0 border-b border-border-muted" />
+              <div className="flex-1 px-5 py-4 space-y-4 overflow-hidden">
+                {bars && [0, 1, 2].map((i) => <FileBlockSkeleton key={i} lines={i === 0 ? 8 : 5} />)}
+              </div>
+            </div>
+          </>
+          )}
           {status && (
             <div className="absolute left-1/2 top-16 -translate-x-1/2 flex items-center gap-2.5 h-9 pl-3 pr-2 rounded-full border border-overlay-border bg-overlay text-[13px] text-text-secondary animate-fade-in">
               <span className="w-3.5 h-3.5 border-2 border-text-muted/30 border-t-text-secondary rounded-full animate-spin" />

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { type Commit, fetchCommits } from '../../lib/api';
 import { Spinner } from '../icons/spinner';
 import { GitCommitIcon, GitCompareIcon } from '../ui/icon';
-import { ListRow, StatCell } from '../ui/list-row';
+import { ListRow, ListRowSkeleton, StatCell } from '../ui/list-row';
+import { Skeleton, useRevealClass } from '../ui/skeleton';
 import { DiffStatBar } from '../ui/diff-stat-bar';
 
 interface CommitListProps {
@@ -102,20 +103,25 @@ export function SectionHeader(props: { children: ReactNode }) {
   );
 }
 
-export function CommitList(props: CommitListProps) {
-  const { search, header, onOpen, onCompareFrom, onFetchingChange, onLoaded } = props;
-  const term = useDebounced(search.trim(), 250);
-  const sentinel = useRef<HTMLDivElement>(null);
-
-  const query = useInfiniteQuery({
+export function commitListOptions(term: string) {
+  return infiniteQueryOptions({
     queryKey: ['commits', 'list', term],
     queryFn: ({ pageParam }) => fetchCommits(pageParam, PAGE_SIZE, term || undefined),
     initialPageParam: 0,
     getNextPageParam: (last, pages) => (last.hasMore ? pages.reduce((sum, page) => sum + page.commits.length, 0) : undefined),
   });
+}
+
+export function CommitList(props: CommitListProps) {
+  const { search, header, onOpen, onCompareFrom, onFetchingChange, onLoaded } = props;
+  const term = useDebounced(search.trim(), 250);
+  const sentinel = useRef<HTMLDivElement>(null);
+
+  const query = useInfiniteQuery({ ...commitListOptions(term), placeholderData: keepPreviousData });
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
   const commits = useMemo(() => query.data?.pages.flatMap((page) => page.commits) ?? [], [query.data]);
   const refetching = query.isFetching && !query.isLoading && !isFetchingNextPage;
+  const reveal = useRevealClass(query.isLoading);
 
   useEffect(() => {
     onFetchingChange?.(refetching);
@@ -156,15 +162,14 @@ export function CommitList(props: CommitListProps) {
   const renderBody = () => {
     if (query.isLoading) {
       return (
-        <ul>
-          {Array.from({ length: 6 }, (_, i) => (
-            <li key={i} className="flex items-center gap-4 h-[52px] px-3">
-              <div className="h-3 flex-1 max-w-[50%] rounded bg-fill animate-pulse" />
-              <div className="h-3 w-32 rounded bg-fill animate-pulse" />
-              <div className="h-3 w-16 rounded bg-fill animate-pulse" />
-            </li>
-          ))}
-        </ul>
+        <section aria-busy>
+          <div className="px-3 pt-4 pb-1.5 h-[38px] flex items-end">
+            <Skeleton className="w-16 h-2.5 mb-1" />
+          </div>
+          <ul>
+            {Array.from({ length: 6 }, (_, index) => <ListRowSkeleton key={index} index={index} avatar />)}
+          </ul>
+        </section>
       );
     }
     if (query.isError) {
@@ -200,7 +205,7 @@ export function CommitList(props: CommitListProps) {
   return (
     <div>
       {!term && header}
-      {renderBody()}
+      <div className={reveal}>{renderBody()}</div>
       <div ref={sentinel} />
       {hasNextPage && !isFetchingNextPage && (
         <div className="px-3 py-3">

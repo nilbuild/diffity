@@ -518,6 +518,59 @@ full webview reload.
 
     j/k, ⌘P, sidebar jumps, Expand all and scroll-to-file inside a sliced file verified; no console errors.
 
+## Round 17 (no jumping while data loads)
+
+- **Found:** Home rendered each query as it resolved. Opening a dirty repo showed "Working tree clean" + "You're all
+  caught up" + History, then ~50ms later flipped to "5 uncommitted files" and an Up next card (History jumped down
+  112px), then "3 open comments" (another jump), then the title went from "5 files" (git status count) to "4 files"
+  (diff count). On a PR branch Up next went "all caught up" → "This branch · Compare with master" → "Pull request #7468
+  · View PR diff" 1.5s later. The status bar said "Local only" until the remote was read, the PR chip pushed the repo
+  path left, the Comments button grew when its count arrived, the "k of N viewed" count could flip after the diff
+  showed, the PR diff's context line vanished (content jumped 32px) when the PR bar arrived, and the ref chip showed
+  "master → HEAD" before "PR #7468 · …".
+- **Now:**
+  - Shared `components/ui/skeleton.tsx`: `Skeleton` (fixed size, `fill` token so both themes work, invisible for
+    150ms so fast loads never flash, then a quiet shimmer; static under reduced motion), `useRevealClass` (120ms
+    opacity cross-fade only when a placeholder was actually shown; cached content renders with no animation),
+    `useElapsed` (budget from mount), `useLatch`. `ListRowSkeleton` has the exact `ListRow` box.
+  - Home decides Up next once: git status, repo meta, branches, comments, latest commit, the History page and the
+    uncommitted / branch diff summaries (local, capped at 3s), plus the checked-out PR lookup capped at 600ms, or
+    1.5s when a PR is expected (the branch had one last time, or it is a pushed non-default branch; remembered in
+    `localStorage['diffity-branch-pr']`). The open-PR list gets 600ms, then placeholder rows sized by the count shown
+    last time (`diffity-open-pr-rows`). Until then: status-line pills, a hero skeleton with the hero's exact line
+    boxes (158px), and list rows; then everything cross-fades in at once. A PR that arrives after the budget swaps the
+    hero with a fade (same size). Opening a repo straight onto Home shows this Home skeleton instead of the diff
+    skeleton, so there is one placeholder, not two. Status line counts come from the diff (no more 5 → 4 files).
+    The query calls start in `RepoLayout` (`RepoPrefetch`) while the route is still suspended.
+  - Status bar: branch / upstream / sync as fixed placeholders until status and remote are both known ("Local only"
+    no longer shows for a repo whose remote hasn't been read); PR chip sits left of the path so the path never moves.
+  - Title bar: ref chip shows a placeholder while its label depends on the PR lookup (≤600ms), the base branch or a
+    commit's message; the Comments button holds a count slot while comments load.
+  - PR bar: a same-size skeleton for an `origin/<base>...HEAD` view while the PR is looked up; the context line waits
+    too; the "Your PR / Reviewing @x" chip waits for the GitHub account. Commit header skeleton matches its lines.
+  - Diff and Files wait for viewed-state and comments with the existing skeleton, so counts, badges and comment
+    navigation arrive together. History row skeletons (avatar, two lines, stats); searching keeps the old results
+    with the spinner instead of blanking. Settings: Claude Code card and GitHub account render skeleton cards with the
+    final layout instead of "Checking…" lines.
+- **Measured** (dev app, WKWebView; a dev-only probe logged every element's box and text on each animation frame
+  for 3–4s after navigation; label flip = a visible label replaced by a different one; move = the same content at a
+  different position; scratch clones: a dirty repo, express on `release/5.3.0` with open PR #7468, this repo):
+
+  | | Before | After |
+  | --- | --- | --- |
+  | Home, dirty repo (cold) | 4 flips (Compare→View changes, Working tree clean→5 uncommitted, comments count, 5→4 files), 2 moves | 0 flips, 0 moves, final at 568ms |
+  | Home, PR branch (cold) | 4 flips (incl. Compare with master→View PR diff at 1.57s), 12 moves (History +112px, then +364px) | 0 flips on Home, 0 moves; PR chip added left of the path (nothing moves) |
+  | Home, this repo (cold) | 3 flips, 5 moves (History +224px) | 0 flips, 0 moves |
+  | Home, revisit / switch back (cached) | final in the first frame | final in the first frame, no skeleton or fade |
+  | PR diff (`origin/master...HEAD`, cold) | — | 0 moves: PR bar placeholder, ref chip placeholder → "PR #7468 · Release: 5.3.0" |
+  | Diff, this repo (cold) | comments count and "open comments" notice pop in at ~1.3s | same timing, but into a reserved slot |
+
+  Probe reports and frame captures: scratchpad `skel/report-before.txt`, `skel/report-after.txt`, `skel/before-*/`,
+  `skel/after-*/` (≈190ms per frame).
+- **Left:** `list_repo_threads` recomputes a diff per view and takes ~1.3s on this repo (it gates the comments count
+  and the other-views notice). A PR slower than the budget still swaps the hero once (with a fade); the open-PR list
+  can change height the first time a repo is opened (placeholder count unknown).
+
 ## Remaining
 
 - "Post to GitHub now" pushes only new threads; replies to existing GitHub threads still go out with the review.

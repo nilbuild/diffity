@@ -21,8 +21,3 @@ export function useRepoThreads() {
 export function isOpenThread(thread: RepoThread): boolean {
   return thread.status === 'open';
 }
-
-export function useOpenThreadCount(): number {
-  const { data } = useRepoThreads();
-  return (data ?? []).filter(isOpenThread).length;
-}

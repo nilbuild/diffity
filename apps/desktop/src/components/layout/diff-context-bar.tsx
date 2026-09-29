@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
+import { Skeleton } from '../ui/skeleton';
 import { fetchCommit, parseCommitRef } from '../../lib/api';
 import { useCopy } from '../../hooks/use-copy';
 import { useGitHubPr } from '../../hooks/use-repo-state';
 import { AuthorAvatar } from './commit-list';
-import { prDiffRef, rangeParts } from './ref-menu';
+import { isPrShapedRef, prDiffRef, rangeParts } from './ref-menu';
 import { CheckIcon, CopyIcon, GitCompareIcon } from '../ui/icon';
 
 export function useCommitDetails(sha: string | null) {
@@ -22,7 +23,17 @@ function CommitHeader(props: { sha: string }) {
   const { data: commit, isLoading } = useCommitDetails(sha);
 
   if (isLoading) {
-    return <div className="h-10 w-2/3 rounded bg-fill animate-pulse" />;
+    return (
+      <div aria-busy className="min-w-0">
+        <div className="flex items-center h-6">
+          <Skeleton className="h-3.5 w-2/3" />
+        </div>
+        <div className="mt-0.5 flex items-center gap-2 h-5">
+          <Skeleton circle className="w-5 h-5" />
+          <Skeleton className="h-2.5 w-48" />
+        </div>
+      </div>
+    );
   }
   return (
     <div className="min-w-0">
@@ -53,14 +64,15 @@ function CommitHeader(props: { sha: string }) {
 /** A light header at the top of the diff for a commit or a compared range (not a sticky bar). */
 export function DiffContextHeader(props: { diffRef: string }) {
   const { diffRef } = props;
-  const { details } = useGitHubPr();
+  const { details, loading: prLoading } = useGitHubPr();
   const commitSha = parseCommitRef(diffRef);
   const isPr = details !== null && diffRef === prDiffRef(details);
+  const mayBePr = prLoading && isPrShapedRef(diffRef);
 
   if (commitSha) {
     return <CommitHeader sha={commitSha} />;
   }
-  if (isPr || !diffRef.includes('..')) {
+  if (isPr || mayBePr || !diffRef.includes('..')) {
     return null;
   }
   const { base, head } = rangeParts(diffRef);

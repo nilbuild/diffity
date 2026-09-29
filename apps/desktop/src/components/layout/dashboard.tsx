@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useInfo } from '../../hooks/use-info';
 import { useTheme } from '../../hooks/use-theme';
-import { useBaseBranch, useBranches, useGitHubAuth, useGitHubPr, useGitStatus, useRecentCommits } from '../../hooks/use-repo-state';
-import { useQuery } from '@tanstack/react-query';
+import { useBaseBranch, useBranches, useGitHubAuth, useGitHubPr, useGitStatus, useRecentCommits, useRepoMeta } from '../../hooks/use-repo-state';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { diffOptions } from '../../queries/diff';
@@ -10,11 +10,13 @@ import { AskClaudePopover, requestAskClaude } from '../../features/claude/ask-cl
 import { usePullRequests } from '../../features/pr/pull-requests-dialog';
 import { checkoutPullRequest } from '../../features/pr/pr-checkout';
 import { BranchSwitcher } from '../../features/pr/branch-switcher';
-import { useEditorName } from '../../hooks/use-editor-name';
+import { useEditorNameState } from '../../hooks/use-editor-name';
 import { TREE_REF } from '../../lib/types';
-import { CommitList } from './commit-list';
+import { CommitList, commitListOptions } from './commit-list';
 import { DiffStatBar } from '../ui/diff-stat-bar';
-import { ListRow, StatCell } from '../ui/list-row';
+import { ListRow, ListRowSkeleton, StatCell } from '../ui/list-row';
+import { Skeleton, useElapsed, useLatch, useRevealClass } from '../ui/skeleton';
+import { HomeSkeletonBody } from './home-skeleton';
 import { relative } from '../../features/pr/pr-meta';
 import { Spinner } from '../icons/spinner';
 import { hideStaticSplash } from './skeleton';
@@ -190,7 +192,7 @@ function useDiffSummary(ref: string | null): { summary: DiffSummary | null; load
     return { summary: null, loading: false };
   }
   if (!query.data) {
-    return { summary: null, loading: query.isLoading };
+    return { summary: null, loading: query.isPending && !query.isError };
   }
   return {
     summary: { files: query.data.files.length, additions: query.data.stats.totalAdditions, deletions: query.data.stats.totalDeletions },
@@ -219,18 +221,19 @@ interface Candidate {
   title: string;
   explain: string;
   summary: DiffSummary | null;
+  summaryLoading?: boolean;
   /** What the primary button does, e.g. "View changes", "Compare with main". */
   action: string;
   run?: () => void;
 }
 
-function Hero(props: { item: Candidate; onReview: (ref: string) => void }) {
-  const { item, onReview } = props;
+function Hero(props: { item: Candidate; onReview: (ref: string) => void; className?: string }) {
+  const { item, onReview, className } = props;
   const [asking, setAsking] = useState(false);
   const askRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <section className="mt-6 rounded-xl border border-border bg-bg-secondary px-6 py-5">
+    <section className={cn('mt-6 rounded-xl border border-border bg-bg-secondary px-6 py-5', className)}>
       <div className="flex items-center gap-2 text-xs font-medium text-text-secondary">
         {item.icon}
         Up next · {item.eyebrow}
@@ -254,9 +257,71 @@ function Hero(props: { item: Candidate; onReview: (ref: string) => void }) {
           onStarted={() => onReview(item.ref)}
         />
         {item.summary && <span className="ml-auto"><StatLine summary={item.summary} /></span>}
+        {!item.summary && item.summaryLoading && <Skeleton className="ml-auto w-36 h-3" />}
       </div>
     </section>
   );
+}
+
+const PR_ROWS_KEY = 'diffity-open-pr-rows';
+
+/** How many "Open pull requests" rows this repository showed last time, so their placeholder takes the same space. */
+function readPrRows(repoPath: string): number {
+  try {
+    const stored = JSON.parse(localStorage.getItem(PR_ROWS_KEY) ?? '{}') as Record<string, number>;
+    return stored[repoPath] ?? 2;
+  } catch {
+    return 2;
+  }
+}
+
+function writePrRows(repoPath: string, rows: number) {
+  try {
+    const stored = JSON.parse(localStorage.getItem(PR_ROWS_KEY) ?? '{}') as Record<string, number>;
+    if (stored[repoPath] === rows) {
+      return;
+    }
+    stored[repoPath] = rows;
+    localStorage.setItem(PR_ROWS_KEY, JSON.stringify(stored));
+  } catch {
+    return;
+  }
+}
+
+const BRANCH_PR_KEY = 'diffity-branch-pr';
+const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'trunk']);
+
+function readBranchPrs(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(BRANCH_PR_KEY) ?? '{}') as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Whether the checked-out branch probably has a pull request: it had one last time, or (never seen) it is a pushed
+ * feature branch. Home then waits a little longer for GitHub before deciding what is up next.
+ */
+function expectsPullRequest(key: string, branch: string | null, upstream: string | null | undefined): boolean {
+  const known = readBranchPrs()[key];
+  if (known !== undefined) {
+    return known > 0;
+  }
+  return !!branch && !!upstream && !DEFAULT_BRANCHES.has(branch);
+}
+
+function rememberBranchPr(key: string, prNumber: number) {
+  try {
+    const stored = readBranchPrs();
+    if (stored[key] === prNumber) {
+      return;
+    }
+    stored[key] = prNumber;
+    localStorage.setItem(BRANCH_PR_KEY, JSON.stringify(stored));
+  } catch {
+    return;
+  }
 }
 
 function SectionTitle(props: { children: ReactNode; right?: ReactNode }) {
@@ -276,17 +341,29 @@ export function Dashboard(props: DashboardProps) {
   const nav = useRepoNav();
   const { theme, toggleTheme } = useTheme();
   const { data: info } = useInfo();
-  const { data: status } = useGitStatus();
-  const { details, hasRemote } = useGitHubPr();
-  const { data: auth } = useGitHubAuth();
-  const { data: repoThreads } = useRepoThreads();
+  const statusQuery = useGitStatus();
+  const status = statusQuery.data;
+  const metaQuery = useRepoMeta();
+  const branchesQuery = useBranches();
+  const { details, hasRemote, loading: prLoading } = useGitHubPr();
+  const authQuery = useGitHubAuth();
+  const auth = authQuery.data;
+  const threadsQuery = useRepoThreads();
+  const repoThreads = threadsQuery.data;
   const branch = status?.branch ?? info?.branch ?? null;
   const base = useBaseBranch(details?.baseRef ?? null, branch);
   const [search, setSearch] = useState('');
   const [searching, setSearching] = useState(false);
   const [compareSignal, setCompareSignal] = useState(0);
-  const { data: recent } = useRecentCommits(1);
-  const editor = useEditorName();
+  const recentQuery = useRecentCommits(1);
+  const recent = recentQuery.data;
+  const historyQuery = useInfiniteQuery(commitListOptions(''));
+  const editor = useEditorNameState();
+  const branchPrKey = `${nav.repoPath}\n${status?.branch ?? info?.branch ?? ''}`;
+  const expectPr = hasRemote && auth?.authenticated !== false && expectsPullRequest(branchPrKey, status?.branch ?? null, status?.upstream);
+  const prBudgetSpent = useElapsed(expectPr ? 1500 : 600);
+  const listBudgetSpent = useElapsed(600);
+  const localBudgetSpent = useElapsed(3000);
 
   useEffect(() => {
     hideStaticSplash();
@@ -301,6 +378,14 @@ export function Dashboard(props: DashboardProps) {
   const prDiff = useDiffSummary(prRef);
   const branchDiff = useDiffSummary(branchRef);
   const prs = usePullRequests(hasRemote && !!auth?.authenticated);
+  const prsLoading = hasRemote && !!auth?.authenticated && prs.isPending && !prs.isError;
+
+  const settled = (query: { isPending: boolean; isError: boolean; fetchStatus: string }) => !query.isPending || query.isError || query.fetchStatus === 'idle';
+  const localSettled = settled(statusQuery) && settled(metaQuery) && settled(branchesQuery) && settled(threadsQuery) && settled(recentQuery) && settled(historyQuery)
+    && (localBudgetSpent || (!work.loading && !branchDiff.loading));
+  const prSettled = settled(metaQuery) && (!hasRemote || (settled(authQuery) && !prLoading));
+  const ready = useLatch(localSettled && (prSettled || prBudgetSpent) && (!prsLoading || listBudgetSpent));
+  const reveal = useRevealClass(!ready);
 
   const candidates: Candidate[] = [];
   if (uncommitted > 0) {
@@ -310,6 +395,7 @@ export function Dashboard(props: DashboardProps) {
       title: `${files} file${files === 1 ? '' : 's'} changed since your last commit`,
       explain: [status?.staged ? `${status.staged} staged` : null, status?.unstaged ? `${status.unstaged} unstaged` : null, status?.untracked ? `${status.untracked} new` : null].filter(Boolean).join(' · '),
       summary: work.summary,
+      summaryLoading: work.loading,
       action: 'View changes',
     });
   }
@@ -319,6 +405,7 @@ export function Dashboard(props: DashboardProps) {
       title: details.prTitle,
       explain: `${details.pr?.author ? `by ${details.pr.author} · ` : ''}${branch ?? ''} → ${details.baseRef}`,
       summary: prDiff.summary,
+      summaryLoading: prDiff.loading,
       action: 'View PR diff',
     });
   }
@@ -367,17 +454,38 @@ export function Dashboard(props: DashboardProps) {
     });
   }
   const [hero, ...queue] = candidates;
+  const firstHeroKey = useRef<string | null | undefined>(undefined);
+  if (ready && firstHeroKey.current === undefined) {
+    firstHeroKey.current = hero?.key ?? null;
+  }
+  const heroUpgraded = ready && firstHeroKey.current !== (hero?.key ?? null);
   const otherPrs = signedOutEarly ? [] : (prs.data ?? []).filter((pr) => pr.number !== details?.prNumber).slice(0, 5);
+  const prPlaceholderRows = prsLoading ? readPrRows(nav.repoPath) : 0;
+
+  useEffect(() => {
+    if (!status || !hasRemote || !auth?.authenticated || prLoading) {
+      return;
+    }
+    rememberBranchPr(branchPrKey, details?.prNumber ?? 0);
+  }, [status, hasRemote, auth?.authenticated, prLoading, branchPrKey, details?.prNumber]);
+
+  useEffect(() => {
+    if (!prs.data || prLoading) {
+      return;
+    }
+    writePrRows(nav.repoPath, otherPrs.length);
+  }, [prs.data, prLoading, otherPrs.length, nav.repoPath]);
 
   const statusParts: ReactNode[] = [];
-  statusParts.push(uncommitted > 0 ? `${uncommitted} uncommitted file${uncommitted === 1 ? '' : 's'}` : 'Working tree clean');
+  const uncommittedFiles = work.summary?.files ?? uncommitted;
+  statusParts.push(uncommitted > 0 ? `${uncommittedFiles} uncommitted file${uncommittedFiles === 1 ? '' : 's'}` : 'Working tree clean');
   statusParts.push(openThreads.length > 0 ? `${openThreads.length} open comment${openThreads.length === 1 ? '' : 's'}` : 'No open comments');
   if (status?.upstream) {
     statusParts.push(<span key="sync" className="tabular-nums">↑{status.ahead} ↓{status.behind} with {status.upstream}</span>);
   }
 
   const signedOut = signedOutEarly;
-  const hasQueue = queue.length > 0 || threadGroups.size > 0 || otherPrs.length > 0 || signedOut;
+  const hasQueue = queue.length > 0 || threadGroups.size > 0 || otherPrs.length > 0 || signedOut || prPlaceholderRows > 0;
 
   return (
     <div className="flex flex-col h-screen bg-frame text-text font-sans">
@@ -412,163 +520,171 @@ export function Dashboard(props: DashboardProps) {
                   openInEditor('').catch((error) => toast.error('Could not open the editor', { description: errorMessage(error) }));
                 }}
                 className={cn(buttonOutline, 'h-7')}
-                title={`Open the repository folder in ${editor}`}
+                title={`Open the repository folder in ${editor.name}`}
               >
                 <EditorIcon size="sm" className="text-text-secondary" />
-                Open in {editor}
+                Open in {editor.loading ? <Skeleton className="w-12 h-3" /> : editor.name}
               </button>
             </header>
-            <p className="mt-1 text-xs text-text-muted flex flex-wrap items-center gap-x-2">
-              {statusParts.map((part, index) => (
-                <span key={index} className="inline-flex items-center gap-2">
-                  {index > 0 && <span aria-hidden>·</span>}
-                  {part}
-                </span>
-              ))}
-            </p>
+            {!ready && (
+              <HomeSkeletonBody />
+            )}
+            {ready && (
+              <div className={reveal}>
+                <p className="mt-1 text-xs text-text-muted flex flex-wrap items-center gap-x-2">
+                  {statusParts.map((part, index) => (
+                    <span key={index} className="inline-flex items-center gap-2">
+                      {index > 0 && <span aria-hidden>·</span>}
+                      {part}
+                    </span>
+                  ))}
+                </p>
 
-            {hero ? (
-              <Hero item={hero} onReview={onNavigate} />
-            ) : (
-              <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 py-3 border-y border-border-muted text-[13px]">
-                <CheckCircleIcon size="md" className="text-added" />
-                <span className="font-medium text-text">You're all caught up</span>
-                <span className="text-text-secondary">nothing to review</span>
-                <span className="flex-1" />
-                {last && (
-                  <button onClick={() => onNavigate(commitRef(last.hash))} className="text-text-secondary hover:text-text underline decoration-text-muted/40 underline-offset-2 cursor-pointer" title={last.message}>
-                    Latest commit <code className="font-mono text-xs">{last.shortHash}</code>
-                  </button>
+                {hero ? (
+                  <Hero key={hero.key} item={hero} onReview={onNavigate} className={heroUpgraded ? 'reveal' : undefined} />
+                ) : (
+                  <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 py-3 border-y border-border-muted text-[13px]">
+                    <CheckCircleIcon size="md" className="text-added" />
+                    <span className="font-medium text-text">You're all caught up</span>
+                    <span className="text-text-secondary">nothing to review</span>
+                    <span className="flex-1" />
+                    {last && (
+                      <button onClick={() => onNavigate(commitRef(last.hash))} className="text-text-secondary hover:text-text underline decoration-text-muted/40 underline-offset-2 cursor-pointer" title={last.message}>
+                        Latest commit <code className="font-mono text-xs">{last.shortHash}</code>
+                      </button>
+                    )}
+                    <span aria-hidden className="text-text-muted">·</span>
+                    <button onClick={() => setCompareSignal((value) => value + 1)} className="text-text-secondary hover:text-text underline decoration-text-muted/40 underline-offset-2 cursor-pointer">
+                      Compare branches
+                    </button>
+
+                  </div>
                 )}
-                <span aria-hidden className="text-text-muted">·</span>
-                <button onClick={() => setCompareSignal((value) => value + 1)} className="text-text-secondary hover:text-text underline decoration-text-muted/40 underline-offset-2 cursor-pointer">
-                  Compare branches
-                </button>
 
-              </div>
-            )}
-
-            {hasQueue && (
-              <section className="mt-8">
-                <SectionTitle>To review</SectionTitle>
-                <ul className="-mx-3 mt-1">
-                  {queue.map((item) => (
-                    <ListRow
-                      key={item.key}
-                      icon={item.icon}
-                      title={item.title}
-                      meta={item.eyebrow}
-                      stats={item.summary && <StatCell additions={item.summary.additions} deletions={item.summary.deletions} bar={<DiffStatBar additions={item.summary.additions} deletions={item.summary.deletions} />} />}
-                      onClick={() => onNavigate(item.ref)}
-                      tooltip={item.action}
-                      actions={[
-                        { label: item.action, icon: item.icon, onSelect: () => (item.run ? item.run() : onNavigate(item.ref)) },
-                        { label: 'Ask Claude to review', icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => askClaudeFor(item.ref) },
-                      ]}
-                    />
-                  ))}
-                  {[...threadGroups.entries()].filter(([ref]) => !(hero?.key === 'comments' && hero.ref === ref)).map(([ref, group]) => (
-                    <ListRow
-                      key={`comments-${ref}`}
-                      icon={<CommentIcon size="sm" className={group.claude > 0 ? 'text-claude' : undefined} />}
-                      title={`${group.count} open comment${group.count === 1 ? '' : 's'} in ${group.label}`}
-                      meta={group.claude > 0 ? `${group.claude} from Claude` : 'From you'}
-                      onClick={() => {
-                        if (ref === TREE_REF) {
-                          nav.toTree();
-                          return;
-                        }
-                        onNavigate(ref);
-                      }}
-                    />
-                  ))}
-                  {(otherPrs.length > 0 || signedOut) && (
-                    <li className="px-3 pt-3 pb-1 text-[11px] font-medium text-text-muted">Open pull requests on GitHub</li>
-                  )}
-                  {signedOut && (
-                    <ListRow
-                      icon={<GitHubIcon size="sm" />}
-                      title="Sign in to GitHub to see open pull requests"
-                      meta="Import your gh login or paste a token in Settings"
-                      onClick={() => openSettingsAt('github')}
-                    />
-                  )}
-                  {otherPrs.map((pr) => (
-                    <ListRow
-                      key={`pr-${pr.number}`}
-                      icon={<GitPullRequestIcon size="sm" className={pr.isDraft ? 'text-text-muted' : 'text-added'} />}
-                      title={pr.title}
-                      meta={
-                        <>
-                          <span className="tabular-nums">#{pr.number}</span>
-                          <span aria-hidden>·</span>
-                          <span className="truncate">{pr.author}</span>
-                          {pr.updatedAt && <><span aria-hidden>·</span><span className="shrink-0">updated {relative(pr.updatedAt)}</span></>}
-                          {pr.isDraft && <span className="shrink-0 px-1.5 rounded-full bg-fill text-[10px] font-medium text-text-secondary">Draft</span>}
-                          {pr.reviewDecision === 'REVIEW_REQUIRED' && <span className="shrink-0 px-1.5 rounded-full bg-modified/12 text-[10px] font-medium text-modified">Review required</span>}
-                          {pr.checks && <span className={cn('shrink-0 w-1.5 h-1.5 rounded-full', pr.checks === 'SUCCESS' ? 'bg-added' : pr.checks === 'FAILURE' || pr.checks === 'ERROR' ? 'bg-deleted' : 'bg-modified')} title={`Checks: ${pr.checks.toLowerCase()}`} />}
-                        </>
-                      }
-                      stats={<StatCell additions={pr.additions} deletions={pr.deletions} bar={<DiffStatBar additions={pr.additions} deletions={pr.deletions} />} />}
-                      tooltip="Check out this pull request (asks first if you have uncommitted changes)"
-                      onClick={() => void checkoutPullRequest(nav.repoPath, `#${pr.number}`, nav.toDiff)}
-                      actions={[
-                        { label: 'Check out and review', icon: <GitPullRequestIcon size="sm" />, onSelect: () => void checkoutPullRequest(nav.repoPath, `#${pr.number}`, nav.toDiff) },
-                        { label: 'Open on GitHub', icon: <GitHubIcon size="sm" />, onSelect: () => void openUrl(pr.url) },
-                      ]}
-                    />
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            <section className="mt-8">
-              <SectionTitle
-                right={
-                  <>
-                    <div className="relative w-[240px]">
-                      <SearchIcon size="sm" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-                      <input
-                        autoComplete="off"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        type="text"
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Escape') {
-                            setSearch('');
-                          }
-                        }}
-                        placeholder="Search commits"
-                        className={cn(inputField, 'pl-8 pr-8')}
-                      />
-                      {searching && <Spinner className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3" />}
-                      {!searching && search && (
-                        <button
-                          className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 inline-flex items-center justify-center rounded text-text-muted hover:text-text hover:bg-hover cursor-pointer"
-                          onClick={() => setSearch('')}
-                          title="Clear search"
-                        >
-                          <XIcon size="xs" />
-                        </button>
+                {hasQueue && (
+                  <section className="mt-8">
+                    <SectionTitle>To review</SectionTitle>
+                    <ul className="-mx-3 mt-1">
+                      {queue.map((item) => (
+                        <ListRow
+                          key={item.key}
+                          icon={item.icon}
+                          title={item.title}
+                          meta={item.eyebrow}
+                          stats={item.summary ? <StatCell additions={item.summary.additions} deletions={item.summary.deletions} bar={<DiffStatBar additions={item.summary.additions} deletions={item.summary.deletions} />} /> : item.summaryLoading && <Skeleton className="w-24 h-3" />}
+                          onClick={() => onNavigate(item.ref)}
+                          tooltip={item.action}
+                          actions={[
+                            { label: item.action, icon: item.icon, onSelect: () => (item.run ? item.run() : onNavigate(item.ref)) },
+                            { label: 'Ask Claude to review', icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => askClaudeFor(item.ref) },
+                          ]}
+                        />
+                      ))}
+                      {[...threadGroups.entries()].filter(([ref]) => !(hero?.key === 'comments' && hero.ref === ref)).map(([ref, group]) => (
+                        <ListRow
+                          key={`comments-${ref}`}
+                          icon={<CommentIcon size="sm" className={group.claude > 0 ? 'text-claude' : undefined} />}
+                          title={`${group.count} open comment${group.count === 1 ? '' : 's'} in ${group.label}`}
+                          meta={group.claude > 0 ? `${group.claude} from Claude` : 'From you'}
+                          onClick={() => {
+                            if (ref === TREE_REF) {
+                              nav.toTree();
+                              return;
+                            }
+                            onNavigate(ref);
+                          }}
+                        />
+                      ))}
+                      {(otherPrs.length > 0 || signedOut || prPlaceholderRows > 0) && (
+                        <li className="px-3 pt-3 pb-1 text-[11px] font-medium text-text-muted">Open pull requests on GitHub</li>
                       )}
-                    </div>
-                    <ComparePopover onNavigate={onNavigate} defaultBase={base} openSignal={compareSignal} />
-                  </>
-                }
-              >
-                History
-              </SectionTitle>
-              <div className="mt-1 -mx-3">
-                <CommitList
-                  search={search}
-                  onFetchingChange={setSearching}
-                  onOpen={(commit) => onNavigate(commitRef(commit.hash))}
-                  onCompareFrom={(hash) => onNavigate(`${hash}..HEAD`)}
-                />
+                      {signedOut && (
+                        <ListRow
+                          icon={<GitHubIcon size="sm" />}
+                          title="Sign in to GitHub to see open pull requests"
+                          meta="Import your gh login or paste a token in Settings"
+                          onClick={() => openSettingsAt('github')}
+                        />
+                      )}
+                      {Array.from({ length: prPlaceholderRows }, (_, index) => <ListRowSkeleton key={`pr-skeleton-${index}`} index={index} />)}
+                      {otherPrs.map((pr) => (
+                        <ListRow
+                          key={`pr-${pr.number}`}
+                          icon={<GitPullRequestIcon size="sm" className={pr.isDraft ? 'text-text-muted' : 'text-added'} />}
+                          title={pr.title}
+                          meta={
+                            <>
+                              <span className="tabular-nums">#{pr.number}</span>
+                              <span aria-hidden>·</span>
+                              <span className="truncate">{pr.author}</span>
+                              {pr.updatedAt && <><span aria-hidden>·</span><span className="shrink-0">updated {relative(pr.updatedAt)}</span></>}
+                              {pr.isDraft && <span className="shrink-0 px-1.5 rounded-full bg-fill text-[10px] font-medium text-text-secondary">Draft</span>}
+                              {pr.reviewDecision === 'REVIEW_REQUIRED' && <span className="shrink-0 px-1.5 rounded-full bg-modified/12 text-[10px] font-medium text-modified">Review required</span>}
+                              {pr.checks && <span className={cn('shrink-0 w-1.5 h-1.5 rounded-full', pr.checks === 'SUCCESS' ? 'bg-added' : pr.checks === 'FAILURE' || pr.checks === 'ERROR' ? 'bg-deleted' : 'bg-modified')} title={`Checks: ${pr.checks.toLowerCase()}`} />}
+                            </>
+                          }
+                          stats={<StatCell additions={pr.additions} deletions={pr.deletions} bar={<DiffStatBar additions={pr.additions} deletions={pr.deletions} />} />}
+                          tooltip="Check out this pull request (asks first if you have uncommitted changes)"
+                          onClick={() => void checkoutPullRequest(nav.repoPath, `#${pr.number}`, nav.toDiff)}
+                          actions={[
+                            { label: 'Check out and review', icon: <GitPullRequestIcon size="sm" />, onSelect: () => void checkoutPullRequest(nav.repoPath, `#${pr.number}`, nav.toDiff) },
+                            { label: 'Open on GitHub', icon: <GitHubIcon size="sm" />, onSelect: () => void openUrl(pr.url) },
+                          ]}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                <section className="mt-8">
+                  <SectionTitle
+                    right={
+                      <>
+                        <div className="relative w-[240px]">
+                          <SearchIcon size="sm" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                          <input
+                            autoComplete="off"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            type="text"
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Escape') {
+                                setSearch('');
+                              }
+                            }}
+                            placeholder="Search commits"
+                            className={cn(inputField, 'pl-8 pr-8')}
+                          />
+                          {searching && <Spinner className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3" />}
+                          {!searching && search && (
+                            <button
+                              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 inline-flex items-center justify-center rounded text-text-muted hover:text-text hover:bg-hover cursor-pointer"
+                              onClick={() => setSearch('')}
+                              title="Clear search"
+                            >
+                              <XIcon size="xs" />
+                            </button>
+                          )}
+                        </div>
+                        <ComparePopover onNavigate={onNavigate} defaultBase={base} openSignal={compareSignal} />
+                      </>
+                    }
+                  >
+                    History
+                  </SectionTitle>
+                  <div className="mt-1 -mx-3">
+                    <CommitList
+                      search={search}
+                      onFetchingChange={setSearching}
+                      onOpen={(commit) => onNavigate(commitRef(commit.hash))}
+                      onCompareFrom={(hash) => onNavigate(`${hash}..HEAD`)}
+                    />
+                  </div>
+                </section>
               </div>
-            </section>
+            )}
           </div>
         </main>
       </Workspace>

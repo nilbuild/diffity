@@ -148,8 +148,8 @@ export function InlineConfirm(props: {
   );
 }
 
-export function StatusBadge(props: { tone: 'success' | 'warning' | 'danger' | 'neutral'; children: ReactNode }) {
-  const { tone, children } = props;
+export function StatusBadge(props: { tone: 'success' | 'warning' | 'danger' | 'neutral'; children: ReactNode; className?: string }) {
+  const { tone, children, className } = props;
 
   return (
     <span
@@ -159,6 +159,7 @@ export function StatusBadge(props: { tone: 'success' | 'warning' | 'danger' | 'n
         tone === 'warning' && 'bg-modified/10 text-modified',
         tone === 'danger' && 'bg-deleted/10 text-deleted',
         tone === 'neutral' && 'bg-bg-tertiary text-text-secondary',
+        className,
       )}
     >
       {children}

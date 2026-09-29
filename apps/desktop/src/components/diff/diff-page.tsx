@@ -83,7 +83,7 @@ export function DiffPage(props: DiffPageProps) {
   const { isStale, resetStaleness } = useDiffStaleness(refParam, !!info?.capabilities?.staleness);
   const { details: githubDetails } = useGitHubPr();
   const ownPr = useOwnPr();
-  const { reviewedFiles, setReviewed } = useViewedFiles(sessionId, diff);
+  const { reviewedFiles, setReviewed, loading: viewedLoading } = useViewedFiles(sessionId, diff);
 
   useEffect(() => {
     localStorage.setItem('diffity-view-mode', viewMode);
@@ -443,7 +443,7 @@ export function DiffPage(props: DiffPageProps) {
   }
 
   const threadsLoading = reviewsEnabled && !threadsFetched;
-  if (threadsLoading) {
+  if (threadsLoading || viewedLoading) {
     return <DiffSkeleton />;
   }
 

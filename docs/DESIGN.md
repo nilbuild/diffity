@@ -135,6 +135,10 @@ not a redesign.
   with Comment / Approve / Request changes, and "Also send to Claude".
 - Loading: branded static splash in `index.html` → `AppSplash` while a repo opens, `DiffSkeleton` / file skeletons,
   a thin top progress bar for first-time loads and mutations, loading toasts for git/revert operations.
+  Nothing that loads may flip a label or move content: a view decides from settled data (GitHub lookups get a short
+  budget), shows fixed-size `Skeleton` placeholders (`components/ui/skeleton.tsx`, hidden for 150ms, shimmer, reduced
+  motion aware) in the final layout meanwhile, and cross-fades in (`useRevealClass`, 120ms). Cached data renders at
+  once and revalidates silently.
 - Settings dialog (⌘,), time.fyi style: left rail with search and grouped icon tabs (App: General, Editor, Keyboard shortcuts;
   Connections: Claude Code, GitHub; Diffity: About), pane title + close, grouped label/hint rows with a fixed control column,
   theme swatches, status cards for Claude Code and the GitHub account, inline confirm for sign-out.

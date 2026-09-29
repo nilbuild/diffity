@@ -7,12 +7,14 @@ import { StaleNotice } from './stale-notice';
 import { shortPath } from '../../features/welcome/recent-repos';
 import { OtherViewsNotice } from '../../features/comments/other-views-notice';
 import { useState } from 'react';
+import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
 import { CodeIcon, CopyIcon, EditorIcon, FolderSimpleIcon, GitPullRequestIcon } from '../ui/icon';
 import { ContextMenu, MenuItem, MenuSeparator } from '../ui/popover';
 import { useEditorName } from '../../hooks/use-editor-name';
 import { errorMessage, openInEditor } from '../../lib/api';
+import { Skeleton, useRevealClass } from '../ui/skeleton';
 
 interface StatusBarProps {
   diffRef?: string;
@@ -26,7 +28,7 @@ function Tracking() {
   const { data: status } = useGitStatus();
   const { data: meta } = useRepoMeta();
 
-  if (!status) {
+  if (!status || !meta) {
     return null;
   }
   if (!status.branch) {
@@ -106,26 +108,38 @@ export function StatusBar(props: StatusBarProps) {
   const nav = useRepoNav();
   const { data: status } = useGitStatus();
   const { data: meta } = useRepoMeta();
-  const { details } = useGitHubPr();
+  const { details, loading: prLoading } = useGitHubPr();
+  const prReveal = useRevealClass(prLoading);
   const branch = status?.branch ?? meta?.branch ?? null;
   const fullPath = meta?.path ?? nav.repoPath;
   const path = shortPath(fullPath);
+  const loading = !status || !meta;
+  const reveal = useRevealClass(loading);
 
   return (
     <div data-tauri-drag-region className="flex items-center gap-1.5 h-8 shrink-0 pl-1.5 pr-2.5 bg-frame text-xs text-text-secondary font-sans select-none">
-      {(branch || status) && <BranchSwitcher branch={branch} className={`${itemClass} text-text-secondary`} />}
-      <span className={itemClass}>
-        <Tracking />
-      </span>
-      <GitSyncActions />
+      {loading ? (
+        <span aria-busy className="flex items-center gap-1.5">
+          <span className={itemClass}><Skeleton className="w-24 h-2.5" /></span>
+          <span className={itemClass}><Skeleton className="w-28 h-2.5" /></span>
+          <Skeleton className="w-[168px] h-6 rounded-md" />
+        </span>
+      ) : (
+        <span className={cn('flex items-center gap-1.5 min-w-0', reveal)}>
+          <BranchSwitcher branch={branch} className={`${itemClass} text-text-secondary`} />
+          <span className={itemClass}>
+            <Tracking />
+          </span>
+          <GitSyncActions />
+        </span>
+      )}
       {stale && <StaleNotice onRefresh={stale.onRefresh} message={stale.message} />}
       {sessionId && <OtherViewsNotice sessionId={sessionId} />}
       <span className="flex-1" />
-      <RepoPathButton label={path} path={fullPath} />
       {details && (
         <button
           onClick={() => nav.toDiff(prDiffRef(details))}
-          className={`${itemClass} hover:bg-hover hover:text-text cursor-pointer`}
+          className={`${itemClass} hover:bg-hover hover:text-text cursor-pointer ${prReveal}`}
           title={`Review pull request #${details.prNumber}: ${details.prTitle}`}
         >
           <GitPullRequestIcon className="w-3 h-3 shrink-0" />
@@ -134,6 +148,7 @@ export function StatusBar(props: StatusBarProps) {
           </span>
         </button>
       )}
+      <RepoPathButton label={path} path={fullPath} />
     </div>
   );
 }

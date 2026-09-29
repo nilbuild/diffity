@@ -23,6 +23,8 @@ import { openPalette } from '../features/palette/palette-store';
 import { checkoutPullRequest } from '../features/pr/pr-checkout';
 import { RailFrame } from '../components/layout/activity-rail';
 import { activateRepoCache, rememberLocation } from '../lib/repo-locations';
+import { useBranches, useGitHubPr, useGitStatus } from '../hooks/use-repo-state';
+import { useRepoThreads } from '../hooks/use-repo-threads';
 
 function repoName(repoPath: string) {
   return repoPath.split('/').filter(Boolean).pop() ?? 'repository';
@@ -123,6 +125,18 @@ function useCommentsShortcut() {
   }, []);
 }
 
+/**
+ * Starts the queries every view reads (git status, branches, comments, the checked-out PR) while the route itself
+ * is still suspended, so the page can decide what to show from complete data instead of filling in piece by piece.
+ */
+function RepoPrefetch() {
+  useGitStatus();
+  useBranches();
+  useRepoThreads();
+  useGitHubPr();
+  return null;
+}
+
 export function RepoLayout() {
   const repoPath = useRepoPath();
   const client = useQueryClient();
@@ -152,6 +166,7 @@ export function RepoLayout() {
 
   return (
     <>
+      <RepoPrefetch />
       <RailFrame>
         <RouteErrorBoundary
           resetKey={location.pathname + location.search}
@@ -172,6 +187,7 @@ export function RepoLayout() {
             fallback={
               <OpeningSkeleton
                 repoName={repoName(repoPath)}
+                home={location.pathname.endsWith('/overview')}
                 onCancel={() => {
                   endOpening();
                   const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;

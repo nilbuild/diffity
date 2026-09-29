@@ -38,7 +38,7 @@ import { setFocusThread } from '../../lib/ui-store';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
 import { FinishReview } from '../../features/review/finish-review';
-import { FileBlockSkeleton, hideStaticSplash } from '../layout/skeleton';
+import { DiffSkeleton, FileBlockSkeleton, hideStaticSplash } from '../layout/skeleton';
 import { CodeIcon, EditorIcon, FileIcon } from '../ui/icon';
 import { useEditorName } from '../../hooks/use-editor-name';
 import { modKey } from '../../lib/platform';
@@ -396,6 +396,10 @@ export function TreePage() {
       />
     );
   };
+
+  if (sessionId && !threadsFetched) {
+    return <DiffSkeleton />;
+  }
 
   return (
     <ReviewStateProvider sessionId={sessionId}>

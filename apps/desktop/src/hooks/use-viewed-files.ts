@@ -20,7 +20,7 @@ function fileHash(file: DiffFile): string {
 export function useViewedFiles(sessionId: string | null, diff: ParsedDiff | undefined) {
   const queryClient = useQueryClient();
   const queryKey = ['viewed', sessionId];
-  const { data: viewed } = useQuery({
+  const { data: viewed, isPending, isError } = useQuery({
     queryKey,
     queryFn: () => tauri.listViewed(sessionId ?? ''),
     enabled: sessionId !== null,
@@ -59,5 +59,5 @@ export function useViewedFiles(sessionId: string | null, diff: ParsedDiff | unde
     });
   }, [sessionId, hashes, queryClient]);
 
-  return { reviewedFiles, setReviewed };
+  return { reviewedFiles, setReviewed, loading: sessionId !== null && isPending && !isError };
 }

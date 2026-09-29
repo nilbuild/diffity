@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useRepoNav } from '../../hooks/use-repo';
-import { useBaseBranch, useGitHubPr, useGitStatus, useHasGitHubRemote } from '../../hooks/use-repo-state';
+import { useBaseBranch, useBranches, useGitHubPr, useGitStatus, useHasGitHubRemote } from '../../hooks/use-repo-state';
 import { openPullRequests } from '../../lib/ui-store';
 import { commitRef, descriptionForRef, fetchCommits, parseCommitRef, type Commit, type GitHubDetails } from '../../lib/api';
 import { cn } from '../../lib/cn';
@@ -11,6 +11,7 @@ import { Spinner } from '../icons/spinner';
 import { useCommitDetails } from './diff-context-bar';
 import { CheckIcon, ChevronDownIcon, GitBranchIcon, GitCommitIcon, GitCompareIcon, GitPullRequestIcon, HomeIcon, PencilIcon, SearchIcon, XIcon } from '../ui/icon';
 import { Popover } from '../ui/popover';
+import { Skeleton, useElapsed, useRevealClass } from '../ui/skeleton';
 
 interface RefMenuProps {
   diffRef: string;
@@ -21,6 +22,11 @@ export const HOME_REF = '__home__';
 
 export function prDiffRef(details: GitHubDetails): string {
   return `origin/${details.baseRef}...HEAD`;
+}
+
+/** A remote-base range such as `origin/main...HEAD`: the ref a checked-out pull request is reviewed with. */
+export function isPrShapedRef(diffRef: string): boolean {
+  return /^origin\/.+\.\.\.HEAD$/.test(diffRef);
 }
 
 function shortBase(base: string): string {
@@ -37,30 +43,40 @@ export function rangeParts(diffRef: string): { base: string; head: string } {
   return { base: shortRef(base.replace(/~1$/, '')), head: shortRef(head || 'HEAD') };
 }
 
-/** Short, human label for what is being reviewed. */
-export function useTargetLabel(diffRef: string, branch: string | null): { label: string; icon: ReactNode } {
-  const { details } = useGitHubPr();
+/**
+ * Short, human label for what is being reviewed. `pending` means the label is still waiting for data that would
+ * change it (the PR lookup, the base branch, a commit's message), so callers show a placeholder instead.
+ */
+export function useTargetLabel(diffRef: string, branch: string | null): { label: string; icon: ReactNode; pending: boolean } {
+  const { details, loading: prLoading } = useGitHubPr();
+  const { isPending: branchesPending, isError: branchesFailed } = useBranches();
+  const githubBudgetSpent = useElapsed(600);
   const base = useBaseBranch(details?.baseRef ?? null, branch);
   const commitSha = parseCommitRef(diffRef);
-  const { data: commit } = useCommitDetails(commitSha);
+  const { data: commit, isPending: commitPending, isError: commitFailed } = useCommitDetails(commitSha);
   if (diffRef === HOME_REF) {
-    return { label: 'Home', icon: <HomeIcon className="w-3.5 h-3.5" /> };
+    return { label: 'Home', icon: <HomeIcon className="w-3.5 h-3.5" />, pending: false };
   }
   if (details && diffRef === prDiffRef(details)) {
-    return { label: `PR #${details.prNumber} · ${details.prTitle}`, icon: <GitPullRequestIcon className="w-3.5 h-3.5" /> };
+    return { label: `PR #${details.prNumber} · ${details.prTitle}`, icon: <GitPullRequestIcon className="w-3.5 h-3.5" />, pending: false };
+  }
+  const againstHead = diffRef.endsWith('...HEAD');
+  if (againstHead && ((prLoading && !githubBudgetSpent) || (branchesPending && !branchesFailed))) {
+    return { label: '', icon: <GitCompareIcon className="w-3.5 h-3.5" />, pending: true };
   }
   if (base && branch && diffRef === `${base}...HEAD`) {
-    return { label: `${branch} vs ${shortBase(base)}`, icon: <GitCompareIcon className="w-3.5 h-3.5" /> };
+    return { label: `${branch} vs ${shortBase(base)}`, icon: <GitCompareIcon className="w-3.5 h-3.5" />, pending: false };
   }
   if (commitSha) {
     const short = commitSha.slice(0, 7);
-    return { label: commit ? `Commit ${short} · ${commit.message}` : `Commit ${short}`, icon: <GitCommitIcon className="w-3.5 h-3.5" /> };
+    const label = commit ? `Commit ${short} · ${commit.message}` : `Commit ${short}`;
+    return { label, icon: <GitCommitIcon className="w-3.5 h-3.5" />, pending: !commit && commitPending && !commitFailed };
   }
   if (diffRef.includes('..')) {
     const { base: from, head: to } = rangeParts(diffRef);
-    return { label: `${from} → ${to}`, icon: <GitCompareIcon className="w-3.5 h-3.5" /> };
+    return { label: `${from} → ${to}`, icon: <GitCompareIcon className="w-3.5 h-3.5" />, pending: false };
   }
-  return { label: descriptionForRef(diffRef), icon: <PencilIcon className="w-3.5 h-3.5" /> };
+  return { label: descriptionForRef(diffRef), icon: <PencilIcon className="w-3.5 h-3.5" />, pending: false };
 }
 
 const sectionClass = 'px-2.5 pt-2.5 pb-1 text-[11px] font-medium text-text-secondary';
@@ -154,6 +170,7 @@ export function RefMenu(props: RefMenuProps) {
   const ref = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
   const target = useTargetLabel(diffRef, branch);
+  const reveal = useRevealClass(target.pending);
 
   const isDefault = diffRef === 'work' || diffRef === HOME_REF;
 
@@ -173,7 +190,8 @@ export function RefMenu(props: RefMenuProps) {
         title="Choose what to review"
       >
         <span className="shrink-0 text-text-secondary">{target.icon}</span>
-        <span className="truncate font-medium">{target.label}</span>
+        {target.label && <span className={cn('truncate font-medium', reveal)}>{target.label}</span>}
+        {target.pending && <Skeleton className={cn('h-3', target.label ? 'w-32' : 'w-44')} />}
         <ChevronDownIcon size="xs" className="shrink-0 text-text-secondary" />
         {!isDefault && (
           <button

@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { ChevronRightIcon, EllipsisIcon } from './icon';
 import { ContextMenu, MenuItem, Popover, useMenu } from './popover';
+import { Skeleton } from './skeleton';
 
 export const ROW_GRID = 'grid grid-cols-[20px_minmax(0,1fr)_auto_28px] items-center gap-3';
 
@@ -94,6 +95,34 @@ export function ListRow(props: ListRowProps) {
           </ContextMenu>
         </>
       )}
+    </li>
+  );
+}
+
+const TITLE_WIDTHS = ['58%', '44%', '66%', '38%', '52%', '47%'];
+
+/** Placeholder with the exact box of a `ListRow`: icon, title and meta lines, stats, chevron column. */
+export function ListRowSkeleton(props: { index?: number; avatar?: boolean }) {
+  const { index = 0, avatar = false } = props;
+
+  return (
+    <li aria-hidden className={`${ROW_GRID} min-h-[52px] px-3 py-1.5`}>
+      <span className="flex justify-center">
+        <Skeleton circle className="w-4 h-4" />
+      </span>
+      <span className="min-w-0">
+        <span className="flex items-center h-5">
+          <Skeleton className="h-3" style={{ width: TITLE_WIDTHS[index % TITLE_WIDTHS.length] }} />
+        </span>
+        <span className="flex items-center gap-1.5 h-5">
+          {avatar && <Skeleton circle className="w-4 h-4" />}
+          <Skeleton className="w-40 h-2.5" />
+        </span>
+      </span>
+      <span className="flex justify-end">
+        <Skeleton className="w-20 h-2.5" />
+      </span>
+      <span className="w-7" />
     </li>
   );
 }
