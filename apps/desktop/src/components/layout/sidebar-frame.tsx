@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
-import { inputField } from '../ui/button-styles';
+import { buttonIconOutline, inputField } from '../ui/button-styles';
 import { ViewTabs, type RepoView } from './view-tabs';
 import { useUi } from '../../lib/ui-store';
 import { CommentIcon, EllipsisIcon, SearchIcon, XIcon } from '../ui/icon';
@@ -152,10 +152,7 @@ export function SidebarMenu(props: { title: string; children: (close: () => void
         title={title}
         aria-label={title}
         aria-expanded={menu.open}
-        className={cn(
-          'w-7 h-7 shrink-0 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer',
-          menu.open ? 'bg-active text-text' : 'text-text-secondary hover:text-text hover:bg-hover',
-        )}
+        className={cn(buttonIconOutline, menu.open && 'bg-control-hover text-text')}
       >
         <EllipsisIcon size="md" />
       </button>

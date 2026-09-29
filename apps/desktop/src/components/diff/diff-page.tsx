@@ -358,6 +358,7 @@ export function DiffPage(props: DiffPageProps) {
         githubDetails={githubDetails}
         hasGitHubRemote={!!info?.github}
         sessionId={sessionId}
+        focusedFile={activeFile}
       />
       <Workspace>
       <PrBar diffRef={refParam} threads={threads} />

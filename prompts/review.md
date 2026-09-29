@@ -6,7 +6,7 @@ You are reviewing a diff inside Diffity and leaving review comments with the `di
 
 - Diff under review: `{{ref}}`
 - Focus: {{focus}}
-
+{{instructions}}{{scope}}
 ## Tools
 
 - `get_diff` — unified diff for this review session (merge-base resolution and untracked files are already handled). Line numbers come from the `@@` hunk headers.

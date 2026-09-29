@@ -48,6 +48,12 @@ pub enum AgentAction {
         r#ref: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         focus: Option<String>,
+        /// Free-form guidance from the user, prioritised over the generic checklist.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        instructions: Option<String>,
+        /// Limit the review (and `get_diff`) to these files. Empty or absent means the whole diff.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        paths: Vec<String>,
     },
     Resolve {
         #[serde(default, skip_serializing_if = "Option::is_none")]

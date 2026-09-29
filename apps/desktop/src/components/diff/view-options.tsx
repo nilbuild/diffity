@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import type { ViewMode } from '../../lib/diff-utils';
 import { SegmentedToggle } from '../ui/segmented-toggle';
+import { buttonIconOutline } from '../ui/button-styles';
 import { CollapseAllIcon, EllipsisIcon, EyeOffIcon, ExpandAllIcon, SplitViewIcon, UnifiedViewIcon } from '../ui/icon';
 import { MenuItem, Popover, useMenu } from '../ui/popover';
 
@@ -67,10 +68,7 @@ export function DiffBar(props: DiffBarProps) {
         onClick={menu.toggle}
         title="More diff options"
         aria-label="More diff options"
-        className={cn(
-          'w-7 h-7 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer',
-          menu.open ? 'bg-active text-text' : 'text-text-secondary hover:text-text hover:bg-hover',
-        )}
+        className={cn(buttonIconOutline, menu.open && 'bg-control-hover text-text')}
       >
         <EllipsisIcon size="md" />
       </button>

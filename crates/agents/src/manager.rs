@@ -244,6 +244,27 @@ impl AgentManager {
         Ok((session.id, session.r#ref))
     }
 
+    /// The review's path filter, keeping only files that are really in the diff.
+    async fn review_paths(&self, repo_path: &str, session_ref: &str, action: &AgentAction) -> Result<Vec<String>> {
+        let AgentAction::Review { paths, .. } = action else {
+            return Ok(Vec::new());
+        };
+        let wanted: Vec<&str> = paths.iter().map(|p| p.trim()).filter(|p| !p.is_empty()).collect();
+        if wanted.is_empty() {
+            return Ok(Vec::new());
+        }
+        let diff = self.backend.diff(repo_path, session_ref).await?;
+        let kept: Vec<String> = wanted
+            .into_iter()
+            .filter(|p| diff.files.iter().any(|f| f.path == *p))
+            .map(String::from)
+            .collect();
+        if kept.is_empty() {
+            return Err(AppError::invalid("none of the selected files are in this diff"));
+        }
+        Ok(kept)
+    }
+
     async fn review_brief(&self, action: &AgentAction) -> Result<Option<prompts::ReviewBrief>> {
         let AgentAction::ReviewFeedback { review_id } = action else {
             return Ok(None);
@@ -368,6 +389,7 @@ impl AgentManager {
         }
         let (session_id, session_ref) = self.binding_session(&rec, &action).await?;
         let review = self.review_brief(&action).await?;
+        let paths = self.review_paths(&rec.chat.repo_path, &session_ref, &action).await?;
         let binding = Binding {
             repo_path: rec.chat.repo_path.clone(),
             session_id,
@@ -378,6 +400,7 @@ impl AgentManager {
                 .unwrap_or("Agent")
                 .to_string(),
             edit_rejected: Default::default(),
+            paths,
         };
 
         let (store, id) = (self.store.clone(), chat_id.to_string());

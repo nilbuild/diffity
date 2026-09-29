@@ -103,7 +103,7 @@ not a redesign.
   lines, filled file/folder icons, coloured status letter, comment badges). Collapsing (title-bar toggle or ⌘\\) leaves a
   48px strip with the three view icons; the state is global and remembered.
 - Rail (`components/layout/activity-rail.tsx`, 52px, on the frame): project tiles (neutral monochrome initials; active
-  = raised tile with a ring and a 4px pill indicator centred on it; inactive = soft fill), manual order that never
+  = ink tile with inverted initials, no side indicator; inactive = soft fill), manual order that never
   re-sorts on select, pointer drag to reorder (others slide to open the slot), right-click removes, ⌘1–9 and ⌘⇧[ ]
   switch, ⌘-click opens a new window. Below the tiles a dashed "+" tile (Open folder, ⌘O); Settings gear at the bottom.
   Hover tooltips (name, shortcut, path) appear to the right after 300ms.
@@ -117,7 +117,7 @@ not a redesign.
 - Home (`/overview`, `components/layout/dashboard.tsx`; also shown for Changes when the tree is clean), max 1000px:
   header with labelled secondary buttons, a quiet status line, one "Up next" hero (the only emphasised surface),
   a To review list and History, all using `ListRow` (row = action, stats flush right, chevron / ⋯).
-- Claude: "Ask Claude to review" split button with focus menu and "Resolve open comments"; a status pill
+- Claude: "Ask Claude to review" opens a popover (instructions, focus chips, scope) before starting; a status pill
   ("Claude is reviewing… · 3 comments · 0:42", Stop) replaces it while a run is active; "Resolve with Claude" on
   each open thread; "Claude Code is working…" inside threads being addressed; file-write approval modal with a
   diff preview (Deny / Allow once / Always allow).

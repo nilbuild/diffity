@@ -136,7 +136,7 @@ async fn main() -> anyhow::Result<()> {
         AgentMode::Ask => ("In one sentence: what does math.js do? Use no tools except reading that file.".to_string(), AgentAction::Chat),
         _ => (
             "Keep this very short: this diff is one tiny file. Leave at most one inline comment and one short general comment, then stop.".to_string(),
-            AgentAction::Review { r#ref: "work".into(), focus: None },
+            AgentAction::Review { r#ref: "work".into(), focus: None, instructions: None, paths: Vec::new() },
         ),
     };
     let (text, action) = match custom {

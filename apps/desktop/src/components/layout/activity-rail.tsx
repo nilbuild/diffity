@@ -44,20 +44,6 @@ function repoName(path: string) {
   return path.split('/').filter(Boolean).pop() ?? 'repo';
 }
 
-function Indicator(props: { active: boolean }) {
-  const { active } = props;
-
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        'absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-text transition-all duration-150',
-        active ? 'h-5 opacity-100' : 'h-2 opacity-0 group-hover:opacity-40',
-      )}
-    />
-  );
-}
-
 function RailTooltip(props: { title: string; detail?: string; shortcut?: string | null }) {
   const { title, detail, shortcut } = props;
 
@@ -100,7 +86,6 @@ function ProjectTile(props: ProjectTileProps) {
       className={cn('group relative w-full flex justify-center', dragging && 'z-10', animate && !dragging && 'transition-transform duration-150 ease-out')}
       style={{ transform: offset ? `translateY(${offset}px)` : undefined }}
     >
-      {!dragging && <Indicator active={current} />}
       <button
         onPointerDown={(event) => onPointerDown(event, index)}
         onClick={(event) => onOpen(event.metaKey || event.ctrlKey)}
@@ -116,7 +101,7 @@ function ProjectTile(props: ProjectTileProps) {
         className={cn(
           tileBase,
           'text-[12px] font-semibold tracking-wide touch-none',
-          current ? 'bg-raised text-text ring-1 ring-control-border' : 'bg-active text-text-secondary hover:bg-raised hover:text-text',
+          current ? 'bg-text text-bg' : 'bg-active text-text-secondary hover:bg-fill-hover hover:text-text hover:ring-1 hover:ring-control-border',
           dragging ? 'cursor-grabbing bg-raised ring-1 ring-control-border opacity-90' : 'cursor-pointer',
         )}
       >

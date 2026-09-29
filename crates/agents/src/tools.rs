@@ -22,6 +22,29 @@ pub struct Binding {
     pub agent_name: String,
     /// Set when the user rejected a file edit during the current turn; `resolve` is refused while set.
     pub edit_rejected: Arc<AtomicBool>,
+    /// When non-empty, `get_diff` returns only these files and comments elsewhere are rejected.
+    pub paths: Vec<String>,
+}
+
+/// Keeps the per-file sections of a unified diff whose path is in `paths`.
+pub fn filter_patch(patch: &str, paths: &[String]) -> String {
+    let mut out = String::new();
+    let mut keep = false;
+    for section in patch.split_inclusive('\n') {
+        if let Some(header) = section.strip_prefix("diff --git ") {
+            keep = paths.iter().any(|p| {
+                header.contains(&format!("a/{p} ")) || header.trim_end().ends_with(&format!("b/{p}"))
+            });
+        }
+        if keep {
+            out.push_str(section);
+        }
+    }
+    out
+}
+
+fn in_scope(b: &Binding, file: &str) -> bool {
+    b.paths.is_empty() || b.paths.iter().any(|p| p == file)
 }
 
 pub const EDIT_REJECTED: &str = "The user rejected a file edit in this run, so this thread cannot be marked resolved. \
@@ -161,6 +184,12 @@ async fn add_comment(backend: &dyn ReviewBackend, b: &Binding, a: CommentArgs) -
         return Err(AppError::invalid("body is required"));
     }
     let file = a.file.trim().trim_start_matches("./").to_string();
+    if !in_scope(b, &file) {
+        return Err(AppError::invalid(format!(
+            "`{file}` is outside the files the user asked you to review ({}); comment only on those",
+            b.paths.join(", ")
+        )));
+    }
     let diff = backend.diff(&b.repo_path, &b.r#ref).await?;
     let in_diff = diff
         .files
@@ -251,6 +280,7 @@ pub async fn call(
             let files: Vec<String> = diff
                 .files
                 .iter()
+                .filter(|f| in_scope(b, &f.path))
                 .map(|f| {
                     let status = serde_json::to_value(f.status)
                         .ok()
@@ -265,14 +295,25 @@ pub async fn call(
                     )
                 })
                 .collect();
-            let patch = if diff.patch.is_empty() {
+            let patch = if b.paths.is_empty() {
+                diff.patch
+            } else {
+                filter_patch(&diff.patch, &b.paths)
+            };
+            let patch = if patch.is_empty() {
                 "(empty diff)".to_string()
             } else {
-                diff.patch
+                patch
+            };
+            let scope_note = if b.paths.is_empty() {
+                String::new()
+            } else {
+                " — limited to the files the user selected".to_string()
             };
             Ok(Value::String(format!(
-                "Diff for `{}` ({} files):\n{}\n\n{}",
+                "Diff for `{}`{} ({} files):\n{}\n\n{}",
                 diff.resolved.label,
+                scope_note,
                 files.len(),
                 files.join("\n"),
                 patch
@@ -377,6 +418,31 @@ mod tests {
     }
 
     #[test]
+    fn filter_patch_keeps_only_selected_files() {
+        let patch = "diff --git a/src/a.ts b/src/a.ts\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1 +1 @@\n-x\n+y\ndiff --git a/src/b.ts b/src/b.ts\n--- a/src/b.ts\n+++ b/src/b.ts\n@@ -1 +1 @@\n-p\n+q\n";
+        let kept = filter_patch(patch, &["src/b.ts".to_string()]);
+        assert!(kept.starts_with("diff --git a/src/b.ts b/src/b.ts"));
+        assert!(kept.contains("+q"));
+        assert!(!kept.contains("src/a.ts"));
+        assert_eq!(filter_patch(patch, &["src/c.ts".to_string()]), "");
+    }
+
+    #[tokio::test]
+    async fn add_comment_rejects_files_outside_the_scope() {
+        let (_store, backend, mut binding) = setup();
+        binding.paths = vec!["src/app.ts".into()];
+        let err = call(
+            &backend,
+            &binding,
+            "add_comment",
+            json!({ "file": "src/other.ts", "startLine": 1, "body": "x" }),
+        )
+        .await
+        .unwrap_err();
+        assert!(err.message.contains("outside the files"), "{}", err.message);
+    }
+
+    #[test]
     fn side_parsing() {
         assert_eq!(parse_side(None).ok(), Some(Side::New));
         assert_eq!(parse_side(Some("old")).ok(), Some(Side::Old));
@@ -394,6 +460,7 @@ mod tests {
             mode: AgentMode::Resolve,
             agent_name: "Claude Code".into(),
             edit_rejected: Default::default(),
+            paths: Vec::new(),
         };
         (store, backend, binding)
     }

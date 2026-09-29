@@ -52,6 +52,29 @@ fn render_review_feedback(session_ref: &str, review: &ReviewBrief) -> String {
 
 const EDIT_PREAMBLE: &str = "You are a coding assistant embedded in Diffity, a desktop code-review app, working in the repository at the current working directory. Make the changes the user asks for with your file editing tools; every write is shown to the user for approval. Keep changes minimal and focused. For review comments use only the `diffity` MCP tools (`mcp__diffity__*`); never run a `diffity` CLI or invoke a diffity skill/slash command — those belong to an older tool and are not connected to this app.";
 
+fn review_instructions(instructions: Option<&str>) -> String {
+    let Some(text) = instructions.map(str::trim).filter(|t| !t.is_empty()) else {
+        return String::new();
+    };
+    let quoted = text.lines().map(|line| format!("> {line}")).collect::<Vec<_>>().join("\n");
+    format!(
+        "\n## The user's instructions\n\nThe user asked for this review with the guidance below. It takes priority over the generic \
+passes in Step 2: spend most of the review on it, and say in your final summary how you addressed it.\n\n{quoted}\n"
+    )
+}
+
+fn review_scope(paths: &[String]) -> String {
+    let paths: Vec<&str> = paths.iter().map(|p| p.trim()).filter(|p| !p.is_empty()).collect();
+    if paths.is_empty() {
+        return String::new();
+    }
+    let list = paths.iter().map(|p| format!("- `{p}`")).collect::<Vec<_>>().join("\n");
+    format!(
+        "\n## Scope\n\nReview only these files. `get_diff` already returns just them, and comments on any other file are \
+rejected. You may read other files for context, but do not comment on them.\n\n{list}\n"
+    )
+}
+
 pub fn render(template: &str, vars: &[(&str, &str)]) -> String {
     let mut out = template.to_string();
     for (key, value) in vars {
@@ -77,12 +100,17 @@ fn action_template(
             let fallback = ReviewBrief::default();
             Some(render_review_feedback(session_ref, review.unwrap_or(&fallback)))
         }
-        AgentAction::Review { r#ref, focus } => {
+        AgentAction::Review { r#ref, focus, instructions, paths } => {
             let focus = focus
                 .as_deref()
                 .filter(|f| !f.trim().is_empty())
                 .unwrap_or("everything");
-            Some(render(REVIEW, &[("ref", r#ref), ("focus", focus)]))
+            let instructions = review_instructions(instructions.as_deref());
+            let scope = review_scope(paths);
+            Some(render(
+                REVIEW,
+                &[("ref", r#ref), ("focus", focus), ("instructions", &instructions), ("scope", &scope)],
+            ))
         }
         AgentAction::Resolve { thread_id } => {
             let target = match thread_id {
@@ -182,10 +210,14 @@ mod tests {
             AgentAction::Review {
                 r#ref: "main..feat".into(),
                 focus: Some("security".into()),
+                instructions: Some("Check error handling".into()),
+                paths: vec!["src/app.ts".into()],
             },
             AgentAction::Review {
                 r#ref: "work".into(),
                 focus: None,
+                instructions: None,
+                paths: Vec::new(),
             },
             AgentAction::Resolve {
                 thread_id: Some("abcd1234".into()),
@@ -227,12 +259,40 @@ mod tests {
         let action = AgentAction::Review {
             r#ref: "main..feat".into(),
             focus: Some("security".into()),
+            instructions: None,
+            paths: Vec::new(),
         };
         let p = build_prompt(AgentMode::Review, &action, "work", true, "", &[], None);
         assert!(p.contains("`main..feat`"));
         assert!(p.contains("Focus: security"));
         assert!(p.contains("add_comment"));
         assert!(!p.contains("diffity agent"));
+        assert!(!p.contains("The user's instructions"));
+        assert!(!p.contains("## Scope"));
+    }
+
+    #[test]
+    fn review_prompt_includes_instructions_and_paths() {
+        let action = AgentAction::Review {
+            r#ref: "work".into(),
+            focus: None,
+            instructions: Some("  This is a perf refactor.\nLook for regressions.  ".into()),
+            paths: vec!["src/app.ts".into(), " ".into(), "src/lib/math.ts".into()],
+        };
+        let p = build_prompt(AgentMode::Review, &action, "work", true, "", &[], None);
+        assert!(p.contains("## The user's instructions"));
+        assert!(p.contains("takes priority"));
+        assert!(p.contains("> This is a perf refactor.\n> Look for regressions."));
+        assert!(p.contains("## Scope"));
+        assert!(p.contains("- `src/app.ts`\n- `src/lib/math.ts`"));
+        assert!(!p.contains("- ` `"));
+        assert!(!p.contains("{{"));
+    }
+
+    #[test]
+    fn review_action_deserializes_without_new_fields() {
+        let action: AgentAction = serde_json::from_str(r#"{"kind":"review","ref":"work"}"#).unwrap();
+        assert!(matches!(action, AgentAction::Review { ref paths, ref instructions, .. } if paths.is_empty() && instructions.is_none()));
     }
 
     #[test]

@@ -10,7 +10,7 @@ import { MarkdownContent } from '../../components/layout/markdown-content';
 import { Spinner } from '../../components/icons/spinner';
 import { buttonClaude, buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 import { DiffStatBar } from '../../components/ui/diff-stat-bar';
-import { enqueueClaude } from '../claude/claude-runner';
+import { requestAskClaude } from '../claude/ask-claude-review';
 import { useCopy } from '../../hooks/use-copy';
 import type { CommentThread } from '../../components/comments/types';
 import { PrStateIcon, ReviewDecision, headLabel, relative } from './pr-meta';
@@ -120,7 +120,7 @@ interface DetailsDialogProps {
 }
 
 function PrDetailsDialog(props: DetailsDialogProps) {
-  const { pr, repoPath, prRef, syncing, syncedAt, unsynced, onSync, onReview, back, onClose } = props;
+  const { pr, prRef, syncing, syncedAt, unsynced, onSync, onReview, back, onClose } = props;
   const body = pr.body.trim();
   const checks = checksInfo(pr.checks);
 
@@ -135,16 +135,15 @@ function PrDetailsDialog(props: DetailsDialogProps) {
     return () => window.removeEventListener('keydown', handler, true);
   }, [onClose]);
 
-  const askClaude = async () => {
-    const session = await tauri.getSession(repoPath, prRef).catch(() => null);
-    enqueueClaude({ kind: 'review', ref: prRef }, { repoPath, sessionId: session?.id ?? null });
+  const askClaude = () => {
     onClose();
     onReview();
+    requestAskClaude(prRef);
   };
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-6 font-sans"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 p-6 font-sans"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -233,7 +232,7 @@ function PrDetailsDialog(props: DetailsDialogProps) {
                 <span className="truncate">Back to {back.label}</span>
               </button>
             )}
-            <button onClick={() => void askClaude()} className={cn(buttonClaude, 'self-start')}>
+            <button onClick={askClaude} className={cn(buttonClaude, 'self-start')}>
               <SparkleIcon size="sm" />
               Ask Claude to review
             </button>

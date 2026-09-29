@@ -210,7 +210,7 @@ export interface ContextChip {
 
 export type AgentAction =
   | { kind: 'chat' }
-  | { kind: 'review'; ref: string; focus?: string }
+  | { kind: 'review'; ref: string; focus?: string; instructions?: string; paths?: string[] }
   | { kind: 'resolve'; threadId?: string }
   | { kind: 'explain'; path: string }
   | { kind: 'summarize'; ref: string }

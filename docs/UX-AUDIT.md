@@ -247,6 +247,23 @@ that fell out: **controls live next to what they change, and every region has on
   synced) and Actions (Open on GitHub, Back to branch, Ask Claude to review). Esc or a click on the dimmed backdrop
   closes it.
 
+## Round 7
+
+- **Ask Claude to review asks first.** The button (diff toolbar, Home's Up next, row ⋯ menus and the PR dialog all
+  route to it) opens a popover: "What should Claude focus on?" (multi-line), focus chips (Security, Performance,
+  Correctness, Naming, Tests, Types — remembered per repo), and scope (all changes / only the focused file / only
+  files matching a glob with a live match count). ⌘↵ or "Start review" starts; the split-button focus menu is gone.
+  Backend: the `review` action takes `instructions` and `paths`; the prompt gets a "The user's instructions" section
+  (takes priority over the generic passes) and a "Scope" section; paths are validated against the diff, `get_diff`
+  returns only those files and `add_comment` rejects others. Verified with a real run on a scratch repo
+  (instructions + `src/lib/*.ts`): one comment, only in `src/lib/math.ts`.
+- ⋯ buttons in the sidebar filter row and the diff bar have the same outlined chrome and height as their neighbours.
+- Dialog backdrop is darker (black/45).
+- Rail: the active project is an ink tile (dark in light mode, light in dark mode) with no side indicator; inactive
+  tiles stay soft grey; hover adds a ring.
+- Status-bar repo path: click reveals the folder in Finder; right-click offers Reveal in Finder, Open in Terminal,
+  Open in <editor>, Copy path.
+
 ## Remaining
 
 - Very large diffs (thousands of files) are still rendered eagerly apart from auto-collapsed files; no virtualisation.

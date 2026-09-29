@@ -11,6 +11,14 @@
     "core:window:allow-start-dragging",
     "dialog:default",
     "opener:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
+    },
     "window-state:default",
     "core:webview:allow-create-webview-window",
     "core:window:allow-set-focus",

@@ -6,7 +6,13 @@ import { useRepoNav } from '../../hooks/use-repo';
 import { StaleNotice } from './stale-notice';
 import { shortPath } from '../../features/welcome/recent-repos';
 import { OtherViewsNotice } from '../../features/comments/other-views-notice';
-import { GitPullRequestIcon } from '../ui/icon';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
+import { CodeIcon, CopyIcon, EditorIcon, FolderSimpleIcon, GitPullRequestIcon } from '../ui/icon';
+import { ContextMenu, MenuItem, MenuSeparator } from '../ui/popover';
+import { useEditorName } from '../../hooks/use-editor-name';
+import { errorMessage, openInEditor } from '../../lib/api';
 
 interface StatusBarProps {
   diffRef?: string;
@@ -39,6 +45,62 @@ function Tracking() {
   );
 }
 
+function RepoPathButton(props: { label: string; path: string }) {
+  const { label, path } = props;
+  const editor = useEditorName();
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const reveal = () => {
+    revealItemInDir(path).catch((error) => toast.error('Could not reveal the folder', { description: String(error) }));
+  };
+  const run = (action: () => void) => () => {
+    setMenu(null);
+    action();
+  };
+
+  return (
+    <>
+      <button
+        onClick={reveal}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setMenu({ x: event.clientX, y: event.clientY });
+        }}
+        className="hidden lg:inline-flex items-center h-5 min-w-0 px-1.5 rounded font-mono text-[11px] text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer"
+        title={`${path}\nReveal in Finder (right-click for more)`}
+      >
+        <span className="truncate">{label}</span>
+      </button>
+      <ContextMenu position={menu} onClose={() => setMenu(null)}>
+        <MenuItem icon={<FolderSimpleIcon size="sm" />} label="Reveal in Finder" onSelect={run(reveal)} />
+        <MenuItem
+          icon={<CodeIcon size="sm" />}
+          label="Open in Terminal"
+          onSelect={run(() => {
+            openPath(path, 'Terminal').catch((error) => toast.error('Could not open Terminal', { description: String(error) }));
+          })}
+        />
+        <MenuItem
+          icon={<EditorIcon size="sm" />}
+          label={`Open in ${editor}`}
+          onSelect={run(() => {
+            openInEditor('').catch((error) => toast.error('Could not open the editor', { description: errorMessage(error) }));
+          })}
+        />
+        <MenuSeparator />
+        <MenuItem
+          icon={<CopyIcon size="sm" />}
+          label="Copy path"
+          onSelect={run(() => {
+            void navigator.clipboard.writeText(path);
+            toast.success('Path copied');
+          })}
+        />
+      </ContextMenu>
+    </>
+  );
+}
+
 export function StatusBar(props: StatusBarProps) {
   const { sessionId, stale } = props;
   const nav = useRepoNav();
@@ -58,7 +120,7 @@ export function StatusBar(props: StatusBarProps) {
       {stale && <StaleNotice onRefresh={stale.onRefresh} message={stale.message} />}
       {sessionId && <OtherViewsNotice sessionId={sessionId} />}
       <span className="flex-1" />
-      {path && <span className="truncate font-mono text-[11px] text-text-muted hidden lg:inline min-w-0 px-1.5" title={meta?.path}>{path}</span>}
+      {path && meta?.path && <RepoPathButton label={path} path={meta.path} />}
       {details && (
         <button
           onClick={() => nav.toDiff(prDiffRef(details))}

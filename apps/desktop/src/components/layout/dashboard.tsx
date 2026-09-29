@@ -6,8 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { diffOptions } from '../../queries/diff';
-import * as tauri from '../../lib/tauri';
-import { enqueueClaude } from '../../features/claude/claude-runner';
+import { AskClaudePopover, requestAskClaude } from '../../features/claude/ask-claude-review';
 import { usePullRequests } from '../../features/pr/pull-requests-dialog';
 import { checkoutPullRequest } from '../../features/pr/pr-checkout';
 import { BranchSwitcher } from '../../features/pr/branch-switcher';
@@ -216,14 +215,10 @@ interface Candidate {
   summary: DiffSummary | null;
 }
 
-function Hero(props: { item: Candidate; sessionRepo: string; onReview: (ref: string) => void }) {
-  const { item, sessionRepo, onReview } = props;
-
-  const askClaude = async () => {
-    const session = await tauri.getSession(sessionRepo, item.ref).catch(() => null);
-    enqueueClaude({ kind: 'review', ref: item.ref }, { repoPath: sessionRepo, sessionId: session?.id ?? null });
-    onReview(item.ref);
-  };
+function Hero(props: { item: Candidate; onReview: (ref: string) => void }) {
+  const { item, onReview } = props;
+  const [asking, setAsking] = useState(false);
+  const askRef = useRef<HTMLButtonElement>(null);
 
   return (
     <section className="mt-6 rounded-xl border border-border bg-bg-secondary px-6 py-5">
@@ -237,10 +232,18 @@ function Hero(props: { item: Candidate; sessionRepo: string; onReview: (ref: str
         <button onClick={() => onReview(item.ref)} className={buttonPrimary}>
           Review
         </button>
-        <button onClick={() => void askClaude()} className={buttonClaude}>
+        <button ref={askRef} onClick={() => setAsking(!asking)} className={buttonClaude} aria-expanded={asking}>
           <SparkleIcon size="sm" />
           Ask Claude to review
         </button>
+        <AskClaudePopover
+          open={asking}
+          onClose={() => setAsking(false)}
+          anchorRef={askRef}
+          diffRef={item.ref}
+          sessionId={null}
+          onStarted={() => onReview(item.ref)}
+        />
         {item.summary && <span className="ml-auto"><StatLine summary={item.summary} /></span>}
       </div>
     </section>
@@ -324,10 +327,9 @@ export function Dashboard(props: DashboardProps) {
       summary: lastDiff.summary,
     });
   }
-  const askClaudeFor = async (ref: string) => {
-    const session = await tauri.getSession(nav.repoPath, ref).catch(() => null);
-    enqueueClaude({ kind: 'review', ref }, { repoPath: nav.repoPath, sessionId: session?.id ?? null });
+  const askClaudeFor = (ref: string) => {
     onNavigate(ref);
+    requestAskClaude(ref);
   };
 
   const [hero, ...rest] = candidates;
@@ -403,7 +405,7 @@ export function Dashboard(props: DashboardProps) {
               ))}
             </p>
 
-            {hero && <Hero item={hero} sessionRepo={nav.repoPath} onReview={onNavigate} />}
+            {hero && <Hero item={hero} onReview={onNavigate} />}
 
             {hasQueue && (
               <section className="mt-8">
@@ -417,7 +419,7 @@ export function Dashboard(props: DashboardProps) {
                       meta={item.eyebrow}
                       stats={item.summary && <StatCell additions={item.summary.additions} deletions={item.summary.deletions} bar={<DiffStatBar additions={item.summary.additions} deletions={item.summary.deletions} />} />}
                       onClick={() => onNavigate(item.ref)}
-                      actions={[{ label: 'Ask Claude to review', icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => void askClaudeFor(item.ref) }]}
+                      actions={[{ label: 'Ask Claude to review', icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => askClaudeFor(item.ref) }]}
                     />
                   ))}
                   {[...threadGroups.entries()].map(([ref, group]) => (
