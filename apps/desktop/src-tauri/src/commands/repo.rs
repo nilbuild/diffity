@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 
-use diffity_core::types::{Branch, Commit, GitStatus, RecentRepo, RepoInfo};
+use diffity_core::types::{Branch, Commit, GitStatus, OverviewFile, RecentRepo, RepoInfo};
 use diffity_core::watch::WatcherRegistry;
 use diffity_core::{editor, git, AppError};
 use tauri::{AppHandle, Emitter, State};
@@ -71,6 +71,11 @@ pub async fn list_branches(repo_path: String) -> Result<Vec<Branch>, AppError> {
 #[tauri::command]
 pub async fn git_status(repo_path: String) -> Result<GitStatus, AppError> {
     blocking(move || git::status(Path::new(&repo_path))).await
+}
+
+#[tauri::command]
+pub async fn repo_overview(repo_path: String) -> Result<Vec<OverviewFile>, AppError> {
+    blocking(move || git::overview(Path::new(&repo_path))).await
 }
 
 #[tauri::command]

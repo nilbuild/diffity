@@ -1,6 +1,6 @@
 # Diffity App — Architecture & Contracts
 
-Desktop code-review app. Tauri v2 + Rust backend + React (Vite) frontend using `@pierre/diffs`.
+Desktop code-review app. Tauri v2 + Rust backend + React (Vite) frontend ported from the diffity web UI (`~/Vibecode/diffity/packages/ui`) with its diff parser (`packages/parser`).
 Scope v1: diffs, comments, file browsing, agents (ACP), GitHub (git sync + PR review comments). No CLI, no tours, no learn.
 Reference implementation of the old product (read for behaviour, do not copy blindly): `~/Vibecode/diffity`
 (`packages/git/src/*.ts` for ref resolution, `packages/github/src/*.ts`, `packages/cli/src/{threads,db,server}.ts`, `skills/*/SKILL.md` for review/resolve prompts).
@@ -11,12 +11,13 @@ Defaults chosen: data in app data dir; macOS first; agents = Claude Code via ACP
 
 ```
 Cargo.toml                    # workspace: crates/*, apps/desktop/src-tauri
-pnpm-workspace.yaml           # apps/desktop
+pnpm-workspace.yaml           # apps/desktop, packages/*
+packages/parser  (@diffity/parser)  unified-diff parser + word diff (TS source, vitest tests), used by the frontend
 crates/core      (diffity-core)     git CLI wrapper, ref resolution, diff, tree, files, watcher, SQLite Store
 crates/agents    (diffity-agents)   agent detection, ACP client, sessions, permission broker, MCP tool bridge (socket server)
 crates/mcp       (diffity-mcp)      stdio MCP server binary; proxies tool calls to the app over a unix socket
 crates/github    (diffity-github)   auth (keychain/gh/PAT/device flow), git fetch/pull/push, PRs, review push/pull via GraphQL
-apps/desktop                        Vite + React 19 + TS + Tailwind v4 + TanStack Query + @pierre/diffs
+apps/desktop                        Vite + React 19 + TS + Tailwind v4 + TanStack Query + react-router (HashRouter) + shiki
 apps/desktop/src-tauri (diffity-desktop)  thin shell: AppState, commands/*.rs, plugins, windows
 prompts/                            review.md, resolve.md, ask.md, explain.md, summarize.md (embedded via include_str!)
 ```
@@ -70,7 +71,9 @@ interface RecentRepo { path: string; name: string; lastOpenedAt: string; }
 // ref strings: 'work' | 'staged' | 'unstaged' | '<ref>' | '<a>..<b>' | '<a>...<b>'
 interface ResolvedRef { ref: string; label: string; canRevert: boolean; baseSha: string | null; headSha: string | null; }
 type FileStatus = 'added' | 'deleted' | 'modified' | 'renamed' | 'copied' | 'untracked';
-interface DiffFileSummary { path: string; oldPath: string | null; status: FileStatus; additions: number; deletions: number; binary: boolean; }
+interface DiffFileSummary { path: string; oldPath: string | null; status: FileStatus; additions: number; deletions: number; binary: boolean;
+  oldLineCount: number | null; }   // old-side line count (one `git cat-file --batch`), for context expansion below the last hunk
+interface OverviewFile { path: string; status: 'staged' | 'modified' | 'added'; }   // dashboard; modified wins over staged, untracked = added
 interface DiffResult { resolved: ResolvedRef; files: DiffFileSummary[]; patch: string; fingerprint: string; }
 interface FileVersions { oldContents: string | null; newContents: string | null; }
 interface Commit { sha: string; shortSha: string; subject: string; author: string; date: string; }
@@ -122,7 +125,8 @@ interface GithubAuthStatus { authenticated: boolean; login: string | null; sourc
 interface DeviceCode { userCode: string; verificationUri: string; deviceCode: string; interval: number; expiresIn: number; }
 interface GitOpResult { ok: boolean; output: string; }
 interface PullRequest { number: number; title: string; url: string; state: string; isDraft: boolean; author: string;
-  baseRef: string; headRef: string; headSha: string; reviewDecision: string | null; checks: string | null; body: string; }
+  baseRef: string; headRef: string; headSha: string; reviewDecision: string | null; checks: string | null; body: string;
+  createdAt: string; reviewThreadCount: number; }
 type ReviewEvent = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';
 interface PushResult { pushed: number; skipped: number; failed: number; errors: string[]; }
 interface PullResult { pulled: number; updated: number; skipped: number; }
@@ -143,6 +147,7 @@ diff_fingerprint(repoPath, ref) -> string
 list_commits(repoPath, count, skip, search: Option) -> Commit[]
 list_branches(repoPath) -> Branch[]
 git_status(repoPath) -> GitStatus
+repo_overview(repoPath) -> OverviewFile[]       // staged / modified / untracked files for the dashboard (`git::overview`)
 revert_file(repoPath, path) -> ()
 revert_hunk(repoPath, patch) -> ()              // git apply --reverse --unidiff-zero, patch via stdin
 open_in_editor(repoPath, path, line: Option, editor: Option) -> ()   // code/cursor/zed, fallback `open`
@@ -209,32 +214,45 @@ github_set_resolved(threadId, resolved: bool) -> Thread
 
 ## Frontend structure (`apps/desktop/src`)
 
-```
-main.tsx, App.tsx               router: "/" welcome, "/repo?path=..." workspace
-lib/types.ts, lib/api.ts        typed invoke wrappers for every command above (scaffold)
-lib/query.ts                    QueryClient, query keys
-features/welcome/               recent repos, Open Folder, open PR URL
-features/workspace/             WorkspaceLayout: toolbar (ref picker, view toggles, git sync slot), tabs Changes|Files|PR, right AgentPanel slot
-features/changes/               diff page on @pierre/diffs CodeView, sidebar file list, threads in annotations, staleness
-features/files/                 file tree + File viewer + comments, markdown/svg/mermaid/image preview
-features/comments/              thread card, comment form, general comments, orphaned threads, navigation
-features/agent/                 AgentPanel (chat, streaming, tool rows, permission cards, action buttons)  — agents-ui workstream
-features/pr/                    PrTab, GitSyncButtons, GithubAuthDialog, PushReviewDialog               — agents-ui workstream
-features/settings/              SettingsDialog (agents, github, editor, theme)                          — agents-ui workstream
-components/ui/                  shared primitives (Button, IconButton, Dialog, Menu, Badge, Kbd)
-```
-Cross-feature hooks the core UI exposes for the agent UI:
-- `useSelection()` store (zustand or React context in `features/workspace/selection.ts`): current `ContextChip | null`; ⌘L sends it to the AgentPanel.
-- `useWorkspace()` → `{ repoPath, repo, ref, setRef, sessionId }`.
-- `agentBus` (in `features/workspace/agent-bus.ts`): `askAboutSelection(chip)`, `runAction(action)`, used by diff/file UI buttons ("Ask AI", "Explain", "Resolve with AI").
-  `thread` / `reviewFeedback` actions are queued (`features/agent/run-queue.ts`) and run one at a time in a `resolve` chat, never alongside another run. `useAgentThreadActivity(threadId)` → `'idle' | 'queued' | 'working'` and `useAgentBus(s => s.activeThreadIds)` expose progress to thread UI (review runs mark every `review.threadIds`).
+The UI is the diffity web app's UI (see `docs/DESIGN.md`). Its components stay close to the original; the HTTP
+layer was replaced by an adapter over Tauri `invoke`.
 
-Keyboard: j/k file, n/p hunk, u/s view, x / shift+x collapse, r viewed, / filter, ? help, ⌘L ask, ⌘O open, ⌘Enter submit, Esc cancel.
+```
+main.tsx, App.tsx               HashRouter: "/" welcome, "/r/:repo/{diff?ref=,tree?path=&type=,overview}" (repo = encodeURIComponent(path))
+routes/                         welcome, repo-layout (sets the adapter's repo path, watches the repo, error boundary, PR checkout, approval modal), diff, tree, overview
+lib/tauri.ts, lib/types.ts      typed invoke wrappers + event listeners for every command (mirror of the Rust types)
+lib/api.ts                      adapter with the web app's function names/shapes (fetchDiff, fetchRepoInfo, fetchThreads, createThread, …)
+lib/*                           web app helpers (diff-utils, context-expansion, comment-navigation, file-tree, …), mentions, line-diff, window, dev, mock-api (browser mode)
+queries/, hooks/                web app queries/hooks; use-repo (nav + events), use-viewed-files, use-dismiss, event-driven staleness
+components/                     web app components (diff/, comments/, tree/, layout/, ui/, icons/) + title-bar, page-switcher, ref-menu, git-sync-actions, github-dialog (with sign-in)
+features/claude/                claude-runner (queue + runs), claude-toolbar (Review/Resolve with Claude, status pill), claude-approval-modal
+features/review/                review-state (pending review context, submit/discard), finish-review popover
+features/welcome/open-repo.ts   folder picker, PR URL parsing
+```
+
+Adapter mapping (`lib/api.ts`, web endpoint → command):
+- `/api/diff` → `get_diff` + `parseDiff(patch)`; `oldFileLineCount` from `DiffFileSummary.oldLineCount`. `/api/diff-fingerprint` → `diff_fingerprint`.
+- `/api/info` → `open_repo` + `resolve_ref` + `get_session` (description = web labels, `capabilities.revert = canRevert`, `github` parsed from `remoteUrl`). `/api/tree/info` → same with the `__tree__` session.
+- `/api/overview` → `repo_overview`; `/api/commits` → `list_commits` (`hasMore = page full`, relative dates via dayjs; clicking a commit opens `<sha>~1..<sha>`).
+- `/api/file/:path?ref` → `get_file_versions(...).oldContents`; rich Markdown/SVG diff uses both sides. `/api/tree*` → `list_tree` (entries derived client-side), `read_file`; `/api/tree/raw` → `read_file_base64` data URLs (images, Markdown images).
+- Threads: `list_threads` / `create_thread` / `add_reply` / `set_thread_status` / `edit_comment` / `delete_*`; backend threads are mapped to the web `CommentThread` (`author: {name, type}`, plus `pending`, `reviewId`, `sessionId`). Tree path comments keep the web convention `filePath = "__path__:<path>"`.
+- `revert_file` / `revert_hunk` / `open_in_editor`; GitHub dialog → `github_auth_status`, `github_import_gh_token`, `github_set_token`, `github_logout`, `find_pr`, `github_pushable_threads`, `push_review(threadIds)`, `pull_review` (both on the PR session `origin/<base>...HEAD`).
+- Polling replaced by events: `repo-changed` bumps a tick (staleness hooks re-fingerprint, overview/commits/git-status refetch); `threads-changed` invalidates `['threads', sessionId]` and `['reviews', sessionId]`.
+
+Claude (no chat panel yet): `features/claude/claude-runner.ts` queues `review` (mode `review`), `resolve`, `thread` and
+`reviewFeedback` (mode `resolve`) runs and executes them one at a time: one new chat per run (`start_chat` →
+`send_prompt` with empty text + action). It counts new agent threads on `threads-changed`, surfaces
+`permissionRequest` events in the approval modal (`respond_permission`), and exposes `useThreadActivity(threadId)`
+(`queued` / `working`) for thread cards. Triggers: toolbar buttons, per-thread "Resolve with Claude", a published
+comment/reply whose newest comment `mentionsAgent` (→ `thread`), and review submit (Send to Claude or body mention
+→ `reviewFeedback`, otherwise `thread` per `mentionedThreadIds`).
+
+Keyboard (web app): j/k file, n/p hunk, u/s view, x / shift+x collapse, r viewed, / filter, ? help, Esc; ⌘Enter submits a comment, ⌘O on the welcome screen.
 
 ## Scaffold notes / TODO
 
 - `diffity-mcp` is bundled as `bundle.externalBin: ["binaries/diffity-mcp"]` (see Integration notes).
-- Router is `HashRouter`: extra windows (`repo-*` labels) load `index.html#/repo?path=<encoded>`.
+- Router is `HashRouter`: extra windows (`repo-*` labels) load `index.html#/r/<encoded path>/diff`.
 - Rust command params named `ref` are written `r#ref` (tauri-macros unraws them, so JS key stays `ref`).
 - `Store::conn()` returns a `MutexGuard<Connection>`; never hold it across `.await`.
 - `AgentManager::on_threads_changed(hook)` is wired in `lib.rs` to emit `threads-changed`.
@@ -299,8 +317,8 @@ GitHub-style pending reviews plus `@claude` mentions.
 - **PR comments across sessions.** Users usually comment in `work` (or a branch/commit ref) while the PR tab uses the PR session `origin/<base>...HEAD`.
   - *Push:* `github_pushable_threads(repoPath, prNumber)` returns open, unsynced threads from **all** of the repo's sessions whose file is in the PR (general comments included) and whose commented side is anchored like GitHub's PR diff: new side ⇒ the session's new side is local `HEAD` (`work`, `staged`, `HEAD`, the PR ref, the file browser), old side ⇒ the session's base is the PR merge-base (in practice only the PR session). PR-session threads are listed first; others get an "other view" badge. `push_review(..., threadIds)` accepts ids from any session of the repo (with `threadIds: null` it pushes the given session only, as before). Threads stay in their original session and gain GitHub ids there.
   - *Pull:* `pull_review` matches remote threads against GitHub-linked threads in **any** session of the repo (so threads pushed from `work` update in place); new remote threads are created in the PR session, and the PR tab switches the ref picker to the PR ref so the Changes view shows them. Both commands emit `threads-changed` for every session of the repo.
-- **Dev helpers** (debug builds only): `DIFFITY_OPEN=<repo path>` (+ optional `DIFFITY_TAB=changes|files|pr`) opens that repo in the main window on launch (`dev_launch_target` command, `lib/dev.ts`). Webview `console.error`/`console.warn`, uncaught errors and unhandled rejections are forwarded to the terminal through `log_frontend` (tracing target `webview`). Default log level is `info` in dev; override with `RUST_LOG`.
-- `?pr=<url|number>` on `/repo` (from the welcome page) opens the PR tab, which checks the PR out once GitHub auth is available. The initial tab is latched on mount so stripping `?pr=` doesn't bounce back to Changes.
-- "Explain" from a line selection sends the selection (path, side, range, snippet) as a context chip; `prompts/explain.md` focuses the explanation on that range.
+- **Dev helpers** (debug builds only): `DIFFITY_OPEN=<repo path>` (+ optional `DIFFITY_TAB=files`) opens that repo in the main window on launch (`dev_launch_target` command, `lib/dev.ts`). Webview `console.error`/`console.warn`, uncaught errors and unhandled rejections are forwarded to the terminal through `log_frontend` (tracing target `webview`). Default log level is `info` in dev; override with `RUST_LOG`.
+- `?pr=<url|number>` on a repo route (from the welcome page) checks the PR out once (when GitHub auth is available) and opens `origin/<base>...HEAD`.
+- (Backend only until the chat panel returns.) "Explain" with a line selection sends the selection (path, side, range, snippet) as a context chip; `prompts/explain.md` focuses the explanation on that range.
 
 Launch the app: `pnpm install && pnpm -C apps/desktop tauri dev` (optionally `DIFFITY_OPEN=/path/to/repo`). Bundle: `pnpm -C apps/desktop tauri build --debug --bundles app`.

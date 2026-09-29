@@ -1,0 +1,19 @@
+{
+  "name": "@diffity/parser",
+  "version": "0.9.5",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "typescript": "7.0.2",
+    "vitest": "5.0.2"
+  }
+}

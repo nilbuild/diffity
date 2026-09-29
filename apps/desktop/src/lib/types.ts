@@ -43,6 +43,12 @@ export interface DiffFileSummary {
   additions: number;
   deletions: number;
   binary: boolean;
+  oldLineCount?: number | null;
+}
+
+export interface OverviewFile {
+  path: string;
+  status: 'staged' | 'modified' | 'added';
 }
 
 export interface DiffResult {
@@ -301,6 +307,8 @@ export interface PullRequest {
   reviewDecision: string | null;
   checks: string | null;
   body: string;
+  createdAt: string;
+  reviewThreadCount: number;
 }
 
 export type ReviewEvent = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';

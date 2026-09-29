@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "pnpm -C apps/desktop tauri dev",
     "build": "pnpm -C apps/desktop tauri build",
-    "typecheck": "pnpm -C apps/desktop typecheck"
+    "typecheck": "pnpm -C apps/desktop typecheck",
+    "test": "pnpm -C packages/parser test && pnpm -C apps/desktop test"
   }
 }

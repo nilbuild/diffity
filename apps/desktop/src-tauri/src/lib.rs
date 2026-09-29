@@ -70,6 +70,7 @@ pub fn run() {
             commands::repo::list_commits,
             commands::repo::list_branches,
             commands::repo::git_status,
+            commands::repo::repo_overview,
             commands::repo::open_in_editor,
             commands::repo::get_setting,
             commands::repo::set_setting,

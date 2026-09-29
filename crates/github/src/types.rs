@@ -48,6 +48,11 @@ pub struct PullRequest {
     pub review_decision: Option<String>,
     pub checks: Option<String>,
     pub body: String,
+    #[serde(default)]
+    pub created_at: String,
+    /// Review threads on the PR (resolved or not).
+    #[serde(default)]
+    pub review_thread_count: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]

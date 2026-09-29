@@ -1,192 +1,446 @@
-import { Channel, invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import type {
-  AgentAction,
-  AgentEvent,
-  AgentInfo,
-  AppError,
-  AuthorType,
-  Branch,
-  Chat,
-  ChatMessage,
-  Commit,
-  ContextChip,
-  DeviceCode,
-  DiffResult,
-  FileContent,
-  FileVersions,
-  GitOpResult,
-  GitStatus,
-  GithubAuthStatus,
-  NewThread,
-  PullRequest,
-  PullResult,
-  PushResult,
-  RecentRepo,
-  RepoChangedPayload,
-  RepoInfo,
-  ResolvedRef,
-  Review,
-  ReviewEvent,
-  ReviewSession,
-  ReviewVerdict,
-  StartChat,
-  Thread,
-  ThreadStatus,
-  ThreadsChangedPayload,
-  TreeEntry,
-  ViewedFile,
-} from './types';
+import { parseDiff, type ParsedDiff } from '@diffity/parser';
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import type { CommentThread, CommentAuthor, CommentSide, Comment, SubmitOptions } from '../components/comments/types';
+import * as tauri from './tauri';
+import type { PullRequest, Thread, Comment as BackendComment, TreeEntry } from './types';
+import { TREE_REF } from './types';
 
-export function isAppError(value: unknown): value is AppError {
-  return typeof value === 'object' && value !== null && 'code' in value && 'message' in value;
+dayjs.extend(relativeTime);
+
+let currentRepoPath: string | null = null;
+
+export function setRepoPath(path: string | null) {
+  currentRepoPath = path;
 }
 
-export function errorMessage(error: unknown): string {
-  if (isAppError(error)) {
-    return error.message;
+export function getRepoPathOrNull(): string | null {
+  return currentRepoPath;
+}
+
+export function getRepoPath(): string {
+  if (!currentRepoPath) {
+    throw new Error('No repository open');
   }
-  if (error instanceof Error) {
-    return error.message;
+  return currentRepoPath;
+}
+
+export const errorMessage = tauri.errorMessage;
+
+export interface GitHubRemote {
+  owner: string;
+  repo: string;
+}
+
+export interface GitHubDetails {
+  prNumber: number;
+  prTitle: string;
+  prUrl: string;
+  prCreatedAt: string;
+  headSha: string;
+  commentCount: number;
+  baseRef: string;
+  headRef: string;
+}
+
+export interface RepoInfo {
+  name: string;
+  branch: string;
+  root: string;
+  description: string;
+  capabilities?: { reviews: boolean; revert: boolean; staleness: boolean };
+  sessionId?: string | null;
+  github?: GitHubRemote | null;
+  editor?: 'vscode' | null;
+}
+
+export interface Commit {
+  hash: string;
+  shortHash: string;
+  message: string;
+  relativeDate: string;
+}
+
+export interface OverviewFile {
+  path: string;
+  status: 'staged' | 'modified' | 'added';
+}
+
+export interface Overview {
+  files: OverviewFile[];
+}
+
+export interface CommitsPage {
+  commits: Commit[];
+  hasMore: boolean;
+}
+
+const WORKING_TREE_LABELS: Record<string, string> = {
+  staged: 'Staged changes',
+  unstaged: 'Unstaged changes',
+  work: 'All changes',
+  '.': 'All changes',
+};
+
+export function descriptionForRef(ref: string): string {
+  const label = WORKING_TREE_LABELS[ref];
+  if (label) {
+    return label;
   }
-  return String(error);
+  const commit = /^([0-9a-f]{7,40})~1\.\.\1$/i.exec(ref);
+  if (commit) {
+    return `Commit ${commit[1].slice(0, 7)}`;
+  }
+  if (ref.includes('..')) {
+    return ref;
+  }
+  return `Changes from ${ref}`;
 }
 
-// repo
-export const openRepo = (path: string) => invoke<RepoInfo>('open_repo', { path });
-export const recentRepos = () => invoke<RecentRepo[]>('recent_repos');
-export const watchRepo = (repoPath: string) => invoke<void>('watch_repo', { repoPath });
-export const unwatchRepo = (repoPath: string) => invoke<void>('unwatch_repo', { repoPath });
-export const listCommits = (repoPath: string, count: number, skip: number, search?: string | null) =>
-  invoke<Commit[]>('list_commits', { repoPath, count, skip, search: search ?? null });
-export const listBranches = (repoPath: string) => invoke<Branch[]>('list_branches', { repoPath });
-export const gitStatus = (repoPath: string) => invoke<GitStatus>('git_status', { repoPath });
-export const openInEditor = (repoPath: string, path: string, line?: number | null, editor?: string | null) =>
-  invoke<void>('open_in_editor', { repoPath, path, line: line ?? null, editor: editor ?? null });
-export const getSetting = (key: string) => invoke<string | null>('get_setting', { key });
-export const setSetting = (key: string, value: string) => invoke<void>('set_setting', { key, value });
-
-// diff
-export const resolveRef = (repoPath: string, ref: string) => invoke<ResolvedRef>('resolve_ref', { repoPath, ref });
-export const getDiff = (repoPath: string, ref: string, ignoreWhitespace: boolean) =>
-  invoke<DiffResult>('get_diff', { repoPath, ref, ignoreWhitespace });
-export const getFileVersions = (repoPath: string, ref: string, path: string, oldPath?: string | null) =>
-  invoke<FileVersions>('get_file_versions', { repoPath, ref, path, oldPath: oldPath ?? null });
-export const diffFingerprint = (repoPath: string, ref: string) =>
-  invoke<string>('diff_fingerprint', { repoPath, ref });
-export const revertFile = (repoPath: string, path: string) => invoke<void>('revert_file', { repoPath, path });
-export const revertHunk = (repoPath: string, patch: string) => invoke<void>('revert_hunk', { repoPath, patch });
-
-// files
-export const listTree = (repoPath: string) => invoke<TreeEntry[]>('list_tree', { repoPath });
-export const readFile = (repoPath: string, path: string) => invoke<FileContent>('read_file', { repoPath, path });
-export const readFileBase64 = (repoPath: string, path: string) =>
-  invoke<string>('read_file_base64', { repoPath, path });
-
-// comments
-export const getSession = (repoPath: string, ref: string) => invoke<ReviewSession>('get_session', { repoPath, ref });
-export const listThreads = (sessionId: string) => invoke<Thread[]>('list_threads', { sessionId });
-export const createThread = (input: NewThread) => invoke<Thread>('create_thread', { input });
-export const addReply = (
-  threadId: string,
-  body: string,
-  authorType?: AuthorType | null,
-  authorName?: string | null,
-  pending?: boolean,
-) =>
-  invoke<Thread>('add_reply', {
-    threadId,
-    body,
-    authorType: authorType ?? null,
-    authorName: authorName ?? null,
-    pending: pending ?? null,
-  });
-export const editComment = (commentId: string, body: string) => invoke<void>('edit_comment', { commentId, body });
-export const deleteComment = (commentId: string) => invoke<void>('delete_comment', { commentId });
-export const deleteThread = (threadId: string) => invoke<void>('delete_thread', { threadId });
-export const deleteAllThreads = (sessionId: string) => invoke<void>('delete_all_threads', { sessionId });
-export const setThreadStatus = (threadId: string, status: ThreadStatus, summary?: string | null) =>
-  invoke<Thread>('set_thread_status', { threadId, status, summary: summary ?? null });
-export const getPendingReview = (sessionId: string) => invoke<Review | null>('get_pending_review', { sessionId });
-export const startReview = (sessionId: string) => invoke<Review>('start_review', { sessionId });
-export const getReview = (reviewId: string) => invoke<Review>('get_review', { reviewId });
-export const listReviews = (sessionId: string) => invoke<Review[]>('list_reviews', { sessionId });
-/** Publishes all pending comments. Use the returned `mentionedThreadIds` / `threadIds` to trigger the agent. */
-export const submitReview = (sessionId: string, body?: string | null, verdict?: ReviewVerdict | null) =>
-  invoke<Review>('submit_review', { sessionId, body: body ?? null, verdict: verdict ?? null });
-export const discardReview = (sessionId: string) => invoke<void>('discard_review', { sessionId });
-export const listViewed = (sessionId: string) => invoke<ViewedFile[]>('list_viewed', { sessionId });
-export const setViewed = (sessionId: string, filePath: string, contentHash: string, viewed: boolean) =>
-  invoke<void>('set_viewed', { sessionId, filePath, contentHash, viewed });
-
-// agents
-export const listAgents = (refresh?: boolean) => invoke<AgentInfo[]>('list_agents', { refresh: refresh ?? null });
-export const startChat = (input: StartChat) => invoke<Chat>('start_chat', { input });
-export const listChats = (repoPath: string) => invoke<Chat[]>('list_chats', { repoPath });
-export const getChatMessages = (chatId: string) => invoke<ChatMessage[]>('get_chat_messages', { chatId });
-export function sendPrompt(
-  chatId: string,
-  text: string,
-  context: ContextChip[],
-  action: AgentAction,
-  onEvent: (event: AgentEvent) => void,
-) {
-  const channel = new Channel<AgentEvent>();
-  channel.onmessage = onEvent;
-  return invoke<void>('send_prompt', { chatId, text, context, action, onEvent: channel });
+export function commitRef(hash: string): string {
+  return `${hash}~1..${hash}`;
 }
-export const cancelPrompt = (chatId: string) => invoke<void>('cancel_prompt', { chatId });
-export const respondPermission = (requestId: string, optionId: string | null) =>
-  invoke<void>('respond_permission', { requestId, optionId });
-export const deleteChat = (chatId: string) => invoke<void>('delete_chat', { chatId });
 
-// github
-export const githubAuthStatus = () => invoke<GithubAuthStatus>('github_auth_status');
-export const githubImportGhToken = () => invoke<GithubAuthStatus>('github_import_gh_token');
-export const githubSetToken = (token: string) => invoke<GithubAuthStatus>('github_set_token', { token });
-export const githubDeviceStart = () => invoke<DeviceCode>('github_device_start');
-export const githubDevicePoll = (deviceCode: string) =>
-  invoke<GithubAuthStatus>('github_device_poll', { deviceCode });
-export const githubLogout = () => invoke<void>('github_logout');
-export const gitFetch = (repoPath: string) => invoke<GitOpResult>('git_fetch', { repoPath });
-export const gitPull = (repoPath: string) => invoke<GitOpResult>('git_pull', { repoPath });
-export const gitPush = (repoPath: string) => invoke<GitOpResult>('git_push', { repoPath });
-export const findPr = (repoPath: string) => invoke<PullRequest | null>('find_pr', { repoPath });
-export const listPrs = (repoPath: string) => invoke<PullRequest[]>('list_prs', { repoPath });
-export const checkoutPr = (repoPath: string, urlOrNumber: string) =>
-  invoke<PullRequest>('checkout_pr', { repoPath, urlOrNumber });
-export const pushReview = (
-  repoPath: string,
-  sessionId: string,
-  prNumber: number,
-  event: ReviewEvent | null,
-  body?: string | null,
-  threadIds?: string[] | null,
-  reviewId?: string | null,
-) =>
-  invoke<PushResult>('push_review', {
-    repoPath,
-    sessionId,
-    prNumber,
-    event,
-    body: body ?? null,
-    threadIds: threadIds ?? null,
-    reviewId: reviewId ?? null,
+export function parseGitHubRemote(url: string | null): GitHubRemote | null {
+  if (!url) {
+    return null;
+  }
+  const match = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(url.trim());
+  if (!match) {
+    return null;
+  }
+  return { owner: match[1], repo: match[2] };
+}
+
+export async function fetchDiff(hideWhitespace: boolean, ref?: string): Promise<ParsedDiff> {
+  const result = await tauri.getDiff(getRepoPath(), ref || 'work', hideWhitespace);
+  const diff = parseDiff(result.patch);
+  const lineCounts = new Map<string, number>();
+  for (const file of result.files) {
+    if (file.oldLineCount !== null && file.oldLineCount !== undefined) {
+      lineCounts.set(file.path, file.oldLineCount);
+    }
+  }
+  for (const file of diff.files) {
+    if (file.status === 'added' || file.isBinary) {
+      continue;
+    }
+    const count = lineCounts.get(file.newPath) ?? lineCounts.get(file.oldPath);
+    if (count !== undefined) {
+      file.oldFileLineCount = count;
+    }
+  }
+  return diff;
+}
+
+export function fetchDiffFingerprint(ref?: string): Promise<string> {
+  return tauri.diffFingerprint(getRepoPath(), ref || 'work');
+}
+
+export async function fetchRepoInfo(ref?: string): Promise<RepoInfo> {
+  const repoPath = getRepoPath();
+  const effectiveRef = ref || 'work';
+  const [repo, resolved, session] = await Promise.all([
+    tauri.openRepo(repoPath),
+    tauri.resolveRef(repoPath, effectiveRef),
+    tauri.getSession(repoPath, effectiveRef),
+  ]);
+  return {
+    name: repo.name,
+    branch: repo.branch ?? '',
+    root: repo.path,
+    description: descriptionForRef(effectiveRef),
+    capabilities: { reviews: true, revert: resolved.canRevert, staleness: true },
+    sessionId: session.id,
+    github: parseGitHubRemote(repo.remoteUrl),
+    editor: 'vscode',
+  };
+}
+
+export async function openInEditor(filePath: string, line?: number): Promise<{ ok: boolean }> {
+  await tauri.openInEditor(getRepoPath(), filePath, line ?? null);
+  return { ok: true };
+}
+
+export async function fetchOverview(): Promise<Overview> {
+  const files = await tauri.repoOverview(getRepoPath());
+  return { files };
+}
+
+export async function fetchCommits(skip = 0, count = 10, search?: string): Promise<CommitsPage> {
+  const commits = await tauri.listCommits(getRepoPath(), count, skip, search ?? null);
+  return {
+    commits: commits.map((commit) => ({
+      hash: commit.sha,
+      shortHash: commit.shortSha,
+      message: commit.subject,
+      relativeDate: dayjs(commit.date).fromNow(),
+    })),
+    hasMore: commits.length === count,
+  };
+}
+
+function toAuthor(comment: BackendComment): CommentAuthor {
+  return { name: comment.authorName, type: comment.authorType };
+}
+
+function toComment(comment: BackendComment): Comment {
+  return {
+    id: comment.id,
+    author: toAuthor(comment),
+    body: comment.body,
+    createdAt: comment.createdAt,
+    pending: comment.pending,
+    mentionsAgent: comment.mentionsAgent,
+  };
+}
+
+export function toCommentThread(thread: Thread): CommentThread {
+  return {
+    id: thread.id,
+    filePath: thread.filePath,
+    side: thread.side,
+    startLine: thread.startLine,
+    endLine: thread.endLine,
+    comments: thread.comments.map(toComment),
+    status: thread.status,
+    anchorContent: thread.anchorContent ?? undefined,
+    updatedAt: thread.updatedAt,
+    sessionId: thread.sessionId,
+    pending: thread.pending,
+    reviewId: thread.reviewId,
+    githubThreadId: thread.githubThreadId,
+  };
+}
+
+export async function fetchThreads(sessionId: string): Promise<CommentThread[]> {
+  const threads = await tauri.listThreads(sessionId);
+  return threads.map(toCommentThread);
+}
+
+export async function createThread(data: {
+  sessionId: string;
+  filePath: string;
+  side: CommentSide;
+  startLine: number;
+  endLine: number;
+  body: string;
+  author: CommentAuthor;
+  anchorContent?: string;
+  options?: SubmitOptions;
+}): Promise<CommentThread> {
+  const thread = await tauri.createThread({
+    sessionId: data.sessionId,
+    filePath: data.filePath,
+    side: data.side,
+    startLine: data.startLine,
+    endLine: data.endLine,
+    body: data.body,
+    anchorContent: data.anchorContent ?? null,
+    authorType: data.author.type,
+    authorName: data.author.name,
+    pending: data.options?.pending ?? false,
   });
-/** Pushes a submitted local review: its new threads, its replies on GitHub-linked threads, body and verdict. */
-export const pushSubmittedReview = (repoPath: string, sessionId: string, prNumber: number, reviewId: string) =>
-  pushReview(repoPath, sessionId, prNumber, null, null, null, reviewId);
-export const pullReview = (repoPath: string, sessionId: string, prNumber: number) =>
-  invoke<PullResult>('pull_review', { repoPath, sessionId, prNumber });
-/** Open unsynced threads from all of the repo's sessions that line up with the PR diff. */
-export const githubPushableThreads = (repoPath: string, prNumber: number) =>
-  invoke<Thread[]>('github_pushable_threads', { repoPath, prNumber });
-export const githubReply = (threadId: string, body: string) => invoke<Thread>('github_reply', { threadId, body });
-export const githubSetResolved = (threadId: string, resolved: boolean) =>
-  invoke<Thread>('github_set_resolved', { threadId, resolved });
+  return toCommentThread(thread);
+}
 
-// events
-export const onRepoChanged = (handler: (payload: RepoChangedPayload) => void): Promise<UnlistenFn> =>
-  listen<RepoChangedPayload>('repo-changed', (event) => handler(event.payload));
-export const onThreadsChanged = (handler: (payload: ThreadsChangedPayload) => void): Promise<UnlistenFn> =>
-  listen<ThreadsChangedPayload>('threads-changed', (event) => handler(event.payload));
+export async function replyToThread(threadId: string, body: string, author: CommentAuthor, options?: SubmitOptions): Promise<CommentThread> {
+  const thread = await tauri.addReply(threadId, body, author.type, author.name, options?.pending ?? false);
+  return toCommentThread(thread);
+}
+
+export async function updateThreadStatus(threadId: string, status: CommentThread['status'], summary?: string): Promise<void> {
+  await tauri.setThreadStatus(threadId, status, summary ?? null);
+}
+
+export function deleteAllThreads(sessionId: string): Promise<void> {
+  return tauri.deleteAllThreads(sessionId);
+}
+
+export function deleteThread(threadId: string): Promise<void> {
+  return tauri.deleteThread(threadId);
+}
+
+export function editComment(commentId: string, body: string): Promise<void> {
+  return tauri.editComment(commentId, body);
+}
+
+export function deleteComment(commentId: string): Promise<void> {
+  return tauri.deleteComment(commentId);
+}
+
+export function revertFile(filePath: string): Promise<void> {
+  return tauri.revertFile(getRepoPath(), filePath);
+}
+
+export function revertHunk(patch: string): Promise<void> {
+  return tauri.revertHunk(getRepoPath(), patch);
+}
+
+function splitLines(contents: string): string[] {
+  return contents.split('\n');
+}
+
+export async function fetchFileContent(filePath: string, ref?: string): Promise<string[]> {
+  const versions = await tauri.getFileVersions(getRepoPath(), ref || 'work', filePath, filePath);
+  if (versions.oldContents === null) {
+    throw new Error(`File not found: ${filePath}`);
+  }
+  return splitLines(versions.oldContents);
+}
+
+export async function fetchFileVersions(filePath: string, oldPath?: string, ref?: string): Promise<{ oldLines: string[] | null; newLines: string[] | null }> {
+  const versions = await tauri.getFileVersions(getRepoPath(), ref || 'work', filePath, oldPath ?? null);
+  return {
+    oldLines: versions.oldContents === null ? null : splitLines(versions.oldContents),
+    newLines: versions.newContents === null ? null : splitLines(versions.newContents),
+  };
+}
+
+export interface PushCommentsResult {
+  pushed: number;
+  skipped: number;
+  failed: number;
+  errors: string[];
+}
+
+export interface PullCommentsResult {
+  pulled: number;
+  updated: number;
+  skipped: number;
+}
+
+export function toGitHubDetails(pr: PullRequest): GitHubDetails {
+  return {
+    prNumber: pr.number,
+    prTitle: pr.title,
+    prUrl: pr.url,
+    prCreatedAt: pr.createdAt,
+    headSha: pr.headSha,
+    commentCount: pr.reviewThreadCount,
+    baseRef: pr.baseRef,
+    headRef: pr.headRef,
+  };
+}
+
+export async function fetchGitHubDetails(): Promise<GitHubDetails | null> {
+  const auth = await tauri.githubAuthStatus();
+  if (!auth.authenticated) {
+    return null;
+  }
+  const pr = await tauri.findPr(getRepoPath());
+  return pr ? toGitHubDetails(pr) : null;
+}
+
+export async function fetchPushableThreads(prNumber: number): Promise<CommentThread[]> {
+  const threads = await tauri.githubPushableThreads(getRepoPath(), prNumber);
+  return threads.map(toCommentThread);
+}
+
+export function pushCommentsToGitHub(sessionId: string, prNumber: number, threadIds: string[]): Promise<PushCommentsResult> {
+  return tauri.pushReview(getRepoPath(), sessionId, prNumber, 'COMMENT', null, threadIds);
+}
+
+export async function pullCommentsFromGitHub(sessionId: string, prNumber: number): Promise<PullCommentsResult> {
+  return tauri.pullReview(getRepoPath(), sessionId, prNumber);
+}
+
+export interface TreeEntryResponse {
+  type: 'blob' | 'tree';
+  path: string;
+  name: string;
+}
+
+let treeCache: { repoPath: string; entries: Promise<TreeEntry[]> } | null = null;
+
+function loadTree(fresh: boolean): Promise<TreeEntry[]> {
+  const repoPath = getRepoPath();
+  if (!fresh && treeCache && treeCache.repoPath === repoPath) {
+    return treeCache.entries;
+  }
+  const entries = tauri.listTree(repoPath);
+  treeCache = { repoPath, entries };
+  entries.catch(() => {
+    treeCache = null;
+  });
+  return entries;
+}
+
+export async function fetchTreePaths(): Promise<{ paths: string[] }> {
+  const entries = await loadTree(true);
+  return { paths: entries.filter((entry) => entry.kind === 'file').map((entry) => entry.path) };
+}
+
+export async function fetchTreeEntries(dirPath?: string): Promise<{ entries: TreeEntryResponse[] }> {
+  const entries = await loadTree(false);
+  const prefix = dirPath ? `${dirPath}/` : '';
+  const result: TreeEntryResponse[] = [];
+  for (const entry of entries) {
+    if (!entry.path.startsWith(prefix)) {
+      continue;
+    }
+    const relative = entry.path.slice(prefix.length);
+    if (!relative || relative.includes('/')) {
+      continue;
+    }
+    result.push({ type: entry.kind === 'dir' ? 'tree' : 'blob', path: entry.path, name: relative });
+  }
+  return { entries: result };
+}
+
+export async function fetchTreeInfo(): Promise<RepoInfo> {
+  const repoPath = getRepoPath();
+  const [repo, session] = await Promise.all([tauri.openRepo(repoPath), tauri.getSession(repoPath, TREE_REF)]);
+  return {
+    name: repo.name,
+    branch: repo.branch ?? '',
+    root: repo.path,
+    description: 'Repository file browser',
+    capabilities: { reviews: true, revert: false, staleness: false },
+    sessionId: session.id,
+    github: parseGitHubRemote(repo.remoteUrl),
+    editor: 'vscode',
+  };
+}
+
+export async function fetchTreeFingerprint(): Promise<string> {
+  const repoPath = getRepoPath();
+  const [entries, fingerprint] = await Promise.all([
+    tauri.listTree(repoPath),
+    tauri.diffFingerprint(repoPath, 'work').catch(() => ''),
+  ]);
+  return `${entries.length}:${fingerprint}`;
+}
+
+export async function fetchTreeFileContent(filePath: string): Promise<string[]> {
+  const file = await tauri.readFile(getRepoPath(), filePath);
+  if (file.contents === null) {
+    if (file.binary) {
+      return ['(binary file)'];
+    }
+    return [`(file too large to display: ${file.size} bytes)`];
+  }
+  return splitLines(file.contents);
+}
+
+const MIME_TYPES: Record<string, string> = {
+  svg: 'image/svg+xml',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  avif: 'image/avif',
+  ico: 'image/x-icon',
+  bmp: 'image/bmp',
+};
+
+export function mimeTypeFor(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
+  return MIME_TYPES[ext] ?? 'application/octet-stream';
+}
+
+export async function fetchRawFileUrl(filePath: string): Promise<string> {
+  const data = await tauri.readFileBase64(getRepoPath(), filePath);
+  return `data:${mimeTypeFor(filePath)};base64,${data}`;
+}

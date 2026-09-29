@@ -270,3 +270,21 @@ fn revert_file_variants() {
     assert!(repo.git(&["status", "--porcelain"]).is_empty());
     assert_eq!(diff::revert_file(&repo.path, "../x").unwrap_err().code, "invalid");
 }
+
+#[test]
+fn old_line_counts_cover_every_old_side_file() {
+    let repo = Repo::with_commit();
+    repo.write("src/lib.rs", "fn a() {}\nfn b() {}\nfn c() {}\nfn d() {}\n");
+    repo.write("README.md", "hello\nagain");
+    repo.git(&["add", "README.md"]);
+    repo.write("new.txt", "x\n");
+    let work = diff::get_diff(&repo.path, "work", false).unwrap();
+    assert_eq!(file(&work, "src/lib.rs").old_line_count, Some(3));
+    assert_eq!(file(&work, "README.md").old_line_count, Some(1));
+    assert_eq!(file(&work, "new.txt").old_line_count, None);
+
+    let unstaged = diff::get_diff(&repo.path, "unstaged", false).unwrap();
+    assert_eq!(file(&unstaged, "src/lib.rs").old_line_count, Some(3));
+    let staged = diff::get_diff(&repo.path, "staged", false).unwrap();
+    assert_eq!(file(&staged, "README.md").old_line_count, Some(1));
+}

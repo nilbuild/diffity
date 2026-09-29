@@ -325,6 +325,12 @@ const handlers: Record<string, (args: Args) => unknown> = {
   },
   list_branches: () => branches,
   git_status: () => ({ branch: 'feat/cache', upstream: 'origin/feat/cache', ahead: 2, behind: 0, staged: 1, unstaged: 4, untracked: 2, dirty: true }),
+  repo_overview: () => [
+    { path: 'src/cache.ts', status: 'staged' },
+    { path: 'src/server.ts', status: 'modified' },
+    { path: 'src/utils/format.ts', status: 'modified' },
+    { path: 'docs/notes.md', status: 'added' },
+  ],
   revert_file: () => null,
   revert_hunk: () => null,
   open_in_editor: () => null,

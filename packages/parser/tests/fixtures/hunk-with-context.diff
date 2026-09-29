@@ -1,0 +1,12 @@
+diff --git a/app.ts b/app.ts
+index 1234567..abcdefg 100644
+--- a/app.ts
++++ b/app.ts
+@@ -10,5 +10,7 @@ function processData() {
+   const data = getData();
+   const filtered = data.filter(Boolean);
+-  return filtered;
++  const sorted = filtered.sort();
++  const unique = [...new Set(sorted)];
++  return unique;
+ }

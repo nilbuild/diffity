@@ -8,14 +8,14 @@
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@fontsource-variable/source-serif-4": "^5.3.0",
-    "@phosphor-icons/react": "2.1.10",
-    "@pierre/diffs": "1.5.1",
+    "@diffity/parser": "workspace:*",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/react-query": "5.104.0",
+    "@tanstack/react-virtual": "3.14.13",
     "@tauri-apps/api": "2.12.0",
     "@tauri-apps/plugin-dialog": "2.8.0",
     "@tauri-apps/plugin-opener": "2.6.0",
@@ -28,7 +28,9 @@
     "react-hotkeys-hook": "5.3.3",
     "react-markdown": "10.1.0",
     "react-router": "7.18.4",
+    "rehype-raw": "7.0.0",
     "remark-gfm": "4.0.1",
+    "shiki": "4.4.3",
     "sonner": "2.0.8",
     "tailwind-merge": "3.7.0",
     "tailwindcss": "4.3.3",
@@ -41,6 +43,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
     "typescript": "7.0.2",
-    "vite": "8.3.1"
+    "vite": "8.3.1",
+    "vitest": "5.0.2"
   }
 }

@@ -1,0 +1,9 @@
+diff --git a/my folder/my file.ts b/my folder/my file.ts
+index 1234567..abcdefg 100644
+--- a/my folder/my file.ts
++++ b/my folder/my file.ts
+@@ -1,3 +1,3 @@
+-export const x = 1;
++export const x = 2;
+ export const y = 3;
+ export default x;

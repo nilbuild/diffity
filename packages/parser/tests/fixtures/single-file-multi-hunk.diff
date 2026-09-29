@@ -1,0 +1,22 @@
+diff --git a/server.ts b/server.ts
+index 1234567..abcdefg 100644
+--- a/server.ts
++++ b/server.ts
+@@ -1,5 +1,5 @@
+ import express from 'express';
+-import { logger } from './logger';
++import { logger, format } from './logger';
+
+ const app = express();
+
+@@ -20,6 +20,10 @@ app.get('/health', (req, res) => {
+   res.json({ status: 'ok' });
+ });
+
++app.get('/version', (req, res) => {
++  res.json({ version: '1.0.0' });
++});
++
+ app.listen(3000, () => {
+   logger.info('Server started');
+ });

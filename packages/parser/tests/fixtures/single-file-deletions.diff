@@ -1,0 +1,11 @@
+diff --git a/utils.ts b/utils.ts
+index 1234567..abcdefg 100644
+--- a/utils.ts
++++ b/utils.ts
+@@ -1,5 +1,2 @@
+ export function add(a: number, b: number) {
+-  console.log('adding', a, b);
+-  const result = a + b;
+-  return result;
++  return a + b;
+ }

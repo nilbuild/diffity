@@ -202,3 +202,25 @@ fn watcher_emits_changes() {
     registry.unwatch(&key).unwrap();
     assert!(!registry.is_watching(&key));
 }
+
+#[test]
+fn overview_reports_staged_modified_and_untracked() {
+    use diffity_core::types::OverviewStatus;
+    let repo = Repo::with_commit();
+    repo.write("staged.txt", "s\n");
+    repo.git(&["add", "staged.txt"]);
+    repo.write("README.md", "changed\n");
+    repo.write("new/file.txt", "n\n");
+    let files = git::overview(&repo.path).unwrap();
+    let status = |p: &str| files.iter().find(|f| f.path == p).map(|f| f.status);
+    assert_eq!(status("staged.txt"), Some(OverviewStatus::Staged));
+    assert_eq!(status("README.md"), Some(OverviewStatus::Modified));
+    assert_eq!(status("new/file.txt"), Some(OverviewStatus::Added));
+    assert_eq!(files.len(), 3);
+
+    let empty = Repo::empty();
+    empty.write("a.txt", "a\n");
+    empty.git(&["add", "a.txt"]);
+    let files = git::overview(&empty.path).unwrap();
+    assert_eq!(files[0].status, OverviewStatus::Staged);
+}

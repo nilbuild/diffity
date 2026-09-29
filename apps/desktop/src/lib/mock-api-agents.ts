@@ -40,6 +40,8 @@ const PRS: PullRequest[] = [
     reviewDecision: 'REVIEW_REQUIRED',
     checks: 'SUCCESS',
     body: '## Summary\n\nAdds an LRU-ish in-memory cache for served files plus a `/health` endpoint.\n\n- [x] cache with `MAX_ENTRIES`\n- [x] `--no-cache` flag\n- [ ] invalidate on file change\n\n```ts\nconst cached = options.cache ? getCached(filePath) : undefined;\n```',
+    createdAt: '2026-09-20T10:00:00Z',
+    reviewThreadCount: 2,
   },
   {
     number: 41,
@@ -54,6 +56,8 @@ const PRS: PullRequest[] = [
     reviewDecision: null,
     checks: 'PENDING',
     body: '',
+    createdAt: '2026-09-20T10:00:00Z',
+    reviewThreadCount: 2,
   },
   {
     number: 38,
@@ -68,6 +72,8 @@ const PRS: PullRequest[] = [
     reviewDecision: 'CHANGES_REQUESTED',
     checks: 'FAILURE',
     body: 'Lets users map extensions to MIME types.',
+    createdAt: '2026-09-20T10:00:00Z',
+    reviewThreadCount: 2,
   },
 ];
 

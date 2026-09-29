@@ -1,9 +1,11 @@
+import { LogicalPosition } from '@tauri-apps/api/dpi';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { hashString } from './hash';
 
 export function repoRoute(path: string, extra?: Record<string, string>) {
-  const params = new URLSearchParams({ path, ...extra });
-  return `/repo?${params.toString()}`;
+  const params = new URLSearchParams(extra);
+  const query = params.toString();
+  return `/r/${encodeURIComponent(path)}/diff${query ? `?${query}` : ''}`;
 }
 
 export async function openRepoInNewWindow(path: string, extra?: Record<string, string>) {
@@ -23,5 +25,6 @@ export async function openRepoInNewWindow(path: string, extra?: Record<string, s
     minHeight: 600,
     titleBarStyle: 'overlay',
     hiddenTitle: true,
+    trafficLightPosition: new LogicalPosition(14, 13),
   });
 }

@@ -60,9 +60,6 @@ export async function applyDevLaunchTarget() {
   if (!target) {
     return;
   }
-  const params = new URLSearchParams({ path: target.path });
-  if (target.tab) {
-    params.set('tab', target.tab);
-  }
-  window.location.hash = `#/repo?${params.toString()}`;
+  const page = target.tab === 'files' ? 'tree' : 'diff';
+  window.location.hash = `#/r/${encodeURIComponent(target.path)}/${page}`;
 }

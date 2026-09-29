@@ -1,0 +1,22 @@
+diff --git a/index.ts b/index.ts
+index 1234567..abcdefg 100644
+--- a/index.ts
++++ b/index.ts
+@@ -1,3 +1,4 @@
+ import { run } from './runner';
++import { config } from './config';
+
+-run();
++run(config);
+diff --git a/runner.ts b/runner.ts
+index 1234567..abcdefg 100644
+--- a/runner.ts
++++ b/runner.ts
+@@ -1,3 +1,5 @@
+-export function run() {
+-  console.log('running');
++export function run(config: Record<string, unknown>) {
++  console.log('running with config');
++  console.log(config);
++  return true;
+ }

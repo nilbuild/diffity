@@ -1,0 +1,112 @@
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { SparkleIcon } from '../icons/sparkle-icon';
+
+interface MentionTextareaProps {
+  value: string;
+  onChange: (value: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  placeholder?: string;
+  rows?: number;
+  className?: string;
+}
+
+interface MentionQuery {
+  start: number;
+  end: number;
+}
+
+const MENTION_TARGET = 'claude';
+
+function findMentionQuery(value: string, caret: number): MentionQuery | null {
+  const before = value.slice(0, caret);
+  const match = /(^|[\s(])@([\w-]*)$/.exec(before);
+  if (!match) {
+    return null;
+  }
+  const typed = match[2].toLowerCase();
+  if (!MENTION_TARGET.startsWith(typed) || typed === MENTION_TARGET) {
+    return null;
+  }
+  return { start: caret - typed.length - 1, end: caret };
+}
+
+export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaProps>(function MentionTextarea(props, ref) {
+  const { value, onChange, onKeyDown, placeholder, rows, className } = props;
+  const innerRef = useRef<HTMLTextAreaElement>(null);
+  const [query, setQuery] = useState<MentionQuery | null>(null);
+
+  useImperativeHandle(ref, () => innerRef.current as HTMLTextAreaElement);
+
+  const refreshQuery = (next: string, caret: number) => {
+    setQuery(findMentionQuery(next, caret));
+  };
+
+  const accept = () => {
+    if (!query) {
+      return;
+    }
+    const insert = `@${MENTION_TARGET} `;
+    const next = value.slice(0, query.start) + insert + value.slice(query.end);
+    onChange(next);
+    setQuery(null);
+    const caret = query.start + insert.length;
+    requestAnimationFrame(() => {
+      const el = innerRef.current;
+      if (!el) {
+        return;
+      }
+      el.focus();
+      el.setSelectionRange(caret, caret);
+    });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (query && (e.key === 'Enter' || e.key === 'Tab') && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      accept();
+      return;
+    }
+    if (query && e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      setQuery(null);
+      return;
+    }
+    onKeyDown?.(e);
+  };
+
+  return (
+    <div className="relative">
+      <textarea
+        ref={innerRef}
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          refreshQuery(e.target.value, e.target.selectionStart);
+        }}
+        onKeyDown={handleKeyDown}
+        onClick={(e) => refreshQuery(value, e.currentTarget.selectionStart)}
+        onBlur={() => setQuery(null)}
+        placeholder={placeholder}
+        rows={rows}
+        className={className}
+      />
+      {query && (
+        <div className="absolute left-2 top-full -mt-1 z-30 w-60 py-1 bg-bg-secondary rounded-md shadow-lg ring-1 ring-border">
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              accept();
+            }}
+            className="flex items-center gap-2.5 w-full px-3 py-1.5 text-xs text-text bg-hover cursor-pointer text-left"
+          >
+            <SparkleIcon className="w-3.5 h-3.5 text-accent" />
+            <span className="font-semibold">@claude</span>
+            <span className="text-text-muted truncate">Ask Claude Code</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+});

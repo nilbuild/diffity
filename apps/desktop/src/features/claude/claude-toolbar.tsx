@@ -1,0 +1,168 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { SparkleIcon } from '../../components/icons/sparkle-icon';
+import { StopIcon } from '../../components/icons/stop-icon';
+import { ChevronDownIcon } from '../../components/icons/chevron-down-icon';
+import { CommentIcon } from '../../components/icons/comment-icon';
+import { menuItemClass } from '../../components/layout/options-menu';
+import { useDismiss } from '../../hooks/use-dismiss';
+import { getRepoPath } from '../../lib/api';
+import { TREE_REF } from '../../lib/types';
+import type { CommentThread } from '../../components/comments/types';
+import { enqueueClaude, runLabel, stopClaude, useActiveRun, useQueuedCount } from './claude-runner';
+
+export const REVIEW_FOCUSES = [
+  { value: 'security', label: 'Security' },
+  { value: 'performance', label: 'Performance' },
+  { value: 'naming', label: 'Naming' },
+  { value: 'errors', label: 'Error handling' },
+  { value: 'types', label: 'Types' },
+  { value: 'logic', label: 'Logic' },
+] as const;
+
+interface ClaudeToolbarProps {
+  diffRef: string | null;
+  sessionId: string | null;
+  threads: CommentThread[];
+}
+
+function formatElapsed(ms: number) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function useNow(active: boolean) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) {
+      return;
+    }
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [active]);
+  return now;
+}
+
+export function ClaudeStatus() {
+  const run = useActiveRun();
+  const queued = useQueuedCount();
+  const now = useNow(run !== null);
+
+  if (!run) {
+    return null;
+  }
+
+  const parts = [runLabel(run.action)];
+  if (run.action.kind === 'review' || run.commentsAdded > 0) {
+    parts.push(`${run.commentsAdded} comment${run.commentsAdded === 1 ? '' : 's'}`);
+  }
+  if (run.startedAt) {
+    parts.push(formatElapsed(now - run.startedAt));
+  }
+
+  return (
+    <div className="flex items-stretch bg-accent/10 rounded-md overflow-hidden text-xs">
+      <span className="flex items-center gap-1.5 px-2 py-1 text-accent font-medium whitespace-nowrap">
+        <span className="inline-block w-3 h-3 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+        {parts.join(' · ')}
+        {queued > 0 && <span className="text-text-muted font-normal">+{queued} queued</span>}
+      </span>
+      <button
+        onClick={() => void stopClaude()}
+        className="flex items-center gap-1 px-2 text-accent hover:bg-accent/15 transition-colors cursor-pointer"
+        title="Stop Claude"
+      >
+        <StopIcon className="w-3 h-3" />
+        Stop
+      </button>
+    </div>
+  );
+}
+
+export function ClaudeToolbar(props: ClaudeToolbarProps) {
+  const { diffRef, sessionId, threads } = props;
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(menuRef, open, close);
+  const run = useActiveRun();
+
+  const openThreads = threads.filter((thread) => thread.status === 'open' && !thread.pending);
+  const reviewRef = diffRef && diffRef !== TREE_REF ? diffRef : null;
+
+  const review = (focus?: string) => {
+    if (!reviewRef) {
+      return;
+    }
+    close();
+    enqueueClaude({ kind: 'review', ref: reviewRef, focus }, { repoPath: getRepoPath(), sessionId });
+  };
+
+  const resolveAll = () => {
+    close();
+    enqueueClaude({ kind: 'resolve' }, { repoPath: getRepoPath(), sessionId });
+  };
+
+  if (run) {
+    return <ClaudeStatus />;
+  }
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <div className="flex items-stretch bg-bg-tertiary rounded-md overflow-hidden">
+        {reviewRef ? (
+          <button
+            onClick={() => review()}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-text-secondary hover:bg-hover hover:text-text transition-colors cursor-pointer"
+            title="Ask Claude Code to review these changes"
+          >
+            <SparkleIcon className="w-3.5 h-3.5 text-accent" />
+            Review with Claude
+          </button>
+        ) : (
+          <button
+            onClick={resolveAll}
+            disabled={openThreads.length === 0}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-text-secondary hover:bg-hover hover:text-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+          >
+            <SparkleIcon className="w-3.5 h-3.5 text-accent" />
+            Resolve with Claude
+          </button>
+        )}
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center px-1.5 border-l border-bg text-text-muted hover:bg-hover hover:text-text transition-colors cursor-pointer"
+          title="More Claude actions"
+        >
+          <ChevronDownIcon className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-60 py-1 bg-bg-secondary rounded-md shadow-lg ring-1 ring-border z-50">
+          {reviewRef && (
+            <>
+              <div className="px-3 pt-1 pb-1.5 text-[10px] font-semibold text-text-muted uppercase tracking-widest">Review with a focus</div>
+              {REVIEW_FOCUSES.map((focus) => (
+                <button key={focus.value} className={menuItemClass} onClick={() => review(focus.value)}>
+                  <SparkleIcon className="w-3.5 h-3.5" />
+                  {focus.label}
+                </button>
+              ))}
+              <div className="border-t border-border my-1" />
+            </>
+          )}
+          <button
+            className={`${menuItemClass} disabled:opacity-50 disabled:cursor-default`}
+            disabled={openThreads.length === 0}
+            onClick={resolveAll}
+          >
+            <CommentIcon className="w-3.5 h-3.5" />
+            Resolve open comments
+            <span className="ml-auto text-text-muted">{openThreads.length}</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

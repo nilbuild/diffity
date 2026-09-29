@@ -173,6 +173,16 @@ pub struct PrNode {
     pub body: Option<String>,
     pub head_repository: Option<RepoRef>,
     pub commits: Option<Connection<CommitNode>>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub review_threads: Option<TotalCount>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct TotalCount {
+    pub total_count: u32,
 }
 
 #[derive(Deserialize, Debug)]
@@ -224,13 +234,16 @@ impl PrNode {
             review_decision: self.review_decision.clone(),
             checks: self.checks(),
             body: self.body.clone().unwrap_or_default(),
+            created_at: self.created_at.clone().unwrap_or_default(),
+            review_thread_count: self.review_threads.as_ref().map(|t| t.total_count).unwrap_or(0),
         }
     }
 }
 
 pub fn pr_fields() -> &'static str {
     "id number title url state isDraft author{login} baseRefName headRefName headRefOid reviewDecision body \
-     headRepository{nameWithOwner} commits(last:1){nodes{commit{statusCheckRollup{state}}}}"
+     headRepository{nameWithOwner} commits(last:1){nodes{commit{statusCheckRollup{state}}}} \
+     createdAt reviewThreads(first:1){totalCount}"
 }
 
 pub fn find_pr_query() -> String {

@@ -1,0 +1,15 @@
+diff --git a/config.ts b/config.ts
+index 1234567..abcdefg 100644
+--- a/config.ts
++++ b/config.ts
+@@ -1,7 +1,8 @@
+ export const config = {
+-  port: 3000,
++  port: 8080,
+   host: 'localhost',
+-  debug: false,
++  debug: true,
++  verbose: true,
+ };
+ 
+ export default config;

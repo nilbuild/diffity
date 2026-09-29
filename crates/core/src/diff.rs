@@ -274,6 +274,7 @@ fn untracked_summary(repo: &Path, file: &str) -> DiffFileSummary {
         additions: if binary { 0 } else { count_lines(&data) },
         deletions: 0,
         binary,
+        old_line_count: None,
     }
 }
 
@@ -292,6 +293,7 @@ fn file_summaries(repo: &Path, plan: &DiffPlan, untracked: &[String], ignore_whi
                 additions,
                 deletions,
                 binary,
+                old_line_count: None,
             }
         })
         .collect();
@@ -351,7 +353,8 @@ pub fn get_diff(repo: &Path, r: &str, ignore_whitespace: bool) -> Result<DiffRes
         }
         patch.push_str(&p);
     }
-    let files = file_summaries(repo, &plan, &untracked, ignore_whitespace)?;
+    let mut files = file_summaries(repo, &plan, &untracked, ignore_whitespace)?;
+    fill_old_line_counts(repo, &plan, &mut files)?;
     let fingerprint = fingerprint_with(repo, &plan, &untracked)?;
     Ok(DiffResult {
         resolved: plan.resolved,
@@ -359,6 +362,64 @@ pub fn get_diff(repo: &Path, r: &str, ignore_whitespace: bool) -> Result<DiffRes
         patch,
         fingerprint,
     })
+}
+
+/// Parses `git cat-file --batch` output into one line count per requested object (`None` when missing).
+fn parse_batch_line_counts(out: &[u8], expected: usize) -> Vec<Option<u32>> {
+    let mut counts = Vec::with_capacity(expected);
+    let mut pos = 0;
+    while counts.len() < expected && pos < out.len() {
+        let Some(nl) = out[pos..].iter().position(|b| *b == b'\n') else {
+            break;
+        };
+        let header = String::from_utf8_lossy(&out[pos..pos + nl]).into_owned();
+        pos += nl + 1;
+        let mut parts = header.rsplitn(2, ' ');
+        let last = parts.next().unwrap_or("");
+        if header.ends_with(" missing") || header.ends_with(" ambiguous") {
+            counts.push(None);
+            continue;
+        }
+        let Ok(size) = last.parse::<usize>() else {
+            counts.push(None);
+            continue;
+        };
+        let end = (pos + size).min(out.len());
+        let data = &out[pos..end];
+        counts.push(if is_binary(data) { None } else { Some(count_lines(data)) });
+        pos = end + 1;
+    }
+    counts.resize(expected, None);
+    counts
+}
+
+/// Sets `old_line_count` for every file that exists on the old side, reading all blobs in one `git cat-file --batch`.
+fn fill_old_line_counts(repo: &Path, plan: &DiffPlan, files: &mut [DiffFileSummary]) -> Result<()> {
+    let rev = match &plan.old {
+        Source::Commit(sha) => sha.clone(),
+        Source::Index => String::new(),
+        _ => return Ok(()),
+    };
+    let targets: Vec<usize> = files
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| !f.binary && !matches!(f.status, FileStatus::Added | FileStatus::Untracked))
+        .map(|(i, _)| i)
+        .collect();
+    if targets.is_empty() {
+        return Ok(());
+    }
+    let mut input = String::new();
+    for i in &targets {
+        let f = &files[*i];
+        input.push_str(&format!("{rev}:{}\n", f.old_path.as_deref().unwrap_or(&f.path)));
+    }
+    let out = git::run_with_stdin_bytes(repo, &["cat-file", "--batch"], input.as_bytes())?;
+    let counts = parse_batch_line_counts(&out, targets.len());
+    for (i, count) in targets.into_iter().zip(counts) {
+        files[i].old_line_count = count;
+    }
+    Ok(())
 }
 
 fn read_source(repo: &Path, source: &Source, path: &str) -> Result<Option<Vec<u8>>> {

@@ -1,0 +1,11 @@
+diff --git a/hello.ts b/hello.ts
+index 1234567..abcdefg 100644
+--- a/hello.ts
++++ b/hello.ts
+@@ -1,3 +1,6 @@
+ const greeting = 'hello';
++const name = 'world';
++const message = `${greeting}, ${name}\!`;
++console.log(message);
+ 
+ export default greeting;

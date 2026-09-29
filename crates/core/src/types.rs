@@ -85,6 +85,25 @@ pub struct DiffFileSummary {
     pub additions: u32,
     pub deletions: u32,
     pub binary: bool,
+    /// Line count of the old side (for context expansion below the last hunk); `None` when the file is new or binary.
+    #[serde(default)]
+    pub old_line_count: Option<u32>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum OverviewStatus {
+    Staged,
+    Modified,
+    Added,
+}
+
+/// One uncommitted file for the repo dashboard: staged, modified in the working tree, or untracked (`added`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct OverviewFile {
+    pub path: String,
+    pub status: OverviewStatus,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

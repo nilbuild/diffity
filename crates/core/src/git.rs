@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 use crate::error::{AppError, Result};
-use crate::types::{Branch, Commit, GitStatus, RepoInfo};
+use crate::types::{Branch, Commit, GitStatus, OverviewFile, OverviewStatus, RepoInfo};
 
 pub const EMPTY_TREE_SHA: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 
@@ -81,6 +81,12 @@ pub fn run_with_codes(repo: &Path, args: &[&str], ok_codes: &[i32]) -> Result<Ve
 
 /// Runs git feeding `input` on stdin.
 pub fn run_with_stdin(repo: &Path, args: &[&str], input: &[u8]) -> Result<String> {
+    let out = run_with_stdin_bytes(repo, args, input)?;
+    Ok(String::from_utf8_lossy(&out).into_owned())
+}
+
+/// Runs git feeding `input` on stdin and returns raw stdout bytes.
+pub fn run_with_stdin_bytes(repo: &Path, args: &[&str], input: &[u8]) -> Result<Vec<u8>> {
     let mut cmd = base_command(repo);
     cmd.args(args)
         .stdin(Stdio::piped())
@@ -96,7 +102,7 @@ pub fn run_with_stdin(repo: &Path, args: &[&str], input: &[u8]) -> Result<String
     if !out.status.success() {
         return Err(failure(args, &out));
     }
-    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    Ok(out.stdout)
 }
 
 pub fn split_nul(bytes: &[u8]) -> Vec<String> {
@@ -402,4 +408,37 @@ pub fn untracked_files(repo: &Path) -> Result<Vec<String>> {
 pub fn show_file(repo: &Path, rev: &str, path: &str) -> Result<Option<Vec<u8>>> {
     let spec = format!("{rev}:{path}");
     run_opt(repo, &["show", "--no-textconv", &spec])
+}
+
+/// Uncommitted files for the repo dashboard. A file both staged and modified is reported as `modified`,
+/// untracked files as `added` (same precedence as the old web app).
+pub fn overview(repo: &Path) -> Result<Vec<OverviewFile>> {
+    require_repo(repo)?;
+    let mut files: Vec<OverviewFile> = Vec::new();
+    let mut set = |path: String, status: OverviewStatus| {
+        if let Some(existing) = files.iter_mut().find(|f| f.path == path) {
+            existing.status = status;
+            return;
+        }
+        files.push(OverviewFile { path, status });
+    };
+    if has_commits(repo)? {
+        for path in split_nul(&run_bytes(repo, &["diff", "--cached", "--name-only", "-z"])?) {
+            set(path, OverviewStatus::Staged);
+        }
+    } else {
+        for path in split_nul(&run_bytes(repo, &["ls-files", "-z", "--cached"])?) {
+            set(path, OverviewStatus::Staged);
+        }
+    }
+    for path in split_nul(&run_bytes(repo, &["diff", "--name-only", "-z"])?) {
+        set(path, OverviewStatus::Modified);
+    }
+    for path in untracked_files(repo)? {
+        if path.ends_with('/') {
+            continue;
+        }
+        set(path, OverviewStatus::Added);
+    }
+    Ok(files)
 }
