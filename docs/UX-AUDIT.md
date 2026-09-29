@@ -114,7 +114,8 @@ that fell out: **controls live next to what they change, and every region has on
 | Rail (frame, left, 52px) | Which project | Project tiles (manual order, drag to reorder, ⌘1–9), "+" Open folder (⌘O) below them, Settings at the bottom |
 | Title bar (frame, top, 44px) | Where am I, and the big actions | Sidebar toggle (⌘\\), repo name, "what to review" picker (+ Back when not on Uncommitted) … Comments (C), Ask Claude to review, Send N to Claude / Submit review #N, ⋯ (shortcuts, theme, settings, about) |
 | Context bars (workspace top) | Facts about the chosen target | PR bar (state, title, base ← head, checks, sync, back to branch); commit header inside the diff |
-| Sidebar (sidebar surface) | Navigate inside the target | Changes · Files · History, filter + commented-only chip + ⋯ (tree/list, expand/collapse folders), summary line, file tree |
+| Home (`/overview`, and Changes when the tree is clean) | Where do I start | Repo + branch/sync, Working cards (uncommitted, PR, branch vs base, open comments), full-width commit history with search and Compare |
+| Sidebar (sidebar surface) | Navigate inside the target | Files · Changes, filter + commented-only chip + ⋯ (tree/list, expand/collapse folders), summary line, file tree |
 | Diff bar (content top, 40px) | How the diff looks, and moving through it | Viewed progress, open-comment navigation (k/N, prev/next, copy, delete all) … Hide whitespace, Unified \| Split, ⋯ (expand / collapse all files) |
 | Content | The work | File cards, thread cards, general comments; empty states with next steps |
 | Status bar (frame, bottom, 32px) | Repository status | Branch switcher, upstream, fetch/pull/push, notices, path, PR shortcut |
@@ -193,6 +194,34 @@ that fell out: **controls live next to what they change, and every region has on
   shows last sync), Open on GitHub, and a Details chevron. Details opens a light panel: status + review decision,
   copyable base ← head branches, author / opened / updated, checks, changes, and the markdown description (collapsible).
 - Empty state only says "Only whitespace changed" when whitespace hiding is on and the unfiltered diff has files.
+
+## Round 5
+
+- **One icon family.** Every glyph in `ui/icon.tsx` is now drawn on the same 20px grid: filled rounded shapes and
+  2.4px round-capped strokes (about 2px at 16px); PR, branch, commit, compare, fetch, pull, push, sidebar, pencil,
+  eye/whitespace, unified/split, chevrons, close, more, search, comment, check, copy, trash, external link, editor,
+  file, folder, clock, home are custom. Only naturally solid glyphs (gear, sun, moon, key, keyboard, info, warning,
+  sparkle, send, stop, GitHub, tree) remain Phosphor `fill`. Checked on an in-app contact sheet at 12/14/16/20px in
+  light and dark.
+- **Action colours.** Tried blue vs green for the single primary action per view (screenshot `variants-primary.png`);
+  kept blue because green already means "added" in diffs and status. System: primary = solid blue (`primary`
+  token; Submit review with drafts, Review changes, Compare, Post); Claude = terracotta — soft tinted fill for "Ask
+  Claude to review", solid for "Send N to Claude"; PR actions keep a green PR icon on a neutral button; git sync
+  tints Pull (blue) / Push and Publish (green) only when there is something to move; notices get a coloured dot
+  (terracotta when Claude is involved). Destructive red only inside menus and confirms.
+- **Traffic lights.** AppKit can reset the buttons' frames while they live in our container (seen as one green dot
+  at the left edge after switching apps). The positions captured on the first pass are re-applied on every pass,
+  and the frontend asks Rust to realign on window focus, blur and visibility changes (covers Space switches and
+  restore); window events (resize, move, focus, theme, scale, fullscreen) still trigger it natively. Checked focused,
+  unfocused, minimise/restore and full screen.
+- **Popovers.** Ref picker, branch switcher, Compare, Claude menu, review popover and the ⋯ menu now render through
+  the portal `Popover` with flip/shift, so nothing is clipped by the sidebar or rail.
+- **Home instead of the History tab.** The sidebar is Files · Changes. Home (click the repo name, click the current
+  project tile, ⌘⇧H, or Changes when nothing is uncommitted) is a full-width page: repo and branch, Working cards
+  (uncommitted with staged/unstaged/new counts, PR with state, branch vs base, open comments with Claude count),
+  and the history list with search and Compare. Commit rows are wide (subject, author avatar + name, sha, time, +/−,
+  "Changes since" on hover); clicking opens the commit, and the × in the picker returns to Uncommitted / Home. The
+  author name that collapsed to zero width in the narrow sidebar rows is fixed by the new layout.
 
 ## Remaining
 

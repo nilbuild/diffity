@@ -1,7 +1,8 @@
+import { cn } from '../../lib/cn';
 import { useMemo, useState } from 'react';
 import { isOpenThread, useRepoThreads } from '../../hooks/use-repo-threads';
 import { openComments } from '../../lib/ui-store';
-import { CommentIcon, XIcon } from '../../components/ui/icon';
+import { XIcon } from '../../components/ui/icon';
 
 interface OtherViewsNoticeProps {
   sessionId: string | null;
@@ -49,7 +50,7 @@ export function OtherViewsNotice(props: OtherViewsNoticeProps) {
 
   return (
     <span className="inline-flex items-center gap-1.5 h-5 max-w-[420px] min-w-0 pl-2 pr-1 rounded-full border border-border bg-bg text-text-secondary">
-      <CommentIcon className="w-3 h-3 shrink-0 text-text-secondary" />
+      <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', summary.claude > 0 ? 'bg-claude' : 'bg-pull')} />
       <button
         onClick={openComments}
         className="min-w-0 truncate cursor-pointer hover:text-text"

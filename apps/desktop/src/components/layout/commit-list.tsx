@@ -3,14 +3,11 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { type Commit, fetchCommits } from '../../lib/api';
 import { Spinner } from '../icons/spinner';
-import { cn } from '../../lib/cn';
 import { GitCommitIcon, GitCompareIcon } from '../ui/icon';
 
 interface CommitListProps {
   search: string;
   header?: ReactNode;
-  selectedHash: string | null;
-  onSelect: (commit: Commit) => void;
   onOpen: (commit: Commit) => void;
   onCompareFrom: (hash: string) => void;
   onFetchingChange?: (fetching: boolean) => void;
@@ -57,50 +54,11 @@ export function AuthorAvatar(props: { name: string }) {
   return (
     <span
       aria-hidden
-      className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-semibold shrink-0"
+      className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-semibold shrink-0"
       style={{ backgroundColor: `color-mix(in srgb, ${color} 16%, transparent)`, color }}
     >
       {initial}
     </span>
-  );
-}
-
-export function HistoryRow(props: {
-  icon: ReactNode;
-  title: ReactNode;
-  meta: ReactNode;
-  trailing?: ReactNode;
-  hoverAction?: ReactNode;
-  selected?: boolean;
-  onClick: () => void;
-  onDoubleClick?: () => void;
-  tooltip?: string;
-}) {
-  const { icon, title, meta, trailing, hoverAction, selected = false, onClick, onDoubleClick, tooltip } = props;
-
-  return (
-    <li className="group relative">
-      <button
-        onClick={onClick}
-        onDoubleClick={onDoubleClick}
-        data-selected={selected || undefined}
-        className={cn(
-          'flex items-center gap-3 w-full min-h-[52px] px-3 py-2 rounded-lg text-left transition-colors cursor-pointer',
-          selected ? 'bg-selected' : 'hover:bg-hover',
-        )}
-        title={tooltip}
-      >
-        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-raised ring-1 ring-border text-text-secondary shrink-0">{icon}</span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-[13px] leading-5 text-text font-medium truncate">{title}</span>
-          <span className="flex items-center gap-1.5 text-xs leading-5 text-text-secondary min-w-0">{meta}</span>
-        </span>
-        {trailing && <span className={hoverAction ? 'shrink-0 group-hover:invisible' : 'shrink-0'}>{trailing}</span>}
-      </button>
-      {hoverAction && (
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 hidden group-hover:flex">{hoverAction}</span>
-      )}
-    </li>
   );
 }
 
@@ -111,48 +69,48 @@ function CommitStat(props: { commit: Commit }) {
     return null;
   }
   return (
-    <span className="flex items-center gap-1.5 font-mono text-[11px] tabular-nums">
+    <span className="flex items-center justify-end gap-1.5 font-mono text-[11px] tabular-nums">
       {commit.additions > 0 && <span className="text-added">+{commit.additions}</span>}
       {commit.deletions > 0 && <span className="text-deleted">−{commit.deletions}</span>}
     </span>
   );
 }
 
-function CommitRow(props: { commit: Commit; selected: boolean; onClick: () => void; onDoubleClick: () => void; onCompareFrom: () => void }) {
-  const { commit, selected, onClick, onDoubleClick, onCompareFrom } = props;
+function CommitRow(props: { commit: Commit; onOpen: () => void; onCompareFrom: () => void }) {
+  const { commit, onOpen, onCompareFrom } = props;
 
   return (
-    <HistoryRow
-      selected={selected}
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
-      tooltip="Double-click to review this commit"
-      icon={<GitCommitIcon className="w-3.5 h-3.5" />}
-      title={commit.message}
-      meta={
-        <>
-          <code className="font-mono text-[11px] text-text-secondary shrink-0">{commit.shortHash}</code>
-          <span className="text-text-muted">·</span>
+    <li className="group relative">
+      <button
+        onClick={onOpen}
+        title={`${commit.message}\nReview this commit`}
+        className="grid grid-cols-[minmax(0,1fr)_minmax(0,180px)_64px_96px_84px] items-center gap-4 w-full h-11 px-3 rounded-lg text-left hover:bg-hover transition-colors cursor-pointer"
+      >
+        <span className="flex items-center gap-3 min-w-0">
+          <GitCommitIcon size="sm" className="text-text-muted" />
+          <span className="truncate text-[13px] text-text">{commit.message}</span>
+        </span>
+        <span className="flex items-center gap-2 min-w-0 text-xs text-text-secondary">
           <AuthorAvatar name={commit.author} />
           <span className="truncate">{commit.author}</span>
-          <span className="text-text-muted">·</span>
-          <span className="shrink-0 whitespace-nowrap" title={dayjs(commit.date).format('YYYY-MM-DD HH:mm')}>
-            {commit.relativeDate}
-          </span>
-        </>
-      }
-      trailing={<CommitStat commit={commit} />}
-      hoverAction={
+        </span>
+        <code className="font-mono text-[11px] text-text-muted">{commit.shortHash}</code>
+        <span className="text-xs text-text-muted whitespace-nowrap" title={dayjs(commit.date).format('YYYY-MM-DD HH:mm')}>
+          {commit.relativeDate}
+        </span>
+        <span className="group-hover:invisible"><CommitStat commit={commit} /></span>
+      </button>
+      <span className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex">
         <button
           onClick={onCompareFrom}
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-overlay ring-1 ring-overlay-border text-xs text-text hover:bg-fill cursor-pointer"
+          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-raised border border-control-border text-xs text-text hover:bg-control-hover cursor-pointer"
           title="Review every change made after this commit, up to HEAD"
         >
-          <GitCompareIcon className="w-3.5 h-3.5 text-text-secondary" />
+          <GitCompareIcon size="sm" className="text-text-secondary" />
           Changes since
         </button>
-      }
-    />
+      </span>
+    </li>
   );
 }
 
@@ -160,14 +118,14 @@ export function SectionHeader(props: { children: ReactNode }) {
   const { children } = props;
 
   return (
-    <div className="sticky top-0 z-10 bg-bg-secondary px-3 pt-3 pb-1.5 text-xs font-medium text-text-secondary">
+    <div className="sticky top-0 z-10 bg-bg px-3 pt-4 pb-1.5 text-xs font-medium text-text-secondary">
       {children}
     </div>
   );
 }
 
 export function CommitList(props: CommitListProps) {
-  const { search, header, selectedHash, onSelect, onOpen, onCompareFrom, onFetchingChange, onLoaded } = props;
+  const { search, header, onOpen, onCompareFrom, onFetchingChange, onLoaded } = props;
   const term = useDebounced(search.trim(), 250);
   const sentinel = useRef<HTMLDivElement>(null);
 
@@ -222,12 +180,10 @@ export function CommitList(props: CommitListProps) {
       return (
         <ul>
           {Array.from({ length: 6 }, (_, i) => (
-            <li key={i} className="flex items-center gap-3 h-[52px] px-3">
-              <div className="w-7 h-7 rounded-full bg-fill animate-pulse" />
-              <div className="flex-1 space-y-1.5">
-                <div className="h-3 w-2/3 rounded bg-fill animate-pulse" />
-                <div className="h-2.5 w-1/3 rounded bg-fill animate-pulse" />
-              </div>
+            <li key={i} className="flex items-center gap-4 h-11 px-3">
+              <div className="h-3 flex-1 max-w-[50%] rounded bg-fill animate-pulse" />
+              <div className="h-3 w-32 rounded bg-fill animate-pulse" />
+              <div className="h-3 w-16 rounded bg-fill animate-pulse" />
             </li>
           ))}
         </ul>
@@ -254,9 +210,7 @@ export function CommitList(props: CommitListProps) {
             <CommitRow
               key={commit.hash}
               commit={commit}
-              selected={selectedHash === commit.hash}
-              onClick={() => onSelect(commit)}
-              onDoubleClick={() => onOpen(commit)}
+              onOpen={() => onOpen(commit)}
               onCompareFrom={() => onCompareFrom(commit.hash)}
             />
           ))}

@@ -21,8 +21,8 @@ not a redesign.
    and there are no other icon libraries. Solid shapes use `fill`; line-only glyphs (chevrons, arrows, plus, x, check,
    search, refresh) use `bold` so they carry the same visual weight. Sizes via `size`: `xs` 12, `sm` 14, `md` 16 inline,
    `lg` 18 toolbar, `xl` 20 rail. Colour = `text-secondary`, active/hover = `text`. File-status letters stay coloured.
-   Git and navigation glyphs (Changes, folder, history, branch, pull request, commit, compare) are custom 20px-grid
-   icons in the same file (`customGlyph`): rounded filled shapes, filled nodes, 1.9px round strokes. Only
+   Almost every glyph is a custom 20px-grid icon in the same file (`customGlyph` / `lineGlyph`): filled rounded
+   shapes and 2.4px round-capped strokes; only naturally solid glyphs use Phosphor `fill`. Only
    `components/icons/brand-logo.tsx` and `spinner.tsx` live elsewhere. Tree icons are neutral grey; no blue icons.
    Claude-related marks use the `claude` colour token (terracotta), everything else stays neutral.
 4. **Desktop chrome.** Every page's top bar is `components/layout/title-bar.tsx`: the web toolbar plus
@@ -63,7 +63,10 @@ not a redesign.
   (`Workspace` in `title-bar.tsx`), which is what separates the title bar from the sidebar;
   4. `overlay` + `overlay-border` for popovers, menus, dialogs and tooltips (raised, bordered, no shadow);
   `raised` + `control-border` for buttons, inputs, segmented-control thumbs and the active rail tile.
-- Buttons (`components/ui/button-styles.ts`): `buttonPrimary` (accent solid; disabled = neutral fill, muted text),
+- Action colours: one solid `primary` (blue) action per view; Claude actions use `buttonClaude` (terracotta tint) or
+  `buttonClaudeSolid` / `buttonGroupClaude`; PR actions show a green PR icon; git sync tints Pull (`pull`) and
+  Push/Publish (`push`) only when there is something to move; notices use a coloured dot.
+- Buttons (`components/ui/button-styles.ts`): `buttonPrimary` (primary solid; disabled = neutral fill, muted text),
   `buttonOutline` (1px `control-border`, raised fill, the default toolbar button), `buttonGhost`, `buttonIcon` /
   `buttonIconOutline`, `buttonGroup` (outlined split button with a visible divider). Toggles show their active state
   with a neutral `bg-selected text-text`; segmented controls use a `raised` thumb with a `control-border` ring.
@@ -94,7 +97,7 @@ not a redesign.
 - Popovers and menus use `components/ui/popover.tsx` (`Popover`, `useMenu`, `MenuItem`, `MenuLabel`,
   `MenuSeparator`): rendered in a portal, positioned from the anchor, flipped above and shifted inside the viewport,
   max-height with scroll, so nothing clips at a sidebar edge.
-- Sidebar (`components/layout/sidebar-frame.tsx`, `sidebar` surface): Files · Changes · History as a segmented
+- Sidebar (`components/layout/sidebar-frame.tsx`, `sidebar` surface): Files · Changes as a segmented
   control; a filter row (filter input · "commented only" chip when there are comments · ⋯ with Tree/List and
   expand/collapse all folders); a quiet summary line ("3 files +7 −2" or "k of N viewed"); the tree (12px indent, guide
   lines, filled file/folder icons, coloured status letter, comment badges). Collapsing (title-bar toggle or ⌘\\) leaves a
@@ -111,9 +114,8 @@ not a redesign.
   (current checked, ahead/behind), Remote branches (checked out as a local tracking branch), Pull requests (#, title,
   author, checks) and "Check out pull request #N" for a typed number or URL. Switching with uncommitted changes asks
   first (Cancel / Stash and switch). There is no separate Pull requests toolbar button.
-- History page (`/overview`, `components/layout/dashboard.tsx`): two panes. Left (sidebar surface, 420px default): search
-  field and Compare popover, a "Working" group, then commits grouped by day. Right: the selected item's detail
-  (`history-detail.tsx`) with a primary "Review changes" button and its changed files.
+- Home (`/overview`, `components/layout/dashboard.tsx`; also shown for Changes when the tree is clean): full width.
+  Repo + branch/sync, Working cards, then the commit history (search, Compare popover, wide day-grouped rows).
 - Claude: "Ask Claude to review" split button with focus menu and "Resolve open comments"; a status pill
   ("Claude is reviewing… · 3 comments · 0:42", Stop) replaces it while a run is active; "Resolve with Claude" on
   each open thread; "Claude Code is working…" inside threads being addressed; file-write approval modal with a

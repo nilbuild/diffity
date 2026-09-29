@@ -222,6 +222,7 @@ function ActivityRail() {
 
   const openProject = useCallback((path: string, newWindow = false) => {
     if (path === nav.repoPath && !newWindow) {
+      nav.toOverview();
       return;
     }
     if (newWindow) {
@@ -234,7 +235,7 @@ function ActivityRail() {
       return;
     }
     void openRepoAt(path, navigate);
-  }, [nav.repoPath, navigate]);
+  }, [nav, navigate]);
 
   const openFolder = useCallback(async () => {
     const path = await pickFolder();

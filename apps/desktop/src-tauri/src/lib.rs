@@ -131,6 +131,7 @@ pub fn run() {
             commands::comments::submit_review,
             commands::comments::discard_review,
             commands::dev::log_frontend,
+            commands::window::realign_window_chrome,
             commands::dev::dev_launch_target,
             commands::agents::list_agents,
             commands::agents::start_chat,

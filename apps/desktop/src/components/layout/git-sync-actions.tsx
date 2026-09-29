@@ -6,6 +6,7 @@ import * as tauri from '../../lib/tauri';
 import { getRepoPath } from '../../lib/api';
 import type { GitOpResult } from '../../lib/types';
 import { Spinner } from '../icons/spinner';
+import { cn } from '../../lib/cn';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { FetchIcon, PullIcon, PushIcon } from '../ui/icon';
@@ -82,18 +83,18 @@ export function GitSyncActions() {
       </button>
       {upstream && (
         <button
-          className={itemClass}
+          className={cn(itemClass, status.behind > 0 && 'bg-pull/10 text-pull hover:bg-pull/15 hover:text-pull')}
           disabled={running !== null}
           onClick={() => run('pull')}
           title={status.behind > 0 ? `Pull ${plural(status.behind)} from ${upstream}` : `Nothing new on ${upstream} since the last fetch. Pull anyway`}
         >
           {icon('pull', <PullIcon size="xs" />)}
           Pull
-          {status.behind > 0 && <span className="tabular-nums text-text">{status.behind}</span>}
+          {status.behind > 0 && <span className="tabular-nums">{status.behind}</span>}
         </button>
       )}
       <button
-        className={itemClass}
+        className={cn(itemClass, !nothingToPush && 'bg-push/10 text-push hover:bg-push/15 hover:text-push')}
         disabled={running !== null}
         aria-disabled={nothingToPush}
         onClick={() => {
@@ -106,7 +107,7 @@ export function GitSyncActions() {
       >
         {icon('push', <PushIcon size="xs" />)}
         {upstream ? 'Push' : 'Publish branch'}
-        {!!upstream && status.ahead > 0 && <span className="tabular-nums text-text">{status.ahead}</span>}
+        {!!upstream && status.ahead > 0 && <span className="tabular-nums">{status.ahead}</span>}
       </button>
     </div>
   );

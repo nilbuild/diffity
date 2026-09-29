@@ -4,6 +4,7 @@ import { isMac, isTauri, modKey } from '../../lib/platform';
 import { toggleSidebar, useUi } from '../../lib/ui-store';
 import { SidebarIcon } from '../ui/icon';
 import { useInsideRail } from './activity-rail';
+import { useRepoNav } from '../../hooks/use-repo';
 
 interface TitleBarProps {
   children: ReactNode;
@@ -14,9 +15,19 @@ interface TitleBarProps {
 export const hasOverlayTitleBar = isTauri && isMac;
 
 export function useSidebarShortcut() {
+  const nav = useRepoNav();
+
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key !== '\\') {
+      if (!(event.metaKey || event.ctrlKey)) {
+        return;
+      }
+      if (event.shiftKey && event.key.toLowerCase() === 'h') {
+        event.preventDefault();
+        nav.toOverview();
+        return;
+      }
+      if (event.key !== '\\') {
         return;
       }
       event.preventDefault();
@@ -24,7 +35,7 @@ export function useSidebarShortcut() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [nav]);
 }
 
 function SidebarToggle() {
@@ -80,13 +91,18 @@ export function TitleBarDivider() {
 
 export function RepoTitle(props: { name: string | null | undefined; path?: string }) {
   const { name, path } = props;
+  const nav = useRepoNav();
 
   if (!name) {
     return null;
   }
   return (
-    <span data-tauri-drag-region className="font-semibold text-text text-[13px] truncate max-w-[180px] shrink-0 px-1" title={path}>
+    <button
+      onClick={nav.toOverview}
+      className="h-7 px-1.5 rounded-md font-semibold text-text text-[13px] truncate max-w-[180px] shrink-0 hover:bg-hover transition-colors cursor-pointer"
+      title={`${path ? `${path}\n` : ''}Home: history and what to review (${modKey}⇧H)`}
+    >
       {name}
-    </span>
+    </button>
   );
 }

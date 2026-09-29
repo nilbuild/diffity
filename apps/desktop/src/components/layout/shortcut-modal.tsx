@@ -33,6 +33,7 @@ export const shortcuts = [
     category: 'App',
     items: [
       { key: `${modKey}O`, description: 'Open a folder' },
+      { key: `${modKey}⇧H`, description: 'Home: history and what to review' },
       { key: `${modKey}1–9`, description: 'Switch project' },
       { key: `${modKey}⇧[ / ]`, description: 'Previous / next project' },
       { key: `${modKey}\\`, description: 'Show or hide the sidebar' },

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useRepoNav } from '../../hooks/use-repo';
-import { useDismiss } from '../../hooks/use-dismiss';
 import { useBaseBranch, useGitHubPr, useGitStatus, useHasGitHubRemote } from '../../hooks/use-repo-state';
 import { openPullRequests } from '../../lib/ui-store';
 import { commitRef, descriptionForRef, fetchCommits, parseCommitRef, type Commit, type GitHubDetails } from '../../lib/api';
@@ -10,12 +9,15 @@ import { cn } from '../../lib/cn';
 import { buttonOutline, inputField } from '../ui/button-styles';
 import { Spinner } from '../icons/spinner';
 import { useCommitDetails } from './diff-context-bar';
-import { CheckIcon, ChevronDownIcon, GitBranchIcon, GitCommitIcon, GitCompareIcon, GitPullRequestIcon, PencilIcon, SearchIcon, XIcon } from '../ui/icon';
+import { CheckIcon, ChevronDownIcon, GitBranchIcon, GitCommitIcon, GitCompareIcon, GitPullRequestIcon, HomeIcon, PencilIcon, SearchIcon, XIcon } from '../ui/icon';
+import { Popover } from '../ui/popover';
 
 interface RefMenuProps {
   diffRef: string;
   branch: string | null;
 }
+
+export const HOME_REF = '__home__';
 
 export function prDiffRef(details: GitHubDetails): string {
   return `origin/${details.baseRef}...HEAD`;
@@ -41,6 +43,9 @@ export function useTargetLabel(diffRef: string, branch: string | null): { label:
   const base = useBaseBranch(details?.baseRef ?? null, branch);
   const commitSha = parseCommitRef(diffRef);
   const { data: commit } = useCommitDetails(commitSha);
+  if (diffRef === HOME_REF) {
+    return { label: 'Home', icon: <HomeIcon className="w-3.5 h-3.5" /> };
+  }
   if (details && diffRef === prDiffRef(details)) {
     return { label: `PR #${details.prNumber} · ${details.prTitle}`, icon: <GitPullRequestIcon className="w-3.5 h-3.5" /> };
   }
@@ -148,10 +153,9 @@ export function RefMenu(props: RefMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
-  useDismiss(ref, open, close);
   const target = useTargetLabel(diffRef, branch);
 
-  const isDefault = diffRef === 'work';
+  const isDefault = diffRef === 'work' || diffRef === HOME_REF;
 
   return (
     <div className="relative min-w-0 flex items-center" ref={ref}>
@@ -176,7 +180,7 @@ export function RefMenu(props: RefMenuProps) {
           </button>
         )}
       </div>
-      {open && (
+      <Popover open={open} onClose={close} anchorRef={ref} width={440} className="p-0 overflow-hidden flex flex-col">
         <RefMenuPanel
           diffRef={diffRef}
           branch={branch}
@@ -193,7 +197,7 @@ export function RefMenu(props: RefMenuProps) {
             openPullRequests();
           }}
         />
-      )}
+      </Popover>
     </div>
   );
 }
@@ -247,7 +251,7 @@ function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (
   const showWork = !trimmed;
 
   return (
-    <div className="absolute left-0 top-full mt-1.5 w-[440px] max-h-[min(560px,75vh)] flex flex-col bg-overlay rounded-lg ring-1 ring-overlay-border z-50 font-sans overflow-hidden">
+    <div className="max-h-[min(560px,75vh)] flex flex-col font-sans overflow-hidden">
       <div className="shrink-0 p-1.5 border-b border-overlay-border">
         <div className="relative">
           <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />

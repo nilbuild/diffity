@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRepoNav } from '../../hooks/use-repo';
-import { useDismiss } from '../../hooks/use-dismiss';
 import { useBranches, useGitHubAuth, useGitHubPr, useHasGitHubRemote } from '../../hooks/use-repo-state';
 import { cn } from '../../lib/cn';
 import { openSettingsAt } from '../../lib/ui-store';
@@ -11,6 +10,7 @@ import { ChecksStatus, PrStateIcon } from './pr-meta';
 import { checkoutPullRequest, labelFor, localNameFor, parsePrInput, switchBranch, useCheckoutState } from './pr-checkout';
 import { usePullRequests } from './pull-requests-dialog';
 import { CheckIcon, ChevronUpDownIcon, GitBranchIcon, GitPullRequestIcon, SearchIcon } from '../../components/ui/icon';
+import { Popover } from '../../components/ui/popover';
 
 const sectionClass = 'px-2.5 pt-2.5 pb-1 text-[11px] font-medium text-text-secondary';
 
@@ -77,7 +77,7 @@ function BranchSwitcherPanel(props: { current: string | null; onDone: () => void
   };
 
   return (
-    <div className="absolute left-0 bottom-full mb-1.5 w-[320px] max-h-[min(460px,70vh)] flex flex-col bg-overlay rounded-lg ring-1 ring-overlay-border z-50 font-sans overflow-hidden text-text">
+    <div className="max-h-[min(460px,70vh)] flex flex-col font-sans overflow-hidden text-text">
       <div className="shrink-0 p-2 border-b border-overlay-border">
         <div className="relative">
           <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
@@ -195,7 +195,6 @@ export function BranchSwitcher(props: { branch: string | null; className?: strin
   const busy = useCheckoutState((state) => state.busy);
   const ref = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
-  useDismiss(ref, open, close);
 
   return (
     <div className="relative min-w-0" ref={ref}>
@@ -208,7 +207,9 @@ export function BranchSwitcher(props: { branch: string | null; className?: strin
         <span className="truncate max-w-[220px] font-mono">{branch ?? 'detached'}</span>
         <span className="text-text-muted shrink-0 flex"><ChevronUpDownIcon /></span>
       </button>
-      {open && <BranchSwitcherPanel current={branch} onDone={close} />}
+      <Popover open={open} onClose={close} anchorRef={ref} width={320} className="p-0 overflow-hidden flex flex-col">
+        <BranchSwitcherPanel current={branch} onDone={close} />
+      </Popover>
     </div>
   );
 }

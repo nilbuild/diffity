@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { menuItemClass } from '../../components/layout/options-menu';
-import { useDismiss } from '../../hooks/use-dismiss';
 import { getRepoPath } from '../../lib/api';
 import { TREE_REF } from '../../lib/types';
 import type { CommentThread } from '../../components/comments/types';
 import { enqueueClaude, openRunResult, runLabel, runViewLabel, stopClaude, useActiveRun, useQueuedCount } from './claude-runner';
 import { useCurrentViewRef } from '../../hooks/use-current-view';
-import { buttonGroup, buttonGroupItem, sectionLabel } from '../../components/ui/button-styles';
+import { buttonGroupClaude, buttonGroupClaudeDivider, buttonGroupClaudeItem, sectionLabel } from '../../components/ui/button-styles';
+import { cn } from '../../lib/cn';
 import { useReviewState } from '../review/review-state';
 import { ChevronDownIcon, CommentIcon, SparkleIcon, StopIcon } from '../../components/ui/icon';
+import { Popover } from '../../components/ui/popover';
 
 export const REVIEW_FOCUSES = [
   { value: 'security', label: 'Security' },
@@ -105,7 +106,6 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
-  useDismiss(menuRef, open, close);
   const run = useActiveRun();
   const { prMode } = useReviewState();
 
@@ -134,37 +134,37 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
 
   return (
     <div className="relative" ref={menuRef}>
-      <div className={buttonGroup}>
+      <div className={buttonGroupClaude}>
         {reviewRef ? (
           <button
             onClick={() => review()}
-            className={buttonGroupItem}
+            className={buttonGroupClaudeItem}
             title="Claude reviews these changes and leaves comments on the diff"
           >
-            <SparkleIcon size="md" className="text-claude" />
+            <SparkleIcon size="md" />
             Ask Claude<span className="hidden min-[1360px]:inline -ml-[3px]">to review</span>
           </button>
         ) : (
           <button
             onClick={resolveAll}
             disabled={openThreads.length === 0}
-            className={buttonGroupItem}
+            className={buttonGroupClaudeItem}
             title={openThreads.length === 0 ? 'No open comments to resolve' : 'Claude works through the open comments and asks before each edit'}
           >
-            <SparkleIcon size="md" className="text-claude" />
+            <SparkleIcon size="md" />
             Resolve with Claude
           </button>
         )}
         <button
           onClick={() => setOpen(!open)}
-          className="flex items-center px-1.5 border-l border-control-border text-text-secondary hover:bg-control-hover hover:text-text transition-colors cursor-pointer"
+          className={cn('flex items-center px-1.5 text-claude hover:bg-claude/15 transition-colors cursor-pointer', buttonGroupClaudeDivider)}
           title="More Claude actions"
         >
           <ChevronDownIcon size="xs" />
         </button>
       </div>
-      {open && (
-        <div className="absolute right-0 top-full mt-1 w-60 p-1 bg-overlay rounded-lg ring-1 ring-overlay-border z-50">
+      <Popover open={open} onClose={close} anchorRef={menuRef} align="end" width={240}>
+        <>
           {reviewRef && (
             <>
               <div className={sectionLabel}>Ask Claude to review with a focus</div>
@@ -188,8 +188,8 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
               <span className="ml-auto text-text-muted">{openThreads.length}</span>
             </button>
           )}
-        </div>
-      )}
+        </>
+      </Popover>
     </div>
   );
 }

@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, type ReactNode } from 'react';
+import { useState, useRef, type ReactNode } from 'react';
+import { Popover } from '../ui/popover';
 import { useNavigate } from 'react-router';
 import { openSettings, openShortcuts } from '../../lib/ui-store';
 import { modKey } from '../../lib/platform';
@@ -20,19 +21,6 @@ export function OptionsMenu(props: OptionsMenuProps) {
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!showMenu) {
-      return;
-    }
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showMenu]);
-
   const close = () => setShowMenu(false);
 
   return (
@@ -44,8 +32,8 @@ export function OptionsMenu(props: OptionsMenuProps) {
       >
         <EllipsisIcon size="md" />
       </button>
-      {showMenu && (
-        <div className="absolute right-0 top-full mt-1 w-56 p-1 bg-overlay rounded-lg ring-1 ring-overlay-border z-50">
+      <Popover open={showMenu} onClose={close} anchorRef={menuRef} align="end" width={224}>
+        <>
           {renderExtraItems && renderExtraItems(close)}
           <button
             className={menuItemClass}
@@ -100,8 +88,8 @@ export function OptionsMenu(props: OptionsMenuProps) {
             <GitHubIcon className="w-3.5 h-3.5" />
             About Diffity
           </a>
-        </div>
-      )}
+        </>
+      </Popover>
     </div>
   );
 }

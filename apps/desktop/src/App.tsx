@@ -4,7 +4,8 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router';
 import { Toaster } from 'sonner';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { queryClient } from './lib/query-client';
-import { isTauri } from './lib/platform';
+import { isMac, isTauri } from './lib/platform';
+import { invoke } from '@tauri-apps/api/core';
 import { WelcomePage } from './routes/welcome';
 import { RepoLayout } from './routes/repo-layout';
 import { DiffRoute } from './routes/diff';
@@ -49,6 +50,38 @@ function GlobalShortcutModal() {
   return <ShortcutModal onClose={closeShortcuts} />;
 }
 
+function useWindowChrome() {
+  useEffect(() => {
+    if (!isTauri || !isMac) {
+      return;
+    }
+    const timers: number[] = [];
+    const realign = () => {
+      for (const delay of [0, 150, 500]) {
+        timers.push(window.setTimeout(() => {
+          invoke('realign_window_chrome').catch(() => undefined);
+        }, delay));
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        realign();
+      }
+    };
+    window.addEventListener('focus', realign);
+    window.addEventListener('blur', realign);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', realign);
+      window.removeEventListener('blur', realign);
+      document.removeEventListener('visibilitychange', onVisibility);
+      for (const timer of timers) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, []);
+}
+
 function useExternalLinks() {
   useEffect(() => {
     if (!isTauri) {
@@ -70,6 +103,7 @@ function useExternalLinks() {
 
 export function App() {
   useExternalLinks();
+  useWindowChrome();
   useGlobalShortcuts();
 
   useEffect(() => {

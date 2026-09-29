@@ -25,6 +25,8 @@ import { setFocusThread } from '../../lib/ui-store';
 import { OutsideThreads } from '../comments/outside-threads';
 import type { LineSelection } from '../comments/types';
 import { DiffBar } from './view-options';
+import { Dashboard } from '../layout/dashboard';
+import { useRepoNav } from '../../hooks/use-repo';
 import { Workspace } from '../layout/title-bar';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { useViewedFiles } from '../../hooks/use-viewed-files';
@@ -244,6 +246,7 @@ export function DiffPage(props: DiffPageProps) {
   });
 
   const queryClient = useQueryClient();
+  const nav = useRepoNav();
 
   const handleRevert = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['diff'] });
@@ -335,6 +338,9 @@ export function DiffPage(props: DiffPageProps) {
   }
 
   const isEmpty = diff.files.length === 0;
+  if (isEmpty && refParam === 'work' && !hideWhitespace) {
+    return <Dashboard onNavigate={nav.toDiff} />;
+  }
   const allPaths = diff.files.map((file) => getFilePath(file));
 
   return (

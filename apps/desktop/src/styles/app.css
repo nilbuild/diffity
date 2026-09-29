@@ -41,6 +41,11 @@
 
   --color-accent: #0969da;
   --color-claude: #c96442;
+  --color-claude-hover: #b5563a;
+  --color-primary: #0969da;
+  --color-primary-hover: #0757b8;
+  --color-pull: #0969da;
+  --color-push: #1a7f37;
   --color-accent-hover: #0757b8;
 
   --color-added: #1a7f37;
@@ -95,6 +100,11 @@
 
   --color-accent: #3b82f6;
   --color-claude: #e08a6d;
+  --color-claude-hover: #e89b80;
+  --color-primary: #3b82f6;
+  --color-primary-hover: #60a5fa;
+  --color-pull: #60a5fa;
+  --color-push: #4ade80;
   --color-accent-hover: #60a5fa;
 
   --color-added: #4ade80;

@@ -5,8 +5,15 @@
 //! between displays). Instead the three buttons are moved into a plain container view pinned to the
 //! top-left with autoresizing masks, which AppKit lays out like any other view and leaves alone.
 
+use std::sync::OnceLock;
+
 use objc2::{ClassType, MainThreadMarker, MainThreadOnly};
 use objc2_app_kit::{NSAutoresizingMaskOptions, NSView, NSWindow, NSWindowButton};
+
+/// The buttons' frames inside our container, captured the first time we move them. AppKit sometimes resets the
+/// buttons' origins while they live in our container (after sleep, Space switches, occlusion changes), which stacks
+/// all three at x = 0 so only the green one is visible; every pass puts them back.
+static BUTTON_FRAMES: OnceLock<[(f64, f64); 3]> = OnceLock::new();
 
 /// Matches `h-11` on `TitleBar` and the welcome screen's top bar.
 pub const TITLEBAR_HEIGHT: f64 = 44.0;
@@ -42,8 +49,20 @@ pub fn center<R: tauri::Runtime>(window: &tauri::Window<R>) {
         return;
     };
 
-    // Still inside our container from a previous pass: only realign whatever AppKit added since.
+    // Still inside our container from a previous pass: restore the buttons' own frames (AppKit may have reset them)
+    // and realign whatever AppKit added since.
     if parent.bounds().size.width < ns_window.frame().size.width {
+        if let Some(frames) = BUTTON_FRAMES.get() {
+            for (button, (x, y)) in buttons.iter().zip(frames.iter()) {
+                let mut frame = button.frame();
+                if (frame.origin.x - x).abs() > 0.5 || (frame.origin.y - y).abs() > 0.5 {
+                    frame.origin.x = *x;
+                    frame.origin.y = *y;
+                    button.setFrame(frame);
+                }
+                button.setHidden(false);
+            }
+        }
         if let Some(titlebar) = unsafe { parent.superview() } {
             center_strays(&titlebar, Some(&parent));
         }
@@ -76,11 +95,18 @@ pub fn center<R: tauri::Runtime>(window: &tauri::Window<R>) {
     );
     titlebar.addSubview(&container);
 
-    for button in &buttons {
+    let mut frames = [(0.0, 0.0); 3];
+    for (index, button) in buttons.iter().enumerate() {
         let frame = button.frame();
         button.removeFromSuperview();
         container.addSubview(button);
         button.setFrame(frame);
+        if let Some(slot) = frames.get_mut(index) {
+            *slot = (frame.origin.x, frame.origin.y);
+        }
+    }
+    if buttons.len() == 3 {
+        let _ = BUTTON_FRAMES.set(frames);
     }
 
     center_strays(&titlebar, Some(&container));

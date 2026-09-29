@@ -1,11 +1,10 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
+import { buttonClaudeSolid, buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 import { cn } from '../../lib/cn';
 import * as tauri from '../../lib/tauri';
 import type { ReviewVerdict } from '../../lib/types';
 import type { GitHubDetails } from '../../lib/api';
-import { useDismiss } from '../../hooks/use-dismiss';
 import { openSettingsAt } from '../../lib/ui-store';
 import { getRepoPath } from '../../lib/api';
 import { mentionsAgent } from '../../lib/mentions';
@@ -15,6 +14,7 @@ import { toast } from 'sonner';
 import { MentionTextarea } from '../../components/comments/mention-textarea';
 import { useReviewActions, useReviewState, type ClaudeScope } from './review-state';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon, GitHubIcon, GitPullRequestIcon, SendIcon, SparkleIcon } from '../../components/ui/icon';
+import { Popover } from '../../components/ui/popover';
 
 interface FinishReviewProps {
   githubDetails: GitHubDetails | null;
@@ -96,10 +96,10 @@ function SendToClaude(props: { threads: CommentThread[] }) {
     <button
       onClick={() => void send()}
       disabled={submit.isPending}
-      className={buttonOutline}
+      className={buttonClaudeSolid}
       title={`Claude answers questions and makes the requested changes for ${plural(count, 'open comment')}, asking before each edit`}
     >
-      <SendIcon size="md" className="text-text-secondary" />
+      <SendIcon size="md" />
       Send {count} to Claude
     </button>
   );
@@ -259,7 +259,6 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[] 
   const [showItems, setShowItems] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
-  useDismiss(ref, open, close);
   const claudeProblem = useClaudeProblem(open && sendClaude);
 
   const items = useMemo(() => reviewItems(threads), [threads]);
@@ -338,7 +337,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[] 
         className={pendingCount > 0 ? buttonPrimary : buttonOutline}
         title={pendingCount > 0 ? `${plural(pendingCount, 'draft comment')} waiting to be submitted` : `Submit your review of pull request #${pr.prNumber}`}
       >
-        <GitPullRequestIcon size="md" className={pendingCount > 0 ? 'text-white' : 'text-text-secondary'} />
+        <GitPullRequestIcon size="md" className={pendingCount > 0 ? 'text-white' : 'text-added'} />
         Submit review #{pr.prNumber}
         {pendingCount > 0 && (
           <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-white/25 text-[10px] font-semibold tabular-nums">
@@ -347,8 +346,8 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[] 
         )}
         <ChevronDownIcon size="xs" />
       </button>
-      {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-[440px] max-w-[calc(100vw-24px)] max-h-[calc(100vh-64px)] overflow-y-auto bg-overlay rounded-lg border border-overlay-border z-50 font-sans">
+      <Popover open={open} onClose={close} anchorRef={ref} align="end" width={440} className="p-0">
+        <div className="font-sans">
           <div className="px-4 pt-3.5 pb-3">
             <div className="text-[13px] font-semibold text-text">Submit review · #{pr.prNumber}</div>
             <div className="text-xs text-text-secondary mt-0.5 truncate" title={pr.prTitle}>
@@ -471,7 +470,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[] 
             <div className="px-4 pb-3 -mt-1 text-xs text-text-muted text-right">{disabledReason}</div>
           )}
         </div>
-      )}
+      </Popover>
     </div>
   );
 }
