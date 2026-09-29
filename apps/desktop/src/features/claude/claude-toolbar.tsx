@@ -142,7 +142,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
         ref={anchorRef}
         onClick={() => setOpen(!open)}
         className={cn(buttonClaude, open && 'bg-claude/16')}
-        title="Claude reviews these changes and leaves comments on the diff. Tell it what to focus on first."
+        title={prMode ? 'Claude reviews this pull request and leaves its comments in Diffity only (marked Claude). Use “Add to my review” on any you want to post to GitHub.' : 'Claude reviews these changes and leaves comments on the diff. Tell it what to focus on first.'}
         aria-expanded={open}
       >
         <SparkleIcon size="md" />

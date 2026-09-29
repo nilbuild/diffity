@@ -112,19 +112,31 @@ fn action_template(
                 &[("ref", r#ref), ("focus", focus), ("instructions", &instructions), ("scope", &scope)],
             ))
         }
-        AgentAction::Resolve { thread_id } => {
-            let target = match thread_id {
-                Some(id) => format!("thread `{id}` only"),
-                None => "all open threads".to_string(),
+        AgentAction::Resolve { thread_id, thread_ids, note } => {
+            let batch: Vec<&str> = thread_ids.iter().map(|id| id.trim()).filter(|id| !id.is_empty()).collect();
+            let target = match (thread_id, batch.is_empty()) {
+                (_, false) => format!(
+                    "only these threads: {}. Leave every other thread alone",
+                    batch.iter().map(|id| format!("`{id}`")).collect::<Vec<_>>().join(", ")
+                ),
+                (Some(id), true) => format!("thread `{id}` only"),
+                (None, true) => "all open threads".to_string(),
             };
-            Some(render(
+            let mut rendered = render(
                 RESOLVE,
                 &[
                     ("ref", session_ref),
                     ("target", &target),
                     ("threadId", thread_id.as_deref().unwrap_or("")),
                 ],
-            ))
+            );
+            if let Some(note) = note.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
+                let quoted = note.lines().map(|line| format!("> {line}")).collect::<Vec<_>>().join("\n");
+                rendered.push_str(&format!(
+                    "\n\n## Note from the user for this batch\n\nApply this to every thread above:\n\n{quoted}\n"
+                ));
+            }
+            Some(rendered)
         }
         AgentAction::Explain { path } => Some(render(EXPLAIN, &[("path", path)])),
         AgentAction::Summarize { r#ref } => Some(render(SUMMARIZE, &[("ref", r#ref)])),
@@ -221,8 +233,15 @@ mod tests {
             },
             AgentAction::Resolve {
                 thread_id: Some("abcd1234".into()),
+                thread_ids: Vec::new(),
+                note: None,
             },
-            AgentAction::Resolve { thread_id: None },
+            AgentAction::Resolve { thread_id: None, thread_ids: Vec::new(), note: None },
+            AgentAction::Resolve {
+                thread_id: None,
+                thread_ids: vec!["aaaa1111".into(), "bbbb2222".into()],
+                note: Some("Keep it minimal".into()),
+            },
             AgentAction::Explain {
                 path: "src/lib.rs".into(),
             },
@@ -299,9 +318,25 @@ mod tests {
     fn resolve_targets_thread() {
         let action = AgentAction::Resolve {
             thread_id: Some("abcd1234".into()),
+            thread_ids: Vec::new(),
+            note: None,
         };
         let p = build_prompt(AgentMode::Resolve, &action, "work", false, "", &[], None);
         assert!(p.contains("thread `abcd1234` only"));
+    }
+
+    #[test]
+    fn resolve_batch_lists_threads_and_note() {
+        let action = AgentAction::Resolve {
+            thread_id: None,
+            thread_ids: vec!["aaaa1111".into(), " ".into(), "bbbb2222".into()],
+            note: Some("Keep changes small.\nNo new deps.".into()),
+        };
+        let p = build_prompt(AgentMode::Resolve, &action, "work", false, "", &[], None);
+        assert!(p.contains("only these threads: `aaaa1111`, `bbbb2222`"));
+        assert!(p.contains("## Note from the user for this batch"));
+        assert!(p.contains("> Keep changes small.\n> No new deps."));
+        assert!(!p.contains("{{"));
     }
 
     #[test]

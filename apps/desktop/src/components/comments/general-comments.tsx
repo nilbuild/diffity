@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { GENERAL_THREAD_FILE_PATH, isThreadResolved, DEFAULT_AUTHOR } from './types';
 import type { CommentThread as CommentThreadType } from './types';
 import type { CommentActions } from '../../hooks/use-comment-actions';
-import { CommentForm } from './comment-form';
+import { CommentForm, hasDraft } from './comment-form';
+import { useReviewState } from '../../features/review/review-state';
 import { ThreadBadge } from '../ui/thread-badge';
 import { ThreadCard } from './thread-card';
 import { ChevronIcon, CommentIcon } from '../ui/icon';
@@ -16,8 +17,10 @@ export function GeneralComments(props: GeneralCommentsProps) {
   const { threads: allThreads, commentActions } = props;
 
   const threads = allThreads.filter(t => t.filePath === GENERAL_THREAD_FILE_PATH);
-  const [isExpanded, setIsExpanded] = useState(threads.length > 0);
-  const [showForm, setShowForm] = useState(false);
+  const { sessionId } = useReviewState();
+  const draftOpen = hasDraft(sessionId, 'general');
+  const [isExpanded, setIsExpanded] = useState(threads.length > 0 || draftOpen);
+  const [showForm, setShowForm] = useState(draftOpen);
 
   return (
     <div className="rounded-lg overflow-hidden border border-border bg-bg">
@@ -62,6 +65,7 @@ export function GeneralComments(props: GeneralCommentsProps) {
                 onCancel={() => setShowForm(false)}
                 placeholder="Leave a general comment..."
                 submitLabel="Comment"
+                draftKey="general"
               />
             </div>
           )}

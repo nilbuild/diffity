@@ -32,6 +32,21 @@ export function useCommentActions(sessionId: string | null, enabled: boolean) {
     api.createThread({ sessionId, filePath, side, startLine, endLine, body, author, anchorContent, options }).then((thread) => {
       invalidateThreads();
       mentionFollowUp(thread);
+      const prNumber = options?.postToGitHub;
+      if (!prNumber) {
+        return;
+      }
+      const id = toast.loading(`Posting to GitHub PR #${prNumber}…`);
+      api.pushCommentsToGitHub(sessionId, prNumber, [thread.id]).then((result) => {
+        invalidateThreads();
+        if (result.failed > 0) {
+          toast.error('Saved here, but GitHub did not accept it', { id, description: result.errors[0] });
+          return;
+        }
+        toast.success(`Posted to GitHub PR #${prNumber}`, { id });
+      }, (error) => {
+        toast.error('Saved here, but could not post to GitHub', { id, description: api.errorMessage(error) });
+      });
     }, reportError);
   }, [enabled, sessionId, invalidateThreads]);
 

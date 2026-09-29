@@ -8,7 +8,9 @@ import type { GitHubDetails } from '../../lib/api';
 import { openSettingsAt } from '../../lib/ui-store';
 import { getRepoPath } from '../../lib/api';
 import { mentionsAgent } from '../../lib/mentions';
-import { enqueueClaude } from '../claude/claude-runner';
+import { enqueueClaude, useBusyThreadIds } from '../claude/claude-runner';
+import { TREE_REF } from '../../lib/types';
+import { parseCommitRef } from '../../lib/api';
 import { GENERAL_THREAD_FILE_PATH, type CommentThread } from '../../components/comments/types';
 import { toast } from 'sonner';
 import { MentionTextarea } from '../../components/comments/mention-textarea';
@@ -19,6 +21,7 @@ import { Popover } from '../../components/ui/popover';
 interface FinishReviewProps {
   githubDetails: GitHubDetails | null;
   threads?: CommentThread[];
+  diffRef?: string | null;
 }
 
 const VERDICTS: { value: ReviewVerdict; label: string; description: string }[] = [
@@ -52,30 +55,78 @@ export function unaddressedThreads(threads: CommentThread[]): CommentThread[] {
       return false;
     }
     const last = thread.comments[thread.comments.length - 1];
-    return !!last && last.author.type !== 'agent';
+    return !!last && last.author.type === 'user';
   });
 }
 
+/** Where "Send to Claude" makes sense: Claude edits the working tree, so not on an old commit or a range away from HEAD. */
+export function canSendToClaude(diffRef: string | null | undefined): boolean {
+  if (!diffRef) {
+    return true;
+  }
+  if (diffRef === 'work' || diffRef === 'staged' || diffRef === 'unstaged' || diffRef === TREE_REF) {
+    return true;
+  }
+  if (parseCommitRef(diffRef)) {
+    return false;
+  }
+  if (diffRef.includes('..')) {
+    const head = diffRef.split(/\.{2,3}/)[1];
+    return !head || head === 'HEAD';
+  }
+  return true;
+}
+
 export function FinishReview(props: FinishReviewProps) {
-  const { githubDetails, threads = [] } = props;
+  const { githubDetails, threads = [], diffRef } = props;
   const { enabled } = useReviewState();
 
   if (!enabled) {
     return null;
   }
+  const send = canSendToClaude(diffRef) ? <SendToClaude threads={threads} /> : null;
   if (!githubDetails) {
-    return <SendToClaude threads={threads} />;
+    return send;
   }
-  return <PullRequestReview pr={githubDetails} threads={threads} />;
+  return (
+    <>
+      {send}
+      <PullRequestReview pr={githubDetails} threads={threads} />
+    </>
+  );
+}
+
+function threadLocation(thread: CommentThread): string {
+  if (thread.filePath === GENERAL_THREAD_FILE_PATH) {
+    return 'General';
+  }
+  const range = thread.startLine === thread.endLine ? `L${thread.startLine}` : `L${thread.startLine}–${thread.endLine}`;
+  return range;
 }
 
 function SendToClaude(props: { threads: CommentThread[] }) {
   const { threads } = props;
-  const { sessionId, pendingReview } = useReviewState();
+  const { sessionId, pendingReview, prMode } = useReviewState();
   const { submit } = useReviewActions(sessionId);
-  const pendingCount = pendingReview?.pendingCount ?? 0;
-  const count = unaddressedThreads(threads).length + pendingCount;
+  const busy = useBusyThreadIds();
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState('');
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const pendingCount = prMode ? 0 : pendingReview?.pendingCount ?? 0;
+  const candidates = unaddressedThreads(threads).filter((thread) => !busy.has(thread.id) && !thread.githubThreadId);
+  const selected = candidates.filter((thread) => !excluded.has(thread.id));
+  const count = candidates.length + pendingCount;
   const claudeProblem = useClaudeProblem(count > 0);
+
+  const groups = useMemo(() => {
+    const byFile = new Map<string, CommentThread[]>();
+    for (const thread of candidates) {
+      const key = thread.filePath === GENERAL_THREAD_FILE_PATH ? 'General comments' : thread.filePath;
+      byFile.set(key, [...(byFile.get(key) ?? []), thread]);
+    }
+    return [...byFile.entries()];
+  }, [candidates]);
 
   if (count === 0) {
     return null;
@@ -89,19 +140,97 @@ function SendToClaude(props: { threads: CommentThread[] }) {
     if (pendingCount > 0) {
       await submit.mutateAsync({ body: '', verdict: null, claude: 'skip', prNumber: null });
     }
-    enqueueClaude({ kind: 'resolve' }, { repoPath: getRepoPath(), sessionId });
+    setOpen(false);
+    enqueueClaude(
+      {
+        kind: 'resolve',
+        threadIds: [...new Set([...selected.map((thread) => thread.id), ...(pendingCount > 0 ? pendingReview?.threadIds ?? [] : [])])],
+        note: note.trim() || undefined,
+      },
+      { repoPath: getRepoPath(), sessionId },
+    );
+    setNote('');
+    setExcluded(new Set());
+  };
+
+  const toggle = (id: string) => {
+    setExcluded((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   return (
-    <button
-      onClick={() => void send()}
-      disabled={submit.isPending}
-      className={buttonClaudeSolid}
-      title={`Claude answers questions and makes the requested changes for ${plural(count, 'open comment')}, asking before each edit`}
-    >
-      <SendIcon size="md" />
-      Send {count} to Claude
-    </button>
+    <>
+      <button
+        ref={anchorRef}
+        onClick={() => setOpen(!open)}
+        disabled={submit.isPending}
+        className={buttonClaudeSolid}
+        title={`Claude answers questions and makes the requested changes for ${plural(count, 'open comment')}, asking before each edit`}
+        aria-expanded={open}
+      >
+        <SendIcon size="md" />
+        Send {count} to Claude
+      </button>
+      <Popover open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} align="end" width={420} className="p-0">
+        <form
+          className="flex flex-col font-sans"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void send();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault();
+              void send();
+            }
+          }}
+        >
+          <div className="px-4 pt-3.5 pb-2">
+            <div className="text-[13px] font-semibold text-text">Send comments to Claude</div>
+            <p className="mt-0.5 text-xs text-text-secondary">Claude edits your working tree to address them, asks before each edit, and replies on each thread.</p>
+          </div>
+          <div className="max-h-[260px] overflow-y-auto px-2">
+            {groups.map(([file, items]) => (
+              <div key={file} className="pb-1">
+                <div className="px-2 pt-1.5 pb-1 font-mono text-[11px] text-text-muted truncate">{file}</div>
+                {items.map((thread) => (
+                  <label key={thread.id} className="flex items-start gap-2.5 px-2 py-1.5 rounded-md hover:bg-hover cursor-pointer">
+                    <input type="checkbox" checked={!excluded.has(thread.id)} onChange={() => toggle(thread.id)} className="mt-0.5 accent-claude" />
+                    <span className="shrink-0 w-12 pt-px font-mono text-[11px] text-text-muted">{threadLocation(thread)}</span>
+                    <span className="min-w-0 flex-1 text-xs leading-5 text-text line-clamp-2">{thread.comments[thread.comments.length - 1]?.body}</span>
+                  </label>
+                ))}
+              </div>
+            ))}
+            {pendingCount > 0 && <div className="px-2 py-1 text-xs text-text-secondary">+ {plural(pendingCount, 'draft comment')} (submitted first)</div>}
+          </div>
+          <div className="px-4 pt-2 pb-3 border-t border-overlay-border">
+            <MentionTextarea
+              value={note}
+              onChange={setNote}
+              rows={2}
+              placeholder="Optional note for all of these, e.g. “Keep changes minimal, no new dependencies”"
+              className="block w-full px-2.5 py-1.5 text-[13px] leading-5 bg-raised text-text rounded-md border border-control-border focus:border-focus resize-y outline-none placeholder:text-text-muted"
+            />
+            {claudeProblem && <div className="mt-2 px-2.5 py-1.5 rounded-md bg-deleted/10 text-xs text-deleted">{claudeProblem}</div>}
+            <div className="mt-2.5 flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setOpen(false)} className={buttonGhost}>Cancel</button>
+              <button type="submit" disabled={selected.length + pendingCount === 0} className={buttonClaudeSolid} title="⌘↵">
+                <SendIcon size="sm" />
+                Send {selected.length + pendingCount} to Claude
+              </button>
+            </div>
+          </div>
+        </form>
+      </Popover>
+    </>
   );
 }
 

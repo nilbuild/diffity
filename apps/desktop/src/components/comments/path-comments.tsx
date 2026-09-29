@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import type { CommentThread as CommentThreadType } from './types';
 import { isThreadResolved, DEFAULT_AUTHOR } from './types';
 import type { CommentActions } from '../../hooks/use-comment-actions';
-import { CommentForm } from './comment-form';
+import { CommentForm, hasDraft } from './comment-form';
+import { useReviewState } from '../../features/review/review-state';
 import { ThreadBadge } from '../ui/thread-badge';
 import { ThreadCard } from './thread-card';
 import { CommentIcon } from '../ui/icon';
@@ -19,8 +20,10 @@ interface PathCommentsProps {
 
 export function PathComments(props: PathCommentsProps) {
   const { pathKey, threads, commentActions, label, children, actions, focusedThreadId } = props;
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [showForm, setShowForm] = useState(false);
+  const { sessionId } = useReviewState();
+  const draftOpen = hasDraft(sessionId, `path:${pathKey}`);
+  const [isExpanded, setIsExpanded] = useState(draftOpen);
+  const [showForm, setShowForm] = useState(draftOpen);
 
   useEffect(() => {
     if (!focusedThreadId) {
@@ -100,6 +103,7 @@ export function PathComments(props: PathCommentsProps) {
                   }}
                   placeholder={`Comment on ${label}...`}
                   submitLabel="Comment"
+                  draftKey={`path:${pathKey}`}
                 />
               </div>
             )}

@@ -4,10 +4,15 @@ import { isThreadResolved } from './types';
 import { CommentBubble } from './comment-bubble';
 import { CommentForm } from './comment-form';
 import { cn } from '../../lib/cn';
-import { getRepoPath } from '../../lib/api';
 import { enqueueClaude, useThreadActivity } from '../../features/claude/claude-runner';
 import { useReviewState } from '../../features/review/review-state';
-import { SparkleIcon, TrashIcon } from '../ui/icon';
+import { GitHubIcon, GitPullRequestIcon, SparkleIcon, TrashIcon } from '../ui/icon';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import * as api from '../../lib/api';
+import { useGitHubPr } from '../../hooks/use-repo-state';
+import { DEFAULT_AUTHOR } from './types';
+import { hasDraft } from './comment-form';
 
 interface ThreadCardProps {
   thread: CommentThreadType;
@@ -21,6 +26,37 @@ interface ThreadCardProps {
   headerRight?: React.ReactNode;
   className?: string;
   children?: React.ReactNode;
+}
+
+function OriginBadge(props: { thread: CommentThreadType; prMode: boolean; prUrl: string | null }) {
+  const { thread, prMode, prUrl } = props;
+  const base = 'inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium';
+
+  if (thread.comments[0]?.author.type === 'agent') {
+    return <span className={cn(base, 'bg-claude/12 text-claude')} title="Written by Claude, kept in Diffity">Claude</span>;
+  }
+  if (thread.pending) {
+    return (
+      <span className={cn(base, 'bg-fill text-text-secondary')} title={prMode ? 'Draft in your GitHub review; posted when you submit' : 'Draft; saved when you submit'}>
+        {prMode ? 'Draft · GitHub' : 'Draft'}
+      </span>
+    );
+  }
+  if (thread.githubThreadId) {
+    if (prUrl) {
+      return (
+        <a href={prUrl} className={cn(base, 'bg-added/12 text-added hover:underline')} title="Posted on GitHub — open the pull request">
+          <GitHubIcon size={10} />
+          Posted
+        </a>
+      );
+    }
+    return <span className={cn(base, 'bg-added/12 text-added')}><GitHubIcon size={10} />On GitHub</span>;
+  }
+  if (!prMode) {
+    return null;
+  }
+  return <span className={cn(base, 'bg-fill text-text-secondary')} title="Only in Diffity; not part of your GitHub review">Local</span>;
 }
 
 export function ThreadCard(props: ThreadCardProps) {
@@ -37,14 +73,46 @@ export function ThreadCard(props: ThreadCardProps) {
     className,
     children,
   } = props;
-  const [showReply, setShowReply] = useState(false);
+  const review = useReviewState();
+  const replyKey = `reply:${thread.id}`;
+  const [showReply, setShowReply] = useState(() => hasDraft(review.sessionId, replyKey));
+  const claudeThread = thread.comments[0]?.author.type === 'agent';
   const resolved = isThreadResolved(thread);
   const activity = useThreadActivity(thread.id);
-  const review = useReviewState();
   const canAskClaude = review.enabled && !resolved && !thread.pending && activity === 'idle' && !!onReply;
 
+  const { details } = useGitHubPr();
+  const queryClient = useQueryClient();
+  const canPromote = review.prMode && claudeThread && !resolved && !!details && !!review.sessionId;
+
+  const promote = async () => {
+    const first = thread.comments[0];
+    if (!first || !review.sessionId || !details) {
+      return;
+    }
+    try {
+      await api.createThread({
+        sessionId: review.sessionId,
+        filePath: thread.filePath,
+        side: thread.side,
+        startLine: thread.startLine,
+        endLine: thread.endLine,
+        body: first.body,
+        author: DEFAULT_AUTHOR,
+        anchorContent: thread.anchorContent ?? undefined,
+        options: { pending: true },
+      });
+      await api.updateThreadStatus(thread.id, 'resolved', 'Added to the GitHub review as a draft');
+      queryClient.invalidateQueries({ queryKey: ['threads', review.sessionId] });
+      queryClient.invalidateQueries({ queryKey: ['reviews', review.sessionId] });
+      toast.success(`Added to your review on PR #${details.prNumber}`, { description: 'It is a draft until you submit the review. Edit it first if you like.' });
+    } catch (error) {
+      toast.error('Could not add it to your review', { description: api.errorMessage(error) });
+    }
+  };
+
   const resolveWithClaude = () => {
-    enqueueClaude({ kind: 'resolve', threadId: thread.id }, { repoPath: getRepoPath(), sessionId: thread.sessionId ?? null });
+    enqueueClaude({ kind: 'resolve', threadId: thread.id }, { repoPath: api.getRepoPath(), sessionId: thread.sessionId ?? null });
   };
 
   return (
@@ -52,15 +120,26 @@ export function ThreadCard(props: ThreadCardProps) {
       <div className="flex items-center justify-between h-9 px-3 bg-bg-secondary border-b border-border-muted">
         <div className="flex items-center gap-2">
           {headerLeft}
+          <OriginBadge thread={thread} prMode={review.prMode} prUrl={details?.pr?.url ?? null} />
         </div>
         <div className="flex items-center gap-1">
-          {canAskClaude && (
+          {canPromote && (
+            <button
+              onClick={() => void promote()}
+              className="inline-flex items-center gap-1 text-xs text-text-secondary hover:text-text transition-colors cursor-pointer mr-2"
+              title="Copy Claude's comment into your GitHub review as a draft you can edit"
+            >
+              <GitPullRequestIcon size="xs" className="text-added" />
+              Add to my review
+            </button>
+          )}
+          {canAskClaude && !canPromote && (
             <button
               onClick={resolveWithClaude}
               className="inline-flex items-center gap-1 text-xs text-text-secondary hover:text-text transition-colors cursor-pointer mr-2"
               title="Ask Claude Code to address this thread"
             >
-              <SparkleIcon className="w-3 h-3" />
+              <SparkleIcon className="w-3 h-3 text-claude" />
               Resolve with Claude
             </button>
           )}
@@ -105,7 +184,7 @@ export function ThreadCard(props: ThreadCardProps) {
       {activity !== 'idle' && (
         <div className="flex items-center gap-2 px-4 pb-2 text-xs text-text-muted">
           {activity === 'working' ? (
-            <span className="inline-block w-3 h-3 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+            <span className="inline-block w-3 h-3 border-2 border-claude/25 border-t-claude rounded-full animate-spin" />
           ) : (
             <SparkleIcon className="w-3 h-3" />
           )}
@@ -123,7 +202,9 @@ export function ThreadCard(props: ThreadCardProps) {
               onCancel={() => setShowReply(false)}
               placeholder="Reply..."
               submitLabel="Reply"
-              reviewable
+              reviewable={!claudeThread}
+              isReply
+              draftKey={replyKey}
               threadPending={!!thread.pending}
             />
           </div>

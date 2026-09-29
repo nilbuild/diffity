@@ -211,7 +211,7 @@ export interface ContextChip {
 export type AgentAction =
   | { kind: 'chat' }
   | { kind: 'review'; ref: string; focus?: string; instructions?: string; paths?: string[] }
-  | { kind: 'resolve'; threadId?: string }
+  | { kind: 'resolve'; threadId?: string; threadIds?: string[]; note?: string }
   | { kind: 'explain'; path: string }
   | { kind: 'summarize'; ref: string }
   /** Address one thread (e.g. after an `@claude` mention). Requires a chat in `resolve` mode. */

@@ -8,6 +8,8 @@ export interface CommentAuthor {
 
 export interface SubmitOptions {
   pending: boolean;
+  /** Pull request number to post this new comment to right away. */
+  postToGitHub?: number;
 }
 
 export interface Comment {

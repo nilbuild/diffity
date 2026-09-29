@@ -6,7 +6,8 @@ import { getRepoPathOrNull, setRepoPath } from '../lib/api';
 import * as tauri from '../lib/tauri';
 import { isTauri } from '../lib/platform';
 import { AppSplash } from '../components/layout/skeleton';
-import { useRepoEvents, useRepoNav, useRepoPath } from '../hooks/use-repo';
+import { useRepoChange, useRepoEvents, useRepoNav, useRepoPath } from '../hooks/use-repo';
+import { toast } from 'sonner';
 import { useTheme } from '../hooks/use-theme';
 import { ClaudeApprovalModal } from '../features/claude/claude-approval-modal';
 import { RouteErrorBoundary } from './route-error-boundary';
@@ -59,6 +60,25 @@ function isTyping(target: EventTarget | null): boolean {
   return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable;
 }
 
+/** ⌘R refreshes the repository's data in place; it never reloads the page or changes the view. */
+function useRefreshShortcut() {
+  const client = useQueryClient();
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.key.toLowerCase() !== 'r') {
+        return;
+      }
+      event.preventDefault();
+      useRepoChange.setState((state) => ({ tick: state.tick + 1 }));
+      void client.invalidateQueries();
+      toast('Refreshed', { duration: 1200 });
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [client]);
+}
+
 function useCommentsShortcut() {
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -96,6 +116,7 @@ export function RepoLayout() {
   useRepoEvents(repoPath);
   usePrCheckout();
   useCommentsShortcut();
+  useRefreshShortcut();
 
   useEffect(() => {
     tauri.openRepo(repoPath).catch(() => undefined);

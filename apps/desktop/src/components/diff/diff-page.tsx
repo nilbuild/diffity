@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { useDiff } from '../../hooks/use-diff';
 import { useInfo } from '../../hooks/use-info';
@@ -25,8 +25,10 @@ import { setFocusThread } from '../../lib/ui-store';
 import { OutsideThreads } from '../comments/outside-threads';
 import type { LineSelection } from '../comments/types';
 import { DiffBar } from './view-options';
-import { Dashboard } from '../layout/dashboard';
-import { useRepoNav } from '../../hooks/use-repo';
+import { repoBase } from '../../hooks/use-repo';
+import { getRepoPath } from '../../lib/api';
+import { readViewMemory, writeViewMemory } from '../../lib/view-memory';
+import { MovedComposer, selectionInDiff } from '../comments/moved-composer';
 import { Workspace } from '../layout/title-bar';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { useViewedFiles } from '../../hooks/use-viewed-files';
@@ -46,8 +48,11 @@ export function DiffPage(props: DiffPageProps) {
   const { data: info } = useInfo(refParam);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
-  const manuallyToggledRef = useRef<Set<string>>(new Set());
-  const [pendingSelection, setPendingSelection] = useState<LineSelection | null>(null);
+  const manuallyToggledRef = useRef<Set<string>>(new Set(readViewMemory<string[]>(refParam, 'toggled', [])));
+  const [pendingSelection, setPendingSelection] = useState<LineSelection | null>(() => readViewMemory<LineSelection | null>(refParam, 'composer', null));
+  const scrollRestoredRef = useRef(false);
+  const location = useLocation();
+  const navigate = useNavigate();
   const mainRef = useRef<HTMLElement | null>(null);
   const diffViewRef = useRef<DiffViewHandle>(null);
   const currentFileIdx = useRef(0);
@@ -67,6 +72,22 @@ export function DiffPage(props: DiffPageProps) {
   useEffect(() => {
     hideStaticSplash();
   }, []);
+
+  useEffect(() => {
+    writeViewMemory(refParam, 'composer', pendingSelection);
+  }, [refParam, pendingSelection]);
+
+  useEffect(() => {
+    const fresh = (location.state as { fresh?: boolean } | null)?.fresh;
+    if (!fresh || !diff) {
+      return;
+    }
+    if (diff.files.length === 0 && refParam === 'work') {
+      navigate(`${repoBase(getRepoPath())}/overview`, { replace: true });
+      return;
+    }
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location, diff, refParam, navigate]);
 
   const { data: serverThreads, isFetched: threadsFetched } = useReviewThreads(reviewsEnabled ? sessionId : null);
   const threads = reviewsEnabled && serverThreads ? serverThreads : [];
@@ -131,6 +152,7 @@ export function DiffPage(props: DiffPageProps) {
     } else {
       toggled.add(path);
     }
+    writeViewMemory(refParam, 'toggled', [...toggled]);
     setCollapsedFiles((prev) => {
       const next = new Set(prev);
       if (next.has(path)) {
@@ -246,7 +268,6 @@ export function DiffPage(props: DiffPageProps) {
   });
 
   const queryClient = useQueryClient();
-  const nav = useRepoNav();
 
   const handleRevert = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['diff'] });
@@ -256,6 +277,27 @@ export function DiffPage(props: DiffPageProps) {
     queryClient.invalidateQueries({ queryKey: ['diff'] });
     resetStaleness();
   }, [queryClient, resetStaleness]);
+
+  const composing = pendingSelection !== null;
+  useEffect(() => {
+    if (!isStale || composing) {
+      return;
+    }
+    const timer = window.setTimeout(handleRefreshDiff, 400);
+    return () => window.clearTimeout(timer);
+  }, [isStale, composing, handleRefreshDiff]);
+
+  useEffect(() => {
+    if (scrollRestoredRef.current || !diff || diff.files.length === 0) {
+      return;
+    }
+    scrollRestoredRef.current = true;
+    const saved = readViewMemory<string | null>(refParam, 'anchor', null);
+    if (!saved || saved === getFilePath(diff.files[0]) || !diff.files.some((file) => getFilePath(file) === saved)) {
+      return;
+    }
+    requestAnimationFrame(() => diffViewRef.current?.scrollToFile(saved));
+  }, [diff, refParam]);
 
   const handleSidebarFileClick = useCallback((path: string) => {
     setActiveFile(path);
@@ -319,7 +361,8 @@ export function DiffPage(props: DiffPageProps) {
 
   const handleActiveFileFromScroll = useCallback((path: string) => {
     setActiveFile(path);
-  }, []);
+    writeViewMemory(refParam, 'anchor', path);
+  }, [refParam]);
 
   if (error) {
     return (
@@ -338,9 +381,7 @@ export function DiffPage(props: DiffPageProps) {
   }
 
   const isEmpty = diff.files.length === 0;
-  if (isEmpty && refParam === 'work' && !hideWhitespace) {
-    return <Dashboard onNavigate={nav.toDiff} />;
-  }
+  const composerMoved = pendingSelection !== null && !selectionInDiff(diff, pendingSelection);
   const allPaths = diff.files.map((file) => getFilePath(file));
 
   return (
@@ -382,6 +423,9 @@ export function DiffPage(props: DiffPageProps) {
                 className="mx-auto mt-4 w-full max-w-2xl rounded-lg border border-border"
               />
             )}
+            {composerMoved && pendingSelection && (
+              <MovedComposer selection={pendingSelection} onSubmit={handleAddThread} onCancel={() => setPendingSelection(null)} />
+            )}
             <DiffEmptyState
               diffRef={refParam}
               hideWhitespace={hideWhitespace}
@@ -415,6 +459,9 @@ export function DiffPage(props: DiffPageProps) {
                 />
               }
             />
+            {composerMoved && pendingSelection && (
+              <MovedComposer selection={pendingSelection} onSubmit={handleAddThread} onCancel={() => setPendingSelection(null)} />
+            )}
             <DiffView
               diff={diff}
               viewMode={viewMode}

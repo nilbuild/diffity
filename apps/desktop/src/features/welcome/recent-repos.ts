@@ -68,7 +68,7 @@ export async function openRepoAt(path: string, navigate: NavigateFunction, optio
       await openRepoInNewWindow(info.path, options.extra);
       return;
     }
-    navigate(repoRoute(info.path, options?.extra));
+    navigate(repoRoute(info.path, options?.extra), { state: { fresh: true } });
   } catch (error) {
     toast.error('Could not open the folder', { description: `${tauri.errorMessage(error)}. It may have been moved or deleted.` });
   }

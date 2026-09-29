@@ -26,6 +26,7 @@ export function CommentFormRow(props: CommentFormRowProps) {
         onSubmit={(body, options) => onSubmit(filePath, side, startLine, endLine, body, currentAuthor, options)}
         onCancel={onCancel}
         reviewable
+        draftKey={`line:${filePath}:${side}:${startLine}-${endLine}`}
         lineLabel={`Add a comment on line${startLine !== endLine ? 's' : ''} ${lineLabel}`}
       />
     </div>

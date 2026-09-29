@@ -58,6 +58,12 @@ pub enum AgentAction {
     Resolve {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         thread_id: Option<String>,
+        /// A chosen batch of threads; empty means `thread_id` alone, or every open thread.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        thread_ids: Vec<String>,
+        /// An overall note from the user sent with the batch.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
     },
     Explain {
         path: String,
@@ -225,7 +231,7 @@ mod tests {
             r#"{"type":"permissionRequest","requestId":"r","title":"t","options":[]}"#
         );
         let a: AgentAction = serde_json::from_str(r#"{"kind":"resolve","threadId":"x"}"#).unwrap();
-        assert!(matches!(a, AgentAction::Resolve { thread_id: Some(_) }));
+        assert!(matches!(a, AgentAction::Resolve { thread_id: Some(_), .. }));
         let a: AgentAction = serde_json::from_str(r#"{"kind":"review","ref":"work"}"#).unwrap();
         assert!(matches!(a, AgentAction::Review { .. }));
         let a: AgentAction = serde_json::from_str(r#"{"kind":"chat"}"#).unwrap();

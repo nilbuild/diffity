@@ -23,7 +23,7 @@ const components: Components = {
 };
 
 function tidy(text: string): string {
-  let result = text.replace(/(^|\s)[-*]\s(?=\S)/g, '$1· ').replace(/(^|\s)#{1,6}\s/g, '$1');
+  let result = text.replace(/(^|[.:!?]\s)[-*]\s(?=\S)/g, '$1· ').replace(/(^|\s)#{1,6}\s/g, '$1');
   if ((result.match(/\*\*/g) ?? []).length % 2 === 1) {
     result = result.replace(/\*\*(?!.*\*\*)/, '');
   }

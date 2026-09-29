@@ -264,7 +264,58 @@ that fell out: **controls live next to what they change, and every region has on
 - Status-bar repo path: click reveals the folder in Finder; right-click offers Reveal in Finder, Open in Terminal,
   Open in <editor>, Copy path.
 
+## Round 8 (refresh, two personas, contextual actions)
+
+### Refresh
+Paths audited: the "Files changed on disk · Refresh" pill, repo-changed events, Fetch, project switching, ⌘R and a
+full webview reload.
+- **Found:** the Changes view showed Home whenever the uncommitted diff became empty, so refreshing after a commit
+  (or any refresh of a clean tree) swapped the page for Home. ⌘R did nothing in the app window. Unsent comment text,
+  the open composer, scroll position and manually collapsed files were lost on reload.
+- **Now:** data refreshes never navigate. Home is shown only when a project is opened fresh (`openRepoAt` passes a
+  one-shot `fresh` flag; clean tree → Home, otherwise the flag is cleared); an empty Changes view after a refresh
+  shows a compact "No uncommitted changes" state with Go to Home / Review last commit / Browse files.
+  - ⌘R refreshes all data in place ("Refreshed" toast); the route, scroll and composers stay.
+  - The disk-change pill auto-refreshes when no composer is open; with one open it waits for you.
+  - Composer text is saved per repo + review session + anchor (line, reply, general, path) until sent or cancelled;
+    the open line composer, scroll anchor (top file) and manually toggled files are remembered per repo + view, so a
+    full reload restores them (verified with a real reload).
+  - If the lines under an open composer change, the composer moves to the top of the diff with "Your unsent comment
+    on src/app.ts line 6. The code there changed, so it is kept here." (verified by editing the file mid-comment).
+
+### Persona 1: reviewing AI-written work locally
+- Comments save immediately; "Send N to Claude" (solid terracotta) counts your open comments Claude has not answered
+  and that are not already queued (so an @claude thread in flight is never sent twice).
+- Clicking it opens a popover: the comments grouped by file with checkboxes (all selected), an optional note for the
+  whole batch, ⌘↵ to send. Backend: `resolve` takes `threadIds` + `note` (prompt lists only those threads and adds
+  the note; Rust tests added).
+- While running: "Claude is working on 2 comments · 0:04 · Stop" and "Claude Code is working…" on each thread. When
+  done: "Claude resolved 2 of 2 comments" with "Review changes". Verified on the scratch repo: one edit applied
+  (after approval), one answered without a change, both resolved with replies.
+
+### Persona 2: reviewing someone else's PR
+- Composer on a checked-out PR: primary "Start a review" / "Add to review" (draft), secondary "Post to GitHub now"
+  (creates the comment and pushes that one thread immediately). Replies on PR threads are drafts that go with the
+  review. Replies on Claude's local threads stay local and immediate.
+- A hint line under every composer says where it goes: "Goes into your review on PR #430, posted when you submit",
+  "Saved in Diffity only · @claude asks Claude", "… · Claude will reply".
+- Thread badges: Claude (terracotta), Draft · GitHub, Posted (GitHub, links to the PR), Local (PR view only).
+- "Ask Claude to review" on a PR leaves Claude-marked local comments; each has "Add to my review", which copies it
+  into your GitHub review as an editable draft and resolves Claude's thread.
+- Submit review #N is the primary (solid, count badge) when drafts exist; its popover has summary, verdict and the
+  optional Claude section. Tested read-only: drafts were created locally and removed again; nothing was posted.
+
+### Contextual title-bar actions
+| Context | Primary | Secondary |
+| --- | --- | --- |
+| Uncommitted / staged / branch vs base | Send N to Claude (only with unanswered comments) | Ask Claude to review |
+| Checked-out PR | Submit review #N (solid when drafts exist) | Ask Claude to review; Send N to Claude only for your local comments |
+| Past commit or a range not ending at HEAD | — | Ask Claude to review (no Send to Claude: Claude edits the working tree) |
+| Files | — | Send N to Claude for file comments |
+
 ## Remaining
+
+- "Post to GitHub now" pushes only new threads; replies to existing GitHub threads still go out with the review.
 
 - Very large diffs (thousands of files) are still rendered eagerly apart from auto-collapsed files; no virtualisation.
 - The window title is only the repo name (no ref).
