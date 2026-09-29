@@ -1,5 +1,8 @@
 import { TreePage } from '../components/tree/tree-page';
+import { useRepoPath } from '../hooks/use-repo';
 
 export function TreeRoute() {
-  return <TreePage />;
+  const repoPath = useRepoPath();
+
+  return <TreePage key={repoPath} />;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DiffFile, ParsedDiff } from '@diffity/parser';
 import { DiffStats } from '../diff/diff-stats';
+import { setSidebarFlat, useUi } from '../../lib/ui-store';
 import { FileTree } from '../tree/file-tree';
 import type { FileTreeHandle } from '../tree/file-tree';
 import { CommentedOnlyToggle, SidebarFilter, SidebarFrame, SidebarMenu, SidebarSummary } from './sidebar-frame';
@@ -17,16 +18,6 @@ interface SidebarProps {
   stats?: ParsedDiff['stats'];
 }
 
-const FLAT_KEY = 'diffity-sidebar-flat';
-
-function readFlat() {
-  try {
-    return localStorage.getItem(FLAT_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 export function Sidebar(props: SidebarProps) {
   const {
     files,
@@ -41,16 +32,8 @@ export function Sidebar(props: SidebarProps) {
   const [search, setSearch] = useState('');
   const [commentedFilesOnly, setCommentedFilesOnly] = useState(false);
   const [allExpanded, setAllExpanded] = useState(true);
-  const [flat, setFlatState] = useState(readFlat);
-
-  const setFlat = (value: boolean) => {
-    setFlatState(value);
-    try {
-      localStorage.setItem(FLAT_KEY, value ? '1' : '0');
-    } catch {
-      return;
-    }
-  };
+  const flat = useUi((state) => state.sidebarFlat);
+  const setFlat = setSidebarFlat;
 
   const commentedFileCount = commentCountsByFile.size;
   const countLabel = useMemo(() => {

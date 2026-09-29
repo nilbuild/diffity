@@ -32,6 +32,9 @@ export const shortcuts = [
   {
     category: 'App',
     items: [
+      { key: `${modKey}K`, description: 'Command palette: actions, projects, branches, commits, comments' },
+      { key: `${modKey}P`, description: `Go to file (this view first, then all files; ${modKey}↵ opens in editor)` },
+      { key: `${modKey}⇧P`, description: 'Actions only' },
       { key: `${modKey}O`, description: 'Open a folder' },
       { key: `${modKey}⇧H`, description: 'Home: history and what to review' },
       { key: `${modKey}R`, description: 'Refresh data (keeps your place and unsent comments)' },

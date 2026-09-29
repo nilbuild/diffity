@@ -342,6 +342,30 @@ full webview reload.
   cheap frame compare). Repairs are logged (`traffic_lights: repaired …`). Stress-tested: project switching, ⌘\,
   Settings, ⌘R, theme switch, focus loss; no repair was needed after the first layout.
 
+## Round 10 (switching jump, palette, file order)
+
+- **Project-switch jump**, measured with 30 fps screen recordings and frame diffs. Found and fixed:
+  1. The diff scrolled to the remembered file one frame after painting at the top → the scroll offset is stored per
+     repo + view and applied before the first paint (virtualizer `initialOffset` + layout effect).
+  2. Code painted uncoloured, then coloured (the highlighter and every file's token map were rebuilt on mount) →
+     the loaded highlighter is shared synchronously and token maps are cached per file content.
+  3. Resolved threads faded in on every mount → the fade only plays when a thread was just resolved.
+  4. "Last commit" button popped in → a same-size placeholder while it loads.
+  5. The status-bar path appeared after the repo metadata loaded → falls back to the repo path immediately.
+  6. Rail tiles animated their colour change → no transition.
+  7. Pages are keyed by repository so no state leaks between projects.
+  After: each switch is one frame change (old view → new view), nothing moves afterwards.
+- **⌘K command palette** (`features/palette`): fuzzy search over actions (Ask Claude to review…, Send comments to
+  Claude…, unified/split, whitespace, collapse/expand, next/previous file, fetch/pull/push, open in editor, reveal in
+  Finder, theme, sidebar, settings, shortcuts), projects, the PR and open PRs (check out), recent commits and open
+  comments (jump to thread). Grouped when empty with recently used first; shortcut hints on the right; ↑↓/⌃N⌃P, ↵.
+  Pages register their own actions (`usePageActions`).
+- **⌘P go to file**: the view's changed files first (status letter, +/−, comment count, viewed), then all repository
+  files (open in Files); recently opened files first (per repo, remembered); ↵ scrolls to it, ⌘↵ opens it in the
+  editor. **⌘⇧P** lists actions only. All three are in the Shortcuts modal and Settings → Keyboard shortcuts.
+- **Diff order = sidebar order.** File cards follow the sidebar: depth-first tree order (folders first, sorted the
+  same way) in tree mode, list order in list mode; switching modes reorders the diff, and j/k follow it.
+
 ## Remaining
 
 - "Post to GitHub now" pushes only new threads; replies to existing GitHub threads still go out with the review.

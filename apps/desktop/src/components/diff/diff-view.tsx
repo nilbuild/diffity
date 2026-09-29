@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback, useImperativeHandle, useEffect } from 'react';
+import { useMemo, useRef, useState, useCallback, useImperativeHandle, useEffect, useLayoutEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ParsedDiff } from '@diffity/parser';
 import { FileBlock, LARGE_DIFF_LINE_THRESHOLD } from './file-block';
@@ -50,6 +50,9 @@ interface DiffViewProps {
   onAddThread: CommentActions['addThread'];
   pendingSelection: LineSelection | null;
   onPendingSelectionChange: (selection: LineSelection | null) => void;
+  /** Restored before the first paint so coming back to a view does not jump. */
+  initialScrollTop?: number;
+  onScrollTopChange?: (top: number) => void;
 }
 
 function estimateFileHeight(file: { hunks: { lines: { length: number } }[]; isBinary: boolean }, collapsed: boolean): number {
@@ -75,10 +78,16 @@ export function DiffView(props: DiffViewProps) {
     reviewedFiles, onReviewedChange, onActiveFileChange, scrollRef,
     handle, baseRef, canRevert, onRevert,
     threads, commentsEnabled, commentActions, onAddThread,
-    pendingSelection, onPendingSelectionChange,
+    pendingSelection, onPendingSelectionChange, initialScrollTop = 0, onScrollTopChange,
   } = props;
   const { highlight } = useHighlighter();
   const scrollElementRef = useRef<HTMLElement>(null);
+
+  useLayoutEffect(() => {
+    if (scrollElementRef.current && initialScrollTop > 0) {
+      scrollElementRef.current.scrollTop = initialScrollTop;
+    }
+  }, []);
 
   const outsideThreads = useMemo(() => {
     const paths = new Set(diff.files.map((file) => getFilePath(file)));
@@ -95,6 +104,7 @@ export function DiffView(props: DiffViewProps) {
   }, [diff, highlight, theme]);
 
   const virtualizer = useVirtualizer({
+    initialOffset: initialScrollTop,
     count: diff.files.length,
     getScrollElement: () => scrollElementRef.current,
     estimateSize: (index) => estimateFileHeight(diff.files[index], collapsedFiles.has(getFilePath(diff.files[index]))),
@@ -230,6 +240,9 @@ export function DiffView(props: DiffViewProps) {
   }, [virtualizer, diff.files]);
 
   const handleScroll = useCallback(() => {
+    if (scrollElementRef.current) {
+      onScrollTopChange?.(scrollElementRef.current.scrollTop);
+    }
     if (!onActiveFileChange) {
       return;
     }
@@ -247,7 +260,7 @@ export function DiffView(props: DiffViewProps) {
     }
 
     onActiveFileChange(topFile);
-  }, [getTopVisibleFile, onActiveFileChange]);
+  }, [getTopVisibleFile, onActiveFileChange, onScrollTopChange]);
 
   const items = virtualizer.getVirtualItems();
   const [paddingTop, paddingBottom] = items.length > 0

@@ -162,3 +162,26 @@ export function collectAllDirPaths(nodes: TreeNode[]): string[] {
   }
   return paths;
 }
+
+/** Diff files in the order the sidebar shows them: depth-first like the tree, or the plain list order. */
+export function orderLikeSidebar(files: DiffFile[], flat: boolean): DiffFile[] {
+  if (flat) {
+    return files;
+  }
+  const byPath = new Map(files.map((file) => [getFilePath(file), file]));
+  const ordered: DiffFile[] = [];
+  const walk = (nodes: TreeNode[]) => {
+    for (const node of nodes) {
+      if (node.type === 'dir') {
+        walk(node.children);
+        continue;
+      }
+      const file = node.file ?? byPath.get(node.path);
+      if (file) {
+        ordered.push(file);
+      }
+    }
+  };
+  walk(sortTree(collapseSingleChildDirs(buildFileTree(files))));
+  return ordered.length === files.length ? ordered : files;
+}

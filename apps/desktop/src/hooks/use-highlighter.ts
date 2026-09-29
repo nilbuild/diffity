@@ -136,12 +136,16 @@ const ALL_LANGS: BundledLanguage[] = [
 ];
 
 let highlighterPromise: Promise<Highlighter> | null = null;
+let loadedHighlighter: Highlighter | null = null;
 
 function getHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighter({
       themes: ['github-light', 'github-dark'],
       langs: ALL_LANGS,
+    }).then((instance) => {
+      loadedHighlighter = instance;
+      return instance;
     });
   }
   return highlighterPromise;
@@ -152,9 +156,12 @@ export interface HighlightedTokens {
 }
 
 export function useHighlighter() {
-  const [highlighter, setHighlighter] = useState<Highlighter | null>(null);
+  const [highlighter, setHighlighter] = useState<Highlighter | null>(() => loadedHighlighter);
 
   useEffect(() => {
+    if (loadedHighlighter) {
+      return;
+    }
     getHighlighter().then(setHighlighter);
   }, []);
 

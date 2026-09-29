@@ -21,7 +21,12 @@ import { useDiffStaleness } from '../../hooks/use-diff-staleness';
 import { type ViewMode, getFilePath, getAutoCollapsedPaths } from '../../lib/diff-utils';
 import { buildFirstOpenThreadByFile, buildThreadCountsByFile } from '../../lib/comment-navigation';
 import { focusThreadElement, getHunkHeaders, scrollToElement } from '../../lib/dom-utils';
-import { setFocusThread } from '../../lib/ui-store';
+import { setFocusThread, useUi } from '../../lib/ui-store';
+import { orderLikeSidebar } from '../../lib/file-tree';
+import { usePageActions, useViewFiles, type PaletteAction } from '../../features/palette/palette-store';
+import { statusLetter } from '../tree/file-tree-item';
+import { requestAskClaude } from '../../features/claude/ask-claude-review';
+import { requestSendToClaude } from '../../features/review/finish-review';
 import { OutsideThreads } from '../comments/outside-threads';
 import type { LineSelection } from '../comments/types';
 import { DiffBar } from './view-options';
@@ -35,7 +40,7 @@ import { useViewedFiles } from '../../hooks/use-viewed-files';
 import { useGitHubPr, useOwnPr } from '../../hooks/use-repo-state';
 import { prDiffRef } from '../layout/ref-menu';
 import { openCommitDialog } from '../../features/pr/commit-dialog';
-import { GitPullRequestIcon } from '../ui/icon';
+import { ChevronDownIcon, ChevronUpIcon, CollapseAllIcon, ExpandAllIcon, EyeOffIcon, GitPullRequestIcon, PushIcon, SendIcon, SparkleIcon, SplitViewIcon, UnifiedViewIcon } from '../ui/icon';
 import { buttonPrimary } from '../ui/button-styles';
 import { cn } from '../../lib/cn';
 
@@ -49,13 +54,14 @@ export function DiffPage(props: DiffPageProps) {
   const [viewMode, setViewMode] = useState<ViewMode>(() => (localStorage.getItem('diffity-view-mode') as ViewMode | null) ?? 'split');
   const [hideWhitespace, setHideWhitespace] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const { data: diff, error } = useDiff(hideWhitespace, refParam);
+  const { data: rawDiff, error } = useDiff(hideWhitespace, refParam);
+  const flat = useUi((state) => state.sidebarFlat);
+  const diff = useMemo(() => (rawDiff ? { ...rawDiff, files: orderLikeSidebar(rawDiff.files, flat) } : rawDiff), [rawDiff, flat]);
   const { data: info } = useInfo(refParam);
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
   const manuallyToggledRef = useRef<Set<string>>(new Set(readViewMemory<string[]>(refParam, 'toggled', [])));
   const [pendingSelection, setPendingSelection] = useState<LineSelection | null>(() => readViewMemory<LineSelection | null>(refParam, 'composer', null));
-  const scrollRestoredRef = useRef(false);
   const location = useLocation();
   const navigate = useNavigate();
   const mainRef = useRef<HTMLElement | null>(null);
@@ -293,17 +299,14 @@ export function DiffPage(props: DiffPageProps) {
     return () => window.clearTimeout(timer);
   }, [isStale, composing, handleRefreshDiff]);
 
-  useEffect(() => {
-    if (scrollRestoredRef.current || !diff || diff.files.length === 0) {
-      return;
+  const initialScrollTop = useMemo(() => readViewMemory<number>(refParam, 'scrollTop', 0), [refParam]);
+  const scrollSaveTimer = useRef<number | null>(null);
+  const handleScrollTop = useCallback((top: number) => {
+    if (scrollSaveTimer.current) {
+      window.clearTimeout(scrollSaveTimer.current);
     }
-    scrollRestoredRef.current = true;
-    const saved = readViewMemory<string | null>(refParam, 'anchor', null);
-    if (!saved || saved === getFilePath(diff.files[0]) || !diff.files.some((file) => getFilePath(file) === saved)) {
-      return;
-    }
-    requestAnimationFrame(() => diffViewRef.current?.scrollToFile(saved));
-  }, [diff, refParam]);
+    scrollSaveTimer.current = window.setTimeout(() => writeViewMemory(refParam, 'scrollTop', Math.round(top)), 150);
+  }, [refParam]);
 
   const handleSidebarFileClick = useCallback((path: string) => {
     setActiveFile(path);
@@ -365,10 +368,41 @@ export function DiffPage(props: DiffPageProps) {
     handleScrollToThread(threadId, path);
   }, [firstOpenThreadByFile, handleSidebarFileClick, handleScrollToThread]);
 
+  const paletteFiles = useMemo(() => diff ? diff.files.map((file) => {
+    const path = getFilePath(file);
+    return {
+      path,
+      status: statusLetter(file.status).letter,
+      additions: file.additions,
+      deletions: file.deletions,
+      comments: commentCountsByFile.get(path) ?? 0,
+      viewed: reviewedFiles.has(path),
+    };
+  }) : null, [diff, commentCountsByFile, reviewedFiles]);
+  useViewFiles(paletteFiles, handleSidebarFileClick);
+
+  const paletteActions = useMemo<PaletteAction[]>(() => {
+    const list: PaletteAction[] = [
+      { id: 'view-unified', title: 'Unified diff', group: 'View', hint: 'U', icon: <UnifiedViewIcon size="sm" />, run: () => setViewMode('unified') },
+      { id: 'view-split', title: 'Split diff', group: 'View', hint: 'S', icon: <SplitViewIcon size="sm" />, run: () => setViewMode('split') },
+      { id: 'view-whitespace', title: hideWhitespace ? 'Show whitespace changes' : 'Hide whitespace changes', group: 'View', icon: <EyeOffIcon size="sm" />, run: () => setHideWhitespace(!hideWhitespace) },
+      { id: 'view-collapse', title: 'Collapse all files', group: 'View', hint: '⇧X', icon: <CollapseAllIcon size="sm" />, run: () => setCollapsedFiles(new Set(diff?.files.map((file) => getFilePath(file)) ?? [])) },
+      { id: 'view-expand', title: 'Expand all files', group: 'View', icon: <ExpandAllIcon size="sm" />, run: () => setCollapsedFiles(new Set()) },
+      { id: 'file-next', title: 'Next file', group: 'View', hint: 'J', keywords: 'down', icon: <ChevronDownIcon size="sm" />, run: () => navigateFile(1) },
+      { id: 'file-prev', title: 'Previous file', group: 'View', hint: 'K', keywords: 'up', icon: <ChevronUpIcon size="sm" />, run: () => navigateFile(-1) },
+      { id: 'claude-review', title: 'Ask Claude to review…', group: 'Actions', keywords: 'ai review', icon: <SparkleIcon size="sm" className="text-claude" />, run: () => requestAskClaude(refParam) },
+      { id: 'claude-send', title: 'Send comments to Claude…', group: 'Actions', keywords: 'ai resolve fix', icon: <SendIcon size="sm" className="text-claude" />, run: requestSendToClaude },
+    ];
+    if (ownPr && githubDetails) {
+      list.push({ id: 'commit-push', title: `Commit & push to PR #${githubDetails.prNumber}`, group: 'Actions', icon: <PushIcon size="sm" />, run: () => openCommitDialog(githubDetails.prNumber) });
+    }
+    return list;
+  }, [hideWhitespace, diff, navigateFile, refParam, ownPr, githubDetails]);
+  usePageActions('diff', paletteActions);
+
   const handleActiveFileFromScroll = useCallback((path: string) => {
     setActiveFile(path);
-    writeViewMemory(refParam, 'anchor', path);
-  }, [refParam]);
+  }, []);
 
   if (error) {
     return (
@@ -502,6 +536,8 @@ export function DiffPage(props: DiffPageProps) {
               onAddThread={handleAddThread}
               pendingSelection={pendingSelection}
               onPendingSelectionChange={setPendingSelection}
+              initialScrollTop={initialScrollTop}
+              onScrollTopChange={handleScrollTop}
             />
           </div>
         )}

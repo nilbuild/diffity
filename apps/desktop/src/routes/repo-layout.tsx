@@ -16,6 +16,8 @@ import { toggleComments } from '../lib/ui-store';
 import { PullRequestsDialog } from '../features/pr/pull-requests-dialog';
 import { CheckoutGuardDialog } from '../features/pr/checkout-guard-dialog';
 import { CommitDialog } from '../features/pr/commit-dialog';
+import { CommandPalette } from '../features/palette/command-palette';
+import { openPalette } from '../features/palette/palette-store';
 import { checkoutPullRequest } from '../features/pr/pr-checkout';
 import { RailFrame } from '../components/layout/activity-rail';
 import { activateRepoCache, rememberLocation } from '../lib/repo-locations';
@@ -80,6 +82,28 @@ function useRefreshShortcut() {
   }, [client]);
 }
 
+function usePaletteShortcuts() {
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === 'k' && !event.shiftKey) {
+        event.preventDefault();
+        openPalette('all');
+        return;
+      }
+      if (key === 'p') {
+        event.preventDefault();
+        openPalette(event.shiftKey ? 'actions' : 'files');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+}
+
 function useCommentsShortcut() {
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -118,6 +142,7 @@ export function RepoLayout() {
   usePrCheckout();
   useCommentsShortcut();
   useRefreshShortcut();
+  usePaletteShortcuts();
 
   useEffect(() => {
     tauri.openRepo(repoPath).catch(() => undefined);
@@ -151,6 +176,7 @@ export function RepoLayout() {
       <PullRequestsDialog />
       <CheckoutGuardDialog />
       <CommitDialog />
+      <CommandPalette />
     </>
   );
 }

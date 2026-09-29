@@ -72,7 +72,7 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
   const nav = useRepoNav();
   const { data: meta } = useRepoMeta();
   const { data: status } = useGitStatus();
-  const { data: recent } = useRecentCommits(1);
+  const { data: recent, isLoading: recentLoading } = useRecentCommits(1);
   const last = recent?.commits[0] ?? null;
   const unfiltered = useQuery({ ...diffOptions(false, diffRef), enabled: hideWhitespace });
   const browseFiles = { label: 'Browse files', icon: <FolderOpenIcon className="w-3.5 h-3.5" />, onClick: () => nav.toTree() };
@@ -135,6 +135,7 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
             <HomeIcon size="sm" className="text-text-secondary" />
             Home
           </button>
+          {!last && recentLoading && <span className="inline-block w-[150px] h-7 rounded-md bg-fill animate-pulse" aria-hidden />}
           {last && (
             <button onClick={() => nav.toDiff(commitRef(last.hash))} className={buttonOutline} title={last.message}>
               <GitCommitIcon size="sm" className="text-text-secondary" />

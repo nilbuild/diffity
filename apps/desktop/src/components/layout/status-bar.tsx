@@ -108,7 +108,8 @@ export function StatusBar(props: StatusBarProps) {
   const { data: meta } = useRepoMeta();
   const { details } = useGitHubPr();
   const branch = status?.branch ?? meta?.branch ?? null;
-  const path = meta?.path ? shortPath(meta.path) : null;
+  const fullPath = meta?.path ?? nav.repoPath;
+  const path = shortPath(fullPath);
 
   return (
     <div data-tauri-drag-region className="flex items-center gap-1.5 h-8 shrink-0 pl-1.5 pr-2.5 bg-frame text-xs text-text-secondary font-sans select-none">
@@ -120,7 +121,7 @@ export function StatusBar(props: StatusBarProps) {
       {stale && <StaleNotice onRefresh={stale.onRefresh} message={stale.message} />}
       {sessionId && <OtherViewsNotice sessionId={sessionId} />}
       <span className="flex-1" />
-      {path && meta?.path && <RepoPathButton label={path} path={meta.path} />}
+      <RepoPathButton label={path} path={fullPath} />
       {details && (
         <button
           onClick={() => nav.toDiff(prDiffRef(details))}

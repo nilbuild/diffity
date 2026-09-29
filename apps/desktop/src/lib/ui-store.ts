@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 const SIDEBAR_KEY = 'diffity-sidebar-collapsed';
+const FLAT_KEY = 'diffity-sidebar-flat';
 
 export type SettingsSection = 'general' | 'claude' | 'github' | 'editor' | 'shortcuts' | 'about';
 
@@ -12,6 +13,7 @@ interface UiState {
   commentsOpen: boolean;
   focusThreadId: string | null;
   sidebarCollapsed: boolean;
+  sidebarFlat: boolean;
 }
 
 export const useUi = create<UiState>(() => ({
@@ -22,7 +24,25 @@ export const useUi = create<UiState>(() => ({
   commentsOpen: false,
   focusThreadId: null,
   sidebarCollapsed: readSidebarCollapsed(),
+  sidebarFlat: readFlag(FLAT_KEY),
 }));
+
+function readFlag(key: string) {
+  try {
+    return localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function setSidebarFlat(flat: boolean) {
+  useUi.setState({ sidebarFlat: flat });
+  try {
+    localStorage.setItem(FLAT_KEY, flat ? '1' : '0');
+  } catch {
+    return;
+  }
+}
 
 function readSidebarCollapsed() {
   try {

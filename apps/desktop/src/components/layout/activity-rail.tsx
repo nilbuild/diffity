@@ -61,7 +61,7 @@ function RailTooltip(props: { title: string; detail?: string; shortcut?: string 
   );
 }
 
-const tileBase = 'relative w-9 h-9 rounded-[10px] flex items-center justify-center transition-colors select-none';
+const tileBase = 'relative w-9 h-9 rounded-[10px] flex items-center justify-center select-none';
 
 interface ProjectTileProps {
   path: string;

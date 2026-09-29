@@ -70,6 +70,26 @@ interface GapExpansion {
   linesFromBottom: DiffLineType[];
 }
 
+const syntaxCache = new Map<string, Map<string, SyntaxToken[]>>();
+
+function syntaxCacheKey(file: DiffFile): string {
+  let length = 0;
+  for (const hunk of file.hunks) {
+    length += hunk.lines.length;
+  }
+  return `${getFilePath(file)}:${document.documentElement.dataset.theme ?? 'light'}:${length}:${file.additions}:${file.deletions}:${file.hunks[0]?.lines[0]?.content ?? ''}`;
+}
+
+function rememberSyntax(key: string, map: Map<string, SyntaxToken[]>) {
+  if (syntaxCache.size > 300) {
+    const first = syntaxCache.keys().next().value;
+    if (first !== undefined) {
+      syntaxCache.delete(first);
+    }
+  }
+  syntaxCache.set(key, map);
+}
+
 export function FileBlock(props: FileBlockProps) {
   const {
     file, viewMode, collapsed, onToggleCollapse, reviewed, onReviewedChange, highlightLine, baseRef, canRevert, onRevert,
@@ -244,10 +264,16 @@ export function FileBlock(props: FileBlockProps) {
   }, [isLineInSelection, pendingSelection, filePath, fileThreads]);
 
 
-  const [syntaxMap, setSyntaxMap] = useState<Map<string, SyntaxToken[]> | undefined>(undefined);
+  const cacheKey = useMemo(() => syntaxCacheKey(file), [file]);
+  const [syntaxMap, setSyntaxMap] = useState<Map<string, SyntaxToken[]> | undefined>(() => (highlightLine ? syntaxCache.get(cacheKey) : undefined));
 
   useEffect(() => {
     if (!highlightLine) {
+      return;
+    }
+    const cached = syntaxCache.get(cacheKey);
+    if (cached) {
+      setSyntaxMap(cached);
       return;
     }
 
@@ -283,6 +309,7 @@ export function FileBlock(props: FileBlockProps) {
       if (index < allLines.length) {
         requestAnimationFrame(processChunk);
       } else if (!cancelled) {
+        rememberSyntax(cacheKey, map);
         setSyntaxMap(new Map(map));
       }
     };
@@ -292,7 +319,7 @@ export function FileBlock(props: FileBlockProps) {
     return () => {
       cancelled = true;
     };
-  }, [file, highlightLine]);
+  }, [file, highlightLine, cacheKey]);
 
   const gaps = useMemo(() => {
     if (isNewFile) {
