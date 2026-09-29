@@ -1,4 +1,5 @@
 import { AlertCircleIcon } from "./ui/icon";
+import { buttonOutline, buttonPrimary } from "./ui/button-styles";
 import { useEffect } from "react";
 import { isAppError } from "../lib/tauri";
 import { hideStaticSplash } from "./layout/skeleton";
@@ -46,7 +47,7 @@ export function ErrorPage(props: ErrorPageProps) {
   return (
     <div data-tauri-drag-region className="flex items-center justify-center h-screen bg-bg text-text font-sans">
       <div className="max-w-lg text-center px-6">
-        <AlertCircleIcon className="w-5 h-5 mx-auto mb-4 text-red-400" />
+        <AlertCircleIcon className="w-5 h-5 mx-auto mb-4 text-deleted" />
         <h1 className="text-lg font-semibold mb-2">{title}</h1>
         <p className="text-sm text-text-secondary mb-2 break-words">{message}</p>
         {hint && <p className="text-xs text-text-muted mb-6">{hint}</p>}
@@ -62,7 +63,7 @@ export function ErrorPage(props: ErrorPageProps) {
               return (
                 <button
                   key={action.label}
-                  className="px-4 py-2 text-sm whitespace-nowrap rounded-md bg-accent text-white hover:bg-accent-hover cursor-pointer transition-colors"
+                  className={buttonPrimary}
                   onClick={action.onClick}
                 >
                   {action.label}
@@ -73,7 +74,7 @@ export function ErrorPage(props: ErrorPageProps) {
             return (
               <button
                 key={action.label}
-                className="px-4 py-2 text-sm whitespace-nowrap rounded-md border border-border hover:bg-hover cursor-pointer transition-colors"
+                className={buttonOutline}
                 onClick={action.onClick}
               >
                 {action.label}

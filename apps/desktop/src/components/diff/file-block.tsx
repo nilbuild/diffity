@@ -264,7 +264,7 @@ export function FileBlock(props: FileBlockProps) {
   }, [isLineInSelection, pendingSelection, filePath, fileThreads]);
 
 
-  const cacheKey = useMemo(() => syntaxCacheKey(file), [file]);
+  const cacheKey = useMemo(() => syntaxCacheKey(file), [file, highlightLine]);
   const [syntaxMap, setSyntaxMap] = useState<Map<string, SyntaxToken[]> | undefined>(() => (highlightLine ? syntaxCache.get(cacheKey) : undefined));
 
   useEffect(() => {

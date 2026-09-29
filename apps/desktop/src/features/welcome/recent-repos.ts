@@ -3,6 +3,7 @@ import type { NavigateFunction } from 'react-router';
 import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import { openRepoInNewWindow, repoRoute } from '../../lib/window';
+import { beginOpening, endOpening, setOpeningStep } from '../../lib/opening';
 
 const HIDDEN_KEY = 'welcome.hiddenRepos';
 
@@ -56,9 +57,13 @@ export function parentPath(path: string): string {
 }
 
 export async function openRepoAt(path: string, navigate: NavigateFunction, options?: { newWindow?: boolean; extra?: Record<string, string> }) {
+  if (!options?.newWindow) {
+    beginOpening(path);
+  }
   try {
     const info = await tauri.openRepo(path);
     if (!info.isGit) {
+      endOpening();
       toast.error(`${info.name} is not a Git repository`, {
         description: 'Diffity reviews changes tracked by Git. Run `git init` in that folder, or pick the repository root.',
       });
@@ -68,8 +73,10 @@ export async function openRepoAt(path: string, navigate: NavigateFunction, optio
       await openRepoInNewWindow(info.path, options.extra);
       return;
     }
+    setOpeningStep('Reading changes');
     navigate(repoRoute(info.path, options?.extra), { state: { fresh: true } });
   } catch (error) {
+    endOpening();
     toast.error('Could not open the folder', { description: `${tauri.errorMessage(error)}. It may have been moved or deleted.` });
   }
 }

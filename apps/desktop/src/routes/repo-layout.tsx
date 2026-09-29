@@ -5,7 +5,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getRepoPathOrNull, setRepoPath } from '../lib/api';
 import * as tauri from '../lib/tauri';
 import { isTauri } from '../lib/platform';
-import { AppSplash } from '../components/layout/skeleton';
+import { OpeningSkeleton } from '../components/layout/skeleton';
+import { endOpening } from '../lib/opening';
+import { openQuickOpen } from '../features/palette/quick-open';
 import { useRepoChange, useRepoEvents, useRepoNav, useRepoPath } from '../hooks/use-repo';
 import { toast } from 'sonner';
 import { useTheme } from '../hooks/use-theme';
@@ -150,27 +152,42 @@ export function RepoLayout() {
 
   return (
     <>
-      <RouteErrorBoundary
-        resetKey={location.pathname + location.search}
-        actions={(reset, error) => {
-          const code = tauri.isAppError(error) ? error.code : null;
-          if (code === 'not_a_repo' || code === 'not_found') {
-            return [{ label: 'Open another repository', primary: true, onClick: () => { reset(); nav.toWelcome(); } }];
-          }
-          return [
-            { label: 'Try again', primary: true, onClick: () => { void client.resetQueries(); reset(); } },
-            { label: 'Uncommitted changes', onClick: () => { reset(); nav.toDiff('work'); } },
-            { label: 'Browse files', onClick: () => { reset(); nav.toTree(); } },
-            { label: 'Open another repository', onClick: () => { reset(); nav.toWelcome(); } },
-          ];
-        }}
-      >
-        <RailFrame>
-          <Suspense fallback={<AppSplash label={`Opening ${repoName(repoPath)}…`} />}>
+      <RailFrame>
+        <RouteErrorBoundary
+          resetKey={location.pathname + location.search}
+          actions={(reset, error) => {
+            const code = tauri.isAppError(error) ? error.code : null;
+            if (code === 'not_a_repo' || code === 'not_found') {
+              return [{ label: 'Open another repository', primary: true, onClick: () => { reset(); openQuickOpen(); } }];
+            }
+            return [
+              { label: 'Retry', primary: true, onClick: () => { void client.resetQueries(); reset(); } },
+              { label: 'Uncommitted changes', onClick: () => { reset(); nav.toDiff('work'); } },
+              { label: 'Browse files', onClick: () => { reset(); nav.toTree(); } },
+              { label: 'Open another repository', onClick: () => { reset(); openQuickOpen(); } },
+            ];
+          }}
+        >
+          <Suspense
+            fallback={
+              <OpeningSkeleton
+                repoName={repoName(repoPath)}
+                onCancel={() => {
+                  endOpening();
+                  const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
+                  if (idx > 0) {
+                    window.history.back();
+                    return;
+                  }
+                  nav.toWelcome();
+                }}
+              />
+            }
+          >
             <Outlet />
           </Suspense>
-        </RailFrame>
-      </RouteErrorBoundary>
+        </RouteErrorBoundary>
+      </RailFrame>
       <ClaudeApprovalModal />
       <CommentsPanel />
       <PullRequestsDialog />

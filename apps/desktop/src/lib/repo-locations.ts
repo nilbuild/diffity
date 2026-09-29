@@ -33,6 +33,9 @@ export function lastLocationFor(repoPath: string): string | null {
 
 let cacheOwner: string | null = null;
 
+/** Queries that are not about one repository; they survive switching (the rail and palettes read them). */
+const GLOBAL_KEYS = new Set(['recent-repos', 'setting', 'github-auth', 'agents', 'quick-open-roots', 'dir-suggestions']);
+
 /**
  * Query keys are not repository-scoped, so the cache belongs to one repository at a time. Switching parks the
  * owner's successful queries and restores the incoming repository's (then refetched as stale), which makes
@@ -44,10 +47,16 @@ export function activateRepoCache(client: QueryClient, repoPath: string) {
     return;
   }
   if (cacheOwner) {
-    caches.set(cacheOwner, dehydrate(client, { shouldDehydrateQuery: (query) => query.state.status === 'success' }));
+    caches.set(cacheOwner, dehydrate(client, { shouldDehydrateQuery: (query) => query.state.status === 'success' && !GLOBAL_KEYS.has(String(query.queryKey[0])) }));
   }
-  void client.cancelQueries();
-  client.clear();
+  const cache = client.getQueryCache();
+  for (const query of cache.getAll()) {
+    if (GLOBAL_KEYS.has(String(query.queryKey[0]))) {
+      continue;
+    }
+    void client.cancelQueries({ queryKey: query.queryKey, exact: true });
+    cache.remove(query);
+  }
   const saved = caches.get(repoPath);
   if (saved) {
     hydrate(client, saved);

@@ -384,6 +384,30 @@ full webview reload.
   `clone_repo` with `clone-progress` events, `GIT_TERMINAL_PROMPT=0`), with tests for expansion, splitting,
   suggestions/repo marking and root resolution. Verified by cloning octocat/Hello-World into the scratchpad.
 
+## Round 12 (feedback while opening a project)
+
+- **The moment a project is picked** (⌘O palette, rail tile, recent list, "+", after a clone, PR URL) a shared
+  "opening" state starts (`lib/opening.ts`): the palette closes at once, the rail shows the project's tile as
+  current with a spinner (after 150ms, so cached switches never flash), the start screen's recent row shows
+  "Opening…", and the title bar shows the repo name straight away.
+- **First open without cache** renders `OpeningSkeleton`: the real layout (title bar with the name, sidebar rows,
+  file-card outlines) with bars after 150ms, a status pill after 400ms ("Opening express · Reading git status…",
+  steps from the queries in flight: repository, git status, changes, comments, files, history) and Cancel after 4s
+  (back to where you were). The same skeleton replaces the old splash while comments load.
+- **Progress bar** no longer runs while only GitHub enrichment loads (PR details, PR list, auth, agents): opening
+  express showed the bar looping for ~4s after the view was ready because `github-details` was still fetching.
+- **Switching kept the rail empty for a frame**: the per-repo cache swap cleared everything, including the recent
+  projects the rail reads. Global queries (recent repos, settings, GitHub auth, agents, quick-open data) now survive
+  the swap.
+- **Errors** render inside the workspace (rail stays) with Retry, Uncommitted changes, Browse files and Open another
+  repository.
+- **Found on the way:** switching theme reused light syntax colours in dark mode (the token cache key ignored the
+  highlighter) → fixed.
+- **Measured:** git status/diff take 10–30ms on this repo (300 files), express (214 files, 6.1k commits) and
+  Hello-World, and the view paints ~250ms after Enter, so the skeleton normally never shows; it was checked by
+  rendering it forced. Clone progress streams in the palette; PR checkout keeps its step toasts. Cloning has no
+  cancel yet.
+
 ## Remaining
 
 - "Post to GitHub now" pushes only new threads; replies to existing GitHub threads still go out with the review.

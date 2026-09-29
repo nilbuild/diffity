@@ -9,6 +9,7 @@ import { openRepoAt, shortPath, useRecentRepos } from '../../features/welcome/re
 import { repoInitials } from '../../features/welcome/repo-badge';
 import { useActiveRun } from '../../features/claude/claude-runner';
 import { lastLocationFor } from '../../lib/repo-locations';
+import { beginOpening, useOpening } from '../../lib/opening';
 import { PlusIcon, SettingsIcon } from '../ui/icon';
 import { useSidebarShortcut } from './title-bar';
 import { openQuickOpen } from '../../features/palette/quick-open';
@@ -63,7 +64,22 @@ function RailTooltip(props: { title: string; detail?: string; shortcut?: string 
 
 const tileBase = 'relative w-9 h-9 rounded-[10px] flex items-center justify-center select-none';
 
+function useDelayedFlag(on: boolean, ms: number) {
+  const [shown, setShown] = useState(false);
+
+  useEffect(() => {
+    if (!on) {
+      setShown(false);
+      return;
+    }
+    const timer = setTimeout(() => setShown(true), ms);
+    return () => clearTimeout(timer);
+  }, [on, ms]);
+  return shown;
+}
+
 interface ProjectTileProps {
+  loading: boolean;
   path: string;
   index: number;
   current: boolean;
@@ -77,7 +93,8 @@ interface ProjectTileProps {
 }
 
 function ProjectTile(props: ProjectTileProps) {
-  const { path, index, current, busy, offset, dragging, animate, onPointerDown, onOpen, onRemove } = props;
+  const { path, index, current, busy, offset, dragging, animate, onPointerDown, onOpen, onRemove, loading } = props;
+  const spinning = useDelayedFlag(loading, 150);
   const name = repoName(path);
   const shortcut = index < 9 ? `${modKey}${index + 1}` : null;
 
@@ -105,7 +122,7 @@ function ProjectTile(props: ProjectTileProps) {
           dragging ? 'cursor-grabbing bg-raised ring-1 ring-control-border opacity-90' : 'cursor-pointer',
         )}
       >
-        {repoInitials(name)}
+        {spinning ? <span className="w-3.5 h-3.5 border-2 border-current/25 border-t-current rounded-full animate-spin" aria-label="Opening" /> : repoInitials(name)}
         {busy && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-claude ring-2 ring-frame" title="Claude is working here" />}
       </button>
       {!dragging && (
@@ -119,7 +136,7 @@ function ProjectTile(props: ProjectTileProps) {
   );
 }
 
-function useProjectOrder(currentPath: string) {
+function useProjectOrder(currentPath: string, openingPath: string | null) {
   const recent = useRecentRepos();
   const [order, setOrder] = useState(readOrder);
 
@@ -137,8 +154,11 @@ function useProjectOrder(currentPath: string) {
     if (!ordered.includes(currentPath)) {
       ordered.push(currentPath);
     }
+    if (openingPath && !ordered.includes(openingPath)) {
+      ordered.push(openingPath);
+    }
     return ordered;
-  }, [order, recent.repos, currentPath]);
+  }, [order, recent.repos, currentPath, openingPath]);
 
   useEffect(() => {
     if (recent.loading) {
@@ -200,7 +220,8 @@ function ActivityRail() {
   const nav = useRepoNav();
   const navigate = useNavigate();
   const run = useActiveRun();
-  const { projects, move, remove } = useProjectOrder(nav.repoPath);
+  const openingPath = useOpening((state) => state.target?.path ?? null);
+  const { projects, move, remove } = useProjectOrder(nav.repoPath, openingPath);
   const [drag, setDrag] = useState<{ from: number; startY: number; dy: number; active: boolean } | null>(null);
   const suppressClick = useRef(false);
   const [settling, setSettling] = useState(false);
@@ -216,6 +237,7 @@ function ActivityRail() {
     }
     const last = lastLocationFor(path);
     if (last) {
+      beginOpening(path, 'Switching');
       navigate(last);
       return;
     }
@@ -345,7 +367,8 @@ function ActivityRail() {
             key={path}
             path={path}
             index={index}
-            current={path === nav.repoPath}
+            current={openingPath ? path === openingPath : path === nav.repoPath}
+            loading={path === openingPath}
             busy={run?.context.repoPath === path}
             offset={offsetFor(index)}
             dragging={drag?.active === true && drag.from === index}
