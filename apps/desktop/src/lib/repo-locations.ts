@@ -31,18 +31,26 @@ export function lastLocationFor(repoPath: string): string | null {
   return readLocations()[repoPath] ?? null;
 }
 
+let cacheOwner: string | null = null;
+
 /**
- * Query keys are not repository-scoped, so switching repositories swaps the whole cache: the outgoing
- * repository's successful queries are parked and the incoming one's are restored (then refetched as stale),
- * which makes switching back instant.
+ * Query keys are not repository-scoped, so the cache belongs to one repository at a time. Switching parks the
+ * owner's successful queries and restores the incoming repository's (then refetched as stale), which makes
+ * switching back instant. The owner is tracked here rather than via the API's current path, because the
+ * welcome screen resets that path while the cache still holds the previous repository's data.
  */
-export function swapRepoCache(client: QueryClient, from: string | null, to: string) {
-  if (from) {
-    caches.set(from, dehydrate(client, { shouldDehydrateQuery: (query) => query.state.status === 'success' }));
+export function activateRepoCache(client: QueryClient, repoPath: string) {
+  if (cacheOwner === repoPath) {
+    return;
   }
+  if (cacheOwner) {
+    caches.set(cacheOwner, dehydrate(client, { shouldDehydrateQuery: (query) => query.state.status === 'success' }));
+  }
+  void client.cancelQueries();
   client.clear();
-  const saved = caches.get(to);
+  const saved = caches.get(repoPath);
   if (saved) {
     hydrate(client, saved);
   }
+  cacheOwner = repoPath;
 }

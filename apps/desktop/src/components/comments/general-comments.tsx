@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { ChevronIcon } from '../icons/chevron-icon';
 import { GENERAL_THREAD_FILE_PATH, isThreadResolved, DEFAULT_AUTHOR } from './types';
 import type { CommentThread as CommentThreadType } from './types';
 import type { CommentActions } from '../../hooks/use-comment-actions';
 import { CommentForm } from './comment-form';
-import { CommentIcon } from '../icons/comment-icon';
 import { ThreadBadge } from '../ui/thread-badge';
 import { ThreadCard } from './thread-card';
+import { ChevronIcon, CommentIcon } from '../ui/icon';
 
 interface GeneralCommentsProps {
   threads: CommentThreadType[];

@@ -8,16 +8,9 @@ import { openPullRequests } from '../../lib/ui-store';
 import { commitRef, descriptionForRef, fetchCommits, parseCommitRef, type Commit, type GitHubDetails } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { buttonIcon, buttonOutline, inputField } from '../ui/button-styles';
-import { ArrowLeft, ChevronDown } from 'lucide-react';
-import { CheckIcon } from '../icons/check-icon';
-import { GitBranchIcon } from '../icons/git-branch-icon';
-import { GitCommitIcon } from '../icons/git-commit-icon';
-import { GitCompareIcon } from '../icons/git-compare-icon';
-import { GitPullRequestIcon } from '../icons/git-pull-request-icon';
-import { PencilIcon } from '../icons/pencil-icon';
 import { Spinner } from '../icons/spinner';
 import { useCommitDetails, useBack } from './diff-context-bar';
-import { SearchIcon } from '../icons/search-icon';
+import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, GitBranchIcon, GitCommitIcon, GitCompareIcon, GitPullRequestIcon, PencilIcon, SearchIcon } from '../ui/icon';
 
 interface RefMenuProps {
   diffRef: string;
@@ -154,7 +147,7 @@ export function RefMenu(props: RefMenuProps) {
     <div className="relative min-w-0 flex items-center gap-1" ref={ref}>
       {!isDefault && (
         <button onClick={back} className={buttonIcon} title="Back">
-          <ArrowLeft size={16} strokeWidth={1.75} />
+          <ArrowLeftIcon size="md" />
         </button>
       )}
       <button
@@ -168,7 +161,7 @@ export function RefMenu(props: RefMenuProps) {
       >
         <span className="shrink-0 text-text-secondary">{target.icon}</span>
         <span className="truncate font-medium">{target.label}</span>
-        <ChevronDown size={14} strokeWidth={1.75} className="shrink-0 text-text-secondary" />
+        <ChevronDownIcon size="xs" className="shrink-0 text-text-secondary" />
       </button>
       {open && (
         <RefMenuPanel

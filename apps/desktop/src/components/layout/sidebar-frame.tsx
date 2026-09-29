@@ -1,11 +1,10 @@
 import { forwardRef, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { inputField } from '../ui/button-styles';
-import { CommentIcon } from '../icons/comment-icon';
-import { SearchIcon } from '../icons/search-icon';
-import { PanelLeftOpen } from 'lucide-react';
-import { XIcon } from '../icons/x-icon';
 import { ViewTabs, type RepoView } from './view-tabs';
+import { useUi } from '../../lib/ui-store';
+import { CommentIcon, EllipsisIcon, SearchIcon, XIcon } from '../ui/icon';
+import { Popover, useMenu } from '../ui/popover';
 
 const WIDTH_KEY = 'diffity-sidebar-width';
 const DEFAULT_WIDTH = 300;
@@ -44,16 +43,17 @@ function storeWidth(key: string, width: number | null) {
 }
 
 interface SidebarFrameProps {
-  collapsed: boolean;
-  onExpand: () => void;
   view: RepoView;
+  collapsible?: boolean;
   storageKey?: string;
   defaultWidth?: number;
   children: ReactNode;
 }
 
 export function SidebarFrame(props: SidebarFrameProps) {
-  const { collapsed, onExpand, view, storageKey = WIDTH_KEY, defaultWidth = DEFAULT_WIDTH, children } = props;
+  const { view, collapsible = true, storageKey = WIDTH_KEY, defaultWidth = DEFAULT_WIDTH, children } = props;
+  const collapsedSetting = useUi((state) => state.sidebarCollapsed);
+  const collapsed = collapsible && collapsedSetting;
   const [width, setWidth] = useState(() => readStoredWidth(storageKey, defaultWidth));
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ startX: number; startWidth: number } | null>(null);
@@ -101,15 +101,7 @@ export function SidebarFrame(props: SidebarFrameProps) {
 
   if (collapsed) {
     return (
-      <div className="w-11 min-w-11 border-r border-border bg-bg-secondary flex flex-col items-center gap-1 pt-2">
-        <button
-          className="w-7 h-7 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover cursor-pointer"
-          onClick={onExpand}
-          title="Show sidebar"
-        >
-          <PanelLeftOpen size={16} strokeWidth={1.75} />
-        </button>
-        <div className="w-5 h-px bg-border my-1" />
+      <div className="w-12 min-w-12 shrink-0 border-r border-border bg-sidebar flex flex-col items-center pt-2">
         <ViewTabs current={view} vertical />
       </div>
     );
@@ -117,7 +109,7 @@ export function SidebarFrame(props: SidebarFrameProps) {
 
   return (
     <aside
-      className="relative shrink-0 bg-bg-secondary flex border-r border-border"
+      className="relative shrink-0 bg-sidebar flex border-r border-border"
       style={{ width }}
     >
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -148,37 +140,39 @@ export function SidebarFrame(props: SidebarFrameProps) {
   );
 }
 
-interface SidebarHeaderProps {
-  title: ReactNode;
-  actions?: ReactNode;
-}
-
-export function SidebarHeader(props: SidebarHeaderProps) {
-  const { title, actions } = props;
+export function SidebarMenu(props: { title: string; children: (close: () => void) => ReactNode }) {
+  const { title, children } = props;
+  const menu = useMenu();
 
   return (
-    <div className="flex items-center justify-between gap-2 h-10 pl-4 pr-2 shrink-0">
-      <span className="flex items-center gap-2 min-w-0 text-[13px] font-medium text-text">{title}</span>
-      {actions && <div className="flex items-center gap-0.5 shrink-0">{actions}</div>}
-    </div>
+    <>
+      <button
+        ref={menu.anchorRef}
+        onClick={menu.toggle}
+        title={title}
+        aria-label={title}
+        aria-expanded={menu.open}
+        className={cn(
+          'w-7 h-7 shrink-0 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer',
+          menu.open ? 'bg-active text-text' : 'text-text-secondary hover:text-text hover:bg-hover',
+        )}
+      >
+        <EllipsisIcon size="md" />
+      </button>
+      <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} align="end" width={220}>
+        {children(menu.close)}
+      </Popover>
+    </>
   );
 }
 
-export function SidebarIconButton(props: { title: string; onClick: () => void; active?: boolean; children: ReactNode }) {
-  const { title, onClick, active, children } = props;
+export function SidebarSummary(props: { children: ReactNode }) {
+  const { children } = props;
 
   return (
-    <button
-      className={cn(
-        'w-7 h-7 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer',
-        active ? 'bg-selected text-text' : 'text-text-secondary hover:text-text hover:bg-hover',
-      )}
-      onClick={onClick}
-      title={title}
-      aria-pressed={active}
-    >
+    <div className="flex items-center gap-2 h-6 px-4 pb-1 shrink-0 text-xs text-text-secondary tabular-nums">
       {children}
-    </button>
+    </div>
   );
 }
 
@@ -194,9 +188,9 @@ export const SidebarFilter = forwardRef<HTMLInputElement, SidebarFilterProps>(fu
   const { value, onChange, placeholder, shortcut, trailing } = props;
 
   return (
-    <div className="flex items-center gap-1.5 px-3 pb-2 shrink-0">
+    <div className="flex items-center gap-1 px-3 pt-1 pb-2 shrink-0">
       <div className="relative flex-1 min-w-0">
-        <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+        <SearchIcon size="sm" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
         <input
           autoComplete="off"
           autoCorrect="off"
@@ -225,7 +219,7 @@ export const SidebarFilter = forwardRef<HTMLInputElement, SidebarFilterProps>(fu
             onClick={() => onChange('')}
             title="Clear filter"
           >
-            <XIcon className="w-3 h-3" />
+            <XIcon size="xs" />
           </button>
         )}
       </div>
@@ -242,13 +236,13 @@ export function CommentedOnlyToggle(props: { active: boolean; count: number; onT
     <button
       className={cn(
         'inline-flex items-center gap-1.5 shrink-0 h-7 px-2 rounded-md border text-xs font-medium tabular-nums transition-colors cursor-pointer',
-        active ? 'bg-selected text-text border-transparent' : 'bg-raised border-border text-text-secondary hover:border-control-border hover:text-text',
+        active ? 'bg-selected text-text border-transparent' : 'bg-raised border-control-border text-text-secondary hover:bg-control-hover hover:text-text',
       )}
       onClick={onToggle}
       title={active ? 'Show all files' : 'Show only files with open comments'}
       aria-pressed={active}
     >
-      <CommentIcon className="w-3.5 h-3.5" />
+      <CommentIcon size="sm" />
       {label}
     </button>
   );

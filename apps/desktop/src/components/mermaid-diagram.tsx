@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import mermaid from 'mermaid';
-import { XIcon } from './icons/x-icon';
+import { XIcon } from './ui/icon';
 
 let initialized = false;
 

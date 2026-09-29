@@ -11,10 +11,8 @@ import { buttonOutline, buttonPrimary } from '../ui/button-styles';
 import { StatusLetter } from '../tree/file-tree-item';
 import { DiffStats } from '../diff/diff-stats';
 import { AuthorAvatar } from './commit-list';
-import { GitCompareIcon } from '../icons/git-compare-icon';
-import { CopyIcon } from '../icons/copy-icon';
-import { CheckIcon } from '../icons/check-icon';
 import { useCopy } from '../../hooks/use-copy';
+import { CheckIcon, CopyIcon, GitCompareIcon } from '../ui/icon';
 
 export interface HistoryTarget {
   ref: string;

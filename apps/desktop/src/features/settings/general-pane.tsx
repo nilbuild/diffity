@@ -112,7 +112,7 @@ function DiffLayoutRow() {
   const [mode, setMode] = useState<ViewMode>(readViewMode);
 
   return (
-    <PreferencesRow label="Diff layout" hint="How new diff tabs open. You can switch any time from the toolbar.">
+    <PreferencesRow label="Diff layout" hint="How diffs open. Switch any time with Unified | Split above the diff (U, S).">
       <SegmentedControl<ViewMode>
         ariaLabel="Diff layout"
         value={mode}

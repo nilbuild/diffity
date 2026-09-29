@@ -1,13 +1,14 @@
 import { useRepoNav } from '../../hooks/use-repo';
 import { cn } from '../../lib/cn';
-import { FileDiff, FolderTree, History, type LucideIcon } from 'lucide-react';
+import { FileTextIcon, FolderSimpleIcon, HistoryIcon, type GlyphProps } from '../ui/icon';
+import type { ComponentType } from 'react';
 
 export type RepoView = 'diff' | 'tree' | 'overview';
 
-const TABS: { value: RepoView; label: string; icon: LucideIcon }[] = [
-  { value: 'diff', label: 'Changes', icon: FileDiff },
-  { value: 'tree', label: 'Files', icon: FolderTree },
-  { value: 'overview', label: 'History', icon: History },
+const TABS: { value: RepoView; label: string; hint: string; icon: ComponentType<GlyphProps> }[] = [
+  { value: 'diff', label: 'Changes', hint: 'Uncommitted changes', icon: FileTextIcon },
+  { value: 'tree', label: 'Files', hint: 'Browse and comment on any file', icon: FolderSimpleIcon },
+  { value: 'overview', label: 'History', hint: 'Commits, branches and comparisons', icon: HistoryIcon },
 ];
 
 export function ViewTabs(props: { current: RepoView; vertical?: boolean }) {
@@ -40,13 +41,13 @@ export function ViewTabs(props: { current: RepoView; vertical?: boolean }) {
               key={tab.value}
               onClick={() => go(tab.value)}
               aria-current={active ? 'page' : undefined}
-              title={tab.label}
+              title={tab.hint}
               className={cn(
-                'w-7 h-7 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer',
+                'w-8 h-8 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer',
                 active ? 'bg-active text-text' : 'text-text-secondary hover:text-text hover:bg-hover',
               )}
             >
-              <Icon size={16} strokeWidth={1.75} />
+              <Icon size="md" />
             </button>
           );
         })}
@@ -55,7 +56,7 @@ export function ViewTabs(props: { current: RepoView; vertical?: boolean }) {
   }
 
   return (
-    <nav className="flex items-center gap-1 px-2 pt-2 pb-1 shrink-0" aria-label="Views">
+    <nav className="flex items-center gap-0.5 mx-3 mt-3 mb-2 p-0.5 rounded-lg bg-fill shrink-0" aria-label="Views">
       {TABS.map((tab) => {
         const Icon = tab.icon;
         const active = tab.value === current;
@@ -64,13 +65,13 @@ export function ViewTabs(props: { current: RepoView; vertical?: boolean }) {
             key={tab.value}
             onClick={() => go(tab.value)}
             aria-current={active ? 'page' : undefined}
-            title={tab.label}
+            title={tab.hint}
             className={cn(
-              'flex flex-1 min-w-0 items-center justify-center gap-1.5 h-8 px-2 rounded-md text-[13px] transition-colors cursor-pointer',
-              active ? 'bg-active text-text font-medium' : 'text-text-secondary hover:text-text hover:bg-hover',
+              'flex flex-1 min-w-0 items-center justify-center gap-1.5 h-7 px-2 rounded-md text-[13px] transition-colors cursor-pointer',
+              active ? 'bg-raised text-text font-medium ring-1 ring-control-border' : 'text-text-secondary hover:text-text',
             )}
           >
-            <Icon size={15} strokeWidth={1.75} className="shrink-0" />
+            <Icon size="sm" className={active ? 'text-text' : 'text-text-muted'} />
             <span className="truncate">{tab.label}</span>
           </button>
         );

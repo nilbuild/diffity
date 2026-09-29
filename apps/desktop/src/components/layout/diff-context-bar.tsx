@@ -5,10 +5,9 @@ import { fetchCommit, parseCommitRef } from '../../lib/api';
 import { useRepoNav } from '../../hooks/use-repo';
 import { useCopy } from '../../hooks/use-copy';
 import { useGitHubPr } from '../../hooks/use-repo-state';
-import { CheckIcon } from '../icons/check-icon';
-import { CopyIcon } from '../icons/copy-icon';
 import { AuthorAvatar } from './commit-list';
 import { prDiffRef } from './ref-menu';
+import { CheckIcon, CopyIcon } from '../ui/icon';
 
 export function useBack() {
   const navigate = useNavigate();

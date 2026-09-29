@@ -7,14 +7,10 @@ import type { PullRequest } from '../../lib/types';
 import { closePullRequests, openSettingsAt, useUi } from '../../lib/ui-store';
 import { useRepoNav } from '../../hooks/use-repo';
 import { useGitHubAuth, useGitHubPr, useHasGitHubRemote } from '../../hooks/use-repo-state';
-import { SearchIcon } from '../../components/icons/search-icon';
-import { XIcon } from '../../components/icons/x-icon';
-import { RefreshIcon } from '../../components/icons/refresh-icon';
-import { GitHubIcon } from '../../components/icons/github-icon';
-import { GitPullRequestIcon } from '../../components/icons/git-pull-request-icon';
 import { Spinner } from '../../components/icons/spinner';
 import { ChecksStatus, PrStateIcon, ReviewDecision, headLabel, relative } from './pr-meta';
 import { checkoutPullRequest, parsePrInput, prRefFor, useCheckoutState } from './pr-checkout';
+import { GitHubIcon, GitPullRequestIcon, RefreshIcon, SearchIcon, XIcon } from '../../components/ui/icon';
 
 export function usePullRequests(enabled: boolean) {
   const repoPath = useRepoNav().repoPath;

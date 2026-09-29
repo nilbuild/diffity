@@ -5,10 +5,8 @@ import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import { getRepoPath } from '../../lib/api';
 import type { GitOpResult } from '../../lib/types';
-import { RefreshIcon } from '../icons/refresh-icon';
-import { DownloadIcon } from '../icons/download-icon';
-import { UploadIcon } from '../icons/upload-icon';
 import { Spinner } from '../icons/spinner';
+import { DownloadIcon, RefreshIcon, UploadIcon } from '../ui/icon';
 
 type GitOp = 'fetch' | 'pull' | 'push';
 

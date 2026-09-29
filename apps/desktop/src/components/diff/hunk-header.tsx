@@ -1,8 +1,6 @@
 import type { DiffHunk } from '@diffity/parser';
-import { ArrowUpIcon } from '../icons/arrow-up-icon';
-import { ArrowDownIcon } from '../icons/arrow-down-icon';
-import { ChevronUpDownIcon } from '../icons/chevron-up-down-icon';
 import { Spinner } from '../icons/spinner';
+import { ExpandBothIcon, ExpandDownIcon, ExpandUpIcon } from '../ui/icon';
 
 export interface ExpandControls {
   position: 'top' | 'between' | 'bottom';
@@ -81,7 +79,7 @@ export function HunkHeader(props: HunkHeaderProps) {
         {loadingDirection ? <SpinnerCell /> : (
           <td className={gutterCell}>
             <button className={expandBtn} onClick={() => onExpand('up')} title={`Expand ${Math.min(remainingLines, 20)} lines`}>
-              <ArrowUpIcon />
+              <ExpandUpIcon />
             </button>
           </td>
         )}
@@ -102,7 +100,7 @@ export function HunkHeader(props: HunkHeaderProps) {
               onClick={() => onExpand(isSmallGap ? 'all' : showUp ? 'up' : 'down')}
               title={isSmallGap ? `Expand all ${remainingLines} lines` : `Expand ${Math.min(remainingLines, 20)} lines`}
             >
-              {isSmallGap ? <ChevronUpDownIcon /> : showUp ? <ArrowUpIcon /> : <ArrowDownIcon />}
+              {isSmallGap ? <ExpandBothIcon /> : showUp ? <ExpandUpIcon /> : <ExpandDownIcon />}
             </button>
           </td>
         )}
@@ -119,7 +117,7 @@ export function HunkHeader(props: HunkHeaderProps) {
         {loadingDirection === 'down' ? <SpinnerCell /> : (
           <td className={gutterCell}>
             <button className={expandBtn} onClick={() => onExpand('down')} title="Expand down">
-              <ArrowDownIcon />
+              <ExpandDownIcon />
             </button>
           </td>
         )}
@@ -135,7 +133,7 @@ export function HunkHeader(props: HunkHeaderProps) {
         {loadingDirection === 'up' ? <SpinnerCell /> : (
           <td className={gutterCell}>
             <button className={expandBtn} onClick={() => onExpand('up')} title="Expand up">
-              <ArrowUpIcon />
+              <ExpandUpIcon />
             </button>
           </td>
         )}

@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
-import { CommentIcon } from '../../components/icons/comment-icon';
-import { XIcon } from '../../components/icons/x-icon';
 import { isOpenThread, useRepoThreads } from '../../hooks/use-repo-threads';
 import { openComments } from '../../lib/ui-store';
+import { CommentIcon, XIcon } from '../../components/ui/icon';
 
 interface OtherViewsNoticeProps {
   sessionId: string | null;

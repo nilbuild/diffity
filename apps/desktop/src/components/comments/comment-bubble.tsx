@@ -1,10 +1,9 @@
 import { buttonGhost, buttonPrimary } from '../ui/button-styles';
 import { useState, useRef, useEffect } from 'react';
 import type { Comment } from './types';
-import { PencilIcon } from '../icons/pencil-icon';
-import { TrashIcon } from '../icons/trash-icon';
 import { MarkdownContent } from '../layout/markdown-content';
 import { ThreadBadge } from '../ui/thread-badge';
+import { PencilIcon, TrashIcon } from '../ui/icon';
 
 interface CommentBubbleProps {
   comment: Comment;

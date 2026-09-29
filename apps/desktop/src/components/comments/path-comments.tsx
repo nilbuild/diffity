@@ -3,9 +3,9 @@ import type { CommentThread as CommentThreadType } from './types';
 import { isThreadResolved, DEFAULT_AUTHOR } from './types';
 import type { CommentActions } from '../../hooks/use-comment-actions';
 import { CommentForm } from './comment-form';
-import { CommentIcon } from '../icons/comment-icon';
 import { ThreadBadge } from '../ui/thread-badge';
 import { ThreadCard } from './thread-card';
+import { CommentIcon } from '../ui/icon';
 
 interface PathCommentsProps {
   pathKey: string;

@@ -101,10 +101,68 @@ review?" tiles, uncommitted-file list, commits card and compare card all answere
 - The base branch could be stale, skewing the PR diff → `checkout_pr` fetches the base too; merged PRs whose branch was deleted fall back to `pull/<n>/head`.
 - Verified read-only on sindresorhus/p-queue #233 (same-repo, dirty tree → stash → back restores) and pmndrs/zustand #3580 (fork → `pr-3580`, 4 review comments pulled, "Review #3580" offered). Nothing was posted.
 
+## Information architecture and visual pass (round 3)
+
+Walked through the six main jobs as a user (open a repo and see what changed; review a file, comment, ask Claude;
+send comments to Claude; look at a commit / compare branches; check out and review a PR; switch projects). The rule
+that fell out: **controls live next to what they change, and every region has one job.**
+
+### Map: screen → regions → what lives there
+
+| Region | Job | Contents |
+| --- | --- | --- |
+| Rail (frame, left, 52px) | Which project | Project tiles (manual order, drag to reorder, ⌘1–9), "+" Open folder (⌘O) below them, Settings at the bottom |
+| Title bar (frame, top, 44px) | Where am I, and the big actions | Sidebar toggle (⌘\\), repo name, "what to review" picker (+ Back when not on Uncommitted) … Comments (C), Ask Claude to review, Send N to Claude / Submit review #N, ⋯ (shortcuts, theme, settings, about) |
+| Context bars (workspace top) | Facts about the chosen target | PR bar (state, title, base ← head, checks, sync, back to branch); commit header inside the diff |
+| Sidebar (sidebar surface) | Navigate inside the target | Changes · Files · History, filter + commented-only chip + ⋯ (tree/list, expand/collapse folders), summary line, file tree |
+| Diff bar (content top, 40px) | How the diff looks, and moving through it | Viewed progress, open-comment navigation (k/N, prev/next, copy, delete all) … Hide whitespace, Unified \| Split, ⋯ (expand / collapse all files) |
+| Content | The work | File cards, thread cards, general comments; empty states with next steps |
+| Status bar (frame, bottom, 32px) | Repository status | Branch switcher, upstream, fetch/pull/push, notices, path, PR shortcut |
+| Drawer (right) | Everything commented, anywhere | Comments panel (C): filters, grouped by view → file, card rows |
+
+### Decisions
+
+- **"Still blending in" → four surface levels.** Frame (rail + title bar + status bar, darkest tint), sidebar (tinted),
+  content (white / near-black), overlays (raised with a border). The workspace is an inset panel with an outline and a
+  rounded left edge, so the title bar can no longer merge into the sidebar. Cards, inputs and buttons get visible
+  `control-border` outlines; selection stays a soft neutral fill; accent only on primary buttons, focus and links.
+- **Light mode designed on purpose.** Crisp white content, softly tinted chrome in two clear steps, readable greys
+  (`#4b535d` / `#646c76`, AA on every surface they sit on), gentler diff tints and a neutral hunk band instead of
+  bright blue. Dark mode follows the same structure.
+- **Icons: Phosphor fill** (compared Phosphor fill/duotone, Heroicons 20 solid, Iconsax bold/bulk, Fluent filled and
+  the old Lucide set in the running app). Phosphor has friendly rounded solid shapes and the git glyphs (branch,
+  commit, pull request, diff) the others lack. One wrapper, `components/ui/icon.tsx`; Lucide and the 45 hand-made
+  outline icons are gone.
+- **Font: macOS system font** instead of Geist. At 11–13px SF Pro is noticeably more legible (optical sizes) and feels
+  native; the code font is unchanged. Type scale 11 / 12 / 13 / 15 / 18.
+- **Sidebar header had four icon buttons and a "View options" popover that clipped.** The header row is gone: the
+  filter is the first thing, tree/list and expand/collapse moved into a ⋯ menu, hide-sidebar moved to the title bar as
+  a standard toggle (⌘\\, remembered). Layout and whitespace are no longer in a menu: Unified | Split and Hide
+  whitespace sit in the diff bar above the diff they change. All menus now use a portal popover with viewport
+  collision handling.
+- **Comment navigation moved out of the title bar** into the diff bar (it moves through the diff). The title bar keeps
+  only identity and the three big actions.
+- **Clean working tree is a starting point, not a dead end.** "Everything is committed" with branch and sync state,
+  tiles for the last commit, the PR or "branch vs base", open comments, and the recent commits list.
+- **Rail:** "+" moved below the tiles (Slack/Discord style) as a dashed tile; active tile is a raised tile with a ring
+  and a pill indicator centred on it; tooltips are custom (name, shortcut, path) instead of slow native titles; ⌘O now
+  works inside a repository too (it was advertised but only worked on the start screen).
+- **Project switching leaked data between repositories.** Going repo A → start screen → repo B showed A's pull
+  request in B's toolbar and status bar, because the cache swap keyed off the API's current path, which the start
+  screen resets. The cache now tracks its own owner (`activateRepoCache`), cancels in-flight queries before swapping,
+  and switching stays instant with no layout jump (verified by capturing the first frame after a click).
+- **Review popover (PR):** "Review with Claude" vs "Review #430" read alike → "Ask Claude to review" (sparkle) and
+  "Submit review #430" (PR icon). The popover is sectioned (summary → GitHub post + verdict → Claude + scope → one
+  action button that says exactly what happens); Claude scope is explicit ("All N comments" vs "Only comments that
+  mention @claude (M)") with a list of what is sent; on a PR "send to Claude" is off by default and remembered per
+  repo; a disabled submit says why.
+- `/` to focus the filter did nothing on the Changes view (selector looked for "Filter files..."); fixed.
+
 ## Remaining
 
 - Very large diffs (thousands of files) are still rendered eagerly apart from auto-collapsed files; no virtualisation.
 - The window title is only the repo name (no ref).
+- With "Send to Claude" off, @claude mentions in a submitted PR review are posted but not sent to Claude (the popover warns). Decide whether mentions should always go to Claude.
 - A PR review posted from a non-PR view (e.g. an old commit) can only post comments GitHub can anchor; unanchored ones are reported as failed.
 - The edit-rejected guard is per turn, so after one denial Claude can't resolve any thread in that run, even ones whose edits were approved (conservative by design).
 - PR picker lists the 30 most recently updated open PRs; older ones need `#number`. No device-flow sign-in in the new GitHub pane (only when `DIFFITY_GITHUB_CLIENT_ID` is set; import/token cover it).

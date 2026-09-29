@@ -1,4 +1,3 @@
-import { ChevronsDownUp, ChevronsUpDown, PanelLeftClose } from 'lucide-react';
 import { useMemo, useState, useCallback, useEffect, forwardRef } from 'react';
 import {
   buildFileTreeFromPaths,
@@ -9,7 +8,9 @@ import {
   collectAllDirPaths,
 } from '../../lib/file-tree';
 import { FileTreeItem } from './file-tree-item';
-import { CommentedOnlyToggle, SidebarFilter, SidebarFrame, SidebarHeader, SidebarIconButton } from '../layout/sidebar-frame';
+import { CommentedOnlyToggle, SidebarFilter, SidebarFrame, SidebarMenu, SidebarSummary } from '../layout/sidebar-frame';
+import { MenuItem } from '../ui/popover';
+import { CollapseAllIcon, ExpandAllIcon } from '../ui/icon';
 
 interface TreeSidebarProps {
   paths: string[];
@@ -29,7 +30,6 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
   } = props;
 
   const [search, setSearch] = useState('');
-  const [collapsed, setCollapsed] = useState(false);
   const [expandedDirs, setExpandedDirs] = useState<Set<string> | null>(null);
   const [commentedFilesOnly, setCommentedFilesOnly] = useState(false);
 
@@ -48,7 +48,6 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
 
   const effectiveCommentedOnly = commentedFilesOnly && commentedFileCount > 0;
 
-  // Auto-expand to active file
   useEffect(() => {
     if (!activeFile) {
       return;
@@ -88,7 +87,6 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
 
   const allExpanded = effectiveExpanded.size >= allDirPaths.length;
 
-  // Expand only on click (no collapse); chevron handles collapse
   const handleExpandDir = useCallback((path: string) => {
     setExpandedDirs(prev => {
       const next = new Set(prev ?? []);
@@ -118,47 +116,45 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
   const emptyReviewedFiles = useMemo(() => new Set<string>(), []);
 
   return (
-    <SidebarFrame collapsed={collapsed} onExpand={() => setCollapsed(false)} view="tree">
-      <SidebarHeader
-        title={
-          <span className="truncate">
-            {paths.length} file{paths.length === 1 ? '' : 's'}
-          </span>
-        }
-        actions={
-          <>
-            <SidebarIconButton
-              title={allExpanded ? 'Collapse all' : 'Expand all'}
-              onClick={() => {
-                if (allExpanded) {
-                  setExpandedDirs(new Set());
-                  return;
-                }
-                setExpandedDirs(new Set(allDirPaths));
-              }}
-            >
-              {allExpanded ? <ChevronsDownUp size={15} strokeWidth={1.75} /> : <ChevronsUpDown size={15} strokeWidth={1.75} />}
-            </SidebarIconButton>
-            <SidebarIconButton title="Hide sidebar" onClick={() => setCollapsed(true)}>
-              <PanelLeftClose size={15} strokeWidth={1.75} />
-            </SidebarIconButton>
-          </>
-        }
-      />
+    <SidebarFrame view="tree">
       <SidebarFilter
         ref={ref}
         value={search}
         onChange={setSearch}
         placeholder="Filter files"
         shortcut="/"
-        trailing={commentedFileCount > 0 && (
-          <CommentedOnlyToggle
-            active={effectiveCommentedOnly}
-            count={commentedFileCount}
-            onToggle={() => setCommentedFilesOnly((prev) => !prev)}
-          />
-        )}
+        trailing={
+          <>
+            {commentedFileCount > 0 && (
+              <CommentedOnlyToggle
+                active={effectiveCommentedOnly}
+                count={commentedFileCount}
+                onToggle={() => setCommentedFilesOnly((prev) => !prev)}
+              />
+            )}
+            <SidebarMenu title="File list options">
+              {(close) => (
+                <>
+                  <MenuItem
+                    icon={<ExpandAllIcon size="sm" />}
+                    label="Expand all folders"
+                    disabled={allExpanded}
+                    onSelect={() => { setExpandedDirs(new Set(allDirPaths)); close(); }}
+                  />
+                  <MenuItem
+                    icon={<CollapseAllIcon size="sm" />}
+                    label="Collapse all folders"
+                    onSelect={() => { setExpandedDirs(new Set()); close(); }}
+                  />
+                </>
+              )}
+            </SidebarMenu>
+          </>
+        }
       />
+      <SidebarSummary>
+        {paths.length} file{paths.length === 1 ? '' : 's'}
+      </SidebarSummary>
       <div className="flex-1 overflow-y-auto px-2 pb-3">
         {displayTree.length === 0 ? (
           <div className="px-4 py-6 text-center text-xs text-text-muted">

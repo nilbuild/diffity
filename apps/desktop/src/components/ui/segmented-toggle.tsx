@@ -5,6 +5,7 @@ interface SegmentedToggleOption<T extends string> {
   value: T;
   label: string;
   icon?: ReactNode;
+  title?: string;
 }
 
 interface SegmentedToggleProps<T extends string> {
@@ -19,20 +20,20 @@ export function SegmentedToggle<T extends string>(props: SegmentedToggleProps<T>
   const { options, value, onChange, labelClassName, iconOnly } = props;
 
   return (
-    <div className="flex items-center h-7 p-0.5 gap-0.5 rounded-md bg-bg-tertiary shrink-0">
+    <div className="flex items-center h-7 p-0.5 gap-0.5 rounded-md bg-fill shrink-0">
       {options.map((option) => {
         const isActive = option.value === value;
         return (
           <button
             key={option.value}
-            title={option.label}
+            title={option.title ?? option.label}
             aria-pressed={isActive}
             className={cn(
               'flex items-center justify-center gap-1.5 h-[22px] rounded-[4px] text-[13px] transition-colors duration-150 cursor-pointer',
               iconOnly ? 'w-6' : 'px-2.5',
               isActive
-                ? 'bg-selected text-text font-medium'
-                : 'text-text-secondary hover:text-text hover:bg-hover'
+                ? 'bg-raised text-text font-medium ring-1 ring-control-border'
+                : 'text-text-secondary hover:text-text'
             )}
             onClick={() => onChange(option.value)}
           >

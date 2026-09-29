@@ -6,15 +6,11 @@ import { cn } from '../../lib/cn';
 import { openSettingsAt } from '../../lib/ui-store';
 import type { Branch, PullRequest } from '../../lib/types';
 import { inputField } from '../../components/ui/button-styles';
-import { CheckIcon } from '../../components/icons/check-icon';
-import { GitBranchIcon } from '../../components/icons/git-branch-icon';
-import { GitPullRequestIcon } from '../../components/icons/git-pull-request-icon';
-import { SearchIcon } from '../../components/icons/search-icon';
 import { Spinner } from '../../components/icons/spinner';
-import { ChevronUpDownIcon } from '../../components/icons/chevron-up-down-icon';
 import { ChecksStatus, PrStateIcon } from './pr-meta';
 import { checkoutPullRequest, labelFor, localNameFor, parsePrInput, switchBranch, useCheckoutState } from './pr-checkout';
 import { usePullRequests } from './pull-requests-dialog';
+import { CheckIcon, ChevronUpDownIcon, GitBranchIcon, GitPullRequestIcon, SearchIcon } from '../../components/ui/icon';
 
 const sectionClass = 'px-2.5 pt-2.5 pb-1 text-[11px] font-medium text-text-secondary';
 

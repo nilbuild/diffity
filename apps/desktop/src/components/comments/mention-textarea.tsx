@@ -1,7 +1,7 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import { SparkleIcon } from '../icons/sparkle-icon';
 import { cn } from '../../lib/cn';
 import { splitMentions } from '../../lib/mentions';
+import { SparkleIcon } from '../ui/icon';
 
 interface MentionTextareaProps {
   value: string;

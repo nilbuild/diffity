@@ -3,9 +3,9 @@ import { cn } from '../../lib/cn';
 import { buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 import { getRepoPathOrNull } from '../../lib/api';
 import { collapseContext, diffLines } from '../../lib/line-diff';
-import { SparkleIcon } from '../../components/icons/sparkle-icon';
 import { answerClaudePermission, useClaude } from './claude-runner';
 import type { PermissionOption } from '../../lib/types';
+import { SparkleIcon } from '../../components/ui/icon';
 
 function isReject(option: PermissionOption) {
   return option.kind.startsWith('reject') || option.kind === 'deny';

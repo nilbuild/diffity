@@ -1,7 +1,5 @@
-import { useCallback } from 'react';
 import type { ParsedDiff } from '@diffity/parser';
 import { getFilePath } from '../../lib/diff-utils';
-import { CommentToolbarActions } from '../comments/comment-toolbar-actions';
 import { OptionsMenu } from './options-menu';
 import { GENERAL_THREAD_FILE_PATH } from '../comments/types';
 import type { CommentThread } from '../comments/types';
@@ -21,8 +19,6 @@ interface ToolbarProps {
   diff?: ParsedDiff;
   diffRef?: string;
   threads: CommentThread[];
-  onDeleteAllComments: () => void;
-  onScrollToThread: (threadId: string, filePath: string) => void;
   repoName: string | null;
   branch: string | null;
   githubDetails?: GitHubDetails | null;
@@ -54,7 +50,7 @@ function extractCodeContext(diff: ParsedDiff | undefined, filePath: string, side
   return lines;
 }
 
-function formatThreadsForCopy(threads: CommentThread[], diff?: ParsedDiff, diffRef?: string): string {
+export function formatThreadsForCopy(threads: CommentThread[], diff?: ParsedDiff, diffRef?: string): string {
   const unresolvedThreads = threads.filter(t => !isThreadResolved(t));
   if (unresolvedThreads.length === 0) {
     return '';
@@ -110,18 +106,12 @@ export function Toolbar(props: ToolbarProps) {
     diff,
     diffRef,
     threads,
-    onDeleteAllComments,
-    onScrollToThread,
     repoName,
     branch,
     sessionId,
   } = props;
   const { data: meta } = useRepoMeta();
   const hasChanges = !diff || diff.files.length > 0;
-
-  const formatForCopy = useCallback(() => {
-    return formatThreadsForCopy(threads, diff, diffRef);
-  }, [threads, diff, diffRef]);
 
 
   return (
@@ -132,12 +122,6 @@ export function Toolbar(props: ToolbarProps) {
       </div>
       <div data-tauri-drag-region className="flex-1 min-w-2 self-stretch" />
       <div className="flex items-center gap-2 shrink-0">
-        <CommentToolbarActions
-          threads={threads}
-          onScrollToThread={onScrollToThread}
-          onDeleteAllComments={onDeleteAllComments}
-          formatForCopy={formatForCopy}
-        />
         <CommentsButton />
         {(hasChanges || threads.length > 0) && (
           <>

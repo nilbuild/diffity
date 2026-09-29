@@ -1,10 +1,11 @@
-import { ChevronsDownUp, ChevronsUpDown, List, ListTree, PanelLeftClose } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DiffFile, ParsedDiff } from '@diffity/parser';
 import { DiffStats } from '../diff/diff-stats';
 import { FileTree } from '../tree/file-tree';
 import type { FileTreeHandle } from '../tree/file-tree';
-import { CommentedOnlyToggle, SidebarFilter, SidebarFrame, SidebarHeader, SidebarIconButton } from './sidebar-frame';
+import { CommentedOnlyToggle, SidebarFilter, SidebarFrame, SidebarMenu, SidebarSummary } from './sidebar-frame';
+import { MenuItem, MenuLabel, MenuSeparator } from '../ui/popover';
+import { CollapseAllIcon, ExpandAllIcon, ListIcon, TreeIcon } from '../ui/icon';
 
 interface SidebarProps {
   files: DiffFile[];
@@ -14,7 +15,6 @@ interface SidebarProps {
   onFileClick: (path: string) => void;
   onCommentedFileClick: (path: string) => void;
   stats?: ParsedDiff['stats'];
-  viewOptions?: ReactNode;
 }
 
 const FLAT_KEY = 'diffity-sidebar-flat';
@@ -36,11 +36,9 @@ export function Sidebar(props: SidebarProps) {
     onFileClick,
     onCommentedFileClick,
     stats,
-    viewOptions,
   } = props;
   const fileTreeRef = useRef<FileTreeHandle>(null);
   const [search, setSearch] = useState('');
-  const [collapsed, setCollapsed] = useState(false);
   const [commentedFilesOnly, setCommentedFilesOnly] = useState(false);
   const [allExpanded, setAllExpanded] = useState(true);
   const [flat, setFlatState] = useState(readFlat);
@@ -80,55 +78,53 @@ export function Sidebar(props: SidebarProps) {
   };
 
   return (
-    <SidebarFrame collapsed={collapsed} onExpand={() => setCollapsed(false)} view="diff">
-      <SidebarHeader
-        title={
-          <>
-            <span className="truncate">{countLabel}</span>
-            {stats && <DiffStats additions={stats.totalAdditions} deletions={stats.totalDeletions} />}
-          </>
-        }
-        actions={
-          <>
-            {viewOptions}
-            <SidebarIconButton
-              title={flat ? 'Show as tree' : 'Show as flat list'}
-              onClick={() => setFlat(!flat)}
-            >
-              {flat ? <ListTree size={15} strokeWidth={1.75} /> : <List size={15} strokeWidth={1.75} />}
-            </SidebarIconButton>
-            {!flat && (
-              <SidebarIconButton
-                title={allExpanded ? 'Collapse all' : 'Expand all'}
-                onClick={() => {
-                  if (allExpanded) {
-                    fileTreeRef.current?.collapseAll();
-                    return;
-                  }
-                  fileTreeRef.current?.expandAll();
-                }}
-              >
-                {allExpanded ? <ChevronsDownUp size={15} strokeWidth={1.75} /> : <ChevronsUpDown size={15} strokeWidth={1.75} />}
-              </SidebarIconButton>
-            )}
-            <SidebarIconButton title="Hide sidebar" onClick={() => setCollapsed(true)}>
-              <PanelLeftClose size={15} strokeWidth={1.75} />
-            </SidebarIconButton>
-          </>
-        }
-      />
+    <SidebarFrame view="diff">
+      {files.length === 0 ? (
+        <div className="px-4 pt-6 text-center text-xs text-text-muted">Nothing changed here</div>
+      ) : (
+      <>
       <SidebarFilter
         value={search}
         onChange={setSearch}
         placeholder="Filter files"
-        trailing={commentedFileCount > 0 && (
-          <CommentedOnlyToggle
-            active={commentedFilesOnly}
-            count={commentedFileCount}
-            onToggle={() => setCommentedFilesOnly((prev) => !prev)}
-          />
-        )}
+        trailing={
+          <>
+            {commentedFileCount > 0 && (
+              <CommentedOnlyToggle
+                active={commentedFilesOnly}
+                count={commentedFileCount}
+                onToggle={() => setCommentedFilesOnly((prev) => !prev)}
+              />
+            )}
+            <SidebarMenu title="File list options">
+              {(close) => (
+                <>
+                  <MenuLabel>Show files as</MenuLabel>
+                  <MenuItem icon={<TreeIcon size="sm" />} label="Tree" checked={!flat} onSelect={() => { setFlat(false); close(); }} />
+                  <MenuItem icon={<ListIcon size="sm" />} label="List" checked={flat} onSelect={() => { setFlat(true); close(); }} />
+                  <MenuSeparator />
+                  <MenuItem
+                    icon={<ExpandAllIcon size="sm" />}
+                    label="Expand all folders"
+                    disabled={flat || allExpanded}
+                    onSelect={() => { fileTreeRef.current?.expandAll(); close(); }}
+                  />
+                  <MenuItem
+                    icon={<CollapseAllIcon size="sm" />}
+                    label="Collapse all folders"
+                    disabled={flat}
+                    onSelect={() => { fileTreeRef.current?.collapseAll(); close(); }}
+                  />
+                </>
+              )}
+            </SidebarMenu>
+          </>
+        }
       />
+      <SidebarSummary>
+        <span className="truncate">{countLabel}</span>
+        {stats && <DiffStats additions={stats.totalAdditions} deletions={stats.totalDeletions} />}
+      </SidebarSummary>
       <FileTree
         ref={fileTreeRef}
         files={files}
@@ -141,6 +137,8 @@ export function Sidebar(props: SidebarProps) {
         onFileClick={handleTreeFileClick}
         onExpandedStateChange={setAllExpanded}
       />
+      </>
+      )}
     </SidebarFrame>
   );
 }

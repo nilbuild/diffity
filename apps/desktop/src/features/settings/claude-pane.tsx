@@ -4,10 +4,6 @@ import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import type { AgentInfo } from '../../lib/types';
 import { cn } from '../../lib/cn';
-import { SparkleIcon } from '../../components/icons/sparkle-icon';
-import { RefreshIcon } from '../../components/icons/refresh-icon';
-import { AlertCircleIcon } from '../../components/icons/alert-circle-icon';
-import { CheckIcon } from '../../components/icons/check-icon';
 import { Spinner } from '../../components/icons/spinner';
 import {
   PreferencesGroup,
@@ -17,6 +13,7 @@ import {
   StatusBadge,
   settingsInputClass,
 } from './preferences';
+import { AlertCircleIcon, CheckIcon, RefreshIcon, SparkleIcon } from '../../components/ui/icon';
 
 const CLAUDE_PATH_KEY = 'agent.claude.path';
 

@@ -2,21 +2,16 @@ import type { ReactNode } from 'react';
 import { useRepoNav } from '../../hooks/use-repo';
 import { useBaseBranch, useGitHubPr, useGitStatus, useRecentCommits, useRepoMeta } from '../../hooks/use-repo-state';
 import { commitRef, parseCommitRef } from '../../lib/api';
-import { CheckCircleIcon } from '../icons/check-circle-icon';
-import { ChevronRightIcon } from '../icons/chevron-right-icon';
-import { FolderOpenIcon } from '../icons/folder-open-icon';
-import { GitBranchIcon } from '../icons/git-branch-icon';
-import { GitCompareIcon } from '../icons/git-compare-icon';
-import { GitPullRequestIcon } from '../icons/git-pull-request-icon';
-import { PencilIcon } from '../icons/pencil-icon';
-import { CommentIcon } from '../icons/comment-icon';
 import { isOpenThread, useRepoThreads } from '../../hooks/use-repo-threads';
 import { openComments } from '../../lib/ui-store';
+import { EyeIcon } from '../ui/icon';
+import { CheckCircleIcon, ChevronRightIcon, CommentIcon, FolderOpenIcon, GitBranchIcon, GitCommitIcon, GitCompareIcon, GitPullRequestIcon, PencilIcon } from '../ui/icon';
 
 interface DiffEmptyStateProps {
   diffRef: string;
   branch: string | null;
   hideWhitespace: boolean;
+  onShowWhitespace: () => void;
 }
 
 interface Action {
@@ -71,61 +66,126 @@ function Shell(props: { title: string; message: ReactNode; actions: Action[]; ic
   );
 }
 
-function Card(props: { title: string; action?: ReactNode; children: ReactNode }) {
-  const { title, action, children } = props;
+function Tile(props: { icon: ReactNode; eyebrow: string; title: string; detail?: ReactNode; onClick: () => void }) {
+  const { icon, eyebrow, title, detail, onClick } = props;
 
   return (
-    <section className="rounded-lg border border-border bg-bg overflow-hidden">
-      <div className="flex items-center justify-between h-10 px-3.5 bg-bg-secondary border-b border-border-muted">
-        <h3 className="text-[13px] font-medium text-text">{title}</h3>
-        {action}
-      </div>
-      <div className="p-1">{children}</div>
-    </section>
+    <button
+      onClick={onClick}
+      className="group flex flex-col items-start gap-2 min-w-0 p-3.5 rounded-lg border border-border bg-bg text-left hover:border-control-border hover:bg-bg-secondary transition-colors cursor-pointer"
+    >
+      <span className="flex items-center gap-2 text-xs font-medium text-text-secondary">
+        <span className="flex items-center justify-center w-6 h-6 rounded-md bg-fill text-text-secondary">{icon}</span>
+        {eyebrow}
+      </span>
+      <span className="w-full text-[13px] font-medium text-text line-clamp-2">{title}</span>
+      {detail && <span className="w-full text-xs text-text-muted truncate">{detail}</span>}
+    </button>
   );
+}
+
+function syncLabel(status: { upstream: string | null; ahead: number; behind: number } | undefined) {
+  if (!status?.upstream) {
+    return null;
+  }
+  if (status.ahead === 0 && status.behind === 0) {
+    return `up to date with ${status.upstream}`;
+  }
+  const parts: string[] = [];
+  if (status.ahead > 0) {
+    parts.push(`${status.ahead} to push`);
+  }
+  if (status.behind > 0) {
+    parts.push(`${status.behind} to pull`);
+  }
+  return parts.join(', ');
 }
 
 function CleanOverview(props: { branch: string | null }) {
   const { branch } = props;
   const nav = useRepoNav();
   const { details } = useGitHubPr();
+  const { data: status } = useGitStatus();
   const base = useBaseBranch(details?.baseRef ?? null, branch);
   const { data: recent, isLoading } = useRecentCommits(8);
   const { data: repoThreads } = useRepoThreads();
   const openThreads = (repoThreads ?? []).filter(isOpenThread);
-  const views = new Map<string, { label: string; count: number }>();
-  for (const thread of openThreads) {
-    const view = views.get(thread.ref) ?? { label: thread.refLabel, count: 0 };
-    view.count += 1;
-    views.set(thread.ref, view);
-  }
   const showBranch = !details && base && branch && `origin/${branch}` !== base && branch !== base;
+  const last = recent?.commits[0];
+  const sync = syncLabel(status);
 
   return (
     <div className="flex-1 overflow-y-auto font-sans">
-      <div className="max-w-[960px] mx-auto px-6 pt-10 pb-12">
-        <div className="flex items-center gap-3.5">
-          <EmptyIcon>
-            <CheckCircleIcon />
-          </EmptyIcon>
+      <div className="max-w-[760px] mx-auto px-6 pt-12 pb-12">
+        <div className="flex items-start gap-3.5">
+          <span className="flex items-center justify-center w-10 h-10 rounded-full bg-added/12 text-added shrink-0">
+            <CheckCircleIcon size="xl" />
+          </span>
           <div className="min-w-0">
-            <h2 className="text-[15px] font-semibold text-text">No uncommitted changes</h2>
-            <p className="text-[13px] text-text-secondary">
-              {branch ? <>Working tree on <span className="font-mono text-xs">{branch}</span> is clean. </> : 'Working tree is clean. '}
-              Edit files and they show up here, or review something already committed.
+            <h2 className="text-[18px] leading-6 font-semibold text-text">Everything is committed</h2>
+            <p className="mt-0.5 text-[13px] text-text-secondary">
+              {branch ? <>On <span className="font-mono text-xs text-text">{branch}</span>{sync ? `, ${sync}` : ''}. </> : null}
+              New edits show up here as you make them.
             </p>
           </div>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-4 items-start">
-          <Card
-            title="Recent commits"
-            action={
-              <button onClick={nav.toOverview} className="h-6 px-2 -mr-1.5 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer">
-                All history
-              </button>
-            }
-          >
+        <div className="mt-8 grid grid-cols-[repeat(auto-fit,minmax(210px,1fr))] gap-3">
+          {last && (
+            <Tile
+              icon={<GitCommitIcon size="sm" />}
+              eyebrow="Review last commit"
+              title={last.message}
+              detail={`${last.shortHash} · ${last.author} · ${last.relativeDate}`}
+              onClick={() => nav.toDiff(commitRef(last.hash))}
+            />
+          )}
+          {details && (
+            <Tile
+              icon={<GitPullRequestIcon size="sm" />}
+              eyebrow={`Pull request #${details.prNumber}`}
+              title={details.prTitle}
+              detail={`${details.headRef ?? branch ?? ''} → ${details.baseRef}`}
+              onClick={() => nav.toDiff(`origin/${details.baseRef}...HEAD`)}
+            />
+          )}
+          {showBranch && base && (
+            <Tile
+              icon={<GitCompareIcon size="sm" />}
+              eyebrow="Review this branch"
+              title={`${branch} vs ${base.replace(/^origin\//, '')}`}
+              detail="Every commit since the branches split"
+              onClick={() => nav.toDiff(`${base}...HEAD`)}
+            />
+          )}
+          {openThreads.length > 0 && (
+            <Tile
+              icon={<CommentIcon size="sm" />}
+              eyebrow="Open comments"
+              title={`${openThreads.length} comment${openThreads.length === 1 ? '' : 's'} still open`}
+              detail="Across all views of this repository"
+              onClick={openComments}
+            />
+          )}
+          {!details && !showBranch && openThreads.length === 0 && (
+            <Tile
+              icon={<GitBranchIcon size="sm" />}
+              eyebrow="Compare"
+              title="Compare branches or commits"
+              detail="Pick any two points in history"
+              onClick={nav.toOverview}
+            />
+          )}
+        </div>
+
+        <section className="mt-8">
+          <div className="flex items-center justify-between h-8">
+            <h3 className="text-[13px] font-semibold text-text">Recent commits</h3>
+            <button onClick={nav.toOverview} className="h-7 px-2 -mr-2 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer">
+              All history
+            </button>
+          </div>
+          <div className="mt-1 rounded-lg border border-border bg-bg p-1">
             {isLoading && <div className="h-9 px-2.5 flex items-center text-xs text-text-secondary">Loading commits…</div>}
             {recent && recent.commits.length === 0 && <div className="h-9 px-2.5 flex items-center text-xs text-text-secondary">No commits yet</div>}
             {recent?.commits.map((commit) => (
@@ -133,75 +193,23 @@ function CleanOverview(props: { branch: string | null }) {
                 key={commit.hash}
                 onClick={() => nav.toDiff(commitRef(commit.hash))}
                 title={`${commit.message}\n${commit.author} · ${commit.relativeDate}`}
-                className="flex items-center gap-2.5 w-full h-9 px-2.5 rounded-md text-left hover:bg-hover transition-colors cursor-pointer"
+                className="group flex items-center gap-3 w-full h-9 px-2.5 rounded-md text-left hover:bg-hover transition-colors cursor-pointer"
               >
-                <code className="shrink-0 w-[52px] font-mono text-[11px] text-text-muted">{commit.shortHash}</code>
+                <code className="shrink-0 w-[56px] pt-px font-mono text-[11px] text-text-muted">{commit.shortHash}</code>
                 <span className="min-w-0 flex-1 truncate text-[13px] text-text">{commit.message}</span>
-                <span className="shrink-0 text-xs text-text-muted">{commit.relativeDate}</span>
+                <span className="shrink-0 text-xs text-text-muted truncate max-w-[140px]">{commit.author}</span>
+                <span className="shrink-0 w-[92px] text-right text-xs text-text-muted">{commit.relativeDate}</span>
               </button>
             ))}
-          </Card>
-
-          <div className="flex flex-col gap-4">
-            {(details || showBranch) && (
-              <Card title={details ? 'Pull request' : 'This branch'}>
-                {details && (
-                  <ActionRow
-                    action={{
-                      label: `#${details.prNumber}`,
-                      detail: details.prTitle,
-                      icon: <GitPullRequestIcon className="w-3.5 h-3.5" />,
-                      onClick: () => nav.toDiff(`origin/${details.baseRef}...HEAD`),
-                    }}
-                  />
-                )}
-                {showBranch && base && (
-                  <ActionRow
-                    action={{
-                      label: `${branch} vs ${base.replace(/^origin\//, '')}`,
-                      detail: 'every commit on this branch',
-                      icon: <GitCompareIcon className="w-3.5 h-3.5" />,
-                      onClick: () => nav.toDiff(`${base}...HEAD`),
-                    }}
-                  />
-                )}
-              </Card>
-            )}
-            {views.size > 0 && (
-              <Card
-                title={`Open comments · ${openThreads.length}`}
-                action={
-                  <button onClick={openComments} className="h-6 px-2 -mr-1.5 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer">
-                    Show all
-                  </button>
-                }
-              >
-                {[...views.entries()].slice(0, 5).map(([ref, view]) => (
-                  <ActionRow
-                    key={ref}
-                    action={{
-                      label: view.label,
-                      detail: `${view.count}`,
-                      icon: <CommentIcon className="w-3.5 h-3.5" />,
-                      onClick: () => nav.toDiff(ref),
-                    }}
-                  />
-                ))}
-              </Card>
-            )}
-            <Card title="Quick actions">
-              <ActionRow action={{ label: 'Compare branches or commits', icon: <GitBranchIcon className="w-3.5 h-3.5" />, onClick: nav.toOverview }} />
-              <ActionRow action={{ label: 'Browse files', icon: <FolderOpenIcon className="w-3.5 h-3.5" />, onClick: () => nav.toTree() }} />
-            </Card>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );
 }
 
 export function DiffEmptyState(props: DiffEmptyStateProps) {
-  const { diffRef, branch, hideWhitespace } = props;
+  const { diffRef, branch, hideWhitespace, onShowWhitespace } = props;
   const nav = useRepoNav();
   const { data: meta } = useRepoMeta();
   const { data: status } = useGitStatus();
@@ -212,8 +220,8 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
     return (
       <Shell
         title="Only whitespace changed"
-        message="Every change here is whitespace. Turn “Hide whitespace” off in the bar above to see them."
-        actions={[]}
+        message="Every change here only touches whitespace, and whitespace changes are hidden."
+        actions={[{ label: 'Show whitespace changes', icon: <EyeIcon size="sm" />, onClick: onShowWhitespace }]}
       />
     );
   }

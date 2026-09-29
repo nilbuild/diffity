@@ -10,10 +10,6 @@ import { revertHunk as apiRevertHunk, revertFile as apiRevertFile, openInEditor,
 import { toast } from 'sonner';
 import { isRenderableFile } from '../../lib/file-types';
 import { RichDiffViewer } from './rich-diff-viewer';
-import { FileIcon } from '../icons/file-icon';
-import { CodeIcon } from '../icons/code-icon';
-import { PencilIcon } from '../icons/pencil-icon';
-import { UndoIcon } from '../icons/undo-icon';
 import { ConfirmDialog } from '../ui/confirm-dialog';
 import { computeGaps, createContextLines, getExpandRange, type ExpandableGap } from '../../lib/context-expansion';
 import { fileContentOptions } from '../../queries/file';
@@ -22,20 +18,17 @@ import type { CommentThread } from '../comments/types';
 import { GENERAL_THREAD_FILE_PATH, DEFAULT_AUTHOR } from '../comments/types';
 import { useLineSelection } from '../../hooks/use-line-selection';
 import { useCopy } from '../../hooks/use-copy';
-import { CopyIcon } from '../icons/copy-icon';
-import { CheckIcon } from '../icons/check-icon';
-import { CommentIcon } from '../icons/comment-icon';
 import { DiffStats } from './diff-stats';
 import { Badge } from '../ui/badge';
 import { IconButton } from '../ui/icon-button';
 import { StatusBadge } from '../ui/status-badge';
 import { PathLabel } from '../ui/path-label';
-import { ChevronIcon } from '../icons/chevron-icon';
 import { HunkWithGap } from './hunk-with-gap';
 import { OrphanedThreads } from '../comments/orphaned-threads';
 import { ThreadBadge } from '../ui/thread-badge';
 import { buildExpansionSyntaxMap, renderExpansionRows } from './render-expansion-rows';
 import { ExpandRow } from './expand-row';
+import { CheckIcon, ChevronIcon, CodeIcon, CommentIcon, CopyIcon, FileIcon, PencilIcon, UndoIcon } from '../ui/icon';
 
 export const LARGE_DIFF_LINE_THRESHOLD = 200;
 

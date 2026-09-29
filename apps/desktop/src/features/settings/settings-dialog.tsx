@@ -1,31 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { closeSettings, setSettingsSection, useUi, type SettingsSection } from '../../lib/ui-store';
 import { cn } from '../../lib/cn';
-import { SettingsIcon } from '../../components/icons/settings-icon';
-import { SparkleIcon } from '../../components/icons/sparkle-icon';
-import { GitHubIcon } from '../../components/icons/github-icon';
-import { CodeIcon } from '../../components/icons/code-icon';
-import { KeyboardIcon } from '../../components/icons/keyboard-icon';
-import { SearchIcon } from '../../components/icons/search-icon';
-import { XIcon } from '../../components/icons/x-icon';
 import { GeneralPane } from './general-pane';
 import { ClaudePane } from './claude-pane';
 import { GitHubPane } from './github-pane';
 import { EditorPane } from './editor-pane';
 import { ShortcutsPane } from './shortcuts-pane';
 import { AboutPane } from './about-pane';
-
-function InfoIcon(props: { className?: string }) {
-  const { className } = props;
-
-  return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" className={className}>
-      <circle cx="8" cy="8" r="6.25" />
-      <path d="M8 7.25v4" />
-      <circle cx="8" cy="5" r="0.5" fill="currentColor" />
-    </svg>
-  );
-}
+import { CodeIcon, GitHubIcon, InfoIcon, KeyboardIcon, SearchIcon, SettingsIcon, SparkleIcon, XIcon } from '../../components/ui/icon';
 
 const LABELS: Record<SettingsSection, string> = {
   general: 'General',

@@ -3,8 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import type { GithubAuthStatus } from '../../lib/types';
-import { GitHubIcon } from '../../components/icons/github-icon';
-import { CheckIcon } from '../../components/icons/check-icon';
 import { Spinner } from '../../components/icons/spinner';
 import {
   InlineConfirm,
@@ -15,6 +13,7 @@ import {
   StatusBadge,
   settingsInputClass,
 } from './preferences';
+import { CheckIcon, GitHubIcon } from '../../components/ui/icon';
 
 function useAuthChanged() {
   const queryClient = useQueryClient();

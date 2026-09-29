@@ -10,7 +10,8 @@ import { pickFolder } from '../../features/welcome/open-repo';
 import { repoInitials } from '../../features/welcome/repo-badge';
 import { useActiveRun } from '../../features/claude/claude-runner';
 import { lastLocationFor } from '../../lib/repo-locations';
-import { Plus, Settings } from 'lucide-react';
+import { PlusIcon, SettingsIcon } from '../ui/icon';
+import { useSidebarShortcut } from './title-bar';
 
 const RailContext = createContext(false);
 
@@ -50,39 +51,31 @@ function Indicator(props: { active: boolean }) {
     <span
       aria-hidden
       className={cn(
-        'absolute left-0 top-1/2 -translate-y-1/2 w-[3px] rounded-r-full bg-text-muted/50 transition-all duration-150',
-        active ? 'h-5 opacity-100' : 'h-2 opacity-0',
+        'absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-text transition-all duration-150',
+        active ? 'h-5 opacity-100' : 'h-2 opacity-0 group-hover:opacity-40',
       )}
     />
   );
 }
 
-function RailIconButton(props: { title: string; icon: ReactNode; active?: boolean; badge?: number; onClick: () => void }) {
-  const { title, icon, active = false, badge, onClick } = props;
+function RailTooltip(props: { title: string; detail?: string; shortcut?: string | null }) {
+  const { title, detail, shortcut } = props;
 
   return (
-    <div className="relative w-full flex justify-center">
-      <Indicator active={active} />
-      <button
-        onClick={onClick}
-        title={title}
-        aria-label={title}
-        aria-current={active ? 'page' : undefined}
-        className={cn(
-          'relative flex items-center justify-center w-9 h-9 rounded-lg transition-colors cursor-pointer [&_svg]:w-[18px] [&_svg]:h-[18px]',
-          active ? 'bg-active text-text' : 'text-text-secondary hover:text-text hover:bg-hover',
-        )}
-      >
-        {icon}
-        {!!badge && (
-          <span className="absolute top-0.5 right-0.5 min-w-[15px] h-[15px] px-[3px] rounded-full bg-bg-secondary ring-1 ring-border text-[9px] font-semibold leading-[15px] text-center text-text-secondary tabular-nums">
-            {badge > 99 ? '99+' : badge}
-          </span>
-        )}
-      </button>
-    </div>
+    <span
+      role="tooltip"
+      className="pointer-events-none absolute left-[calc(100%-2px)] top-1/2 -translate-y-1/2 z-50 flex flex-col gap-0.5 max-w-[280px] px-2.5 py-1.5 rounded-md bg-overlay border border-overlay-border text-left whitespace-nowrap opacity-0 invisible transition-opacity duration-100 group-hover:opacity-100 group-hover:visible group-hover:delay-300"
+    >
+      <span className="flex items-center gap-2 text-[13px] font-medium text-text">
+        {title}
+        {shortcut && <kbd className="font-sans text-[11px] text-text-muted">{shortcut}</kbd>}
+      </span>
+      {detail && <span className="text-[11px] text-text-secondary truncate">{detail}</span>}
+    </span>
   );
 }
+
+const tileBase = 'relative w-9 h-9 rounded-[10px] flex items-center justify-center transition-colors select-none';
 
 interface ProjectTileProps {
   path: string;
@@ -104,10 +97,10 @@ function ProjectTile(props: ProjectTileProps) {
 
   return (
     <div
-      className={cn('relative w-full flex justify-center', dragging && 'z-10', animate && !dragging && 'transition-transform duration-150 ease-out')}
+      className={cn('group relative w-full flex justify-center', dragging && 'z-10', animate && !dragging && 'transition-transform duration-150 ease-out')}
       style={{ transform: offset ? `translateY(${offset}px)` : undefined }}
     >
-      <Indicator active={current && !dragging} />
+      {!dragging && <Indicator active={current} />}
       <button
         onPointerDown={(event) => onPointerDown(event, index)}
         onClick={(event) => onOpen(event.metaKey || event.ctrlKey)}
@@ -118,17 +111,25 @@ function ProjectTile(props: ProjectTileProps) {
           }
           onRemove();
         }}
-        title={`${name} — ${shortPath(path)}${shortcut ? ` (${shortcut})` : ''}${current ? '' : `\n${modKey}-click: new window · right-click: remove · drag to reorder`}`}
         aria-label={name}
+        aria-current={current ? 'page' : undefined}
         className={cn(
-          'relative w-9 h-9 rounded-[10px] flex items-center justify-center text-[11.5px] font-semibold tracking-wide transition-colors select-none touch-none',
-          current ? 'bg-raised text-text ring-1 ring-control-border' : 'bg-fill text-text-secondary hover:bg-fill-hover hover:text-text',
-          dragging ? 'cursor-grabbing ring-1 ring-control-border bg-raised' : 'cursor-pointer',
+          tileBase,
+          'text-[12px] font-semibold tracking-wide touch-none',
+          current ? 'bg-raised text-text ring-1 ring-control-border' : 'bg-active text-text-secondary hover:bg-raised hover:text-text',
+          dragging ? 'cursor-grabbing bg-raised ring-1 ring-control-border opacity-90' : 'cursor-pointer',
         )}
       >
         {repoInitials(name)}
-        {busy && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent/80 ring-2 ring-bg-secondary" title="Claude is working here" />}
+        {busy && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent ring-2 ring-frame" title="Claude is working here" />}
       </button>
+      {!dragging && (
+        <RailTooltip
+          title={name}
+          detail={current ? shortPath(path) : `${shortPath(path)} · drag to reorder · right-click to remove`}
+          shortcut={shortcut}
+        />
+      )}
     </div>
   );
 }
@@ -198,10 +199,11 @@ function useProjectOrder(currentPath: string) {
 
 export function RailFrame(props: { children: ReactNode }) {
   const { children } = props;
+  useSidebarShortcut();
 
   return (
     <RailContext.Provider value>
-      <div className="flex h-screen overflow-hidden bg-bg">
+      <div className="flex h-screen overflow-hidden bg-frame">
         <ActivityRail />
         <div className="flex-1 min-w-0 relative">{children}</div>
       </div>
@@ -234,17 +236,22 @@ function ActivityRail() {
     void openRepoAt(path, navigate);
   }, [nav.repoPath, navigate]);
 
-  const openFolder = async () => {
+  const openFolder = useCallback(async () => {
     const path = await pickFolder();
     if (!path) {
       return;
     }
     await openRepoAt(path, navigate);
-  };
+  }, [navigate]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.altKey) {
+        return;
+      }
+      if (!event.shiftKey && event.key.toLowerCase() === 'o') {
+        event.preventDefault();
+        void openFolder();
         return;
       }
       if (!event.shiftKey && /^[1-9]$/.test(event.key)) {
@@ -269,7 +276,7 @@ function ActivityRail() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [projects, nav.repoPath, openProject]);
+  }, [projects, nav.repoPath, openProject, openFolder]);
 
   const targetIndex = drag?.active ? Math.max(0, Math.min(projects.length - 1, drag.from + Math.round(drag.dy / SLOT))) : null;
 
@@ -346,8 +353,8 @@ function ActivityRail() {
 
   return (
     <nav
-      className="w-[52px] shrink-0 flex flex-col items-center bg-bg-secondary select-none"
-      aria-label="Projects and views"
+      className="relative z-20 w-[52px] shrink-0 flex flex-col items-center bg-frame select-none"
+      aria-label="Projects"
       onClickCapture={(event) => {
         if (!suppressClick.current) {
           return;
@@ -357,48 +364,47 @@ function ActivityRail() {
         event.stopPropagation();
       }}
     >
-      <div data-tauri-drag-region className="h-11 w-full shrink-0 border-b border-border" />
-      <div className="flex-1 min-h-0 w-full flex flex-col items-center border-r border-border">
-        <div className="relative flex flex-col items-center gap-2 w-full pt-2.5">
+      <div data-tauri-drag-region className="h-11 w-full shrink-0" />
+      <div className="flex flex-col items-center gap-2 w-full pt-1">
+        {projects.map((path, index) => (
+          <ProjectTile
+            key={path}
+            path={path}
+            index={index}
+            current={path === nav.repoPath}
+            busy={run?.context.repoPath === path}
+            offset={offsetFor(index)}
+            dragging={drag?.active === true && drag.from === index}
+            animate={drag?.active === true && !settling}
+            onPointerDown={handlePointerDown}
+            onOpen={(newWindow) => openProject(path, newWindow)}
+            onRemove={() => {
+              remove(path);
+              toast.success(`Removed ${repoName(path)} from the sidebar`);
+            }}
+          />
+        ))}
+        <div className="group relative w-full flex justify-center">
           <button
             onClick={() => void openFolder()}
-            title={`Open another repository (${modKey}O)`}
-            aria-label="Open another repository"
-            className="w-9 h-9 rounded-[10px] flex items-center justify-center text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer"
+            aria-label="Open folder"
+            className={cn(tileBase, 'border border-dashed border-control-border text-text-muted hover:text-text hover:border-text-muted hover:bg-hover cursor-pointer')}
           >
-            <Plus size={18} strokeWidth={1.75} />
+            <PlusIcon size="md" />
           </button>
-          <div className="w-6 h-px bg-border shrink-0" />
-          {projects.map((path, index) => (
-            <ProjectTile
-              key={path}
-              path={path}
-              index={index}
-              current={path === nav.repoPath}
-              busy={run?.context.repoPath === path}
-              offset={offsetFor(index)}
-              dragging={drag?.active === true && drag.from === index}
-              animate={drag?.active === true && !settling}
-              onPointerDown={handlePointerDown}
-              onOpen={(newWindow) => openProject(path, newWindow)}
-              onRemove={() => {
-                remove(path);
-                toast.success(`Removed ${repoName(path)} from the sidebar`);
-              }}
-            />
-          ))}
-          {drag?.active && targetIndex !== null && targetIndex !== drag.from && (
-            <span
-              aria-hidden
-              className="absolute left-2 right-2 h-0.5 rounded-full bg-text-muted"
-              style={{ top: 10 + 36 + 17 + targetIndex * SLOT + (targetIndex > drag.from ? SLOT - 4 : -4) }}
-            />
-          )}
+          <RailTooltip title="Open folder" detail="Add a repository to this sidebar" shortcut={`${modKey}O`} />
         </div>
-        <div data-tauri-drag-region className="flex-1 w-full" />
-        <div className="pb-2.5 w-full">
-          <RailIconButton title={`Settings (${modKey},)`} icon={<Settings size={18} strokeWidth={1.75} />} onClick={openSettings} />
-        </div>
+      </div>
+      <div data-tauri-drag-region className="flex-1 w-full" />
+      <div className="group relative w-full flex justify-center pb-3">
+        <button
+          onClick={openSettings}
+          aria-label="Settings"
+          className="w-9 h-9 rounded-[10px] flex items-center justify-center text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
+        >
+          <SettingsIcon size="xl" />
+        </button>
+        <RailTooltip title="Settings" shortcut={`${modKey},`} />
       </div>
     </nav>
   );

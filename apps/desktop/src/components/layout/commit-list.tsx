@@ -4,8 +4,7 @@ import dayjs from 'dayjs';
 import { type Commit, fetchCommits } from '../../lib/api';
 import { Spinner } from '../icons/spinner';
 import { cn } from '../../lib/cn';
-import { GitCompareIcon } from '../icons/git-compare-icon';
-import { GitCommitIcon } from '../icons/git-commit-icon';
+import { GitCommitIcon, GitCompareIcon } from '../ui/icon';
 
 interface CommitListProps {
   search: string;

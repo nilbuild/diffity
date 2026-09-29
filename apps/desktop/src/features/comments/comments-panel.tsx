@@ -9,17 +9,11 @@ import { threadPath } from '../../lib/thread-location';
 import { groupThreads } from '../../lib/repo-thread-groups';
 import { TREE_REF, type RepoThread } from '../../lib/types';
 import { cn } from '../../lib/cn';
-import { CommentIcon } from '../../components/icons/comment-icon';
-import { SparkleIcon } from '../../components/icons/sparkle-icon';
-import { XIcon } from '../../components/icons/x-icon';
-import { GitCommitIcon } from '../../components/icons/git-commit-icon';
-import { GitCompareIcon } from '../../components/icons/git-compare-icon';
-import { PencilIcon } from '../../components/icons/pencil-icon';
-import { FileIcon } from '../../components/icons/file-icon';
 import { ThreadBadge } from '../../components/ui/thread-badge';
 import { SegmentedToggle } from '../../components/ui/segmented-toggle';
 import { formatRelativeTime } from '../../components/comments/comment-bubble';
 import { GENERAL_THREAD_FILE_PATH } from '../../components/comments/types';
+import { CommentIcon, FileIcon, GitCommitIcon, GitCompareIcon, PencilIcon, SparkleIcon, XIcon } from '../../components/ui/icon';
 
 type StatusFilter = 'open' | 'resolved' | 'all';
 type AuthorFilter = 'all' | 'agent' | 'user';
@@ -89,7 +83,7 @@ export function anchorNote(thread: RepoThread): string | null {
 
 function ViewIcon(props: { viewRef: string }) {
   const { viewRef } = props;
-  const className = 'w-3.5 h-3.5 shrink-0 text-text-muted';
+  const className = 'w-3.5 h-3.5 text-text-muted';
 
   if (viewRef === TREE_REF) {
     return <FileIcon className={className} />;
@@ -138,8 +132,8 @@ function ThreadRow(props: ThreadRowProps) {
         }
       }}
       className={cn(
-        'group flex gap-2.5 px-3 py-2.5 rounded-lg bg-bg-secondary border border-border-muted transition-colors outline-none focus-visible:border-border',
-        openable ? 'hover:border-border hover:bg-fill cursor-pointer' : 'opacity-70',
+        'group flex gap-2.5 px-3 py-2.5 rounded-lg bg-bg border border-border transition-colors outline-none focus-visible:border-focus',
+        openable ? 'hover:border-control-border hover:bg-bg-secondary cursor-pointer' : 'opacity-70',
       )}
       title={openable ? 'Open this comment' : undefined}
     >
@@ -240,7 +234,7 @@ export function CommentsPanel() {
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="h-full w-[460px] max-w-[92vw] bg-bg border-l border-border flex flex-col outline-none animate-slide-in-right"
+        className="h-full w-[460px] max-w-[92vw] bg-sidebar border-l border-frame-border flex flex-col outline-none animate-slide-in-right"
       >
         <CommentsPanelBody />
       </div>
@@ -295,16 +289,16 @@ function CommentsPanelBody() {
     <>
       <div className="flex items-center justify-between h-12 px-4" data-tauri-drag-region>
         <div className="flex items-center gap-2">
-          <CommentIcon className="w-4 h-4 text-text-muted" />
-          <h2 className="text-sm font-semibold text-text">Comments</h2>
-          <span className="text-xs text-text-secondary">in every view of this repository</span>
+          <CommentIcon size="md" className="text-text-secondary" />
+          <h2 className="text-[15px] font-semibold text-text">Comments</h2>
+          <span className="text-xs text-text-secondary">across this repository</span>
         </div>
         <button
           onClick={closeComments}
           className="w-7 h-7 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover cursor-pointer"
           title="Close (Esc)"
         >
-          <XIcon className="w-4 h-4" />
+          <XIcon size="md" />
         </button>
       </div>
       <div className="flex items-center gap-2 px-4 pb-3 border-b border-border-muted">
@@ -337,7 +331,7 @@ function CommentsPanelBody() {
         )}
         {groups.map((group) => (
           <section key={group.ref} className="mb-4">
-            <div className="sticky top-0 z-10 flex items-center gap-2 px-4 h-9 bg-bg">
+            <div className="sticky top-0 z-10 flex items-center gap-2 px-4 h-9 bg-sidebar">
               <ViewIcon viewRef={group.ref} />
               <span className="text-xs font-medium text-text truncate" title={group.ref}>{group.label}</span>
               {group.ref === currentRef && (
@@ -369,7 +363,7 @@ function CommentsPanelBody() {
         ))}
       </div>
       <div className="px-4 h-9 flex items-center gap-1 border-t border-border-muted text-xs text-text-muted">
-        Press <kbd className="px-1 py-0.5 bg-bg-secondary border border-border rounded font-mono">C</kbd> to toggle this panel
+        Press <kbd className="px-1 py-0.5 bg-raised border border-control-border rounded font-sans text-[11px]">C</kbd> to toggle this panel
       </div>
     </>
   );

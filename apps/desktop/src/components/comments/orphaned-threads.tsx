@@ -1,12 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { CommentThread as CommentThreadType, SubmitOptions } from './types';
 import { GENERAL_THREAD_FILE_PATH, isThreadResolved } from './types';
-import { CommentIcon } from '../icons/comment-icon';
-import { ChevronIcon } from '../icons/chevron-icon';
 import { ThreadBadge } from '../ui/thread-badge';
 import { ThreadCard } from './thread-card';
 import { useUi } from '../../lib/ui-store';
 import { cn } from '../../lib/cn';
+import { ChevronIcon, CommentIcon } from '../ui/icon';
 
 interface OrphanedThreadsProps {
   threads: CommentThreadType[];

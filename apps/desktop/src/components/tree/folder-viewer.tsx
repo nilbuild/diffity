@@ -1,6 +1,5 @@
 import type { TreeEntryResponse } from '../../lib/api';
-import { FileIcon } from '../icons/file-icon';
-import { FolderIcon } from '../icons/folder-icon';
+import { FileIcon, FolderIcon } from '../ui/icon';
 
 interface FolderViewerProps {
   entries: TreeEntryResponse[];

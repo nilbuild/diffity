@@ -9,7 +9,7 @@ import { HunkHeader, type ExpandControls } from './hunk-header';
 import { CommentLineNumber } from '../comments/comment-line-number';
 import { CommentThread } from '../comments/comment-thread';
 import { CommentFormRow } from '../comments/comment-form-row';
-import { UndoIcon } from '../icons/undo-icon';
+import { UndoIcon } from '../ui/icon';
 
 interface HunkBlockSplitProps {
   hunk: DiffHunk;

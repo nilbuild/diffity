@@ -7,7 +7,7 @@ import { DiffLine } from './diff-line';
 import { HunkHeader, type ExpandControls } from './hunk-header';
 import { CommentThread } from '../comments/comment-thread';
 import { CommentFormRow } from '../comments/comment-form-row';
-import { UndoIcon } from '../icons/undo-icon';
+import { UndoIcon } from '../ui/icon';
 
 interface HunkBlockProps {
   hunk: DiffHunk;

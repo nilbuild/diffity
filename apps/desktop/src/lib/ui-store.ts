@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+const SIDEBAR_KEY = 'diffity-sidebar-collapsed';
+
 export type SettingsSection = 'general' | 'claude' | 'github' | 'editor' | 'shortcuts' | 'about';
 
 interface UiState {
@@ -9,6 +11,7 @@ interface UiState {
   shortcutsOpen: boolean;
   commentsOpen: boolean;
   focusThreadId: string | null;
+  sidebarCollapsed: boolean;
 }
 
 export const useUi = create<UiState>(() => ({
@@ -18,7 +21,26 @@ export const useUi = create<UiState>(() => ({
   shortcutsOpen: false,
   commentsOpen: false,
   focusThreadId: null,
+  sidebarCollapsed: readSidebarCollapsed(),
 }));
+
+function readSidebarCollapsed() {
+  try {
+    return localStorage.getItem(SIDEBAR_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function toggleSidebar() {
+  const next = !useUi.getState().sidebarCollapsed;
+  useUi.setState({ sidebarCollapsed: next });
+  try {
+    localStorage.setItem(SIDEBAR_KEY, next ? '1' : '0');
+  } catch {
+    return;
+  }
+}
 
 export function openSettings() {
   useUi.setState({ settingsOpen: true });

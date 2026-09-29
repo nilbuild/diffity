@@ -1,12 +1,12 @@
 import { useGitHubPr, useGitStatus, useRepoMeta } from '../../hooks/use-repo-state';
 import { BranchSwitcher } from '../../features/pr/branch-switcher';
-import { GitPullRequestIcon } from '../icons/git-pull-request-icon';
 import { GitSyncActions } from './git-sync-actions';
 import { prDiffRef } from './ref-menu';
 import { useRepoNav } from '../../hooks/use-repo';
 import { StaleNotice } from './stale-notice';
 import { shortPath } from '../../features/welcome/recent-repos';
 import { OtherViewsNotice } from '../../features/comments/other-views-notice';
+import { GitPullRequestIcon } from '../ui/icon';
 
 interface StatusBarProps {
   diffRef?: string;
@@ -49,7 +49,7 @@ export function StatusBar(props: StatusBarProps) {
   const path = meta?.path ? shortPath(meta.path) : null;
 
   return (
-    <div className="flex items-center gap-1.5 h-7 shrink-0 px-2.5 border-t border-border-muted bg-bg-secondary text-xs text-text-secondary font-sans select-none">
+    <div data-tauri-drag-region className="flex items-center gap-1.5 h-8 shrink-0 pl-1.5 pr-2.5 bg-frame text-xs text-text-secondary font-sans select-none">
       {(branch || status) && <BranchSwitcher branch={branch} className={`${itemClass} text-text-secondary`} />}
       <span className={itemClass}>
         <Tracking />

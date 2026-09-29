@@ -1,4 +1,4 @@
-import { AlertCircleIcon } from "./icons/alert-circle-icon";
+import { AlertCircleIcon } from "./ui/icon";
 import { useEffect } from "react";
 import { isAppError } from "../lib/tauri";
 import { hideStaticSplash } from "./layout/skeleton";

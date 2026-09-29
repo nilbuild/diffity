@@ -3,12 +3,11 @@ import type { CommentThread as CommentThreadType, SubmitOptions } from './types'
 import { isThreadResolved } from './types';
 import { CommentBubble } from './comment-bubble';
 import { CommentForm } from './comment-form';
-import { TrashIcon } from '../icons/trash-icon';
-import { SparkleIcon } from '../icons/sparkle-icon';
 import { cn } from '../../lib/cn';
 import { getRepoPath } from '../../lib/api';
 import { enqueueClaude, useThreadActivity } from '../../features/claude/claude-runner';
 import { useReviewState } from '../../features/review/review-state';
+import { SparkleIcon, TrashIcon } from '../ui/icon';
 
 interface ThreadCardProps {
   thread: CommentThreadType;

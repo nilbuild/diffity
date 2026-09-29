@@ -2,9 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import type { CommentThread as CommentThreadType } from './types';
 import type { CommentAuthor, CommentSide, SubmitOptions } from './types';
 import { isThreadResolved } from './types';
-import { CommentIcon } from '../icons/comment-icon';
 import { ThreadBadge } from '../ui/thread-badge';
 import { ThreadCard } from './thread-card';
+import { CommentIcon } from '../ui/icon';
 
 interface CommentThreadProps {
   thread: CommentThreadType;

@@ -16,7 +16,7 @@ import { PullRequestsDialog } from '../features/pr/pull-requests-dialog';
 import { CheckoutGuardDialog } from '../features/pr/checkout-guard-dialog';
 import { checkoutPullRequest } from '../features/pr/pr-checkout';
 import { RailFrame } from '../components/layout/activity-rail';
-import { rememberLocation, swapRepoCache } from '../lib/repo-locations';
+import { activateRepoCache, rememberLocation } from '../lib/repo-locations';
 
 function repoName(repoPath: string) {
   return repoPath.split('/').filter(Boolean).pop() ?? 'repository';
@@ -82,13 +82,10 @@ export function RepoLayout() {
   const location = useLocation();
   const nav = useRepoNav();
 
-  const previousRepo = getRepoPathOrNull();
-  if (previousRepo !== repoPath) {
+  if (getRepoPathOrNull() !== repoPath) {
     setRepoPath(repoPath);
-    if (previousRepo !== null) {
-      swapRepoCache(client, previousRepo, repoPath);
-    }
   }
+  activateRepoCache(client, repoPath);
 
   useEffect(() => {
     rememberLocation(repoPath, location.pathname + location.search);

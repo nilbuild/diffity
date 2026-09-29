@@ -1,8 +1,8 @@
-import { MessageSquare } from 'lucide-react';
 import { useOpenThreadCount } from '../../hooks/use-repo-threads';
 import { toggleComments, useUi } from '../../lib/ui-store';
 import { cn } from '../../lib/cn';
 import { buttonOutline } from '../../components/ui/button-styles';
+import { CommentIcon } from '../../components/ui/icon';
 
 export function CommentsButton() {
   const count = useOpenThreadCount();
@@ -15,7 +15,7 @@ export function CommentsButton() {
       title={`All comments in this repository, across every view${count > 0 ? ` (${count} open)` : ''} — C`}
       aria-pressed={open}
     >
-      <MessageSquare size={15} strokeWidth={1.75} className="text-text-secondary" />
+      <CommentIcon size="md" className="text-text-secondary" />
       {count > 0 && <span className="text-[13px] tabular-nums text-text">{count}</span>}
     </button>
   );

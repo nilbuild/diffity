@@ -25,12 +25,10 @@ import { SvgPreview } from './svg-preview';
 import { PathComments } from '../comments/path-comments';
 import { CommentToolbarActions } from '../comments/comment-toolbar-actions';
 import { OptionsMenu } from '../layout/options-menu';
-import { RepoTitle, TitleBar } from '../layout/title-bar';
+import { RepoTitle, TitleBar, Workspace } from '../layout/title-bar';
 import { StatusBar } from '../layout/status-bar';
 import { useTreeStaleness } from '../../hooks/use-tree-staleness';
 import { isRenderableFile, isMarkdownFile, isImageFile } from '../../lib/file-types';
-import { CodeIcon } from '../icons/code-icon';
-import { FileIcon } from '../icons/file-icon';
 import { SegmentedToggle } from '../ui/segmented-toggle';
 import { RepoImage } from './repo-image';
 import { openInEditor, errorMessage } from '../../lib/api';
@@ -40,10 +38,10 @@ import { setFocusThread } from '../../lib/ui-store';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
 import { FinishReview } from '../../features/review/finish-review';
-import { PencilIcon } from '../icons/pencil-icon';
 import { buttonOutline } from '../ui/button-styles';
 import { cn } from '../../lib/cn';
 import { FileBlockSkeleton, hideStaticSplash } from '../layout/skeleton';
+import { CodeIcon, FileIcon, PencilIcon } from '../ui/icon';
 
 function formatTreeThreadsForCopy(threads: CommentThread[]): string {
   const unresolvedThreads = threads.filter(
@@ -378,7 +376,7 @@ export function TreePage() {
 
   return (
     <ReviewStateProvider sessionId={sessionId}>
-    <div className='flex flex-col h-screen bg-bg text-text'>
+    <div className='flex flex-col h-screen bg-frame text-text'>
       <TitleBar>
         <div data-tauri-drag-region className='flex items-center gap-2.5 min-w-0 shrink'>
           <RepoTitle name={info?.name} />
@@ -400,9 +398,8 @@ export function TreePage() {
           <OptionsMenu theme={theme} onToggleTheme={toggleTheme} />
         </div>
       </TitleBar>
-
-
-      <div className='flex flex-1 overflow-hidden'>
+      <Workspace>
+      <div className='flex flex-1 min-h-0 overflow-hidden'>
         <TreeSidebar
           ref={searchInputRef}
           paths={paths}
@@ -489,6 +486,7 @@ export function TreePage() {
           )}
         </main>
       </div>
+      </Workspace>
       <StatusBar
         sessionId={sessionId}
         stale={isStale ? { onRefresh: handleRefreshTree, message: 'Files changed on disk' } : null}

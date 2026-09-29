@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useRepoNav } from '../../hooks/use-repo';
 import type { GitStatus } from '../../lib/types';
-import { AlertCircleIcon } from '../../components/icons/alert-circle-icon';
 import { checkoutPullRequest, dismissGuard, returnFromPullRequest, returnLabel, switchBranch, useCheckoutState } from './pr-checkout';
 import { buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
+import { AlertCircleIcon } from '../../components/ui/icon';
 
 function plural(count: number, word: string) {
   return `${count} ${word}${count === 1 ? '' : 's'}`;

@@ -1,5 +1,4 @@
-import { ChevronDown, Sparkles } from 'lucide-react';
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 import { cn } from '../../lib/cn';
@@ -9,14 +8,13 @@ import type { GitHubDetails } from '../../lib/api';
 import { useDismiss } from '../../hooks/use-dismiss';
 import { openSettingsAt } from '../../lib/ui-store';
 import { getRepoPath } from '../../lib/api';
+import { mentionsAgent } from '../../lib/mentions';
 import { enqueueClaude } from '../claude/claude-runner';
-import type { CommentThread } from '../../components/comments/types';
+import { GENERAL_THREAD_FILE_PATH, type CommentThread } from '../../components/comments/types';
 import { toast } from 'sonner';
-import { SparkleIcon } from '../../components/icons/sparkle-icon';
-import { GitHubIcon } from '../../components/icons/github-icon';
-import { CheckIcon } from '../../components/icons/check-icon';
 import { MentionTextarea } from '../../components/comments/mention-textarea';
-import { useReviewActions, useReviewState } from './review-state';
+import { useReviewActions, useReviewState, type ClaudeScope } from './review-state';
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon, GitHubIcon, GitPullRequestIcon, SendIcon, SparkleIcon } from '../../components/ui/icon';
 
 interface FinishReviewProps {
   githubDetails: GitHubDetails | null;
@@ -24,47 +22,13 @@ interface FinishReviewProps {
 }
 
 const VERDICTS: { value: ReviewVerdict; label: string; description: string }[] = [
-  { value: 'comment', label: 'Comment', description: 'General feedback without approving.' },
-  { value: 'approve', label: 'Approve', description: 'Approve merging these changes.' },
-  { value: 'requestChanges', label: 'Request changes', description: 'Feedback that must be addressed before merging.' },
+  { value: 'comment', label: 'Comment', description: 'Feedback without a verdict' },
+  { value: 'approve', label: 'Approve', description: 'Ready to merge' },
+  { value: 'requestChanges', label: 'Request changes', description: 'Must be addressed before merging' },
 ];
 
 function plural(count: number, word: string) {
   return `${count} ${word}${count === 1 ? '' : 's'}`;
-}
-
-function Choice(props: { selected: boolean; onSelect: () => void; icon: ReactNode; title: string; description: string; type: 'radio' | 'checkbox' }) {
-  const { selected, onSelect, icon, title, description, type } = props;
-
-  return (
-    <button
-      type="button"
-      role={type}
-      aria-checked={selected}
-      onClick={onSelect}
-      className={cn(
-        'flex items-start gap-2.5 w-full text-left px-3 py-2 rounded-md border transition-colors cursor-pointer',
-        selected ? 'border-text-muted/50 bg-selected' : 'border-border hover:bg-hover',
-      )}
-    >
-      <span
-        className={cn(
-          'mt-0.5 w-3.5 h-3.5 shrink-0 flex items-center justify-center border',
-          type === 'radio' ? 'rounded-full' : 'rounded',
-          selected ? 'border-accent bg-accent text-white' : 'border-text-muted',
-        )}
-      >
-        {selected && (type === 'radio' ? <span className="w-1.5 h-1.5 rounded-full bg-white" /> : <CheckIcon className="w-2.5 h-2.5" />)}
-      </span>
-      <span className="min-w-0">
-        <span className="flex items-center gap-1.5 text-xs font-medium text-text">
-          <span className="text-text-muted">{icon}</span>
-          {title}
-        </span>
-        <span className="block text-xs text-text-secondary mt-0.5 leading-snug">{description}</span>
-      </span>
-    </button>
-  );
 }
 
 function useClaudeProblem(enabled: boolean): string | null {
@@ -102,7 +66,7 @@ export function FinishReview(props: FinishReviewProps) {
   if (!githubDetails) {
     return <SendToClaude threads={threads} />;
   }
-  return <PullRequestReview pr={githubDetails} />;
+  return <PullRequestReview pr={githubDetails} threads={threads} />;
 }
 
 function SendToClaude(props: { threads: CommentThread[] }) {
@@ -123,7 +87,7 @@ function SendToClaude(props: { threads: CommentThread[] }) {
       return;
     }
     if (pendingCount > 0) {
-      await submit.mutateAsync({ body: '', verdict: null, sendToClaude: false, prNumber: null });
+      await submit.mutateAsync({ body: '', verdict: null, claude: 'none', prNumber: null });
     }
     enqueueClaude({ kind: 'resolve' }, { repoPath: getRepoPath(), sessionId });
   };
@@ -135,143 +99,342 @@ function SendToClaude(props: { threads: CommentThread[] }) {
       className={buttonOutline}
       title={`Claude answers questions and makes the requested changes for ${plural(count, 'open comment')}, asking before each edit`}
     >
-      <Sparkles size={15} strokeWidth={1.75} className="text-text-secondary" />
+      <SendIcon size="md" className="text-text-secondary" />
       Send {count} to Claude
     </button>
   );
 }
 
-function PullRequestReview(props: { pr: GitHubDetails }) {
-  const { pr } = props;
+interface ReviewItem {
+  threadId: string;
+  location: string;
+  body: string;
+  mentions: boolean;
+}
+
+function reviewItems(threads: CommentThread[]): ReviewItem[] {
+  const items: ReviewItem[] = [];
+  for (const thread of threads) {
+    const drafts = thread.comments.filter((comment) => comment.pending);
+    if (drafts.length === 0) {
+      continue;
+    }
+    const name = thread.filePath.split('/').pop() ?? thread.filePath;
+    const lines = thread.startLine === thread.endLine ? `${thread.startLine}` : `${thread.startLine}–${thread.endLine}`;
+    items.push({
+      threadId: thread.id,
+      location: thread.filePath === GENERAL_THREAD_FILE_PATH ? 'General' : `${name}:${lines}`,
+      body: drafts.map((comment) => comment.body).join(' · '),
+      mentions: drafts.some((comment) => comment.mentionsAgent ?? mentionsAgent(comment.body)),
+    });
+  }
+  return items;
+}
+
+const CLAUDE_PREF_PREFIX = 'diffity-review-send-claude:';
+
+function readClaudePref(repoPath: string) {
+  try {
+    return localStorage.getItem(CLAUDE_PREF_PREFIX + repoPath) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeClaudePref(repoPath: string, value: boolean) {
+  try {
+    localStorage.setItem(CLAUDE_PREF_PREFIX + repoPath, value ? '1' : '0');
+  } catch {
+    return;
+  }
+}
+
+function Checkbox(props: { checked: boolean }) {
+  const { checked } = props;
+
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'w-4 h-4 shrink-0 rounded flex items-center justify-center border transition-colors',
+        checked ? 'border-accent bg-accent text-white' : 'border-control-border bg-raised',
+      )}
+    >
+      {checked && <CheckIcon size={11} />}
+    </span>
+  );
+}
+
+function Radio(props: { checked: boolean }) {
+  const { checked } = props;
+
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'w-3.5 h-3.5 shrink-0 rounded-full flex items-center justify-center border transition-colors',
+        checked ? 'border-accent bg-accent' : 'border-control-border bg-raised',
+      )}
+    >
+      {checked && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+    </span>
+  );
+}
+
+function Section(props: { title: ReactNode; checked: boolean; onToggle: () => void; hint: ReactNode; children?: ReactNode }) {
+  const { title, checked, onToggle, hint, children } = props;
+
+  return (
+    <section className="px-4 py-3 border-t border-overlay-border">
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={checked}
+        onClick={onToggle}
+        className="flex items-start gap-2.5 w-full text-left cursor-pointer group"
+      >
+        <span className="mt-0.5">
+          <Checkbox checked={checked} />
+        </span>
+        <span className="min-w-0">
+          <span className="flex items-center gap-1.5 text-[13px] font-medium text-text">{title}</span>
+          <span className="block text-xs text-text-secondary mt-0.5 leading-snug">{hint}</span>
+        </span>
+      </button>
+      {children && (
+        <div className={cn('mt-2 pl-[26px] space-y-0.5 transition-opacity', !checked && 'opacity-45 pointer-events-none')} aria-disabled={!checked}>
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RadioRow(props: { checked: boolean; onSelect: () => void; label: ReactNode; detail?: ReactNode; disabled?: boolean }) {
+  const { checked, onSelect, label, detail, disabled = false } = props;
+
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={onSelect}
+      className="flex items-center gap-2 w-full h-7 px-1.5 -mx-1.5 rounded-md text-left hover:bg-hover transition-colors cursor-pointer disabled:cursor-default disabled:opacity-45 disabled:hover:bg-transparent"
+    >
+      <Radio checked={checked} />
+      <span className="text-[13px] text-text shrink-0">{label}</span>
+      {detail && <span className="text-xs text-text-muted truncate min-w-0">{detail}</span>}
+    </button>
+  );
+}
+
+function ItemList(props: { items: ReviewItem[]; highlightMentions: boolean }) {
+  const { items, highlightMentions } = props;
+
+  return (
+    <ul className="mt-1 max-h-32 overflow-y-auto rounded-md border border-overlay-border bg-bg divide-y divide-border-muted">
+      {items.map((item) => (
+        <li key={item.threadId} className="flex items-center gap-2 h-7 px-2 text-xs min-w-0">
+          <span className="font-mono text-[11px] text-text-secondary shrink-0 max-w-[140px] truncate">{item.location}</span>
+          <span className="text-text truncate min-w-0 flex-1">{item.body}</span>
+          {highlightMentions && item.mentions && <SparkleIcon size="xs" className="text-accent" title="Mentions @claude" />}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[] }) {
+  const { pr, threads } = props;
+  const repoPath = getRepoPath();
   const { sessionId, pendingReview } = useReviewState();
   const { submit, discard } = useReviewActions(sessionId);
   const [open, setOpen] = useState(false);
   const [body, setBody] = useState('');
   const [verdict, setVerdict] = useState<ReviewVerdict>('comment');
   const [postToGitHub, setPostToGitHub] = useState(true);
-  const [alsoClaude, setAlsoClaude] = useState(false);
+  const [sendClaude, setSendClaudeState] = useState(() => readClaudePref(repoPath));
+  const [scopeChoice, setScopeChoice] = useState<'all' | 'mentions' | null>(null);
+  const [showItems, setShowItems] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
   useDismiss(ref, open, close);
-  const claudeProblem = useClaudeProblem(open && alsoClaude);
+  const claudeProblem = useClaudeProblem(open && sendClaude);
 
+  const items = useMemo(() => reviewItems(threads), [threads]);
+  const mentioned = items.filter((item) => item.mentions);
   const pendingCount = pendingReview?.pendingCount ?? 0;
   const hasBody = body.trim().length > 0;
-  const posting = postToGitHub;
-  const canSubmit = pendingCount > 0 || hasBody || (posting && verdict !== 'comment');
-  const what = pendingCount > 0 ? plural(pendingCount, 'comment') : hasBody ? 'note' : 'review';
+  const scope: 'all' | 'mentions' = scopeChoice ?? (mentioned.length > 0 ? 'mentions' : 'all');
+  const claudeScope: ClaudeScope = sendClaude ? scope : 'none';
+  const claudeCount = scope === 'mentions' ? mentioned.length : pendingCount;
+  const claudeHasWork = sendClaude && (scope === 'all' ? pendingCount > 0 || hasBody : mentioned.length > 0);
+
+  const setSendClaude = (value: boolean) => {
+    setSendClaudeState(value);
+    writeClaudePref(repoPath, value);
+  };
+
+  const disabledReason = (() => {
+    if (!postToGitHub && !sendClaude && pendingCount === 0) {
+      return 'Choose where the review goes: GitHub, Claude, or both.';
+    }
+    if (pendingCount === 0 && !hasBody && !(postToGitHub && verdict !== 'comment')) {
+      return 'Add draft comments or a summary, or choose Approve or Request changes.';
+    }
+    if (!postToGitHub && sendClaude && !claudeHasWork) {
+      return 'None of your draft comments mention @claude.';
+    }
+    if (sendClaude && claudeProblem) {
+      return claudeProblem;
+    }
+    return null;
+  })();
 
   const submitLabel = () => {
     if (submit.isPending) {
-      return posting ? 'Posting…' : 'Submitting…';
+      return postToGitHub ? 'Posting…' : 'Submitting…';
     }
-    if (posting) {
-      return alsoClaude ? `Post to #${pr.prNumber} & send to Claude` : `Post review to #${pr.prNumber}`;
+    const claudePart = claudeHasWork ? (scope === 'mentions' ? `send ${plural(claudeCount, 'mention')} to Claude` : 'send to Claude') : null;
+    if (postToGitHub) {
+      const verb = verdict === 'approve' ? `Approve #${pr.prNumber}` : verdict === 'requestChanges' ? `Request changes on #${pr.prNumber}` : pendingCount > 0 ? `Post ${plural(pendingCount, 'comment')} to #${pr.prNumber}` : `Post review to #${pr.prNumber}`;
+      return claudePart ? `${verb} & ${claudePart}` : verb;
     }
-    if (alsoClaude) {
-      return what === 'review' ? 'Send to Claude' : `Send ${what} to Claude`;
+    if (claudePart) {
+      return scope === 'mentions' ? `Send ${plural(claudeCount, 'mention')} to Claude` : `Send ${pendingCount > 0 ? plural(pendingCount, 'comment') : 'summary'} to Claude`;
     }
-    return what === 'review' ? 'Publish' : `Publish ${what}`;
+    return pendingCount > 0 ? `Save ${plural(pendingCount, 'comment')} locally` : 'Save summary locally';
   };
 
   const handleSubmit = () => {
+    if (disabledReason) {
+      return;
+    }
     submit.mutate(
       {
         body,
-        verdict: posting ? verdict : null,
-        sendToClaude: alsoClaude,
-        prNumber: posting ? pr.prNumber : null,
+        verdict: postToGitHub ? verdict : null,
+        claude: claudeScope,
+        prNumber: postToGitHub ? pr.prNumber : null,
       },
       {
         onSuccess: () => {
           setBody('');
           setVerdict('comment');
+          setScopeChoice(null);
           setOpen(false);
         },
       },
     );
   };
 
+  const listItems = scope === 'mentions' ? mentioned : items;
+
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
         className={pendingCount > 0 ? buttonPrimary : buttonOutline}
-        title={pendingCount > 0 ? `${plural(pendingCount, 'draft comment')} waiting to be posted` : `Review pull request #${pr.prNumber}`}
+        title={pendingCount > 0 ? `${plural(pendingCount, 'draft comment')} waiting to be submitted` : `Submit your review of pull request #${pr.prNumber}`}
       >
-        Review #{pr.prNumber}
+        <GitPullRequestIcon size="md" className={pendingCount > 0 ? 'text-white' : 'text-text-secondary'} />
+        Submit review #{pr.prNumber}
         {pendingCount > 0 && (
           <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-white/25 text-[10px] font-semibold tabular-nums">
             {pendingCount}
           </span>
         )}
-        <ChevronDown size={14} strokeWidth={1.75} />
+        <ChevronDownIcon size="xs" />
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-[440px] bg-overlay rounded-lg ring-1 ring-overlay-border z-50 font-sans">
-          <div className="px-4 pt-3.5 pb-2.5">
-            <div className="text-[13px] font-semibold text-text">Review pull request #{pr.prNumber}</div>
-            <div className="text-xs text-text-secondary mt-0.5">
-              {pendingCount > 0
-                ? `${plural(pendingCount, 'draft comment')}, private until you post them.`
-                : 'Add a summary, approve or request changes.'}
+        <div className="absolute right-0 top-full mt-1.5 w-[440px] max-w-[calc(100vw-24px)] max-h-[calc(100vh-64px)] overflow-y-auto bg-overlay rounded-lg border border-overlay-border z-50 font-sans">
+          <div className="px-4 pt-3.5 pb-3">
+            <div className="text-[13px] font-semibold text-text">Submit review · #{pr.prNumber}</div>
+            <div className="text-xs text-text-secondary mt-0.5 truncate" title={pr.prTitle}>
+              {pendingCount > 0 ? `${plural(pendingCount, 'draft comment')}, private until you submit` : 'No draft comments yet'}
+              {' · '}
+              {pr.prTitle}
             </div>
-          </div>
-          <div className="px-4">
             <MentionTextarea
               value={body}
               onChange={setBody}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canSubmit) {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                   e.preventDefault();
                   handleSubmit();
                 }
               }}
-              placeholder="Review summary (optional)"
-              rows={3}
-              className="block w-full px-3 py-2 text-[13px] bg-bg text-text border border-border rounded-md resize-y outline-none focus:border-focus placeholder:text-text-muted min-h-[70px]"
+              placeholder="Summary (optional)"
+              rows={2}
+              className="mt-2.5 block w-full px-2.5 py-1.5 text-[13px] bg-raised text-text border border-control-border rounded-md resize-y outline-none focus:border-focus placeholder:text-text-muted min-h-[56px]"
             />
-          </div>
-          <div className="px-4 pt-3 space-y-2">
-            <Choice
-              type="checkbox"
-              selected={postToGitHub}
-              onSelect={() => setPostToGitHub(!postToGitHub)}
-              icon={<GitHubIcon className="w-3 h-3" />}
-              title={`Post to GitHub pull request #${pr.prNumber}`}
-              description={`New comments and replies are added to “${pr.prTitle}” as your GitHub review.`}
-            />
-            {postToGitHub && (
-              <div className="pl-6 space-y-1.5">
-                {VERDICTS.map((option) => (
-                  <label key={option.value} className="flex items-start gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="review-verdict"
-                      checked={verdict === option.value}
-                      onChange={() => setVerdict(option.value)}
-                      className="mt-0.5 accent-accent cursor-pointer"
-                    />
-                    <span>
-                      <span className="block text-xs font-medium text-text">{option.label}</span>
-                      <span className="block text-xs text-text-secondary">{option.description}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
+            {items.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowItems(!showItems)}
+                className="mt-2 inline-flex items-center gap-1 text-xs text-text-secondary hover:text-text cursor-pointer"
+              >
+                {showItems ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
+                {showItems ? 'Hide' : 'Show'} {plural(items.length, 'commented thread')}
+              </button>
             )}
-            <Choice
-              type="checkbox"
-              selected={alsoClaude}
-              onSelect={() => setAlsoClaude(!alsoClaude)}
-              icon={<SparkleIcon className="w-3 h-3 text-accent" />}
-              title="Also send to Claude"
-              description="Claude works through every comment and asks before each edit."
-            />
+            {showItems && <ItemList items={items} highlightMentions />}
           </div>
 
-          {alsoClaude && claudeProblem && (
-            <div className="mx-4 mt-2 px-2.5 py-1.5 rounded-md bg-deleted/10 text-xs text-deleted">
+          <Section
+            checked={postToGitHub}
+            onToggle={() => setPostToGitHub(!postToGitHub)}
+            title={<><GitHubIcon size="sm" className="text-text-secondary" />Post to GitHub</>}
+            hint={`Added to pull request #${pr.prNumber} as your review.`}
+          >
+            <div role="radiogroup" aria-label="Verdict">
+              {VERDICTS.map((option) => (
+                <RadioRow
+                  key={option.value}
+                  checked={verdict === option.value}
+                  onSelect={() => setVerdict(option.value)}
+                  label={option.label}
+                  detail={option.description}
+                  disabled={!postToGitHub}
+                />
+              ))}
+            </div>
+          </Section>
+
+          <Section
+            checked={sendClaude}
+            onToggle={() => setSendClaude(!sendClaude)}
+            title={<><SparkleIcon size="sm" className="text-accent" />Send to Claude</>}
+            hint="Claude edits your local checkout of this PR branch and asks before each edit."
+          >
+            <div role="radiogroup" aria-label="What Claude gets">
+              <RadioRow
+                checked={scope === 'all'}
+                onSelect={() => setScopeChoice('all')}
+                label={pendingCount > 0 ? `All ${plural(pendingCount, 'comment')} in this review` : 'The review summary'}
+                disabled={!sendClaude}
+              />
+              <RadioRow
+                checked={scope === 'mentions'}
+                onSelect={() => setScopeChoice('mentions')}
+                label="Only comments that mention @claude"
+                detail={`${mentioned.length}`}
+                disabled={!sendClaude || mentioned.length === 0}
+              />
+            </div>
+            {sendClaude && listItems.length > 0 && (
+              <ItemList items={listItems} highlightMentions={scope === 'all'} />
+            )}
+          </Section>
+          {!sendClaude && mentioned.length > 0 && (
+            <div className="px-4 -mt-1 pb-2 text-xs text-text-muted">
+              {plural(mentioned.length, 'comment')} mention @claude but won’t be sent.
+            </div>
+          )}
+
+          {sendClaude && claudeProblem && (
+            <div className="mx-4 mb-2 px-2.5 py-1.5 rounded-md bg-deleted/10 text-xs text-deleted">
               {claudeProblem}{' '}
               <button onClick={() => openSettingsAt('claude')} className="underline cursor-pointer">
                 Open settings
@@ -279,12 +442,12 @@ function PullRequestReview(props: { pr: GitHubDetails }) {
             </div>
           )}
 
-          <div className="flex items-center gap-2 px-4 py-3.5">
-            {pendingReview && (
+          <div className="flex items-center gap-2 px-4 py-3 border-t border-overlay-border">
+            {pendingReview && pendingCount > 0 && (
               <button
                 onClick={() => discard.mutate(undefined, { onSuccess: close })}
                 disabled={discard.isPending}
-                className={cn(buttonGhost, 'text-deleted hover:text-deleted')}
+                className={cn(buttonGhost, 'px-2 text-deleted hover:text-deleted')}
                 title="Delete all draft comments"
               >
                 Discard drafts
@@ -294,11 +457,19 @@ function PullRequestReview(props: { pr: GitHubDetails }) {
             <button onClick={close} className={buttonGhost}>
               Cancel
             </button>
-            <button onClick={handleSubmit} disabled={!canSubmit || submit.isPending} className={buttonPrimary}>
+            <button
+              onClick={handleSubmit}
+              disabled={!!disabledReason || submit.isPending}
+              className={buttonPrimary}
+              title={disabledReason ?? undefined}
+            >
               {submit.isPending && <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
               {submitLabel()}
             </button>
           </div>
+          {disabledReason && (
+            <div className="px-4 pb-3 -mt-1 text-xs text-text-muted text-right">{disabledReason}</div>
+          )}
         </div>
       )}
     </div>

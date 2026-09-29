@@ -6,14 +6,11 @@ import type { PullRequest } from '../../lib/types';
 import { useRepoNav } from '../../hooks/use-repo';
 import { useGitHubPr } from '../../hooks/use-repo-state';
 import { MarkdownContent } from '../../components/layout/markdown-content';
-import { ExternalLinkIcon } from '../../components/icons/external-link-icon';
-import { ArrowLeftIcon } from '../../components/icons/arrow-left-icon';
-import { ChevronDownIcon } from '../../components/icons/chevron-down-icon';
-import { DownloadIcon } from '../../components/icons/download-icon';
 import { Spinner } from '../../components/icons/spinner';
 import { buttonOutline } from '../../components/ui/button-styles';
 import { ChecksStatus, PrStateBadge, ReviewDecision, headLabel, relative } from './pr-meta';
 import { prRefFor, pullPrComments, returnFromPullRequest, returnLabel, useCheckoutState, useReturnPoint } from './pr-checkout';
+import { ArrowLeftIcon, ChevronDownIcon, DownloadIcon, ExternalLinkIcon } from '../../components/ui/icon';
 
 const autoPulled = new Set<string>();
 

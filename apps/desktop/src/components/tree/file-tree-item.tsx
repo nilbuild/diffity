@@ -1,8 +1,6 @@
 import type { TreeNode } from '../../lib/file-tree';
 import { cn } from '../../lib/cn';
-import { ChevronIcon } from '../icons/chevron-icon';
-import { FolderIcon } from '../icons/folder-icon';
-import { FileIcon } from '../icons/file-icon';
+import { ChevronIcon, FileIcon, FolderIcon } from '../ui/icon';
 
 interface FileTreeItemProps {
   node: TreeNode;

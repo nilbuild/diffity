@@ -1,6 +1,5 @@
-import { ArrowUpIcon } from '../icons/arrow-up-icon';
-import { ArrowDownIcon } from '../icons/arrow-down-icon';
 import { Spinner } from '../icons/spinner';
+import { ExpandDownIcon, ExpandUpIcon } from '../ui/icon';
 
 interface ExpandRowProps {
   position: 'top' | 'bottom';
@@ -35,7 +34,7 @@ export function ExpandRow(props: ExpandRowProps) {
             onClick={() => onExpand('down')}
             title={`Expand ${Math.min(remainingLines, 20)} lines`}
           >
-            {position === 'bottom' ? <ArrowDownIcon /> : <ArrowUpIcon />}
+            {position === 'bottom' ? <ExpandDownIcon /> : <ExpandUpIcon />}
           </button>
         </td>
       )}

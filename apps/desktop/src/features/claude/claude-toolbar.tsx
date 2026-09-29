@@ -1,7 +1,4 @@
-import { ChevronDown, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StopIcon } from '../../components/icons/stop-icon';
-import { CommentIcon } from '../../components/icons/comment-icon';
 import { menuItemClass } from '../../components/layout/options-menu';
 import { useDismiss } from '../../hooks/use-dismiss';
 import { getRepoPath } from '../../lib/api';
@@ -11,6 +8,7 @@ import { enqueueClaude, openRunResult, runLabel, runViewLabel, stopClaude, useAc
 import { useCurrentViewRef } from '../../hooks/use-current-view';
 import { buttonGroup, buttonGroupItem, sectionLabel } from '../../components/ui/button-styles';
 import { useReviewState } from '../review/review-state';
+import { ChevronDownIcon, CommentIcon, SparkleIcon, StopIcon } from '../../components/ui/icon';
 
 export const REVIEW_FOCUSES = [
   { value: 'security', label: 'Security' },
@@ -141,18 +139,19 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
           <button
             onClick={() => review()}
             className={buttonGroupItem}
-            title="Ask Claude Code to review these changes"
+            title="Claude reviews these changes and leaves comments on the diff"
           >
-            <Sparkles size={15} strokeWidth={1.75} className="text-text-secondary" />
-            Review<span className="hidden min-[1360px]:inline -ml-[3px]">with Claude</span>
+            <SparkleIcon size="md" className="text-accent" />
+            Ask Claude<span className="hidden min-[1360px]:inline -ml-[3px]">to review</span>
           </button>
         ) : (
           <button
             onClick={resolveAll}
             disabled={openThreads.length === 0}
             className={buttonGroupItem}
+            title={openThreads.length === 0 ? 'No open comments to resolve' : 'Claude works through the open comments and asks before each edit'}
           >
-            <Sparkles size={15} strokeWidth={1.75} className="text-text-secondary" />
+            <SparkleIcon size="md" className="text-accent" />
             Resolve with Claude
           </button>
         )}
@@ -161,17 +160,17 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
           className="flex items-center px-1.5 border-l border-control-border text-text-secondary hover:bg-control-hover hover:text-text transition-colors cursor-pointer"
           title="More Claude actions"
         >
-          <ChevronDown size={14} strokeWidth={1.75} />
+          <ChevronDownIcon size="xs" />
         </button>
       </div>
       {open && (
         <div className="absolute right-0 top-full mt-1 w-60 p-1 bg-overlay rounded-lg ring-1 ring-overlay-border z-50">
           {reviewRef && (
             <>
-              <div className={sectionLabel}>Review with a focus</div>
+              <div className={sectionLabel}>Ask Claude to review with a focus</div>
               {REVIEW_FOCUSES.map((focus) => (
                 <button key={focus.value} className={menuItemClass} onClick={() => review(focus.value)}>
-                  <Sparkles size={15} strokeWidth={1.75} />
+                  <SparkleIcon size="md" />
                   {focus.label}
                 </button>
               ))}

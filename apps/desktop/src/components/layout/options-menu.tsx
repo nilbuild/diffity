@@ -1,15 +1,9 @@
-import { Ellipsis } from 'lucide-react';
 import { useState, useRef, useEffect, type ReactNode } from 'react';
-import { SunIcon } from '../icons/sun-icon';
-import { MoonIcon } from '../icons/moon-icon';
-import { GitHubIcon } from '../icons/github-icon';
-import { FolderOpenIcon } from '../icons/folder-open-icon';
 import { useNavigate } from 'react-router';
-import { SettingsIcon } from '../icons/settings-icon';
-import { KeyboardIcon } from '../icons/keyboard-icon';
 import { openSettings, openShortcuts } from '../../lib/ui-store';
 import { modKey } from '../../lib/platform';
 import { buttonIcon } from '../ui/button-styles';
+import { EllipsisIcon, FolderOpenIcon, GitHubIcon, KeyboardIcon, MoonIcon, SettingsIcon, SunIcon } from '../ui/icon';
 
 export const menuItemClass = 'flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-[13px] text-text hover:bg-hover transition-colors cursor-pointer text-left [&>svg]:text-text-secondary';
 
@@ -48,7 +42,7 @@ export function OptionsMenu(props: OptionsMenuProps) {
         onClick={() => setShowMenu(!showMenu)}
         title="More: shortcuts, theme, settings"
       >
-        <Ellipsis size={16} strokeWidth={1.75} />
+        <EllipsisIcon size="lg" />
       </button>
       {showMenu && (
         <div className="absolute right-0 top-full mt-1 w-56 p-1 bg-overlay rounded-lg ring-1 ring-overlay-border z-50">

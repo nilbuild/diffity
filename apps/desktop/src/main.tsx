@@ -2,7 +2,6 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { isTauri, shouldUseMockApi } from './lib/platform';
-import '@fontsource-variable/geist';
 import './styles/app.css';
 
 async function bootstrap() {

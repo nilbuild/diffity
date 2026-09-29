@@ -4,25 +4,18 @@ import { useTheme } from '../../hooks/use-theme';
 import { useDismiss } from '../../hooks/use-dismiss';
 import { useBaseBranch, useBranches, useGitHubPr, useGitStatus } from '../../hooks/use-repo-state';
 import { CommitList, HistoryRow, SectionHeader } from './commit-list';
-import { GitCompareIcon } from '../icons/git-compare-icon';
-import { PencilIcon } from '../icons/pencil-icon';
-import { GitPullRequestIcon } from '../icons/git-pull-request-icon';
-import { SearchIcon } from '../icons/search-icon';
-import { SwapIcon } from '../icons/swap-icon';
-import { XIcon } from '../icons/x-icon';
-import { ChevronDownIcon } from '../icons/chevron-down-icon';
 import { Spinner } from '../icons/spinner';
 import { hideStaticSplash } from './skeleton';
-import { RepoTitle, TitleBar } from './title-bar';
+import { RepoTitle, TitleBar, Workspace } from './title-bar';
 import { OptionsMenu } from './options-menu';
 import { StatusBar } from './status-bar';
 import { commitRef, type Commit } from '../../lib/api';
 import { HistoryDetail, type HistoryTarget } from './history-detail';
 import { SidebarFrame } from './sidebar-frame';
-import { GitCommitIcon } from '../icons/git-commit-icon';
 import { prDiffRef } from './ref-menu';
 import { cn } from '../../lib/cn';
 import { buttonIconSmall, buttonOutline, buttonPrimary, inputField, overlayPanel } from '../ui/button-styles';
+import { ChevronDownIcon, GitCommitIcon, GitCompareIcon, GitPullRequestIcon, PencilIcon, SearchIcon, SwapIcon, XIcon } from '../ui/icon';
 
 interface DashboardProps {
   onNavigate: (ref: string) => void;
@@ -225,8 +218,8 @@ export function Dashboard(props: DashboardProps) {
   ) : null;
 
   return (
-    <div className="flex flex-col h-screen bg-bg text-text font-sans">
-      <TitleBar>
+    <div className="flex flex-col h-screen bg-frame text-text font-sans">
+      <TitleBar sidebarToggle={false}>
         <div data-tauri-drag-region className="flex items-center gap-2.5 min-w-0 shrink">
           <RepoTitle name={info?.name} />
         </div>
@@ -236,8 +229,9 @@ export function Dashboard(props: DashboardProps) {
         </div>
       </TitleBar>
 
+      <Workspace>
       <div className="flex flex-1 min-h-0">
-        <SidebarFrame collapsed={false} onExpand={() => undefined} view="overview" storageKey="diffity-history-width" defaultWidth={420}>
+        <SidebarFrame collapsible={false} view="overview" storageKey="diffity-history-width" defaultWidth={420}>
           <div className="flex items-center gap-2 px-3 pt-1 pb-2 shrink-0">
             <div className="relative flex-1 min-w-0">
               <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
@@ -286,6 +280,7 @@ export function Dashboard(props: DashboardProps) {
           <HistoryDetail target={activeTarget} onOpen={onNavigate} />
         </main>
       </div>
+      </Workspace>
       <StatusBar />
     </div>
   );

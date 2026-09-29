@@ -8,7 +8,8 @@ import { useTheme } from '../../hooks/use-theme';
 import { useKeyboard } from '../../hooks/use-keyboard';
 import { useReviewThreads } from '../../hooks/use-review-threads';
 import { useCommentActions } from '../../hooks/use-comment-actions';
-import { Toolbar } from '../layout/toolbar';
+import { Toolbar, formatThreadsForCopy } from '../layout/toolbar';
+import { CommentToolbarActions } from '../comments/comment-toolbar-actions';
 import { DiffView, type DiffViewHandle } from './diff-view';
 import { Sidebar } from '../layout/sidebar';
 import { DiffSkeleton, hideStaticSplash } from '../layout/skeleton';
@@ -23,7 +24,8 @@ import { focusThreadElement, getHunkHeaders, scrollToElement } from '../../lib/d
 import { setFocusThread } from '../../lib/ui-store';
 import { OutsideThreads } from '../comments/outside-threads';
 import type { LineSelection } from '../comments/types';
-import { ViewOptions } from './view-options';
+import { DiffBar } from './view-options';
+import { Workspace } from '../layout/title-bar';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { useViewedFiles } from '../../hooks/use-viewed-files';
 import { useGitHubPr } from '../../hooks/use-repo-state';
@@ -232,7 +234,7 @@ export function DiffPage(props: DiffPageProps) {
     onSplitView: () => setViewMode('split'),
     onFocusSearch: () => {
       const input = document.querySelector(
-        'input[placeholder="Filter files..."]',
+        'input[placeholder="Filter files"]',
       ) as HTMLInputElement;
       if (input) {
         input.focus();
@@ -333,26 +335,11 @@ export function DiffPage(props: DiffPageProps) {
   }
 
   const isEmpty = diff.files.length === 0;
-  const viewOptions = (
-    <ViewOptions
-      viewMode={viewMode}
-      onViewModeChange={setViewMode}
-      hideWhitespace={hideWhitespace}
-      onHideWhitespaceChange={setHideWhitespace}
-      onExpandAll={isEmpty ? undefined : () => {
-        manuallyToggledRef.current = new Set();
-        setCollapsedFiles(new Set());
-      }}
-      onCollapseAll={isEmpty ? undefined : () => {
-        manuallyToggledRef.current = new Set();
-        setCollapsedFiles(new Set(diff.files.map((file) => getFilePath(file))));
-      }}
-    />
-  );
+  const allPaths = diff.files.map((file) => getFilePath(file));
 
   return (
     <ReviewStateProvider sessionId={reviewsEnabled ? sessionId : null} prMode={!!githubDetails}>
-    <div className="flex flex-col h-screen bg-bg text-text font-sans">
+    <div className="flex flex-col h-screen bg-frame text-text font-sans">
       <Toolbar
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -360,77 +347,94 @@ export function DiffPage(props: DiffPageProps) {
         diff={diff || undefined}
         diffRef={refParam}
         threads={threads}
-        onDeleteAllComments={commentActions.deleteAllThreads}
-        onScrollToThread={handleScrollToThread}
         repoName={info?.name || null}
         branch={info?.branch || null}
         githubDetails={githubDetails}
         hasGitHubRemote={!!info?.github}
         sessionId={sessionId}
       />
+      <Workspace>
       <PrBar diffRef={refParam} />
-      {isEmpty ? (
-        <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar
-          files={[]}
-          activeFile={null}
+          files={diff.files}
+          activeFile={isEmpty ? null : activeFile}
           reviewedFiles={reviewedFiles}
           commentCountsByFile={commentCountsByFile}
           onFileClick={handleSidebarFileClick}
           onCommentedFileClick={handleSidebarCommentedFileClick}
-          viewOptions={viewOptions}
+          stats={isEmpty ? undefined : diff.stats}
         />
-        <div className="flex flex-1 min-w-0 flex-col overflow-y-auto">
-          {reviewsEnabled && (
-            <OutsideThreads
-              threads={threads}
-              commentActions={commentActions}
-              viewEmpty
-              className="mx-auto mt-4 w-full max-w-2xl rounded-md border border-border"
+        {isEmpty ? (
+          <div className="flex flex-1 min-w-0 flex-col overflow-y-auto">
+            {reviewsEnabled && (
+              <OutsideThreads
+                threads={threads}
+                commentActions={commentActions}
+                viewEmpty
+                className="mx-auto mt-4 w-full max-w-2xl rounded-lg border border-border"
+              />
+            )}
+            <DiffEmptyState
+              diffRef={refParam}
+              hideWhitespace={hideWhitespace}
+              onShowWhitespace={() => setHideWhitespace(false)}
+              branch={info?.branch || null}
             />
-          )}
-          <DiffEmptyState diffRef={refParam} hideWhitespace={hideWhitespace} branch={info?.branch || null} />
-        </div>
-        </div>
-      ) : (
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          files={diff?.files || []}
-          activeFile={activeFile}
-          reviewedFiles={reviewedFiles}
-          commentCountsByFile={commentCountsByFile}
-          onFileClick={handleSidebarFileClick}
-          onCommentedFileClick={handleSidebarCommentedFileClick}
-          stats={diff.stats}
-          viewOptions={viewOptions}
-        />
-        {diff ? (
-          <DiffView
-            diff={diff}
-            viewMode={viewMode}
-            theme={theme}
-            collapsedFiles={collapsedFiles}
-            onToggleCollapse={handleToggleCollapse}
-            reviewedFiles={reviewedFiles}
-            onReviewedChange={handleReviewedChange}
-            onActiveFileChange={handleActiveFileFromScroll}
-            handle={diffViewRef}
-            baseRef={refParam}
-            canRevert={canRevert}
-            onRevert={handleRevert}
-            scrollRef={(node) => {
-              mainRef.current = node;
-            }}
-            threads={threads}
-            commentsEnabled={reviewsEnabled}
-            commentActions={commentActions}
-            onAddThread={handleAddThread}
-            pendingSelection={pendingSelection}
-            onPendingSelectionChange={setPendingSelection}
-          />
-        ) : null}
+          </div>
+        ) : (
+          <div className="flex flex-1 min-w-0 flex-col">
+            <DiffBar
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              hideWhitespace={hideWhitespace}
+              onHideWhitespaceChange={setHideWhitespace}
+              fileCount={diff.files.length}
+              viewedCount={allPaths.filter((path) => reviewedFiles.has(path)).length}
+              onExpandAll={() => {
+                manuallyToggledRef.current = new Set();
+                setCollapsedFiles(new Set());
+              }}
+              onCollapseAll={() => {
+                manuallyToggledRef.current = new Set();
+                setCollapsedFiles(new Set(allPaths));
+              }}
+              commentNav={
+                <CommentToolbarActions
+                  threads={threads}
+                  onScrollToThread={handleScrollToThread}
+                  onDeleteAllComments={commentActions.deleteAllThreads}
+                  formatForCopy={() => formatThreadsForCopy(threads, diff, refParam)}
+                />
+              }
+            />
+            <DiffView
+              diff={diff}
+              viewMode={viewMode}
+              theme={theme}
+              collapsedFiles={collapsedFiles}
+              onToggleCollapse={handleToggleCollapse}
+              reviewedFiles={reviewedFiles}
+              onReviewedChange={handleReviewedChange}
+              onActiveFileChange={handleActiveFileFromScroll}
+              handle={diffViewRef}
+              baseRef={refParam}
+              canRevert={canRevert}
+              onRevert={handleRevert}
+              scrollRef={(node) => {
+                mainRef.current = node;
+              }}
+              threads={threads}
+              commentsEnabled={reviewsEnabled}
+              commentActions={commentActions}
+              onAddThread={handleAddThread}
+              pendingSelection={pendingSelection}
+              onPendingSelectionChange={setPendingSelection}
+            />
+          </div>
+        )}
       </div>
-      )}
+      </Workspace>
       <StatusBar
         diffRef={refParam}
         sessionId={reviewsEnabled ? sessionId : null}

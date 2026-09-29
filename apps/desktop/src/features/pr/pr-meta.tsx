@@ -2,9 +2,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import type { PullRequest } from '../../lib/types';
 import { cn } from '../../lib/cn';
-import { GitPullRequestIcon } from '../../components/icons/git-pull-request-icon';
-import { CheckIcon } from '../../components/icons/check-icon';
-import { XIcon } from '../../components/icons/x-icon';
+import { CheckIcon, GitPullRequestIcon, XIcon } from '../../components/ui/icon';
 
 dayjs.extend(relativeTime);
 

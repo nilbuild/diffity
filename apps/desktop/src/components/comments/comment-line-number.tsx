@@ -1,5 +1,5 @@
 import { cn } from '../../lib/cn';
-import { PlusIcon } from '../icons/plus-icon';
+import { PlusIcon } from '../ui/icon';
 
 interface CommentLineNumberProps {
   lineNumber: number | null;

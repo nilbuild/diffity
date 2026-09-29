@@ -12,21 +12,14 @@ import type { RecentRepo } from '../lib/types';
 import { parsePrUrl, pickFolder, remoteMatches } from '../features/welcome/open-repo';
 import { openRepoAt, parentPath, useRecentRepos } from '../features/welcome/recent-repos';
 import { RepoBadge } from '../features/welcome/repo-badge';
-import { DownloadIcon } from '../components/icons/download-icon';
-import { GitPullRequestIcon } from '../components/icons/git-pull-request-icon';
 import { useTheme } from '../hooks/use-theme';
 import { BrandLogo } from '../components/icons/brand-logo';
-import { FolderOpenIcon } from '../components/icons/folder-open-icon';
-import { GitHubIcon } from '../components/icons/github-icon';
-import { XIcon } from '../components/icons/x-icon';
-import { SunIcon } from '../components/icons/sun-icon';
-import { MoonIcon } from '../components/icons/moon-icon';
 import { hasOverlayTitleBar } from '../components/layout/title-bar';
 import { hideStaticSplash } from '../components/layout/skeleton';
-import { SettingsIcon } from '../components/icons/settings-icon';
 import { openSettings } from '../lib/ui-store';
 import { cn } from '../lib/cn';
 import { buttonIcon, buttonPrimary, inputField } from '../components/ui/button-styles';
+import { DownloadIcon, FolderOpenIcon, GitHubIcon, GitPullRequestIcon, MoonIcon, SettingsIcon, SunIcon, XIcon } from '../components/ui/icon';
 
 dayjs.extend(relativeTime);
 
@@ -116,20 +109,20 @@ export function WelcomePage() {
 
           <div className="mt-8 grid grid-cols-3 gap-3">
             <StartCard
-              icon={<FolderOpenIcon className="w-4 h-4" />}
+              icon={<FolderOpenIcon className="w-[18px] h-[18px]" />}
               title="Open folder"
               detail={`A local Git repository · ${modKey}O`}
               onClick={() => void openFolder()}
             />
             <StartCard
-              icon={<DownloadIcon className="w-4 h-4" />}
+              icon={<DownloadIcon className="w-[18px] h-[18px]" />}
               title="Clone"
               detail="From a GitHub URL"
               active={mode === 'clone'}
               onClick={() => setMode(mode === 'clone' ? null : 'clone')}
             />
             <StartCard
-              icon={<GitPullRequestIcon className="w-4 h-4" />}
+              icon={<GitPullRequestIcon className="w-[18px] h-[18px]" />}
               title="Pull request"
               detail="Review a PR by URL"
               active={mode === 'pr'}

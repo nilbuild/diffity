@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Helvetica, Arial, sans-serif;
   --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', 'Menlo', monospace;
 
   --text-xs: 12px;
@@ -16,28 +16,31 @@
   --color-bg: #ffffff;
   --color-bg-secondary: #f7f8fa;
   --color-bg-tertiary: #eef0f3;
-  --color-border: #dde1e6;
-  --color-border-muted: #e8ebef;
+  --color-frame: #eaecef;
+  --color-frame-border: #d6dae0;
+  --color-sidebar: #f6f7f9;
+  --color-border: #dee1e6;
+  --color-border-muted: #eaecef;
 
-  --color-text: #1f2328;
-  --color-text-secondary: #555f6a;
-  --color-text-muted: #6e7781;
+  --color-text: #15181c;
+  --color-text-secondary: #4b535d;
+  --color-text-muted: #646c76;
 
-  --color-diff-add-bg: #e6ffec;
-  --color-diff-add-line: #ccffd8;
-  --color-diff-add-word: #abf2bc;
-  --color-diff-del-bg: #ffebe9;
-  --color-diff-del-line: #ffd7d5;
-  --color-diff-del-word: #ff818266;
-  --color-diff-hunk-bg: #ddf4ff;
-  --color-diff-hunk-text: #0969da;
-  --color-diff-expanded-bg: #f6fcff;
-  --color-diff-expanded-gutter: #edf7ff;
-  --color-diff-comment-bg: #fff8c5;
+  --color-diff-add-bg: #edfcf1;
+  --color-diff-add-line: #d9f6e1;
+  --color-diff-add-word: #b3eac2;
+  --color-diff-del-bg: #fef1f0;
+  --color-diff-del-line: #fcdfdd;
+  --color-diff-del-word: #f7bdbb;
+  --color-diff-hunk-bg: #f3f6fa;
+  --color-diff-hunk-text: #52637c;
+  --color-diff-expanded-bg: #f9fafc;
+  --color-diff-expanded-gutter: #f3f6fa;
+  --color-diff-comment-bg: #fff8d6;
   --color-diff-comment-gutter: #ecd364;
 
   --color-accent: #0969da;
-  --color-accent-hover: #0550ae;
+  --color-accent-hover: #0757b8;
 
   --color-added: #1a7f37;
   --color-deleted: #cf222e;
@@ -45,17 +48,17 @@
   --color-renamed: #0969da;
 
   --color-raised: #ffffff;
-  --color-control-border: #d0d7de;
-  --color-control-hover: #f3f4f6;
+  --color-control-border: #d2d6dc;
+  --color-control-hover: #f4f5f7;
   --color-toggle: #ffffff;
   --color-overlay: #ffffff;
-  --color-overlay-border: #d0d7de;
-  --color-fill: #eef0f3;
-  --color-fill-hover: #e4e7eb;
-  --color-hover: rgba(31, 35, 40, 0.05);
-  --color-active: rgba(31, 35, 40, 0.08);
-  --color-selected: rgba(31, 35, 40, 0.08);
-  --color-focus: #a3acb6;
+  --color-overlay-border: #d2d6dc;
+  --color-fill: #eceef1;
+  --color-fill-hover: #e3e6ea;
+  --color-hover: rgba(16, 24, 40, 0.05);
+  --color-active: rgba(16, 24, 40, 0.085);
+  --color-selected: rgba(16, 24, 40, 0.075);
+  --color-focus: #8b95a1;
 
   --shadow-sticky: 0 1px 0 var(--color-border);
   --shadow-md: 0 2px 8px rgba(140, 149, 159, 0.12);
@@ -63,26 +66,29 @@
 }
 
 [data-theme='dark'] {
-  --color-bg: #141414;
-  --color-bg-secondary: #1a1a1a;
-  --color-bg-tertiary: #262626;
-  --color-border: #2a2a2a;
-  --color-border-muted: #212121;
+  --color-bg: #19191c;
+  --color-bg-secondary: #1e1e21;
+  --color-bg-tertiary: #27272b;
+  --color-frame: #0e0e10;
+  --color-frame-border: #27272b;
+  --color-sidebar: #141416;
+  --color-border: #2d2d32;
+  --color-border-muted: #242428;
 
-  --color-text: #ececec;
-  --color-text-secondary: #b0b0b0;
-  --color-text-muted: #8c8c8c;
+  --color-text: #ededf0;
+  --color-text-secondary: #b5b5bd;
+  --color-text-muted: #8f8f99;
 
-  --color-diff-add-bg: #182a1d;
-  --color-diff-add-line: #15241a;
-  --color-diff-add-word: #265232;
-  --color-diff-del-bg: #2e1819;
-  --color-diff-del-line: #271415;
-  --color-diff-del-word: #5c2527;
-  --color-diff-hunk-bg: #1c1c1c;
-  --color-diff-hunk-text: #8b9bb4;
-  --color-diff-expanded-bg: #161616;
-  --color-diff-expanded-gutter: #181818;
+  --color-diff-add-bg: #182b1f;
+  --color-diff-add-line: #15261b;
+  --color-diff-add-word: #27553a;
+  --color-diff-del-bg: #2f191b;
+  --color-diff-del-line: #291617;
+  --color-diff-del-word: #5e2629;
+  --color-diff-hunk-bg: #1f2024;
+  --color-diff-hunk-text: #8e9bb2;
+  --color-diff-expanded-bg: #1c1c1f;
+  --color-diff-expanded-gutter: #1f2024;
   --color-diff-comment-bg: rgba(234, 179, 8, 0.1);
   --color-diff-comment-gutter: rgba(234, 179, 8, 0.3);
 
@@ -94,18 +100,18 @@
   --color-modified: #e3b341;
   --color-renamed: #60a5fa;
 
-  --color-raised: #242424;
-  --color-control-border: #393939;
-  --color-control-hover: #2d2d2d;
-  --color-toggle: #3a3a3a;
-  --color-overlay: #232323;
-  --color-overlay-border: #363636;
-  --color-fill: #262626;
-  --color-fill-hover: #2f2f2f;
-  --color-hover: rgba(255, 255, 255, 0.06);
+  --color-raised: #242428;
+  --color-control-border: #3a3a41;
+  --color-control-hover: #2c2c31;
+  --color-toggle: #3a3a41;
+  --color-overlay: #232327;
+  --color-overlay-border: #3a3a41;
+  --color-fill: #26262a;
+  --color-fill-hover: #2e2e33;
+  --color-hover: rgba(255, 255, 255, 0.055);
   --color-active: rgba(255, 255, 255, 0.1);
-  --color-selected: rgba(255, 255, 255, 0.1);
-  --color-focus: #5c5c5c;
+  --color-selected: rgba(255, 255, 255, 0.085);
+  --color-focus: #62626c;
 
   --shadow-sticky: 0 1px 0 var(--color-border);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
