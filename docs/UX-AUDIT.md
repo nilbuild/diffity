@@ -408,6 +408,19 @@ full webview reload.
   rendering it forced. Clone progress streams in the palette; PR checkout keeps its step toasts. Cloning has no
   cancel yet.
 
+## Round 13 (project tile menu)
+
+- Right-clicking a project tile removed it instantly. It now opens a context menu (same style as other menus; also
+  Shift+F10 or the menu key on a focused tile): Open, Open in new window, Reveal in Finder, Open in <editor>, Open in
+  Terminal, Copy path · Move up / Move down (keyboard alternative to dragging) · "Remove from sidebar" in red with
+  "Keeps the folder and its comments".
+- Removing shows "Removed <repo> from the sidebar · The folder was not touched" with Undo (8s), which puts the tile
+  back in the same position (and reopens it if it was current). Removing the current project switches to the next
+  tile (or the start screen when none are left).
+- Opening a removed project again (⌘O, recent list, clone) brings it back; before, it stayed hidden from the rail
+  whenever it was not the current project.
+- The tile tooltip no longer covers the menu, and the menu is anchored to the tile's right edge.
+
 ## Remaining
 
 - "Post to GitHub now" pushes only new threads; replies to existing GitHub threads still go out with the review.

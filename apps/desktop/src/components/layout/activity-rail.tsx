@@ -10,7 +10,11 @@ import { repoInitials } from '../../features/welcome/repo-badge';
 import { useActiveRun } from '../../features/claude/claude-runner';
 import { lastLocationFor } from '../../lib/repo-locations';
 import { beginOpening, useOpening } from '../../lib/opening';
-import { PlusIcon, SettingsIcon } from '../ui/icon';
+import { ArrowDownIcon, ArrowUpIcon, CodeIcon, CopyIcon, EditorIcon, ExternalLinkIcon, FolderOpenIcon, FolderSimpleIcon, PlusIcon, SettingsIcon, XIcon } from '../ui/icon';
+import { ContextMenu, MenuItem, MenuLabel, MenuSeparator } from '../ui/popover';
+import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
+import * as tauri from '../../lib/tauri';
+import { useEditorName } from '../../hooks/use-editor-name';
 import { useSidebarShortcut } from './title-bar';
 import { openQuickOpen } from '../../features/palette/quick-open';
 
@@ -89,11 +93,12 @@ interface ProjectTileProps {
   animate: boolean;
   onPointerDown: (event: React.PointerEvent<HTMLButtonElement>, index: number) => void;
   onOpen: (newWindow: boolean) => void;
-  onRemove: () => void;
+  onMenu: (at: { x: number; y: number }) => void;
+  menuOpen: boolean;
 }
 
 function ProjectTile(props: ProjectTileProps) {
-  const { path, index, current, busy, offset, dragging, animate, onPointerDown, onOpen, onRemove, loading } = props;
+  const { path, index, current, busy, offset, dragging, animate, onPointerDown, onOpen, onMenu, loading, menuOpen } = props;
   const spinning = useDelayedFlag(loading, 150);
   const name = repoName(path);
   const shortcut = index < 9 ? `${modKey}${index + 1}` : null;
@@ -108,10 +113,15 @@ function ProjectTile(props: ProjectTileProps) {
         onClick={(event) => onOpen(event.metaKey || event.ctrlKey)}
         onContextMenu={(event) => {
           event.preventDefault();
-          if (current) {
-            return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          onMenu({ x: rect.right + 6, y: rect.top });
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'ContextMenu' || (event.key === 'F10' && event.shiftKey)) {
+            event.preventDefault();
+            const rect = event.currentTarget.getBoundingClientRect();
+            onMenu({ x: rect.right + 4, y: rect.top });
           }
-          onRemove();
         }}
         aria-label={name}
         aria-current={current ? 'page' : undefined}
@@ -125,10 +135,10 @@ function ProjectTile(props: ProjectTileProps) {
         {spinning ? <span className="w-3.5 h-3.5 border-2 border-current/25 border-t-current rounded-full animate-spin" aria-label="Opening" /> : repoInitials(name)}
         {busy && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-claude ring-2 ring-frame" title="Claude is working here" />}
       </button>
-      {!dragging && (
+      {!dragging && !menuOpen && (
         <RailTooltip
           title={name}
-          detail={current ? shortPath(path) : `${shortPath(path)} · drag to reorder · right-click to remove`}
+          detail={`${shortPath(path)} · drag to reorder · right-click for more`}
           shortcut={shortcut}
         />
       )}
@@ -193,10 +203,18 @@ function useProjectOrder(currentPath: string, openingPath: string | null) {
   }, [visible, projects]);
 
   const remove = useCallback((path: string) => {
+    const index = projects.indexOf(path);
     const next = projects.filter((item) => item !== path);
     setOrder(next);
     writeOrder(next);
     void recent.remove(path);
+    return () => {
+      const restored = [...next];
+      restored.splice(Math.max(0, index), 0, path);
+      setOrder(restored);
+      writeOrder(restored);
+      void recent.restore(path);
+    };
   }, [projects, recent]);
 
   return { projects: visible, move, remove };
@@ -225,6 +243,36 @@ function ActivityRail() {
   const [drag, setDrag] = useState<{ from: number; startY: number; dy: number; active: boolean } | null>(null);
   const suppressClick = useRef(false);
   const [settling, setSettling] = useState(false);
+  const [menu, setMenu] = useState<{ path: string; at: { x: number; y: number } } | null>(null);
+  const editor = useEditorName();
+
+  const removeProject = (path: string) => {
+    const wasCurrent = path === nav.repoPath;
+    const index = projects.indexOf(path);
+    const others = projects.filter((item) => item !== path);
+    const undo = remove(path);
+    if (wasCurrent) {
+      const target = others[Math.min(index, others.length - 1)];
+      if (target) {
+        openProject(target);
+      } else {
+        navigate('/');
+      }
+    }
+    toast(`Removed ${repoName(path)} from the sidebar`, {
+      description: 'The folder was not touched.',
+      duration: 8000,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          undo();
+          if (wasCurrent) {
+            openProject(path);
+          }
+        },
+      },
+    });
+  };
 
   const openProject = useCallback((path: string, newWindow = false) => {
     if (path === nav.repoPath && !newWindow) {
@@ -375,10 +423,8 @@ function ActivityRail() {
             animate={drag?.active === true && !settling}
             onPointerDown={handlePointerDown}
             onOpen={(newWindow) => openProject(path, newWindow)}
-            onRemove={() => {
-              remove(path);
-              toast.success(`Removed ${repoName(path)} from the sidebar`);
-            }}
+            onMenu={(at) => setMenu({ path, at })}
+            menuOpen={menu?.path === path}
           />
         ))}
         <div className="group relative w-full flex justify-center mt-1.5">
@@ -403,6 +449,71 @@ function ActivityRail() {
         </button>
         <RailTooltip title="Settings" shortcut={`${modKey},`} />
       </div>
+      {menu && (
+        <ContextMenu position={menu.at} onClose={() => setMenu(null)} width={240}>
+          <ProjectMenuItems
+            path={menu.path}
+            current={menu.path === nav.repoPath}
+            editor={editor}
+            index={projects.indexOf(menu.path)}
+            count={projects.length}
+            onClose={() => setMenu(null)}
+            onOpen={(newWindow) => openProject(menu.path, newWindow)}
+            onMove={(delta) => move(menu.path, projects.indexOf(menu.path) + delta)}
+            onRemove={() => removeProject(menu.path)}
+          />
+        </ContextMenu>
+      )}
     </nav>
+  );
+}
+
+function ProjectMenuItems(props: {
+  path: string;
+  current: boolean;
+  editor: string;
+  index: number;
+  count: number;
+  onClose: () => void;
+  onOpen: (newWindow: boolean) => void;
+  onMove: (delta: number) => void;
+  onRemove: () => void;
+}) {
+  const { path, current, editor, index, count, onClose, onOpen, onMove, onRemove } = props;
+  const run = (action: () => void) => () => {
+    onClose();
+    action();
+  };
+
+  return (
+    <>
+      <MenuLabel>{repoName(path)}</MenuLabel>
+      <MenuItem icon={<FolderOpenIcon size="sm" />} label="Open" disabled={current} onSelect={run(() => onOpen(false))} />
+      <MenuItem icon={<ExternalLinkIcon size="sm" />} label="Open in new window" hint={`${modKey}-click`} onSelect={run(() => onOpen(true))} />
+      <MenuSeparator />
+      <MenuItem icon={<FolderSimpleIcon size="sm" />} label="Reveal in Finder" onSelect={run(() => { revealItemInDir(path).catch(() => undefined); })} />
+      <MenuItem
+        icon={<EditorIcon size="sm" />}
+        label={`Open in ${editor}`}
+        onSelect={run(() => { tauri.openInEditor(path, '').catch((error) => toast.error('Could not open the editor', { description: tauri.errorMessage(error) })); })}
+      />
+      <MenuItem icon={<CodeIcon size="sm" />} label="Open in Terminal" onSelect={run(() => { openPath(path, 'Terminal').catch(() => undefined); })} />
+      <MenuItem icon={<CopyIcon size="sm" />} label="Copy path" onSelect={run(() => { void navigator.clipboard.writeText(path); toast.success('Path copied'); })} />
+      <MenuSeparator />
+      <MenuItem icon={<ArrowUpIcon size="sm" />} label="Move up" disabled={index <= 0} onSelect={run(() => onMove(-1))} />
+      <MenuItem icon={<ArrowDownIcon size="sm" />} label="Move down" disabled={index < 0 || index >= count - 1} onSelect={run(() => onMove(1))} />
+      <MenuSeparator />
+      <button
+        role="menuitem"
+        onClick={run(onRemove)}
+        className="flex items-start gap-2.5 w-full px-2.5 py-1.5 rounded-md text-left hover:bg-deleted/10 cursor-pointer"
+      >
+        <span className="flex w-4 justify-center pt-0.5 text-deleted"><XIcon size="sm" /></span>
+        <span className="min-w-0">
+          <span className="block text-[13px] text-deleted">Remove from sidebar</span>
+          <span className="block text-[11px] text-text-muted">Keeps the folder and its comments</span>
+        </span>
+      </button>
+    </>
   );
 }
