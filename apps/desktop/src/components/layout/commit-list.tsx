@@ -4,6 +4,8 @@ import dayjs from 'dayjs';
 import { type Commit, fetchCommits } from '../../lib/api';
 import { Spinner } from '../icons/spinner';
 import { GitCommitIcon, GitCompareIcon } from '../ui/icon';
+import { ListRow, StatCell } from '../ui/list-row';
+import { DiffStatBar } from '../ui/diff-stat-bar';
 
 interface CommitListProps {
   search: string;
@@ -62,55 +64,31 @@ export function AuthorAvatar(props: { name: string }) {
   );
 }
 
-function CommitStat(props: { commit: Commit }) {
-  const { commit } = props;
-
-  if (commit.additions === 0 && commit.deletions === 0) {
-    return null;
-  }
-  return (
-    <span className="flex items-center justify-end gap-1.5 font-mono text-[11px] tabular-nums">
-      {commit.additions > 0 && <span className="text-added">+{commit.additions}</span>}
-      {commit.deletions > 0 && <span className="text-deleted">−{commit.deletions}</span>}
-    </span>
-  );
-}
-
 function CommitRow(props: { commit: Commit; onOpen: () => void; onCompareFrom: () => void }) {
   const { commit, onOpen, onCompareFrom } = props;
 
   return (
-    <li className="group relative">
-      <button
-        onClick={onOpen}
-        title={`${commit.message}\nReview this commit`}
-        className="grid grid-cols-[minmax(0,1fr)_minmax(0,180px)_64px_96px_84px] items-center gap-4 w-full h-11 px-3 rounded-lg text-left hover:bg-hover transition-colors cursor-pointer"
-      >
-        <span className="flex items-center gap-3 min-w-0">
-          <GitCommitIcon size="sm" className="text-text-muted" />
-          <span className="truncate text-[13px] text-text">{commit.message}</span>
-        </span>
-        <span className="flex items-center gap-2 min-w-0 text-xs text-text-secondary">
+    <ListRow
+      icon={<GitCommitIcon size="sm" className="text-text-muted" />}
+      title={commit.message}
+      tooltip={`${commit.message}\nReview this commit`}
+      meta={
+        <>
           <AuthorAvatar name={commit.author} />
-          <span className="truncate">{commit.author}</span>
-        </span>
-        <code className="font-mono text-[11px] text-text-muted">{commit.shortHash}</code>
-        <span className="text-xs text-text-muted whitespace-nowrap" title={dayjs(commit.date).format('YYYY-MM-DD HH:mm')}>
-          {commit.relativeDate}
-        </span>
-        <span className="group-hover:invisible"><CommitStat commit={commit} /></span>
-      </button>
-      <span className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex">
-        <button
-          onClick={onCompareFrom}
-          className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md bg-raised border border-control-border text-xs text-text hover:bg-control-hover cursor-pointer"
-          title="Review every change made after this commit, up to HEAD"
-        >
-          <GitCompareIcon size="sm" className="text-text-secondary" />
-          Changes since
-        </button>
-      </span>
-    </li>
+          <span className="truncate text-text-secondary">{commit.author}</span>
+          <span aria-hidden>·</span>
+          <code className="shrink-0 font-mono text-[11px]">{commit.shortHash}</code>
+          <span aria-hidden>·</span>
+          <span className="shrink-0 whitespace-nowrap" title={dayjs(commit.date).format('YYYY-MM-DD HH:mm')}>{commit.relativeDate}</span>
+        </>
+      }
+      stats={<StatCell additions={commit.additions} deletions={commit.deletions} bar={<DiffStatBar additions={commit.additions} deletions={commit.deletions} />} />}
+      onClick={onOpen}
+      actions={[
+        { label: 'Review this commit', icon: <GitCommitIcon size="sm" />, onSelect: onOpen },
+        { label: 'Changes since this commit', icon: <GitCompareIcon size="sm" />, onSelect: onCompareFrom },
+      ]}
+    />
   );
 }
 
@@ -180,7 +158,7 @@ export function CommitList(props: CommitListProps) {
       return (
         <ul>
           {Array.from({ length: 6 }, (_, i) => (
-            <li key={i} className="flex items-center gap-4 h-11 px-3">
+            <li key={i} className="flex items-center gap-4 h-[52px] px-3">
               <div className="h-3 flex-1 max-w-[50%] rounded bg-fill animate-pulse" />
               <div className="h-3 w-32 rounded bg-fill animate-pulse" />
               <div className="h-3 w-16 rounded bg-fill animate-pulse" />

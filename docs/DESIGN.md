@@ -114,8 +114,9 @@ not a redesign.
   (current checked, ahead/behind), Remote branches (checked out as a local tracking branch), Pull requests (#, title,
   author, checks) and "Check out pull request #N" for a typed number or URL. Switching with uncommitted changes asks
   first (Cancel / Stash and switch). There is no separate Pull requests toolbar button.
-- Home (`/overview`, `components/layout/dashboard.tsx`; also shown for Changes when the tree is clean): full width.
-  Repo + branch/sync, Working cards, then the commit history (search, Compare popover, wide day-grouped rows).
+- Home (`/overview`, `components/layout/dashboard.tsx`; also shown for Changes when the tree is clean), max 1000px:
+  header with labelled secondary buttons, a quiet status line, one "Up next" hero (the only emphasised surface),
+  a To review list and History, all using `ListRow` (row = action, stats flush right, chevron / ⋯).
 - Claude: "Ask Claude to review" split button with focus menu and "Resolve open comments"; a status pill
   ("Claude is reviewing… · 3 comments · 0:42", Stop) replaces it while a run is active; "Resolve with Claude" on
   each open thread; "Claude Code is working…" inside threads being addressed; file-write approval modal with a
@@ -132,8 +133,9 @@ not a redesign.
   Connections: Claude Code, GitHub; Diffity: About), pane title + close, grouped label/hint rows with a fixed control column,
   theme swatches, status cards for Claude Code and the GitHub account, inline confirm for sign-out.
 - Pull requests: the branch switcher and the ref-picker entry check one out; a 40px PR bar (bottom border) sits above
-  the diff: state icon · title · #N … checks icon · Sync comments (badge) · Open on GitHub · Details chevron (· Back to
-  <branch>). Details expands a panel with branches, author, checks, changes and the description.
+  the diff: state icon · title · #N · checks icon … Sync comments (badge) · GitHub · Details (· Back to <branch>).
+  Details opens a 920px dialog: description on the left, a tinted sidebar with status, branches, checks, changes,
+  GitHub comments and actions.
 - `@claude` autocomplete in comment and reply forms.
 - Comments across views: toolbar "Comments N" chip (all open threads of the repo, `c`) opens a right-hand drawer grouped
   by view then file; a neutral status-bar pill points at open comments in other views; outdated / committed

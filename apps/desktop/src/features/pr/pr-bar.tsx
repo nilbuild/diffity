@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import { cn } from '../../lib/cn';
@@ -7,12 +8,14 @@ import { useRepoNav } from '../../hooks/use-repo';
 import { useGitHubPr } from '../../hooks/use-repo-state';
 import { MarkdownContent } from '../../components/layout/markdown-content';
 import { Spinner } from '../../components/icons/spinner';
-import { buttonOutline } from '../../components/ui/button-styles';
+import { buttonClaude, buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
+import { DiffStatBar } from '../../components/ui/diff-stat-bar';
+import { enqueueClaude } from '../claude/claude-runner';
 import { useCopy } from '../../hooks/use-copy';
 import type { CommentThread } from '../../components/comments/types';
 import { PrStateIcon, ReviewDecision, headLabel, relative } from './pr-meta';
 import { prRefFor, pullPrComments, returnFromPullRequest, returnLabel, useCheckoutState, useReturnPoint } from './pr-checkout';
-import { ArrowLeftIcon, CheckIcon, ChevronDownIcon, CopyIcon, DownloadIcon, ExternalLinkIcon, XIcon } from '../../components/ui/icon';
+import { ArrowLeftIcon, CheckIcon, CommentIcon, CopyIcon, GitHubIcon, RefreshIcon, SparkleIcon, XIcon } from '../../components/ui/icon';
 
 const autoPulled = new Set<string>();
 const lastSynced = new Map<string, number>();
@@ -52,8 +55,6 @@ function useCommentSync(repoPath: string, pr: PullRequest | null) {
   return { syncing, sync, syncedAt: key ? lastSynced.get(key) ?? null : null };
 }
 
-const iconButton =
-  'relative inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-hover hover:text-text disabled:opacity-50';
 
 function stateLabel(pr: PullRequest): string {
   if (pr.state === 'MERGED') {
@@ -94,14 +95,153 @@ function BranchChip(props: { name: string }) {
   );
 }
 
-function DetailRow(props: { label: string; children: React.ReactNode }) {
+function SideSection(props: { label: string; children: ReactNode }) {
   const { label, children } = props;
 
   return (
-    <div className="flex items-start gap-3 min-h-6">
-      <span className="w-20 shrink-0 pt-0.5 text-xs text-text-muted">{label}</span>
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-xs text-text-secondary">{children}</div>
-    </div>
+    <section className="px-5 py-4 border-b border-border-muted last:border-b-0">
+      <h4 className="mb-2 text-[11px] font-medium text-text-muted">{label}</h4>
+      <div className="flex flex-col gap-2 text-xs text-text-secondary">{children}</div>
+    </section>
+  );
+}
+
+interface DetailsDialogProps {
+  pr: PullRequest;
+  repoPath: string;
+  prRef: string;
+  syncing: boolean;
+  syncedAt: number | null;
+  unsynced: number;
+  onSync: () => void;
+  onReview: () => void;
+  back: { label: string; title: string; onBack: () => void; disabled: boolean } | null;
+  onClose: () => void;
+}
+
+function PrDetailsDialog(props: DetailsDialogProps) {
+  const { pr, repoPath, prRef, syncing, syncedAt, unsynced, onSync, onReview, back, onClose } = props;
+  const body = pr.body.trim();
+  const checks = checksInfo(pr.checks);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [onClose]);
+
+  const askClaude = async () => {
+    const session = await tauri.getSession(repoPath, prRef).catch(() => null);
+    enqueueClaude({ kind: 'review', ref: prRef }, { repoPath, sessionId: session?.id ?? null });
+    onClose();
+    onReview();
+  };
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30 p-6 font-sans"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div role="dialog" aria-label={`Pull request #${pr.number}`} className="flex w-[920px] max-w-full h-[min(640px,85vh)] rounded-xl border border-overlay-border bg-bg overflow-hidden animate-fade-in">
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="px-6 pt-5 pb-4 border-b border-border-muted">
+            <div className="flex items-start gap-3">
+              <h2 className="flex-1 min-w-0 text-[18px] leading-6 font-semibold text-text">
+                {pr.title} <span className="font-normal text-text-muted">#{pr.number}</span>
+              </h2>
+              <button onClick={onClose} className="w-7 h-7 -mr-2 -mt-1 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover cursor-pointer" title="Close (Esc)">
+                <XIcon size="md" />
+              </button>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-text-secondary">
+              <span className="inline-flex items-center gap-1.5 h-5 px-2 rounded-full bg-fill font-medium text-text">
+                <PrStateIcon pr={pr} className="h-3.5 w-3.5" />
+                {stateLabel(pr)}
+              </span>
+              <span><span className="font-medium text-text">{pr.author}</span> wants to merge into <code className="font-mono">{pr.baseRef}</code></span>
+              {pr.createdAt && <span className="text-text-muted">· opened {relative(pr.createdAt)}</span>}
+            </div>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 text-[13px] leading-relaxed text-text-secondary">
+            {body ? <MarkdownContent content={body} /> : <p className="text-text-muted">No description provided.</p>}
+          </div>
+        </div>
+        <aside className="w-[300px] shrink-0 border-l border-border-muted bg-sidebar overflow-y-auto">
+          <SideSection label="Status">
+            <span className="flex items-center gap-2 text-text">
+              <PrStateIcon pr={pr} className="h-3.5 w-3.5" />
+              {stateLabel(pr)}
+            </span>
+            <ReviewDecision decision={pr.reviewDecision} />
+          </SideSection>
+          <SideSection label="Branches">
+            <span className="flex flex-wrap items-center gap-1.5">
+              <BranchChip name={pr.baseRef} />
+              <span className="text-text-muted">←</span>
+              <BranchChip name={headLabel(pr)} />
+            </span>
+            {pr.isCrossRepository && pr.headRepo && <span className="text-text-muted">From fork {pr.headRepo}</span>}
+          </SideSection>
+          <SideSection label="Checks">
+            {checks ? <span className="flex items-center gap-2">{checks.icon}{checks.label}</span> : <span className="text-text-muted">No checks reported</span>}
+          </SideSection>
+          <SideSection label="Changes">
+            <span className="flex items-center gap-2.5 tabular-nums">
+              <span>{pr.changedFiles} file{pr.changedFiles === 1 ? '' : 's'}</span>
+              <span className="font-mono text-added">+{pr.additions}</span>
+              <span className="font-mono text-deleted">−{pr.deletions}</span>
+              <DiffStatBar additions={pr.additions} deletions={pr.deletions} />
+            </span>
+            <button
+              onClick={() => {
+                onClose();
+                onReview();
+              }}
+              className={cn(buttonPrimary, 'self-start')}
+            >
+              Review changes
+            </button>
+          </SideSection>
+          <SideSection label="Comments on GitHub">
+            <span>
+              {pr.reviewThreadCount} review thread{pr.reviewThreadCount === 1 ? '' : 's'}
+              {unsynced > 0 ? ` · ${unsynced} not pulled yet` : ''}
+            </span>
+            <span className="text-text-muted">{syncedAt ? `Last synced ${relative(new Date(syncedAt).toISOString())}` : 'Not synced yet'}</span>
+            <button onClick={onSync} disabled={syncing} className={cn(buttonOutline, 'self-start')}>
+              {syncing ? <Spinner className="h-3.5 w-3.5" /> : <RefreshIcon size="sm" className="text-text-secondary" />}
+              {syncing ? 'Syncing…' : 'Sync now'}
+            </button>
+          </SideSection>
+          <SideSection label="Actions">
+            <a href={pr.url} className={cn(buttonGhost, 'justify-start -ml-2.5')}>
+              <GitHubIcon size="sm" />
+              Open on GitHub
+            </a>
+            {back && (
+              <button onClick={back.onBack} disabled={back.disabled} className={cn(buttonGhost, 'justify-start -ml-2.5')} title={back.title}>
+                <ArrowLeftIcon size="sm" />
+                <span className="truncate">Back to {back.label}</span>
+              </button>
+            )}
+            <button onClick={() => void askClaude()} className={cn(buttonClaude, 'self-start')}>
+              <SparkleIcon size="sm" />
+              Ask Claude to review
+            </button>
+          </SideSection>
+        </aside>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -113,20 +253,27 @@ export function PrBar(props: { diffRef: string; threads?: CommentThread[] }) {
   const onPr = !!pr && diffRef === prRefFor(pr);
   const { data: point } = useReturnPoint(nav.repoPath);
   const busy = useCheckoutState((state) => state.busy);
-  const [expanded, setExpanded] = useState(false);
-  const [showBody, setShowBody] = useState(true);
+  const [dialog, setDialog] = useState(false);
   const { syncing, sync, syncedAt } = useCommentSync(nav.repoPath, onPr ? pr : null);
 
   if (!onPr || !pr) {
     return null;
   }
 
-  const body = pr.body.trim();
+  const prRef = prRefFor(pr);
   const showBack = !!point && point.prNumber === pr.number && (point.branch ?? point.sha) !== null;
   const checks = checksInfo(pr.checks);
   const synced = threads.filter((thread) => thread.githubThreadId).length;
   const unsynced = Math.max(0, pr.reviewThreadCount - synced);
-  const syncTitle = `Pull review comments from GitHub (read-only). ${syncedAt ? `Last synced ${relative(new Date(syncedAt).toISOString())}` : 'Not synced yet'}${unsynced > 0 ? ` · ${unsynced} on GitHub not here yet` : ''}`;
+  const syncTitle = `Pull review comments from GitHub into this view (read-only). ${syncedAt ? `Last synced ${relative(new Date(syncedAt).toISOString())}` : 'Not synced yet'}${unsynced > 0 ? ` · ${unsynced} not pulled yet` : ''}`;
+  const back = showBack && point
+    ? {
+      label: returnLabel(point),
+      title: `Check out ${returnLabel(point)} again${point.stash?.sha ? ' and restore your stashed changes' : ''}`,
+      onBack: () => void returnFromPullRequest(nav.repoPath, nav.toDiff),
+      disabled: busy !== null,
+    }
+    : null;
 
   return (
     <div className="shrink-0 border-b border-border-muted bg-bg font-sans">
@@ -134,92 +281,56 @@ export function PrBar(props: { diffRef: string; threads?: CommentThread[] }) {
         <span className="flex shrink-0 items-center" title={stateLabel(pr)}>
           <PrStateIcon pr={pr} className="h-4 w-4" />
         </span>
-        <span className="min-w-0 truncate text-[13px] font-semibold text-text" title={pr.title}>
+        <button
+          onClick={() => setDialog(true)}
+          className="min-w-0 truncate text-[13px] font-semibold text-text hover:underline decoration-text-muted/50 underline-offset-2 cursor-pointer text-left"
+          title="Show pull request details"
+        >
           {pr.title}
-        </span>
+        </button>
         <span className="shrink-0 text-[13px] text-text-muted tabular-nums">#{pr.number}</span>
-        <span className="min-w-2 flex-1" />
         {checks && (
-          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center" title={checks.label}>
+          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center" title={checks.label}>
             {checks.icon}
           </span>
         )}
-        <button onClick={() => void sync(true)} disabled={syncing} className={iconButton} title={syncTitle} aria-label="Sync comments from GitHub">
-          {syncing ? <Spinner className="h-3.5 w-3.5" /> : <DownloadIcon size="md" />}
+        <span className="min-w-2 flex-1" />
+        <button onClick={() => void sync(true)} disabled={syncing} className={cn(buttonGhost, 'relative h-7 px-2')} title={syncTitle}>
+          {syncing ? <Spinner className="h-3.5 w-3.5" /> : <CommentIcon size="sm" />}
+          {syncing ? 'Syncing…' : 'Sync comments'}
           {!syncing && unsynced > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-[3px] rounded-full bg-text text-bg text-[9px] font-semibold leading-[15px] text-center tabular-nums">
+            <span className="min-w-[16px] h-4 px-1 rounded-full bg-text text-bg text-[10px] font-semibold leading-4 text-center tabular-nums">
               {unsynced > 99 ? '99+' : unsynced}
             </span>
           )}
         </button>
-        <a href={pr.url} className={iconButton} title="Open on GitHub" aria-label="Open on GitHub">
-          <ExternalLinkIcon size="md" />
+        <a href={pr.url} className={cn(buttonGhost, 'h-7 px-2')} title="Open this pull request on GitHub">
+          <GitHubIcon size="sm" />
+          GitHub
         </a>
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className={cn(iconButton, expanded && 'bg-hover text-text')}
-          title={expanded ? 'Hide details' : 'Details: branches, author, checks and description'}
-          aria-expanded={expanded}
-          aria-label="Pull request details"
-        >
-          <ChevronDownIcon size="md" className={cn('transition-transform', expanded && 'rotate-180')} />
+        <button onClick={() => setDialog(true)} className={cn(buttonOutline, 'h-7 px-2.5')} title="Description, branches, checks and actions">
+          Details
         </button>
-        {showBack && point && (
-          <button
-            onClick={() => void returnFromPullRequest(nav.repoPath, nav.toDiff)}
-            disabled={busy !== null}
-            className={cn(buttonOutline, 'ml-1 h-7 px-2')}
-            title={`Check out ${returnLabel(point)} again${point.stash?.sha ? ' and restore your stashed changes' : ''}`}
-          >
+        {back && (
+          <button onClick={back.onBack} disabled={back.disabled} className={cn(buttonOutline, 'ml-1 h-7 px-2')} title={back.title}>
             <ArrowLeftIcon size="sm" />
-            <span className="max-w-[140px] truncate">Back to {returnLabel(point)}</span>
+            <span className="max-w-[140px] truncate">Back to {back.label}</span>
           </button>
         )}
       </div>
-      {expanded && (
-        <div className="max-h-[45vh] overflow-y-auto border-t border-border-muted bg-bg-secondary px-4 py-3 animate-fade-in">
-          <div className="flex flex-col gap-1.5">
-            <DetailRow label="Status">
-              <span className="font-medium text-text">{stateLabel(pr)}</span>
-              <ReviewDecision decision={pr.reviewDecision} />
-            </DetailRow>
-            <DetailRow label="Branches">
-              <BranchChip name={pr.baseRef} />
-              <span className="text-text-muted">←</span>
-              <BranchChip name={headLabel(pr)} />
-              {pr.isCrossRepository && pr.headRepo && <span className="text-text-muted">from fork {pr.headRepo}</span>}
-            </DetailRow>
-            <DetailRow label="Author">
-              <span className="text-text">{pr.author}</span>
-              {pr.createdAt && <span className="text-text-muted">opened {relative(pr.createdAt)}</span>}
-              {pr.updatedAt && <span className="text-text-muted">· updated {relative(pr.updatedAt)}</span>}
-            </DetailRow>
-            <DetailRow label="Checks">
-              {checks ? <>{checks.icon}<span>{checks.label}</span></> : <span className="text-text-muted">No checks reported</span>}
-            </DetailRow>
-            <DetailRow label="Changes">
-              <span>{pr.changedFiles} file{pr.changedFiles === 1 ? '' : 's'}</span>
-              <span className="text-added">+{pr.additions}</span>
-              <span className="text-deleted">−{pr.deletions}</span>
-              <span className="text-text-muted">· {pr.reviewThreadCount} review thread{pr.reviewThreadCount === 1 ? '' : 's'} on GitHub</span>
-            </DetailRow>
-          </div>
-          <div className="mt-3 border-t border-border-muted pt-2">
-            <button
-              onClick={() => setShowBody(!showBody)}
-              className="flex items-center gap-1.5 h-6 text-xs font-medium text-text-secondary hover:text-text cursor-pointer"
-              aria-expanded={showBody}
-            >
-              <ChevronDownIcon size="xs" className={cn('transition-transform', !showBody && '-rotate-90')} />
-              Description
-            </button>
-            {showBody && (
-              <div className="mt-1 text-[13px] leading-relaxed text-text-secondary">
-                {body ? <MarkdownContent content={body} /> : <span className="text-text-muted">No description provided.</span>}
-              </div>
-            )}
-          </div>
-        </div>
+      {dialog && (
+        <PrDetailsDialog
+          pr={pr}
+          repoPath={nav.repoPath}
+          prRef={prRef}
+          syncing={syncing}
+          syncedAt={syncedAt}
+          unsynced={unsynced}
+          onSync={() => void sync(true)}
+          onReview={() => nav.toDiff(prRef)}
+          back={back}
+          onClose={() => setDialog(false)}
+        />
       )}
     </div>
   );

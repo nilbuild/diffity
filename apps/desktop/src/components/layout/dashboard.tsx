@@ -1,22 +1,36 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useInfo } from '../../hooks/use-info';
 import { useTheme } from '../../hooks/use-theme';
-import { useBaseBranch, useBranches, useGitHubPr, useGitStatus } from '../../hooks/use-repo-state';
+import { useBaseBranch, useBranches, useGitHubAuth, useGitHubPr, useGitStatus, useRecentCommits } from '../../hooks/use-repo-state';
+import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { openUrl } from '@tauri-apps/plugin-opener';
+import { diffOptions } from '../../queries/diff';
+import * as tauri from '../../lib/tauri';
+import { enqueueClaude } from '../../features/claude/claude-runner';
+import { usePullRequests } from '../../features/pr/pull-requests-dialog';
+import { checkoutPullRequest } from '../../features/pr/pr-checkout';
+import { BranchSwitcher } from '../../features/pr/branch-switcher';
+import { useEditorName } from '../../hooks/use-editor-name';
+import { TREE_REF } from '../../lib/types';
 import { CommitList } from './commit-list';
+import { DiffStatBar } from '../ui/diff-stat-bar';
+import { ListRow, StatCell } from '../ui/list-row';
+import { relative } from '../../features/pr/pr-meta';
 import { Spinner } from '../icons/spinner';
 import { hideStaticSplash } from './skeleton';
 import { RepoTitle, TitleBar, Workspace } from './title-bar';
 import { OptionsMenu } from './options-menu';
 import { StatusBar } from './status-bar';
-import { commitRef } from '../../lib/api';
+import { commitRef, errorMessage, openInEditor } from '../../lib/api';
 import { HOME_REF, prDiffRef, RefMenu } from './ref-menu';
 import { useRepoNav } from '../../hooks/use-repo';
 import { isOpenThread, useRepoThreads } from '../../hooks/use-repo-threads';
-import { openComments } from '../../lib/ui-store';
+import { openSettingsAt } from '../../lib/ui-store';
 import { CommentsButton } from '../../features/comments/comments-button';
 import { cn } from '../../lib/cn';
-import { buttonIconSmall, buttonOutline, buttonPrimary, inputField } from '../ui/button-styles';
-import { ChangesIcon, ChevronDownIcon, CommentIcon, FolderSimpleIcon, GitCompareIcon, GitPullRequestIcon, SearchIcon, SwapIcon, XIcon } from '../ui/icon';
+import { buttonClaude, buttonIconSmall, buttonOutline, buttonPrimary, inputField } from '../ui/button-styles';
+import { ChangesIcon, ChevronDownIcon, CommentIcon, EditorIcon, FolderSimpleIcon, GitCommitIcon, GitCompareIcon, GitPullRequestIcon, SearchIcon, SparkleIcon, SwapIcon, XIcon, GitHubIcon } from '../ui/icon';
 import { Popover } from '../ui/popover';
 
 interface DashboardProps {
@@ -163,53 +177,86 @@ function ComparePopover(props: { onNavigate: (ref: string) => void; defaultBase:
   );
 }
 
-function WorkCard(props: { icon: ReactNode; label: string; title: ReactNode; detail?: ReactNode; tone?: string; onClick: () => void }) {
-  const { icon, label, title, detail, tone, onClick } = props;
+type DiffSummary = { files: number; additions: number; deletions: number };
+
+function useDiffSummary(ref: string | null): { summary: DiffSummary | null; loading: boolean } {
+  const query = useQuery({ ...diffOptions(false, ref ?? undefined), enabled: !!ref });
+  if (!ref) {
+    return { summary: null, loading: false };
+  }
+  if (!query.data) {
+    return { summary: null, loading: query.isLoading };
+  }
+  return {
+    summary: { files: query.data.files.length, additions: query.data.stats.totalAdditions, deletions: query.data.stats.totalDeletions },
+    loading: false,
+  };
+}
+
+function StatLine(props: { summary: DiffSummary }) {
+  const { summary } = props;
 
   return (
-    <button
-      onClick={onClick}
-      className="group flex flex-col items-start gap-2 min-w-0 p-4 rounded-xl border border-border bg-bg text-left hover:border-control-border hover:bg-bg-secondary transition-colors cursor-pointer"
-    >
-      <span className="flex items-center gap-2 text-xs font-medium text-text-secondary">
-        <span className={cn('flex items-center justify-center w-6 h-6 rounded-md bg-fill', tone ?? 'text-text-secondary')}>{icon}</span>
-        {label}
-      </span>
-      <span className="w-full text-[13px] font-medium leading-5 text-text line-clamp-2">{title}</span>
-      {detail && <span className="w-full text-xs text-text-muted truncate">{detail}</span>}
-    </button>
+    <span className="inline-flex items-center gap-2.5 text-xs tabular-nums">
+      <span className="text-text-secondary">{summary.files} file{summary.files === 1 ? '' : 's'}</span>
+      {summary.additions > 0 && <span className="font-mono text-added">+{summary.additions}</span>}
+      {summary.deletions > 0 && <span className="font-mono text-deleted">−{summary.deletions}</span>}
+      <DiffStatBar additions={summary.additions} deletions={summary.deletions} />
+    </span>
   );
 }
 
-function syncLine(status: { upstream: string | null; ahead: number; behind: number } | undefined) {
-  if (!status?.upstream) {
-    return null;
-  }
-  if (status.ahead === 0 && status.behind === 0) {
-    return `up to date with ${status.upstream}`;
-  }
-  const parts: string[] = [];
-  if (status.ahead > 0) {
-    parts.push(`${status.ahead} to push`);
-  }
-  if (status.behind > 0) {
-    parts.push(`${status.behind} to pull`);
-  }
-  return parts.join(', ');
+interface Candidate {
+  key: string;
+  ref: string;
+  icon: ReactNode;
+  eyebrow: string;
+  title: string;
+  explain: string;
+  summary: DiffSummary | null;
 }
 
-function prState(details: { pr?: { state: string; isDraft: boolean } | null }) {
-  const pr = details.pr;
-  if (!pr) {
-    return { label: 'Open', tone: 'text-added' };
-  }
-  if (pr.state === 'MERGED') {
-    return { label: 'Merged', tone: 'text-[#8250df]' };
-  }
-  if (pr.state === 'CLOSED') {
-    return { label: 'Closed', tone: 'text-deleted' };
-  }
-  return pr.isDraft ? { label: 'Draft', tone: 'text-text-secondary' } : { label: 'Open', tone: 'text-added' };
+function Hero(props: { item: Candidate; sessionRepo: string; onReview: (ref: string) => void }) {
+  const { item, sessionRepo, onReview } = props;
+
+  const askClaude = async () => {
+    const session = await tauri.getSession(sessionRepo, item.ref).catch(() => null);
+    enqueueClaude({ kind: 'review', ref: item.ref }, { repoPath: sessionRepo, sessionId: session?.id ?? null });
+    onReview(item.ref);
+  };
+
+  return (
+    <section className="mt-6 rounded-xl border border-border bg-bg-secondary px-6 py-5">
+      <div className="flex items-center gap-2 text-xs font-medium text-text-secondary">
+        {item.icon}
+        Up next · {item.eyebrow}
+      </div>
+      <h2 className="mt-2 text-[18px] leading-6 font-semibold text-text line-clamp-2">{item.title}</h2>
+      <p className="mt-1 text-[13px] text-text-secondary">{item.explain}</p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button onClick={() => onReview(item.ref)} className={buttonPrimary}>
+          Review
+        </button>
+        <button onClick={() => void askClaude()} className={buttonClaude}>
+          <SparkleIcon size="sm" />
+          Ask Claude to review
+        </button>
+        {item.summary && <span className="ml-auto"><StatLine summary={item.summary} /></span>}
+      </div>
+    </section>
+  );
+}
+
+function SectionTitle(props: { children: ReactNode; right?: ReactNode }) {
+  const { children, right } = props;
+
+  return (
+    <div className="flex items-center gap-3 h-8">
+      <h3 className="text-[13px] font-semibold text-text">{children}</h3>
+      <span className="flex-1" />
+      {right}
+    </div>
+  );
 }
 
 export function Dashboard(props: DashboardProps) {
@@ -218,27 +265,96 @@ export function Dashboard(props: DashboardProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: info } = useInfo();
   const { data: status } = useGitStatus();
-  const { details } = useGitHubPr();
+  const { details, hasRemote } = useGitHubPr();
+  const { data: auth } = useGitHubAuth();
   const { data: repoThreads } = useRepoThreads();
   const branch = status?.branch ?? info?.branch ?? null;
   const base = useBaseBranch(details?.baseRef ?? null, branch);
   const [search, setSearch] = useState('');
   const [searching, setSearching] = useState(false);
+  const { data: recent } = useRecentCommits(1);
+  const editor = useEditorName();
 
   useEffect(() => {
     hideStaticSplash();
   }, []);
 
   const uncommitted = status ? status.staged + status.unstaged + status.untracked : 0;
-  const showBranch = !details && base && branch && branch !== base && `origin/${branch}` !== base;
-  const openThreads = (repoThreads ?? []).filter(isOpenThread);
-  const claudeOpen = openThreads.filter((thread) => thread.authorType === 'agent').length;
-  const sync = syncLine(status);
-  const pr = details ? prState(details) : null;
+  const branchRef = !details && base && branch && branch !== base && `origin/${branch}` !== base ? `${base}...HEAD` : null;
+  const prRef = details ? prDiffRef(details) : null;
+  const last = recent?.commits[0] ?? null;
 
-  const uncommittedDetail = status
-    ? [status.staged ? `${status.staged} staged` : null, status.unstaged ? `${status.unstaged} unstaged` : null, status.untracked ? `${status.untracked} new` : null].filter(Boolean).join(' · ')
-    : null;
+  const work = useDiffSummary(uncommitted > 0 ? 'work' : null);
+  const prDiff = useDiffSummary(prRef);
+  const branchDiff = useDiffSummary(branchRef);
+  const lastDiff = useDiffSummary(last ? commitRef(last.hash) : null);
+  const prs = usePullRequests(hasRemote && !!auth?.authenticated);
+
+  const candidates: Candidate[] = [];
+  if (uncommitted > 0) {
+    const files = work.summary?.files ?? uncommitted;
+    candidates.push({
+      key: 'work', ref: 'work', icon: <ChangesIcon size="sm" />, eyebrow: 'Uncommitted changes',
+      title: `${files} file${files === 1 ? '' : 's'} changed since your last commit`,
+      explain: [status?.staged ? `${status.staged} staged` : null, status?.unstaged ? `${status.unstaged} unstaged` : null, status?.untracked ? `${status.untracked} new` : null].filter(Boolean).join(' · '),
+      summary: work.summary,
+    });
+  }
+  if (details && prRef) {
+    candidates.push({
+      key: 'pr', ref: prRef, icon: <GitPullRequestIcon size="sm" className="text-added" />, eyebrow: `Pull request #${details.prNumber}`,
+      title: details.prTitle,
+      explain: `${details.pr?.author ? `by ${details.pr.author} · ` : ''}${branch ?? ''} → ${details.baseRef}`,
+      summary: prDiff.summary,
+    });
+  }
+  if (branchRef && base && branchDiff.summary && branchDiff.summary.files > 0) {
+    candidates.push({
+      key: 'branch', ref: branchRef, icon: <GitCompareIcon size="sm" />, eyebrow: 'This branch',
+      title: `${branch} vs ${base.replace(/^origin\//, '')}`,
+      explain: 'Everything on this branch since it split from its base',
+      summary: branchDiff.summary,
+    });
+  }
+  if (last) {
+    candidates.push({
+      key: 'last', ref: commitRef(last.hash), icon: <GitCommitIcon size="sm" />, eyebrow: 'Latest commit',
+      title: last.message,
+      explain: `${last.shortHash} · ${last.author} · ${last.relativeDate}`,
+      summary: lastDiff.summary,
+    });
+  }
+  const askClaudeFor = async (ref: string) => {
+    const session = await tauri.getSession(nav.repoPath, ref).catch(() => null);
+    enqueueClaude({ kind: 'review', ref }, { repoPath: nav.repoPath, sessionId: session?.id ?? null });
+    onNavigate(ref);
+  };
+
+  const [hero, ...rest] = candidates;
+  const queue = rest.filter((item) => item.key !== 'last');
+
+  const signedOutEarly = hasRemote && !!auth && !auth.authenticated;
+  const openThreads = (repoThreads ?? []).filter(isOpenThread);
+  const threadGroups = new Map<string, { label: string; count: number; claude: number }>();
+  for (const thread of openThreads) {
+    const group = threadGroups.get(thread.ref) ?? { label: thread.refLabel, count: 0, claude: 0 };
+    group.count += 1;
+    if (thread.authorType === 'agent') {
+      group.claude += 1;
+    }
+    threadGroups.set(thread.ref, group);
+  }
+  const otherPrs = signedOutEarly ? [] : (prs.data ?? []).filter((pr) => pr.number !== details?.prNumber).slice(0, 5);
+
+  const statusParts: ReactNode[] = [];
+  statusParts.push(uncommitted > 0 ? `${uncommitted} uncommitted file${uncommitted === 1 ? '' : 's'}` : 'Working tree clean');
+  statusParts.push(openThreads.length > 0 ? `${openThreads.length} open comment${openThreads.length === 1 ? '' : 's'}` : 'No open comments');
+  if (status?.upstream) {
+    statusParts.push(<span key="sync" className="tabular-nums">↑{status.ahead} ↓{status.behind} with {status.upstream}</span>);
+  }
+
+  const signedOut = signedOutEarly;
+  const hasQueue = queue.length > 0 || threadGroups.size > 0 || otherPrs.length > 0 || signedOut;
 
   return (
     <div className="flex flex-col h-screen bg-frame text-text font-sans">
@@ -256,101 +372,156 @@ export function Dashboard(props: DashboardProps) {
 
       <Workspace>
         <main className="flex-1 min-h-0 overflow-y-auto">
-          <div className="max-w-[1120px] mx-auto px-8 pt-8 pb-12">
-            <div className="flex items-end justify-between gap-4">
-              <div className="min-w-0">
-                <h1 className="text-[18px] leading-6 font-semibold text-text truncate">{info?.name ?? 'Repository'}</h1>
-                <p className="mt-1 text-[13px] text-text-secondary">
-                  {branch ? <>On <span className="font-mono text-xs text-text">{branch}</span>{sync ? `, ${sync}` : ''}</> : 'Detached HEAD'}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button onClick={() => nav.toTree()} className={buttonOutline}>
-                  <FolderSimpleIcon size="sm" className="text-text-secondary" />
-                  Browse files
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3">
-              <WorkCard
-                icon={<ChangesIcon size="sm" />}
-                label="Uncommitted changes"
-                title={uncommitted > 0 ? `${uncommitted} file${uncommitted === 1 ? '' : 's'} changed` : 'Working tree is clean'}
-                detail={uncommitted > 0 ? uncommittedDetail : 'New edits show up here as you make them'}
-                tone={uncommitted > 0 ? 'text-modified' : undefined}
-                onClick={() => onNavigate('work')}
-              />
-              {details && pr && (
-                <WorkCard
-                  icon={<GitPullRequestIcon size="sm" />}
-                  label={`Pull request #${details.prNumber} · ${pr.label}`}
-                  title={details.prTitle}
-                  detail={`${branch ?? ''} → ${details.baseRef}`}
-                  tone={pr.tone}
-                  onClick={() => onNavigate(prDiffRef(details))}
-                />
+          <div className="max-w-[1000px] mx-auto px-8 pt-7 pb-12">
+            <header className="flex items-center gap-3">
+              <h1 className="text-[18px] leading-6 font-semibold text-text truncate">{info?.name ?? 'Repository'}</h1>
+              {branch && (
+                <BranchSwitcher branch={branch} className="inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-xs text-text-secondary" />
               )}
-              {showBranch && base && (
-                <WorkCard
-                  icon={<GitCompareIcon size="sm" />}
-                  label="This branch"
-                  title={`${branch} vs ${base.replace(/^origin\//, '')}`}
-                  detail="Every commit since the branches split"
-                  onClick={() => onNavigate(`${base}...HEAD`)}
-                />
-              )}
-              <WorkCard
-                icon={<CommentIcon size="sm" />}
-                label="Open comments"
-                title={openThreads.length > 0 ? `${openThreads.length} open comment${openThreads.length === 1 ? '' : 's'}` : 'No open comments'}
-                detail={claudeOpen > 0 ? `${claudeOpen} from Claude` : 'Across every view of this repository'}
-                tone={claudeOpen > 0 ? 'text-claude' : undefined}
-                onClick={openComments}
-              />
-            </div>
-
-            <div className="mt-10 flex items-center gap-3">
-              <h2 className="text-[15px] font-semibold text-text">History</h2>
               <span className="flex-1" />
-              <div className="relative w-[280px] max-w-[40vw]">
-                <SearchIcon size="sm" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
-                <input
-                  autoComplete="off"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  type="text"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape') {
-                      setSearch('');
-                    }
-                  }}
-                  placeholder="Search commits"
-                  className={cn(inputField, 'pl-8 pr-8')}
+              <button onClick={() => nav.toTree()} className={cn(buttonOutline, 'h-7')}>
+                <FolderSimpleIcon size="sm" className="text-text-secondary" />
+                Browse files
+              </button>
+              <button
+                onClick={() => {
+                  openInEditor('').catch((error) => toast.error('Could not open the editor', { description: errorMessage(error) }));
+                }}
+                className={cn(buttonOutline, 'h-7')}
+                title={`Open the repository folder in ${editor}`}
+              >
+                <EditorIcon size="sm" className="text-text-secondary" />
+                Open in {editor}
+              </button>
+            </header>
+            <p className="mt-1 text-xs text-text-muted flex flex-wrap items-center gap-x-2">
+              {statusParts.map((part, index) => (
+                <span key={index} className="inline-flex items-center gap-2">
+                  {index > 0 && <span aria-hidden>·</span>}
+                  {part}
+                </span>
+              ))}
+            </p>
+
+            {hero && <Hero item={hero} sessionRepo={nav.repoPath} onReview={onNavigate} />}
+
+            {hasQueue && (
+              <section className="mt-8">
+                <SectionTitle>To review</SectionTitle>
+                <ul className="-mx-3 mt-1">
+                  {queue.map((item) => (
+                    <ListRow
+                      key={item.key}
+                      icon={item.icon}
+                      title={item.title}
+                      meta={item.eyebrow}
+                      stats={item.summary && <StatCell additions={item.summary.additions} deletions={item.summary.deletions} bar={<DiffStatBar additions={item.summary.additions} deletions={item.summary.deletions} />} />}
+                      onClick={() => onNavigate(item.ref)}
+                      actions={[{ label: 'Ask Claude to review', icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => void askClaudeFor(item.ref) }]}
+                    />
+                  ))}
+                  {[...threadGroups.entries()].map(([ref, group]) => (
+                    <ListRow
+                      key={`comments-${ref}`}
+                      icon={<CommentIcon size="sm" className={group.claude > 0 ? 'text-claude' : undefined} />}
+                      title={`${group.count} open comment${group.count === 1 ? '' : 's'} in ${group.label}`}
+                      meta={group.claude > 0 ? `${group.claude} from Claude` : 'From you'}
+                      onClick={() => {
+                        if (ref === TREE_REF) {
+                          nav.toTree();
+                          return;
+                        }
+                        onNavigate(ref);
+                      }}
+                    />
+                  ))}
+                  {(otherPrs.length > 0 || signedOut) && (
+                    <li className="px-3 pt-3 pb-1 text-[11px] font-medium text-text-muted">Open pull requests on GitHub</li>
+                  )}
+                  {signedOut && (
+                    <ListRow
+                      icon={<GitHubIcon size="sm" />}
+                      title="Sign in to GitHub to see open pull requests"
+                      meta="Import your gh login or paste a token in Settings"
+                      onClick={() => openSettingsAt('github')}
+                    />
+                  )}
+                  {otherPrs.map((pr) => (
+                    <ListRow
+                      key={`pr-${pr.number}`}
+                      icon={<GitPullRequestIcon size="sm" className={pr.isDraft ? 'text-text-muted' : 'text-added'} />}
+                      title={pr.title}
+                      meta={
+                        <>
+                          <span className="tabular-nums">#{pr.number}</span>
+                          <span aria-hidden>·</span>
+                          <span className="truncate">{pr.author}</span>
+                          {pr.updatedAt && <><span aria-hidden>·</span><span className="shrink-0">updated {relative(pr.updatedAt)}</span></>}
+                          {pr.isDraft && <span className="shrink-0 px-1.5 rounded-full bg-fill text-[10px] font-medium text-text-secondary">Draft</span>}
+                          {pr.reviewDecision === 'REVIEW_REQUIRED' && <span className="shrink-0 px-1.5 rounded-full bg-modified/12 text-[10px] font-medium text-modified">Review required</span>}
+                          {pr.checks && <span className={cn('shrink-0 w-1.5 h-1.5 rounded-full', pr.checks === 'SUCCESS' ? 'bg-added' : pr.checks === 'FAILURE' || pr.checks === 'ERROR' ? 'bg-deleted' : 'bg-modified')} title={`Checks: ${pr.checks.toLowerCase()}`} />}
+                        </>
+                      }
+                      stats={<StatCell additions={pr.additions} deletions={pr.deletions} bar={<DiffStatBar additions={pr.additions} deletions={pr.deletions} />} />}
+                      tooltip="Check out this pull request (asks first if you have uncommitted changes)"
+                      onClick={() => void checkoutPullRequest(nav.repoPath, `#${pr.number}`, nav.toDiff)}
+                      actions={[
+                        { label: 'Check out and review', icon: <GitPullRequestIcon size="sm" />, onSelect: () => void checkoutPullRequest(nav.repoPath, `#${pr.number}`, nav.toDiff) },
+                        { label: 'Open on GitHub', icon: <GitHubIcon size="sm" />, onSelect: () => void openUrl(pr.url) },
+                      ]}
+                    />
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <section className="mt-8">
+              <SectionTitle
+                right={
+                  <>
+                    <div className="relative w-[240px]">
+                      <SearchIcon size="sm" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+                      <input
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        type="text"
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Escape') {
+                            setSearch('');
+                          }
+                        }}
+                        placeholder="Search commits"
+                        className={cn(inputField, 'pl-8 pr-8')}
+                      />
+                      {searching && <Spinner className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3" />}
+                      {!searching && search && (
+                        <button
+                          className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 inline-flex items-center justify-center rounded text-text-muted hover:text-text hover:bg-hover cursor-pointer"
+                          onClick={() => setSearch('')}
+                          title="Clear search"
+                        >
+                          <XIcon size="xs" />
+                        </button>
+                      )}
+                    </div>
+                    <ComparePopover onNavigate={onNavigate} defaultBase={base} />
+                  </>
+                }
+              >
+                History
+              </SectionTitle>
+              <div className="mt-1 -mx-3">
+                <CommitList
+                  search={search}
+                  onFetchingChange={setSearching}
+                  onOpen={(commit) => onNavigate(commitRef(commit.hash))}
+                  onCompareFrom={(hash) => onNavigate(`${hash}..HEAD`)}
                 />
-                {searching && <Spinner className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3" />}
-                {!searching && search && (
-                  <button
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 inline-flex items-center justify-center rounded text-text-muted hover:text-text hover:bg-hover cursor-pointer"
-                    onClick={() => setSearch('')}
-                    title="Clear search"
-                  >
-                    <XIcon size="xs" />
-                  </button>
-                )}
               </div>
-              <ComparePopover onNavigate={onNavigate} defaultBase={base} />
-            </div>
-            <div className="mt-2 -mx-3">
-              <CommitList
-                search={search}
-                onFetchingChange={setSearching}
-                onOpen={(commit) => onNavigate(commitRef(commit.hash))}
-                onCompareFrom={(hash) => onNavigate(`${hash}..HEAD`)}
-              />
-            </div>
+            </section>
           </div>
         </main>
       </Workspace>

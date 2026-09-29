@@ -114,7 +114,7 @@ that fell out: **controls live next to what they change, and every region has on
 | Rail (frame, left, 52px) | Which project | Project tiles (manual order, drag to reorder, ⌘1–9), "+" Open folder (⌘O) below them, Settings at the bottom |
 | Title bar (frame, top, 44px) | Where am I, and the big actions | Sidebar toggle (⌘\\), repo name, "what to review" picker (+ Back when not on Uncommitted) … Comments (C), Ask Claude to review, Send N to Claude / Submit review #N, ⋯ (shortcuts, theme, settings, about) |
 | Context bars (workspace top) | Facts about the chosen target | PR bar (state, title, base ← head, checks, sync, back to branch); commit header inside the diff |
-| Home (`/overview`, and Changes when the tree is clean) | Where do I start | Repo + branch/sync, Working cards (uncommitted, PR, branch vs base, open comments), full-width commit history with search and Compare |
+| Home (`/overview`, and Changes when the tree is clean) | What should I review next | Header (repo, branch switcher, Browse files, Open in editor) · quiet status line · "Up next" hero · To review list · History |
 | Sidebar (sidebar surface) | Navigate inside the target | Files · Changes, filter + commented-only chip + ⋯ (tree/list, expand/collapse folders), summary line, file tree |
 | Diff bar (content top, 40px) | How the diff looks, and moving through it | Viewed progress, open-comment navigation (k/N, prev/next, copy, delete all) … Hide whitespace, Unified \| Split, ⋯ (expand / collapse all files) |
 | Content | The work | File cards, thread cards, general comments; empty states with next steps |
@@ -222,6 +222,30 @@ that fell out: **controls live next to what they change, and every region has on
   and the history list with search and Compare. Commit rows are wide (subject, author avatar + name, sha, time, +/−,
   "Changes since" on hover); clicking opens the commit, and the × in the picker returns to Uncommitted / Home. The
   author name that collapsed to zero width in the narrow sidebar rows is fixed by the new layout.
+
+## Round 6 (Home as a review queue, PR details)
+
+- Home gave every card the same weight, including empty ones. It is now a review queue:
+  - **Header:** repo name, branch (click → branch switcher), and labelled secondary buttons "Browse files" and
+    "Open in <editor>".
+  - **Status line** (quiet text, never cards): "Working tree clean · No open comments · ↑0 ↓0 with origin/main".
+  - **Up next** hero, the only emphasised surface: the most relevant thing to review, picked as uncommitted changes →
+    checked-out PR → branch vs its base (when it differs) → latest commit, with one explaining line, file count,
+    +/− and a diffstat bar, and [Review] (primary) + [Ask Claude to review] (Claude style).
+  - **To review:** only non-empty items — the remaining candidates, open comments grouped by view, open PRs on GitHub
+    (meta line: #, author, updated, Draft / Review required badges, checks dot; click checks it out through the usual
+    guard) or a single "Sign in to GitHub" row when signed out.
+  - **History:** the same rows, grouped by day, search + Compare in the section header.
+- **Rows:** one layout everywhere (`components/ui/list-row.tsx`): icon · title over meta · stats flush right
+  (+adds −dels and the diffstat bar, no gaps) · a chevron that turns into ⋯ on hover (same width, no jump). The whole
+  row is the main action; secondary actions (Changes since, Open on GitHub, Ask Claude) are in the ⋯ menu and on
+  right-click. No reserved hover-only action column.
+- **PR bar:** controls are labelled (Sync comments with a count badge, GitHub mark + "GitHub", Details), checks are a
+  single status icon, and the editor and GitHub icons are never the same glyph. Details (and clicking the title) opens
+  a dialog instead of the inline panel: title, state, author and the markdown description on the left; a tinted
+  sidebar with Status, Branches (copyable), Checks, Changes (+ Review changes), Comments on GitHub (Sync now, last
+  synced) and Actions (Open on GitHub, Back to branch, Ask Claude to review). Esc or a click on the dimmed backdrop
+  closes it.
 
 ## Remaining
 

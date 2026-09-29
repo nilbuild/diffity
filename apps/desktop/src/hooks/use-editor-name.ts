@@ -6,7 +6,7 @@ const NAMES: Record<string, string> = { code: 'VS Code', cursor: 'Cursor', zed: 
 export function useEditorName(): string {
   const { data } = useQuery({ queryKey: ['setting', 'editor'], queryFn: () => tauri.getSetting('editor'), staleTime: 60_000 });
   if (!data) {
-    return 'your editor';
+    return 'editor';
   }
   return NAMES[data] ?? data;
 }
