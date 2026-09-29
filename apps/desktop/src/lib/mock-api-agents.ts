@@ -494,6 +494,14 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
       );
       return { pulled: 1, updated: 0, skipped: 0 };
     },
+    github_review_candidates: () => ({
+      candidates: [...deps.threads.values()]
+        .filter((t) => t.status === 'open' && !t.githubThreadId && t.comments[0]?.authorType === 'user')
+        .map((thread) => ({ thread, sessionRef: '', draft: !!thread.pending, blockedReason: null })),
+      blocker: null,
+      githubPending: null,
+      prUrl: 'https://github.com/example/repo/pull/1',
+    }),
     github_pushable_threads: () =>
       [...deps.threads.values()].filter((t) => !t.pending && t.status === 'open' && !t.githubThreadId),
     github_reply: (args) => {

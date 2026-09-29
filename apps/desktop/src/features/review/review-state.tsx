@@ -4,7 +4,8 @@ import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import { getRepoPath } from '../../lib/api';
 import { queryClient } from '../../lib/query-client';
-import type { Review, ReviewVerdict } from '../../lib/types';
+import type { GithubPendingAction, PushResult, Review, ReviewVerdict } from '../../lib/types';
+import { VERDICT_EVENT } from './review-candidates';
 import { enqueueClaude } from '../claude/claude-runner';
 
 interface ReviewStateValue {
@@ -50,19 +51,9 @@ export interface SubmitReviewInput {
   body: string;
   verdict: ReviewVerdict | null;
   claude: ClaudeScope;
-  prNumber: number | null;
 }
 
-const VERDICT_LABEL: Record<ReviewVerdict, string> = {
-  comment: 'Review posted',
-  approve: 'Approved',
-  requestChanges: 'Changes requested',
-};
-
-function successTitle(review: Review, pushed: boolean, claude: boolean): string {
-  if (pushed && review.verdict) {
-    return VERDICT_LABEL[review.verdict];
-  }
+function successTitle(review: Review, claude: boolean): string {
   if (claude) {
     return 'Sent to Claude';
   }
@@ -70,7 +61,7 @@ function successTitle(review: Review, pushed: boolean, claude: boolean): string 
   return count > 0 ? `Published ${count} ${count === 1 ? 'comment' : 'comments'}` : 'Note published';
 }
 
-function triggerClaude(review: Review, scope: ClaudeScope): string | null {
+export function triggerClaude(review: Review, scope: ClaudeScope): string | null {
   const context = { repoPath: getRepoPath(), sessionId: review.sessionId };
   if (scope === 'skip') {
     return null;
@@ -89,6 +80,42 @@ function triggerClaude(review: Review, scope: ClaudeScope): string | null {
   return `Claude will answer ${count === 1 ? '1 mention' : `${count} mentions`}`;
 }
 
+export interface PostReviewInput {
+  prNumber: number;
+  body: string;
+  verdict: ReviewVerdict;
+  threadIds: string[];
+  /** Other views whose pending reviews hold selected drafts; submitted locally first. */
+  otherDraftSessions: string[];
+  /** Submit this view's pending review locally first (drafts, summary or verdict to keep). */
+  needsLocalReview: boolean;
+  /** The local review from an earlier attempt whose GitHub post failed. */
+  review: Review | null;
+  pendingAction: GithubPendingAction | null;
+}
+
+export interface PostReviewResult {
+  review: Review | null;
+  result: PushResult;
+}
+
+export class PostReviewError extends Error {
+  code: string;
+  /** Local review already submitted before the GitHub post failed (reuse it on retry). */
+  review: Review | null;
+
+  constructor(code: string, message: string, review: Review | null) {
+    super(message);
+    this.code = code;
+    this.review = review;
+  }
+
+  static from(error: unknown, review: Review | null) {
+    const code = tauri.isAppError(error) ? error.code : 'error';
+    return new PostReviewError(code, tauri.errorMessage(error), review);
+  }
+}
+
 export function useReviewActions(sessionId: string | null) {
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ['reviews', sessionId] });
@@ -101,27 +128,55 @@ export function useReviewActions(sessionId: string | null) {
         throw new Error('No review session yet');
       }
       const review = await tauri.submitReview(sessionId, input.body.trim() || null, input.verdict);
-      let pushed: string | null = null;
-      if (input.prNumber !== null) {
-        try {
-          const result = await tauri.pushSubmittedReview(getRepoPath(), sessionId, input.prNumber, review.id);
-          pushed = result.failed > 0 ? `posted to PR #${input.prNumber}, ${result.failed} failed` : `posted to PR #${input.prNumber}`;
-        } catch (error) {
-          toast.error(`Comments were saved, but posting to PR #${input.prNumber} failed`, {
-            description: `${tauri.errorMessage(error)} — use the GitHub button to push them again.`,
-          });
-        }
-      }
-      return { review, pushed, claude: input.claude };
+      return { review, claude: input.claude };
     },
     onSuccess: (result) => {
       refresh();
       const claude = triggerClaude(result.review, result.claude);
       const count = result.review.commentCount;
-      const parts = [count > 0 ? `${count} ${count === 1 ? 'comment' : 'comments'}` : null, result.pushed, claude].filter(Boolean);
-      toast.success(successTitle(result.review, result.pushed !== null, claude !== null), { description: parts.join(' · ') || undefined });
+      const parts = [count > 0 ? `${count} ${count === 1 ? 'comment' : 'comments'}` : null, claude].filter(Boolean);
+      toast.success(successTitle(result.review, claude !== null), { description: parts.join(' · ') || undefined });
     },
     onError: (error) => toast.error(tauri.errorMessage(error)),
+  });
+
+  /** Posts a GitHub review of the checked-out PR from the selected comments (drafts and local threads). */
+  const post = useMutation<PostReviewResult, PostReviewError, PostReviewInput>({
+    mutationFn: async (input) => {
+      if (!sessionId) {
+        throw new PostReviewError('invalid', 'No review session yet', null);
+      }
+      let review = input.review;
+      try {
+        for (const other of input.otherDraftSessions) {
+          await tauri.submitReview(other, null, null);
+        }
+        if (!review && input.needsLocalReview) {
+          review = await tauri.submitReview(sessionId, input.body.trim() || null, input.verdict);
+        }
+      } catch (error) {
+        throw PostReviewError.from(error, review);
+      }
+      try {
+        const result = await tauri.pushReview(
+          getRepoPath(),
+          sessionId,
+          input.prNumber,
+          VERDICT_EVENT[input.verdict],
+          input.body.trim() || null,
+          input.threadIds,
+          review?.id ?? null,
+          input.pendingAction,
+        );
+        return { review, result };
+      } catch (error) {
+        throw PostReviewError.from(error, review);
+      }
+    },
+    onSettled: () => {
+      refresh();
+      queryClient.invalidateQueries({ queryKey: ['review-candidates'] });
+    },
   });
 
   const discard = useMutation({
@@ -133,5 +188,5 @@ export function useReviewActions(sessionId: string | null) {
     onError: (error) => toast.error(tauri.errorMessage(error)),
   });
 
-  return { submit, discard };
+  return { submit, post, discard };
 }

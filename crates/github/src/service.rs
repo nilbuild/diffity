@@ -418,6 +418,131 @@ impl GithubService {
         gitcli::checkout(repo_path, target).await
     }
 
+    /// Everything needed to decide which local comments can be posted to PR `pr_number`.
+    async fn pr_context(&self, repo_path: &str, pr_number: u64) -> Result<PrContext> {
+        let slug = self.origin_slug(repo_path).await?;
+        let token = self.require_token().await?;
+        let pr = self.fetch_pr(&token, &slug, pr_number).await?;
+        let files = self.fetch_pr_files(&token, &slug, pr_number).await?;
+        let head = gitcli::head_sha(repo_path).await?;
+        let locally_changed = gitcli::changed_files(repo_path).await?;
+        let store = self.store.clone();
+        let repo = repo_path.to_string();
+        let pr_ref = format!("origin/{}...HEAD", pr.base_ref_name);
+        let head_for_anchor = head.clone();
+        let (threads, sessions, anchors, lines) = tokio::task::spawn_blocking(move || -> Result<_> {
+            let repo_dir = std::path::Path::new(&repo);
+            let pr_base = diffity_core::diff::resolve_ref(repo_dir, &pr_ref)
+                .ok()
+                .and_then(|r| r.base_sha);
+            let mut anchors = HashMap::new();
+            let mut sessions = HashMap::new();
+            for (session_id, session_ref) in db::list_repo_sessions(&store, &repo)? {
+                let anchor = session_anchor(repo_dir, &session_ref, &pr_ref, &head_for_anchor, pr_base.as_deref());
+                anchors.insert(session_id.clone(), anchor);
+                sessions.insert(session_id, session_ref);
+            }
+            let threads = db::list_repo_threads(&store, &repo)?;
+            let mut lines = HashMap::new();
+            let commented: HashSet<&str> = threads
+                .iter()
+                .filter(|t| t.github_thread_id.is_none() && t.file_path != diffity_core::types::GENERAL_FILE_PATH)
+                .map(|t| t.file_path.as_str())
+                .collect();
+            for path in commented {
+                if let Ok(patch) = diffity_core::diff::get_file_patch(repo_dir, &pr_ref, path, None, false) {
+                    if let Some(file) = diffity_core::repo_threads::index_patch(&patch).remove(path) {
+                        lines.insert(path.to_string(), file);
+                    }
+                }
+            }
+            Ok((threads, sessions, anchors, lines))
+        })
+        .await
+        .map_err(|e| AppError::internal(e.to_string()))??;
+        let head_mismatch = (!head.eq_ignore_ascii_case(&pr.head_ref_oid)).then(|| {
+            format!(
+                "Your local branch is at {} but PR #{pr_number}'s head is {}. Pull or push so they match, then try again.",
+                short(&head),
+                short(&pr.head_ref_oid)
+            )
+        });
+        Ok(PrContext {
+            slug,
+            token,
+            pr,
+            head_mismatch,
+            anchors,
+            sessions,
+            threads,
+            diff: review::PrDiff { files, lines, locally_changed },
+        })
+    }
+
+    async fn fetch_pending_review(&self, token: &str, slug: &RepoSlug, number: u64) -> Result<Option<GithubPendingReview>> {
+        let data: RepositoryData<PullRequestField<PendingReviewsField>> = self
+            .http
+            .query(
+                token,
+                PENDING_REVIEWS_QUERY,
+                json!({ "owner": slug.owner, "name": slug.name, "number": number }),
+            )
+            .await?;
+        let reviews = data
+            .repository
+            .and_then(|r| r.pull_request)
+            .map(|p| p.reviews.into_items())
+            .unwrap_or_default();
+        Ok(reviews.into_iter().find(|r| r.viewer_did_author).map(|r| GithubPendingReview {
+            id: r.id,
+            comment_count: r.comments.total_count,
+            url: r.url,
+        }))
+    }
+
+    /// Your open comments not yet on GitHub (drafts and local threads from every view of the repo), each marked
+    /// postable or with the reason it can't be posted to the PR.
+    pub async fn review_candidates(&self, repo_path: &str, pr_number: u64) -> Result<ReviewCandidates> {
+        let ctx = self.pr_context(repo_path, pr_number).await?;
+        let github_pending = match self.fetch_pending_review(&ctx.token, &ctx.slug, pr_number).await {
+            Ok(pending) => pending,
+            Err(e) => {
+                tracing::warn!("github: pending review lookup failed: {}", e.message);
+                None
+            }
+        };
+        let mut candidates = review::review_candidates(ctx.threads, &ctx.sessions, &ctx.anchors, &ctx.diff);
+        if let Some(blocker) = &ctx.head_mismatch {
+            for c in candidates.iter_mut().filter(|c| c.blocked_reason.is_none()) {
+                c.blocked_reason = Some(format!("Can't be posted: {blocker}"));
+            }
+        }
+        Ok(ReviewCandidates {
+            candidates,
+            blocker: ctx.head_mismatch,
+            github_pending,
+            pr_url: ctx.pr.url,
+        })
+    }
+
+    /// Runs a GitHub mutation, or in dry-run mode records it in `result` and returns `None`.
+    async fn mutate<T: serde::de::DeserializeOwned>(
+        &self,
+        token: &str,
+        name: &str,
+        query: &str,
+        variables: serde_json::Value,
+        result: &mut PushResult,
+    ) -> Result<Option<T>> {
+        if dry_run() {
+            tracing::info!(target: "github_dry_run", "{name}: {}", serde_json::to_string_pretty(&variables).unwrap_or_default());
+            result.dry_run = true;
+            result.dry_run_mutations.push(json!({ "mutation": name, "variables": variables }));
+            return Ok(None);
+        }
+        self.http.query(token, query, variables).await.map(Some)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn push_review(
         &self,
@@ -428,63 +553,151 @@ impl GithubService {
         body: Option<String>,
         thread_ids: Option<Vec<String>>,
         review_id: Option<String>,
+        pending_action: Option<GithubPendingAction>,
     ) -> Result<PushResult> {
-        let slug = self.origin_slug(repo_path).await?;
-        let token = self.require_token().await?;
-        let pr = self.fetch_pr(&token, &slug, pr_number).await?;
-        let head = gitcli::head_sha(repo_path).await?;
-        if !head.eq_ignore_ascii_case(&pr.head_ref_oid) {
-            return Err(AppError::new(
-                "head_mismatch",
-                format!(
-                    "Local HEAD ({}) differs from PR head ({}). Push or pull so they match, then try again.",
-                    short(&head),
-                    short(&pr.head_ref_oid)
-                ),
-            ));
+        let ctx = self.pr_context(repo_path, pr_number).await?;
+        if let Some(message) = &ctx.head_mismatch {
+            return Err(AppError::new("head_mismatch", message.clone()));
         }
-        gitcli::ensure_clean(repo_path, "pushing a review").await?;
+        let token = ctx.token.as_str();
 
         let mut review_replies: Vec<(String, String, String)> = Vec::new();
-        let threads: Vec<Thread> = match &review_id {
-            Some(rid) => {
-                let review = self.store.get_review(rid)?;
-                if review.state != ReviewState::Submitted {
-                    return Err(AppError::invalid("submit the review before pushing it to GitHub"));
-                }
-                let selection = review::select_review(db::list_repo_threads(&self.store, repo_path)?, rid);
-                review_replies = selection.replies;
-                selection.threads
+        if let Some(rid) = &review_id {
+            let review = self.store.get_review(rid)?;
+            if review.state != ReviewState::Submitted {
+                return Err(AppError::invalid("submit the review before pushing it to GitHub"));
             }
-            None => {
-                // Explicit thread ids may come from any of the repo's sessions (see `pushable_threads`).
-                let source = match &thread_ids {
-                    Some(_) => db::list_repo_threads(&self.store, repo_path)?,
-                    None => db::list_session_threads(&self.store, session_id)?,
-                };
-                let filter: Option<HashSet<String>> = thread_ids.map(|ids| ids.into_iter().collect());
-                source
-                    .into_iter()
-                    .filter(|t| t.status == ThreadStatus::Open && t.github_thread_id.is_none() && !t.pending)
-                    .filter(|t| filter.as_ref().is_none_or(|f| f.contains(&t.id)))
+            review_replies = review::select_review(ctx.threads.clone(), rid).replies;
+        }
+        // Explicit thread ids may come from any of the repo's sessions (see `review_candidates`).
+        let threads: Vec<Thread> = match (&thread_ids, &review_id) {
+            (Some(ids), _) => {
+                let wanted: HashSet<&str> = ids.iter().map(String::as_str).collect();
+                ctx.threads
+                    .iter()
+                    .filter(|t| wanted.contains(t.id.as_str()) && t.github_thread_id.is_none() && !t.pending)
+                    .cloned()
                     .collect()
             }
+            (None, Some(rid)) => review::select_review(ctx.threads.clone(), rid).threads,
+            (None, None) => ctx
+                .threads
+                .iter()
+                .filter(|t| t.session_id == session_id)
+                .filter(|t| t.status == ThreadStatus::Open && t.github_thread_id.is_none() && !t.pending)
+                .cloned()
+                .collect(),
         };
-        let by_id: HashMap<&str, &Thread> = threads.iter().map(|t| (t.id.as_str(), t)).collect();
-        let candidates: Vec<PushCandidate> = threads.iter().map(candidate_from_thread).collect();
 
-        let pr_files = self.fetch_pr_files(&token, &slug, pr_number).await?;
-        let plan = review::build_review_plan(&candidates, &pr_files);
-        let mut result = PushResult {
-            skipped: plan.skipped.len() as u32,
-            errors: plan.skipped.clone(),
-            ..PushResult::default()
-        };
+        let mut result = PushResult::default();
+        let mut postable: Vec<&Thread> = Vec::new();
+        for thread in &threads {
+            match review::postable_reason(thread, ctx.anchors.get(&thread.session_id), &ctx.diff) {
+                None => postable.push(thread),
+                Some(reason) => {
+                    result.skipped += 1;
+                    result.errors.push(format!("{} — {reason}", location(thread)));
+                }
+            }
+        }
+        let by_id: HashMap<&str, &Thread> = postable.iter().map(|t| (t.id.as_str(), *t)).collect();
+        let candidates: Vec<PushCandidate> = postable.iter().map(|t| candidate_from_thread(t)).collect();
+        let plan = review::build_review_plan(&candidates, &ctx.diff.files);
+        result.skipped += plan.skipped.len() as u32;
+        result.errors.extend(plan.skipped.iter().cloned());
+
+        let review_body = review::compose_review_body(body.as_deref(), &plan.body_sections);
+        if plan.drafts.is_empty() && review_body.is_empty() && event == ReviewEvent::Comment && review_replies.is_empty() {
+            if result.skipped > 0 {
+                return Err(AppError::invalid(format!(
+                    "Nothing was posted. {}",
+                    result.errors.join("; ")
+                )));
+            }
+            return Ok(result);
+        }
+
+        let pending = self.fetch_pending_review(token, &ctx.slug, pr_number).await?;
+        let draft_values: Vec<&review::DraftThread> = plan.drafts.iter().map(|(_, d)| d).collect();
+        let mut mapped: Vec<(String, String, Option<i64>)> = Vec::new();
+        let github_review_id: Option<String>;
+
+        match (pending, pending_action) {
+            (Some(existing), None) => {
+                return Err(pending_exists_error(pr_number, existing.comment_count));
+            }
+            (Some(existing), Some(GithubPendingAction::AddToExisting)) => {
+                for (thread_id, draft) in &plan.drafts {
+                    let mut input = serde_json::to_value(draft).unwrap_or_default();
+                    input["pullRequestReviewId"] = json!(existing.id);
+                    let added: Option<AddThreadData> = self
+                        .mutate(token, "addPullRequestReviewThread", ADD_THREAD_MUTATION, json!({ "input": input }), &mut result)
+                        .await
+                        .map_err(|e| github_rejected(&e))?;
+                    if let Some(thread) = added.and_then(|d| d.add_pull_request_review_thread.thread) {
+                        let first = thread.comments.into_items().into_iter().next().and_then(|c| c.database_id);
+                        mapped.push((thread_id.clone(), thread.id, first));
+                    }
+                }
+                let submitted: Option<SubmitReviewData> = self
+                    .mutate(
+                        token,
+                        "submitPullRequestReview",
+                        SUBMIT_REVIEW_MUTATION,
+                        json!({ "input": { "pullRequestReviewId": existing.id, "event": event_name(event), "body": review_body } }),
+                        &mut result,
+                    )
+                    .await
+                    .map_err(|e| github_rejected(&e))?;
+                let node = submitted.and_then(|d| d.submit_pull_request_review.pull_request_review);
+                result.review_url = node.as_ref().and_then(|n| n.url.clone()).or(existing.url);
+                github_review_id = node.map(|n| n.id);
+            }
+            (existing, _) => {
+                if let Some(existing) = existing {
+                    let _: Option<serde_json::Value> = self
+                        .mutate(
+                            token,
+                            "deletePullRequestReview",
+                            DELETE_REVIEW_MUTATION,
+                            json!({ "input": { "pullRequestReviewId": existing.id } }),
+                            &mut result,
+                        )
+                        .await
+                        .map_err(|e| github_rejected(&e))?;
+                }
+                let input = json!({
+                    "pullRequestId": ctx.pr.id,
+                    "commitOID": ctx.pr.head_ref_oid,
+                    "event": event_name(event),
+                    "body": review_body,
+                    "threads": draft_values,
+                });
+                let created: Option<AddReviewData> = self
+                    .mutate(token, "addPullRequestReview", ADD_REVIEW_MUTATION, json!({ "input": input }), &mut result)
+                    .await
+                    .map_err(|e| {
+                        if is_pending_conflict(&e.message) {
+                            return pending_exists_error(pr_number, 0);
+                        }
+                        github_rejected(&e)
+                    })?;
+                let node = created.and_then(|d| d.add_pull_request_review.pull_request_review);
+                if node.is_none() && !result.dry_run {
+                    return Err(AppError::new("github", "GitHub did not return a review"));
+                }
+                result.review_url = node.as_ref().and_then(|n| n.url.clone());
+                github_review_id = node.map(|n| n.id);
+            }
+        }
 
         for (github_thread_id, comment_id, reply_body) in &review_replies {
-            match self.post_reply(&token, github_thread_id, reply_body).await {
-                Ok(Some(id)) => {
-                    db::set_comment_github_id(&self.store, comment_id, id)?;
+            let variables = json!({ "input": { "pullRequestReviewThreadId": github_thread_id, "body": reply_body } });
+            match self.mutate::<ReplyData>(token, "addPullRequestReviewThreadReply", REPLY_MUTATION, variables, &mut result).await {
+                Ok(Some(data)) => {
+                    if let Some(id) = data.add_pull_request_review_thread_reply.comment.and_then(|c| c.database_id) {
+                        db::set_comment_github_id(&self.store, comment_id, id)?;
+                    }
                     result.pushed += 1;
                 }
                 Ok(None) => result.pushed += 1,
@@ -495,80 +708,53 @@ impl GithubService {
             }
         }
 
-        let review_body = review::compose_review_body(body.as_deref(), &plan.body_sections);
-        if plan.drafts.is_empty() && review_body.is_empty() && event == ReviewEvent::Comment {
+        result.pushed += (plan.in_body.len() + plan.drafts.len()) as u32;
+        if result.dry_run {
             return Ok(result);
         }
+        result.posted_thread_ids.extend(plan.in_body.iter().cloned());
 
-        let draft_values: Vec<&review::DraftThread> = plan.drafts.iter().map(|(_, d)| d).collect();
-        let input = json!({
-            "pullRequestId": pr.id,
-            "commitOID": pr.head_ref_oid,
-            "event": event_name(event),
-            "body": review_body,
-            "threads": draft_values,
-        });
-        let created: std::result::Result<AddReviewData, AppError> =
-            self.http.query(&token, ADD_REVIEW_MUTATION, json!({ "input": input })).await;
-        let review_id = match created.map(|d| d.add_pull_request_review.pull_request_review) {
-            Ok(Some(r)) => r.id,
-            Ok(None) => {
-                result.failed += plan.drafts.len() as u32;
-                result.errors.push("GitHub did not return a review".into());
-                return Ok(result);
+        if mapped.is_empty() && !plan.drafts.is_empty() {
+            let review_id = github_review_id.unwrap_or_default();
+            let remote_threads = self.fetch_threads(token, &ctx.slug, pr_number).await?;
+            let mut remote: Vec<&FullThread> = remote_threads
+                .iter()
+                .filter(|ft| {
+                    ft.comments
+                        .first()
+                        .and_then(|c| c.pull_request_review.as_ref())
+                        .is_some_and(|r| r.id == review_id)
+                })
+                .collect();
+            for (thread_id, draft) in &plan.drafts {
+                let position = remote.iter().position(|ft| {
+                    ft.thread.path == draft.path && ft.comments.first().is_some_and(|c| c.body.trim() == draft.body.trim())
+                });
+                let Some(position) = position else {
+                    result
+                        .errors
+                        .push(format!("{}:{} — review created but thread could not be mapped", draft.path, draft.line));
+                    continue;
+                };
+                let ft = remote.remove(position);
+                mapped.push((thread_id.clone(), ft.thread.id.clone(), ft.comments.first().and_then(|c| c.database_id)));
             }
-            Err(e) => {
-                result.failed += plan.drafts.len() as u32;
-                result.errors.push(e.message);
-                return Ok(result);
-            }
-        };
-        result.pushed += plan.in_body.len() as u32;
-
-        if plan.drafts.is_empty() {
-            return Ok(result);
         }
 
-        let remote_threads = self.fetch_threads(&token, &slug, pr_number).await?;
-        let mut candidates_remote: Vec<&FullThread> = remote_threads
-            .iter()
-            .filter(|ft| {
-                ft.comments
-                    .first()
-                    .and_then(|c| c.pull_request_review.as_ref())
-                    .is_some_and(|r| r.id == review_id)
-            })
-            .collect();
-
-        for (thread_id, draft) in &plan.drafts {
-            result.pushed += 1;
-            let position = candidates_remote.iter().position(|ft| {
-                ft.thread.path == draft.path
-                    && ft.comments.first().is_some_and(|c| c.body.trim() == draft.body.trim())
-            });
-            let Some(position) = position else {
-                result.errors.push(format!(
-                    "{}:{} — review created but thread could not be mapped",
-                    draft.path, draft.line
-                ));
-                continue;
-            };
-            let remote = candidates_remote.remove(position);
+        for (thread_id, github_thread_id, first_id) in &mapped {
             let Some(local) = by_id.get(thread_id.as_str()) else {
                 continue;
             };
-            let first_id = remote.comments.first().and_then(|c| c.database_id);
-            db::set_thread_github_ids(&self.store, thread_id, &remote.thread.id, first_id)?;
+            db::set_thread_github_ids(&self.store, thread_id, github_thread_id, *first_id)?;
+            result.posted_thread_ids.push(thread_id.clone());
             if let (Some(first_local), Some(id)) = (local.comments.first(), first_id) {
-                db::set_comment_github_id(&self.store, &first_local.id, id)?;
+                db::set_comment_github_id(&self.store, &first_local.id, *id)?;
             }
             for extra in local.comments.iter().skip(1).filter(|c| !c.pending) {
-                match self.post_reply(&token, &remote.thread.id, &extra.body).await {
+                match self.post_reply(token, github_thread_id, &extra.body).await {
                     Ok(Some(id)) => db::set_comment_github_id(&self.store, &extra.id, id)?,
                     Ok(None) => {}
-                    Err(e) => result
-                        .errors
-                        .push(format!("{}:{} — reply not synced: {}", draft.path, draft.line, e.message)),
+                    Err(e) => result.errors.push(format!("{} — reply not synced: {}", location(local), e.message)),
                 }
             }
         }
@@ -781,6 +967,53 @@ impl GithubService {
     }
 }
 
+struct PrContext {
+    slug: RepoSlug,
+    token: String,
+    pr: PrNode,
+    head_mismatch: Option<String>,
+    anchors: HashMap<String, review::SessionAnchor>,
+    sessions: HashMap<String, String>,
+    threads: Vec<Thread>,
+    diff: review::PrDiff,
+}
+
+fn location(thread: &Thread) -> String {
+    if thread.file_path == diffity_core::types::GENERAL_FILE_PATH {
+        return "General comment".into();
+    }
+    if thread.start_line == 0 || thread.start_line == thread.end_line {
+        return format!("{}:{}", thread.file_path, thread.end_line);
+    }
+    format!("{}:{}-{}", thread.file_path, thread.start_line, thread.end_line)
+}
+
+fn is_pending_conflict(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    lower.contains("one pending review") || lower.contains("pending review per pull request")
+}
+
+fn pending_exists_error(pr_number: u64, comment_count: u32) -> AppError {
+    let comments = match comment_count {
+        0 => String::new(),
+        1 => " (1 comment)".into(),
+        n => format!(" ({n} comments)"),
+    };
+    AppError::new(
+        "pending_review_exists",
+        format!(
+            "You already have a pending review on PR #{pr_number} on GitHub{comments}. Add these comments to it, or discard it and post a new review."
+        ),
+    )
+}
+
+fn github_rejected(e: &AppError) -> AppError {
+    if e.code == "github" {
+        return AppError::new("github", format!("GitHub rejected the review: {}", e.message));
+    }
+    e.clone()
+}
+
 fn short(sha: &str) -> &str {
     sha.get(..7).unwrap_or(sha)
 }
@@ -847,6 +1080,7 @@ fn session_anchor(
     if session_ref == diffity_core::types::TREE_REF {
         return review::SessionAnchor {
             new_matches: true,
+            new_is_local: true,
             ..Default::default()
         };
     }
@@ -855,6 +1089,7 @@ fn session_anchor(
             new_matches: is_pr_session,
             old_matches: is_pr_session,
             is_pr_session,
+            new_is_local: false,
         };
     };
     let same = |a: Option<&str>, b: Option<&str>| matches!((a, b), (Some(a), Some(b)) if a.eq_ignore_ascii_case(b));
@@ -862,6 +1097,8 @@ fn session_anchor(
         new_matches: same(resolved.head_sha.as_deref(), Some(head)),
         old_matches: is_pr_session || same(resolved.base_sha.as_deref(), pr_base),
         is_pr_session,
+        // `work`, `staged`, `unstaged` and bare refs compare against the working tree or index; ranges end at a commit.
+        new_is_local: !session_ref.contains(".."),
     }
 }
 

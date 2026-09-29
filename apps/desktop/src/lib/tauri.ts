@@ -23,6 +23,8 @@ import type {
   PullRequest,
   PullResult,
   PushResult,
+  ReviewCandidates,
+  GithubPendingAction,
   RecentRepo,
   RepoChangedPayload,
   RepoInfo,
@@ -178,6 +180,7 @@ export const pushReview = (
   body?: string | null,
   threadIds?: string[] | null,
   reviewId?: string | null,
+  pendingAction?: GithubPendingAction | null,
 ) =>
   invoke<PushResult>('push_review', {
     repoPath,
@@ -187,6 +190,7 @@ export const pushReview = (
     body: body ?? null,
     threadIds: threadIds ?? null,
     reviewId: reviewId ?? null,
+    pendingAction: pendingAction ?? null,
   });
 /** Pushes a submitted local review: its new threads, its replies on GitHub-linked threads, body and verdict. */
 export const pushSubmittedReview = (repoPath: string, sessionId: string, prNumber: number, reviewId: string) =>
@@ -196,6 +200,9 @@ export const pullReview = (repoPath: string, sessionId: string, prNumber: number
 /** Open unsynced threads from all of the repo's sessions that line up with the PR diff. */
 export const githubPushableThreads = (repoPath: string, prNumber: number) =>
   invoke<Thread[]>('github_pushable_threads', { repoPath, prNumber });
+/** Your comments not yet on GitHub (drafts + local threads from every view), each postable or with a reason. */
+export const githubReviewCandidates = (repoPath: string, prNumber: number) =>
+  invoke<ReviewCandidates>('github_review_candidates', { repoPath, prNumber });
 export const githubReply = (threadId: string, body: string) => invoke<Thread>('github_reply', { threadId, body });
 export const githubSetResolved = (threadId: string, resolved: boolean) =>
   invoke<Thread>('github_set_resolved', { threadId, resolved });

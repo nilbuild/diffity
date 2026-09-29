@@ -58,6 +58,19 @@ pub async fn is_dirty(repo: &str) -> Result<bool> {
     Ok(!out.trim().is_empty())
 }
 
+/// Paths whose working-tree (or index) content differs from HEAD, including untracked files.
+pub async fn changed_files(repo: &str) -> Result<std::collections::HashSet<String>> {
+    let tracked = run_ok(repo, &["diff", "HEAD", "--name-only", "--no-renames"]).await?;
+    let untracked = run_ok(repo, &["ls-files", "--others", "--exclude-standard"]).await?;
+    Ok(tracked
+        .lines()
+        .chain(untracked.lines())
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(str::to_string)
+        .collect())
+}
+
 pub async fn ensure_clean(repo: &str, action: &str) -> Result<()> {
     if is_dirty(repo).await? {
         return Err(AppError::new(

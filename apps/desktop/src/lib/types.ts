@@ -334,7 +334,38 @@ export interface PushResult {
   skipped: number;
   failed: number;
   errors: string[];
+  postedThreadIds?: string[];
+  reviewUrl?: string | null;
+  /** Debug builds with DIFFITY_GITHUB_DRY_RUN=1: nothing was sent. */
+  dryRun?: boolean;
+  dryRunMutations?: unknown[];
 }
+
+/** One of your comments that could go into a GitHub review of the checked-out PR. */
+export interface ReviewCandidate {
+  thread: Thread;
+  sessionRef: string;
+  /** Still a draft in a pending review. */
+  draft: boolean;
+  /** Why it can't be posted, or null when it can. */
+  blockedReason: string | null;
+}
+
+export interface GithubPendingReview {
+  id: string;
+  commentCount: number;
+  url: string | null;
+}
+
+export interface ReviewCandidates {
+  candidates: ReviewCandidate[];
+  blocker: string | null;
+  githubPending: GithubPendingReview | null;
+  prUrl: string;
+}
+
+/** What to do with a review you already have pending on GitHub. */
+export type GithubPendingAction = 'addToExisting' | 'discard';
 
 export interface PullResult {
   pulled: number;

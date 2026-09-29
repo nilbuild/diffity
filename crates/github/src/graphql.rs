@@ -30,6 +30,10 @@ impl Http {
     }
 
     pub async fn query<T: DeserializeOwned>(&self, token: &str, query: &str, variables: Value) -> Result<T> {
+        if is_mutation(query) && dry_run() {
+            tracing::warn!(target: "github_dry_run", "not sent: {query} {variables}");
+            return Err(AppError::new("dry_run", "DIFFITY_GITHUB_DRY_RUN=1: GitHub mutation logged, not sent"));
+        }
         let resp = self
             .client
             .post(GRAPHQL_URL)
@@ -307,7 +311,26 @@ pub fn thread_comments_query() -> String {
     )
 }
 
-pub const ADD_REVIEW_MUTATION: &str = "mutation($input:AddPullRequestReviewInput!){addPullRequestReview(input:$input){pullRequestReview{id}}}";
+pub const ADD_REVIEW_MUTATION: &str = "mutation($input:AddPullRequestReviewInput!){addPullRequestReview(input:$input){pullRequestReview{id url}}}";
+
+pub const ADD_THREAD_MUTATION: &str = "mutation($input:AddPullRequestReviewThreadInput!){addPullRequestReviewThread(input:$input){thread{id comments(first:1){nodes{databaseId}}}}}";
+
+pub const SUBMIT_REVIEW_MUTATION: &str = "mutation($input:SubmitPullRequestReviewInput!){submitPullRequestReview(input:$input){pullRequestReview{id url}}}";
+
+pub const DELETE_REVIEW_MUTATION: &str = "mutation($input:DeletePullRequestReviewInput!){deletePullRequestReview(input:$input){pullRequestReview{id}}}";
+
+/// Pending reviews are only visible to their author, so any node here is the viewer's.
+pub const PENDING_REVIEWS_QUERY: &str = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){\
+    pullRequest(number:$number){reviews(first:5,states:PENDING){nodes{id url viewerDidAuthor comments{totalCount}}}}}}";
+
+/// Debug builds only: `DIFFITY_GITHUB_DRY_RUN=1` logs GitHub mutations instead of sending them.
+pub fn dry_run() -> bool {
+    cfg!(debug_assertions) && std::env::var("DIFFITY_GITHUB_DRY_RUN").is_ok_and(|v| v == "1")
+}
+
+pub fn is_mutation(query: &str) -> bool {
+    query.trim_start().starts_with("mutation")
+}
 
 pub const REPLY_MUTATION: &str = "mutation($input:AddPullRequestReviewThreadReplyInput!){addPullRequestReviewThreadReply(input:$input){comment{databaseId}}}";
 
@@ -393,7 +416,54 @@ pub struct AddReviewData {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct AddReviewPayload {
-    pub pull_request_review: Option<IdRef>,
+    pub pull_request_review: Option<ReviewNode>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct ReviewNode {
+    pub id: String,
+    #[serde(default)]
+    pub url: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct SubmitReviewData {
+    pub submit_pull_request_review: AddReviewPayload,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AddThreadData {
+    pub add_pull_request_review_thread: AddThreadPayload,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AddThreadPayload {
+    pub thread: Option<AddedThread>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AddedThread {
+    pub id: String,
+    pub comments: Connection<ReplyComment>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingReviewsField {
+    pub reviews: Connection<PendingReviewNode>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingReviewNode {
+    pub id: String,
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub viewer_did_author: bool,
+    pub comments: TotalCount,
 }
 
 #[derive(Deserialize, Debug)]

@@ -36,6 +36,12 @@ impl FileLines {
         (start..=end).any(|n| lines.contains_key(&n))
     }
 
+    /// True when every line `start..=end` on `side` is in the hunks (what GitHub accepts for a PR review comment).
+    pub fn covers(&self, side: Side, start: u32, end: u32) -> bool {
+        let lines = self.side(side);
+        start <= end && (start..=end).all(|n| lines.contains_key(&n))
+    }
+
     /// True when lines `start..=end` on `side` are all in the hunks and read `anchor`.
     fn matches_anchor(&self, side: Side, start: u32, end: u32, anchor: &str) -> bool {
         let lines = self.side(side);

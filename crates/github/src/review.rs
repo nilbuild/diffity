@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use diffity_core::types::{Severity, Side, Thread, ThreadStatus, GENERAL_FILE_PATH};
+use diffity_core::repo_threads::FileLines;
+use diffity_core::types::{AuthorType, Severity, Side, Thread, ThreadStatus, GENERAL_FILE_PATH};
 use serde::Serialize;
 
 use crate::graphql::{Actor, RemoteThread};
@@ -270,6 +271,109 @@ pub struct SessionAnchor {
     /// The session's old side is the PR base (merge-base of base branch and head).
     pub old_matches: bool,
     pub is_pr_session: bool,
+    /// The session's new side is the working tree or index (e.g. `work`, `staged`, a bare branch ref, the file
+    /// browser), so its line numbers equal the PR head's only for files without local changes.
+    pub new_is_local: bool,
+}
+
+pub const REASON_NOT_IN_PR: &str = "Can't be posted: file isn't part of the PR";
+pub const REASON_OUTSIDE_DIFF: &str = "Can't be posted: line isn't part of the PR diff";
+pub const REASON_OTHER_COMMIT: &str = "Can't be posted: left on a different commit than the PR head";
+pub const REASON_OTHER_BASE: &str = "Can't be posted: left on the old side of a different comparison than the PR";
+pub const REASON_LOCAL_CHANGES: &str =
+    "Can't be posted: your local files differ from the PR head — commit & push or discard your changes first";
+pub const REASON_NO_VIEW: &str = "Can't be posted: the view it was left in no longer exists";
+
+/// What the PR diff looks like, for deciding whether a local comment can become a GitHub review comment.
+#[derive(Default)]
+pub struct PrDiff {
+    /// Files GitHub lists as changed in the PR.
+    pub files: HashSet<String>,
+    /// Lines in the PR diff's hunks per file (both sides), for the files that have comments.
+    pub lines: HashMap<String, FileLines>,
+    /// Files whose working tree or index differs from local HEAD (= PR head).
+    pub locally_changed: HashSet<String>,
+}
+
+/// `None` when `thread` can be posted to the PR as-is, otherwise why not.
+pub fn postable_reason(thread: &Thread, anchor: Option<&SessionAnchor>, pr: &PrDiff) -> Option<&'static str> {
+    let Some(anchor) = anchor else {
+        return Some(REASON_NO_VIEW);
+    };
+    if thread.file_path == GENERAL_FILE_PATH {
+        return (!(anchor.is_pr_session || anchor.new_matches)).then_some(REASON_OTHER_COMMIT);
+    }
+    if !pr.files.contains(&thread.file_path) {
+        return Some(REASON_NOT_IN_PR);
+    }
+    let side_ok = match thread.side {
+        Side::New => anchor.new_matches,
+        Side::Old => anchor.old_matches,
+    };
+    if thread.start_line == 0 {
+        return (!(anchor.new_matches || anchor.old_matches)).then_some(REASON_OTHER_COMMIT);
+    }
+    if !side_ok {
+        return Some(match thread.side {
+            Side::New => REASON_OTHER_COMMIT,
+            Side::Old => REASON_OTHER_BASE,
+        });
+    }
+    if thread.side == Side::New && anchor.new_is_local && pr.locally_changed.contains(&thread.file_path) {
+        return Some(REASON_LOCAL_CHANGES);
+    }
+    let start = if thread.start_line > 0 { thread.start_line } else { thread.end_line };
+    let covered = pr
+        .lines
+        .get(&thread.file_path)
+        .is_some_and(|lines| lines.covers(thread.side, start, thread.end_line));
+    (!covered).then_some(REASON_OUTSIDE_DIFF)
+}
+
+/// A comment of yours that could go into a GitHub review of the PR.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewCandidate {
+    pub thread: Thread,
+    /// Ref of the view the comment was left in (`work`, `origin/main...HEAD`, …).
+    pub session_ref: String,
+    /// Still a draft in a pending review (not yet submitted locally).
+    pub draft: bool,
+    /// Why it can't be posted; `None` when it can.
+    pub blocked_reason: Option<String>,
+}
+
+fn user_started(thread: &Thread) -> bool {
+    thread.comments.first().is_some_and(|c| c.author_type == AuthorType::User)
+}
+
+/// Your open comments (drafts and published local threads, any view of the repo) that are not on GitHub yet,
+/// each with whether it can be posted to the PR. Postable first (PR view first, then oldest), then blocked.
+pub fn review_candidates(
+    threads: Vec<Thread>,
+    sessions: &HashMap<String, String>,
+    anchors: &HashMap<String, SessionAnchor>,
+    pr: &PrDiff,
+) -> Vec<ReviewCandidate> {
+    let mut out: Vec<ReviewCandidate> = threads
+        .into_iter()
+        .filter(|t| t.status == ThreadStatus::Open && t.github_thread_id.is_none() && user_started(t))
+        .map(|t| {
+            let anchor = anchors.get(&t.session_id);
+            let blocked_reason = postable_reason(&t, anchor, pr).map(str::to_string);
+            ReviewCandidate {
+                session_ref: sessions.get(&t.session_id).cloned().unwrap_or_default(),
+                draft: t.pending,
+                blocked_reason,
+                thread: t,
+            }
+        })
+        .collect();
+    out.sort_by_key(|c| {
+        let pr_first = anchors.get(&c.thread.session_id).is_some_and(|a| a.is_pr_session);
+        (c.blocked_reason.is_some(), !pr_first, c.thread.created_at.clone())
+    });
+    out
 }
 
 /// Open, unsynced threads from any of the repo's sessions whose anchors line up with the PR:
@@ -433,7 +537,7 @@ mod pushable_tests {
         anchors.insert("work".to_string(), SessionAnchor { new_matches: true, ..Default::default() });
         anchors.insert(
             "pr".to_string(),
-            SessionAnchor { new_matches: true, old_matches: true, is_pr_session: true },
+            SessionAnchor { new_matches: true, old_matches: true, is_pr_session: true, ..Default::default() },
         );
         anchors.insert("old-commit".to_string(), SessionAnchor::default());
         let files: HashSet<String> = ["src/a.ts".to_string()].into();
@@ -458,5 +562,147 @@ mod pushable_tests {
         );
         let ids: Vec<&str> = picked.iter().map(|t| t.id.as_str()).collect();
         assert_eq!(ids, vec!["p-old", "w-new", "general"]);
+    }
+}
+
+#[cfg(test)]
+mod candidate_tests {
+    use super::*;
+    use diffity_core::repo_threads::index_patch;
+    use diffity_core::types::Comment;
+
+    const PATCH: &str = "diff --git a/src/a.ts b/src/a.ts
+--- a/src/a.ts
++++ b/src/a.ts
+@@ -10,4 +10,5 @@ fn
+ ctx10
+-old11
++new11
++new12
+ ctx12
+ ctx13
+";
+
+    fn comment(author: AuthorType) -> Comment {
+        Comment {
+            id: "c".into(),
+            thread_id: String::new(),
+            author_type: author,
+            author_name: "You".into(),
+            body: "please fix".into(),
+            created_at: String::new(),
+            github_comment_id: None,
+            pending: false,
+            review_id: None,
+            mentions_agent: false,
+        }
+    }
+
+    fn thread(id: &str, session: &str, path: &str, side: Side, start: u32, end: u32) -> Thread {
+        Thread {
+            id: id.into(),
+            session_id: session.into(),
+            file_path: path.into(),
+            side,
+            start_line: start,
+            end_line: end,
+            status: ThreadStatus::Open,
+            severity: None,
+            anchor_content: None,
+            github_thread_id: None,
+            comments: vec![comment(AuthorType::User)],
+            created_at: format!("2026-01-01T00:00:{:02}Z", id.len()),
+            updated_at: String::new(),
+            pending: false,
+            review_id: None,
+        }
+    }
+
+    fn pr_diff(changed: &[&str]) -> PrDiff {
+        PrDiff {
+            files: ["src/a.ts".to_string(), "src/b.ts".to_string()].into(),
+            lines: index_patch(PATCH),
+            locally_changed: changed.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    fn anchors() -> HashMap<String, SessionAnchor> {
+        HashMap::from([
+            ("pr".to_string(), SessionAnchor { new_matches: true, old_matches: true, is_pr_session: true, new_is_local: false }),
+            ("work".to_string(), SessionAnchor { new_matches: true, new_is_local: true, ..Default::default() }),
+            ("old".to_string(), SessionAnchor::default()),
+        ])
+    }
+
+    #[test]
+    fn maps_lines_against_the_pr_diff() {
+        let a = anchors();
+        let pr = pr_diff(&[]);
+        let reason = |t: &Thread| postable_reason(t, a.get(&t.session_id), &pr);
+        assert_eq!(reason(&thread("t", "pr", "src/a.ts", Side::New, 11, 12)), None);
+        assert_eq!(reason(&thread("t", "pr", "src/a.ts", Side::New, 10, 14)), None);
+        assert_eq!(reason(&thread("t", "pr", "src/a.ts", Side::Old, 11, 11)), None);
+        assert_eq!(reason(&thread("t", "pr", "src/a.ts", Side::New, 14, 16)), Some(REASON_OUTSIDE_DIFF));
+        assert_eq!(reason(&thread("t", "pr", "src/a.ts", Side::New, 3, 3)), Some(REASON_OUTSIDE_DIFF));
+        assert_eq!(reason(&thread("t", "pr", "src/b.ts", Side::New, 3, 3)), Some(REASON_OUTSIDE_DIFF));
+        assert_eq!(reason(&thread("t", "pr", "src/c.ts", Side::New, 3, 3)), Some(REASON_NOT_IN_PR));
+        assert_eq!(reason(&thread("t", "pr", GENERAL_FILE_PATH, Side::New, 0, 0)), None);
+        assert_eq!(reason(&thread("t", "pr", "src/a.ts", Side::New, 0, 0)), None);
+        assert_eq!(reason(&thread("t", "gone", "src/a.ts", Side::New, 11, 11)), Some(REASON_NO_VIEW));
+    }
+
+    #[test]
+    fn work_view_lines_equal_pr_head_only_without_local_changes() {
+        let a = anchors();
+        let clean = pr_diff(&["src/other.ts"]);
+        let t = thread("w", "work", "src/a.ts", Side::New, 12, 12);
+        assert_eq!(postable_reason(&t, a.get("work"), &clean), None);
+        let dirty = pr_diff(&["src/a.ts"]);
+        assert_eq!(postable_reason(&t, a.get("work"), &dirty), Some(REASON_LOCAL_CHANGES));
+        // PR-view lines come from the HEAD commit, so local edits don't matter.
+        let p = thread("p", "pr", "src/a.ts", Side::New, 12, 12);
+        assert_eq!(postable_reason(&p, a.get("pr"), &dirty), None);
+        // `work`'s old side is HEAD, not the PR base.
+        let old = thread("o", "work", "src/a.ts", Side::Old, 11, 11);
+        assert_eq!(postable_reason(&old, a.get("work"), &clean), Some(REASON_OTHER_BASE));
+        let stale = thread("s", "old", "src/a.ts", Side::New, 11, 11);
+        assert_eq!(postable_reason(&stale, a.get("old"), &clean), Some(REASON_OTHER_COMMIT));
+    }
+
+    #[test]
+    fn lists_your_unposted_comments_postable_first() {
+        let a = anchors();
+        let pr = pr_diff(&[]);
+        let sessions = HashMap::from([
+            ("pr".to_string(), "origin/main...HEAD".to_string()),
+            ("work".to_string(), "work".to_string()),
+        ]);
+        let mut draft = thread("draft", "pr", "src/a.ts", Side::New, 11, 11);
+        draft.pending = true;
+        let mut claude = thread("claude", "pr", "src/a.ts", Side::New, 11, 11);
+        claude.comments = vec![comment(AuthorType::Agent)];
+        let mut posted = thread("posted", "pr", "src/a.ts", Side::New, 11, 11);
+        posted.github_thread_id = Some("GT".into());
+        let mut resolved = thread("resolved", "pr", "src/a.ts", Side::New, 11, 11);
+        resolved.status = ThreadStatus::Resolved;
+        let out = review_candidates(
+            vec![
+                thread("outside", "pr", "src/a.ts", Side::New, 40, 40),
+                thread("w", "work", "src/a.ts", Side::New, 12, 12),
+                draft,
+                claude,
+                posted,
+                resolved,
+                thread("local", "pr", "src/a.ts", Side::New, 13, 13),
+            ],
+            &sessions,
+            &a,
+            &pr,
+        );
+        let ids: Vec<(&str, bool, bool)> =
+            out.iter().map(|c| (c.thread.id.as_str(), c.draft, c.blocked_reason.is_some())).collect();
+        assert_eq!(ids, vec![("draft", true, false), ("local", false, false), ("w", false, false), ("outside", false, true)]);
+        assert_eq!(out[2].session_ref, "work");
+        assert_eq!(out[3].blocked_reason.as_deref(), Some(REASON_OUTSIDE_DIFF));
     }
 }

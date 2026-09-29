@@ -1,7 +1,8 @@
 use diffity_core::types::Thread;
 use diffity_core::AppError;
 use diffity_github::{
-    DeviceCode, GitOpResult, GithubAuthStatus, PullRequest, PullResult, PushResult, ReviewEvent, StashResult,
+    DeviceCode, GitOpResult, GithubAuthStatus, GithubPendingAction, PullRequest, PullResult, PushResult, ReviewCandidates,
+    ReviewEvent, StashResult,
 };
 use serde_json::json;
 use tauri::{AppHandle, Emitter, State};
@@ -150,6 +151,7 @@ pub async fn push_review(
     body: Option<String>,
     thread_ids: Option<Vec<String>>,
     review_id: Option<String>,
+    pending_action: Option<GithubPendingAction>,
 ) -> Result<PushResult, AppError> {
     let review = match &review_id {
         Some(id) => Some(state.store.get_review(id)?),
@@ -163,8 +165,11 @@ pub async fn push_review(
         .or_else(|| review.map(|r| r.body));
     let result = state
         .github
-        .push_review(&repo_path, &session_id, pr_number, event, body, thread_ids, review_id)
+        .push_review(&repo_path, &session_id, pr_number, event, body, thread_ids, review_id, pending_action)
         .await;
+    if let Err(e) = &result {
+        tracing::warn!("push_review #{pr_number} failed: [{}] {}", e.code, e.message);
+    }
     emit_repo_threads_changed(&app, &state, &repo_path);
     result
 }
@@ -190,6 +195,16 @@ pub async fn github_pushable_threads(
     pr_number: u64,
 ) -> Result<Vec<Thread>, AppError> {
     state.github.pushable_threads(&repo_path, pr_number).await
+}
+
+/// Your comments not yet on GitHub (drafts + local threads from every view), each postable or with a reason.
+#[tauri::command]
+pub async fn github_review_candidates(
+    state: State<'_, AppState>,
+    repo_path: String,
+    pr_number: u64,
+) -> Result<ReviewCandidates, AppError> {
+    state.github.review_candidates(&repo_path, pr_number).await
 }
 
 fn emit_repo_threads_changed(app: &AppHandle, state: &AppState, repo_path: &str) {

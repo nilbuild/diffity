@@ -160,6 +160,7 @@ pub fn run() {
             commands::github::push_review,
             commands::github::pull_review,
             commands::github::github_pushable_threads,
+            commands::github::github_review_candidates,
             commands::github::github_reply,
             commands::github::github_set_resolved,
         ])

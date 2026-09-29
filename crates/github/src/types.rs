@@ -102,6 +102,47 @@ pub struct PushResult {
     pub skipped: u32,
     pub failed: u32,
     pub errors: Vec<String>,
+    /// Local thread ids that are now linked to GitHub threads (or went into the review body).
+    #[serde(default)]
+    pub posted_thread_ids: Vec<String>,
+    /// The GitHub review that was created or submitted.
+    #[serde(default)]
+    pub review_url: Option<String>,
+    /// Debug builds with `DIFFITY_GITHUB_DRY_RUN=1`: nothing was sent; `dry_run_mutations` holds what would have been.
+    #[serde(default)]
+    pub dry_run: bool,
+    #[serde(default)]
+    pub dry_run_mutations: Vec<serde_json::Value>,
+}
+
+/// What to do with a review you already have pending on GitHub (started on github.com).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum GithubPendingAction {
+    /// Add the new comments to it and submit it.
+    AddToExisting,
+    /// Delete it, then post a new review.
+    Discard,
+}
+
+/// A review of yours that is pending (unsubmitted) on GitHub.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GithubPendingReview {
+    pub id: String,
+    pub comment_count: u32,
+    pub url: Option<String>,
+}
+
+/// Everything the Submit review popover needs to know about posting to the PR.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ReviewCandidates {
+    pub candidates: Vec<crate::review::ReviewCandidate>,
+    /// Set when nothing line-anchored can be posted at all (e.g. local HEAD isn't the PR head).
+    pub blocker: Option<String>,
+    pub github_pending: Option<GithubPendingReview>,
+    pub pr_url: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
