@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
+import { handleCopyShortcut } from '../../lib/file-copy';
 import { toast } from 'sonner';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { cn } from '../../lib/cn';
 import * as tauri from '../../lib/tauri';
 import { commitRef, errorMessage, openInEditor } from '../../lib/api';
 import { modKey } from '../../lib/platform';
+import { shortcutHint } from '../../lib/shortcuts';
+import { KeyCaps } from '../../components/ui/key-caps';
 import { useRepoNav } from '../../hooks/use-repo';
 import { useTheme } from '../../hooks/use-theme';
 import { useGitHubAuth, useGitHubPr, useRecentCommits } from '../../hooks/use-repo-state';
@@ -54,19 +57,19 @@ function useGlobalActions(): PaletteAction[] {
   const { theme, toggleTheme } = useTheme();
 
   return useMemo(() => [
-    { id: 'go-home', title: 'Go to Home', group: 'Go to', hint: `${modKey}⇧H`, icon: <HomeIcon size="sm" />, run: nav.toOverview },
+    { id: 'go-home', title: 'Go to Home', group: 'Go to', hint: shortcutHint('go-home'), icon: <HomeIcon size="sm" />, run: nav.toOverview },
     { id: 'go-changes', title: 'Uncommitted changes', group: 'Go to', icon: <ChangesIcon size="sm" />, run: () => nav.toDiff('work') },
     { id: 'go-files', title: 'Browse files', group: 'Go to', icon: <FolderSimpleIcon size="sm" />, run: () => nav.toTree() },
-    { id: 'comments', title: 'Show all comments', group: 'Go to', hint: 'C', icon: <CommentIcon size="sm" />, run: openComments },
-    { id: 'toggle-sidebar', title: 'Toggle sidebar', group: 'View', hint: `${modKey}\\`, icon: <SidebarIcon size="sm" />, run: toggleSidebar },
+    { id: 'comments', title: 'Show all comments', group: 'Go to', hint: shortcutHint('comments'), icon: <CommentIcon size="sm" />, run: openComments },
+    { id: 'toggle-sidebar', title: 'Toggle sidebar', group: 'View', hint: shortcutHint('toggle-sidebar'), icon: <SidebarIcon size="sm" />, run: toggleSidebar },
     { id: 'toggle-theme', title: theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme', group: 'View', keywords: 'theme dark light appearance', icon: <MoonIcon size="sm" />, run: toggleTheme },
     { id: 'fetch', title: 'Fetch', group: 'Actions', keywords: 'git remote', icon: <FetchIcon size="sm" />, run: () => runGit('Fetch', () => tauri.gitFetch(nav.repoPath)) },
     { id: 'pull', title: 'Pull', group: 'Actions', keywords: 'git', icon: <PullIcon size="sm" />, run: () => runGit('Pull', () => tauri.gitPull(nav.repoPath)) },
     { id: 'push', title: 'Push', group: 'Actions', keywords: 'git publish', icon: <PushIcon size="sm" />, run: () => runGit('Push', () => tauri.gitPush(nav.repoPath)) },
     { id: 'open-editor', title: 'Open repository in editor', group: 'Actions', icon: <EditorIcon size="sm" />, run: () => { openInEditor('').catch((error) => toast.error('Could not open the editor', { description: errorMessage(error) })); } },
     { id: 'reveal', title: 'Reveal in Finder', group: 'Actions', icon: <FolderSimpleIcon size="sm" />, run: () => { revealItemInDir(nav.repoPath).catch(() => undefined); } },
-    { id: 'settings', title: 'Settings', group: 'Actions', hint: `${modKey},`, icon: <SettingsIcon size="sm" />, run: openSettings },
-    { id: 'shortcuts', title: 'Keyboard shortcuts', group: 'Actions', hint: '?', icon: <KeyboardIcon size="sm" />, run: openShortcuts },
+    { id: 'settings', title: 'Settings', group: 'Actions', hint: shortcutHint('settings'), icon: <SettingsIcon size="sm" />, run: openSettings },
+    { id: 'shortcuts', title: 'Keyboard shortcuts', group: 'Actions', hint: shortcutHint('shortcuts'), icon: <KeyboardIcon size="sm" />, run: openShortcuts },
   ], [nav, theme, toggleTheme]);
 }
 
@@ -97,6 +100,8 @@ function PaletteBody(props: { mode: PaletteMode }) {
   const prs = usePullRequests(mode === 'all' && hasRemote && !!auth?.authenticated);
   const { data: repoThreads } = useRepoThreads();
   const { data: tree } = useQuery({ ...treePathsOptions(), enabled: mode === 'files' });
+  const location = useLocation();
+  const viewRef = location.pathname.endsWith('/diff') ? new URLSearchParams(location.search).get('ref') ?? 'work' : 'work';
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -322,6 +327,13 @@ function PaletteBody(props: { mode: PaletteMode }) {
                 setActive((value) => Math.max(value - 1, 0));
                 return;
               }
+              if (mode === 'files' && flatItems[active]) {
+                const path = flatItems[active].id.replace(/^(view|file):/, '');
+                if (handleCopyShortcut(event.nativeEvent, path, flatItems[active].id.startsWith('view:') ? viewRef : 'work')) {
+                  closePalette();
+                  return;
+                }
+              }
               if (event.key === 'Enter') {
                 event.preventDefault();
                 choose(flatItems[active], event.metaKey || event.ctrlKey);
@@ -354,7 +366,7 @@ function PaletteBody(props: { mode: PaletteMode }) {
                     <span className="flex w-4 justify-center text-text-secondary shrink-0">{item.icon}</span>
                     <span className={cn('min-w-0 flex-1 truncate text-[13px] text-text', mode === 'files' && 'font-mono text-xs')}>{item.title}</span>
                     {item.detail && <span className="shrink-0 min-w-0">{item.detail}</span>}
-                    {item.hint && <kbd className="shrink-0 font-sans text-[11px] text-text-muted">{item.hint}</kbd>}
+                    {item.hint && <KeyCaps keys={[item.hint]} />}
                   </button>
                 );
               })}
@@ -364,8 +376,8 @@ function PaletteBody(props: { mode: PaletteMode }) {
         <div className="flex items-center gap-4 h-8 px-4 border-t border-overlay-border text-[11px] text-text-muted">
           <span>↑↓ to move</span>
           <span>↵ to open</span>
-          {mode === 'files' && <span>{modKey}↵ open in editor</span>}
-          <span className="ml-auto">{modKey}K everything · {modKey}P files · {modKey}⇧P actions</span>
+          {mode === 'files' && <span>{modKey}↵ open in editor · {shortcutHint('copy-path')} path · {shortcutHint('copy-contents')} contents</span>}
+          <span className="ml-auto">{shortcutHint('palette')} everything · {shortcutHint('go-to-file')} files · {shortcutHint('palette-actions')} actions</span>
         </div>
       </div>
     </div>,

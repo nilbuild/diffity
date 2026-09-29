@@ -44,7 +44,7 @@ interface ThemeState {
 
 const initialPreference = getStoredPreference();
 
-const useThemeStore = create<ThemeState>((set, get) => ({
+export const useThemeStore = create<ThemeState>((set, get) => ({
   preference: initialPreference,
   theme: resolve(initialPreference),
   setPreference: (preference) => {

@@ -1,4 +1,4 @@
-import type { DiffFile, DiffHunk } from '@diffity/parser';
+import type { DiffFile, DiffHunk, DiffLine } from '@diffity/parser';
 import type { CommentSide } from '../components/comments/types';
 
 export type ViewMode = 'unified' | 'split';
@@ -78,9 +78,15 @@ const GENERATED_PATTERNS = [
   /\.lock$/,
 ];
 
-const AUTO_COLLAPSE_LINE_THRESHOLD = 1000;
+/** Files with more diff rows than this are not rendered until "Load diff". */
+export const DEFER_ROW_THRESHOLD = 1000;
+/** A line this long marks minified / generated content. */
+export const LONG_LINE_LENGTH = 1000;
 
-function getTotalLineCount(file: DiffFile): number {
+export function getRowCount(file: DiffFile): number {
+  if (file.patchOmitted) {
+    return file.additions + file.deletions;
+  }
   let count = 0;
   for (const hunk of file.hunks) {
     count += hunk.lines.length;
@@ -88,36 +94,53 @@ function getTotalLineCount(file: DiffFile): number {
   return count;
 }
 
-function isAutoCollapsible(file: DiffFile): boolean {
-  if (file.status === 'deleted' || file.status === 'renamed') {
+function hasLongLine(file: DiffFile): boolean {
+  for (const hunk of file.hunks) {
+    for (const line of hunk.lines) {
+      if (line.content.length > LONG_LINE_LENGTH) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function isGeneratedPath(path: string): boolean {
+  const lowerPath = path.toLowerCase();
+  if (GENERATED_EXTENSIONS.some((ext) => lowerPath.endsWith(ext))) {
     return true;
   }
+  return GENERATED_PATTERNS.some((pattern) => pattern.test(path));
+}
 
-  if (getTotalLineCount(file) >= AUTO_COLLAPSE_LINE_THRESHOLD) {
-    return true;
+/**
+ * Why a file's diff is held back behind "Load diff" (lock, generated, minified or large), or null to render it.
+ * Binary files and files without hunks have nothing to hold back.
+ */
+export function deferReason(file: DiffFile): string | null {
+  if (file.isBinary || (!file.patchOmitted && file.hunks.length === 0)) {
+    return null;
   }
-
   const path = getFilePath(file);
   const fileName = path.split('/').pop() || '';
-
+  const rows = getRowCount(file);
   if (LOCK_FILES.has(fileName)) {
-    return true;
+    return 'Lock file';
   }
-
-  const lowerPath = path.toLowerCase();
-  for (const ext of GENERATED_EXTENSIONS) {
-    if (lowerPath.endsWith(ext)) {
-      return true;
-    }
+  if (/\.min\.(js|mjs|css)$/i.test(path) || hasLongLine(file)) {
+    return 'Minified file';
   }
-
-  for (const pattern of GENERATED_PATTERNS) {
-    if (pattern.test(path)) {
-      return true;
-    }
+  if (isGeneratedPath(path)) {
+    return 'Generated file';
   }
+  if (file.patchOmitted || rows >= DEFER_ROW_THRESHOLD) {
+    return 'Large diff';
+  }
+  return null;
+}
 
-  return false;
+function isAutoCollapsible(file: DiffFile): boolean {
+  return file.status === 'deleted' || file.status === 'renamed';
 }
 
 export function getAutoCollapsedPaths(files: DiffFile[]): Set<string> {
@@ -128,6 +151,87 @@ export function getAutoCollapsedPaths(files: DiffFile[]): Set<string> {
     }
   }
   return paths;
+}
+
+/** Files with more rows than this render their hunks in slices that mount only near the viewport. */
+export const SLICE_ROW_THRESHOLD = 400;
+export const SLICE_SIZE = 120;
+
+function sliceOf(hunk: DiffHunk, lines: DiffLine[], first: boolean): DiffHunk {
+  if (first) {
+    return { ...hunk, lines };
+  }
+  let oldCount = 0;
+  let newCount = 0;
+  for (const line of lines) {
+    if (line.type !== 'add') {
+      oldCount++;
+    }
+    if (line.type !== 'delete') {
+      newCount++;
+    }
+  }
+  const oldStart = lines.find((line) => line.oldLineNumber !== null)?.oldLineNumber ?? hunk.oldStart;
+  const newStart = lines.find((line) => line.newLineNumber !== null)?.newLineNumber ?? hunk.newStart;
+  return { header: '', oldStart, oldCount, newStart, newCount, lines };
+}
+
+/**
+ * Splits a long hunk into slices of about `size` lines. The first slice keeps the header; the rest have an empty one
+ * (HunkHeader renders nothing for it). A cut never falls inside a delete/add run, so split view still pairs lines,
+ * unless the run is over four slices long.
+ */
+export function sliceHunk(hunk: DiffHunk, size = SLICE_SIZE): DiffHunk[] {
+  const lines = hunk.lines;
+  if (lines.length <= size * 1.5) {
+    return [hunk];
+  }
+  const slices: DiffHunk[] = [];
+  let start = 0;
+  let runHasDelete = false;
+  for (let i = 1; i < lines.length; i++) {
+    const prev = lines[i - 1];
+    if (prev.type === 'context') {
+      runHasDelete = false;
+    }
+    if (prev.type === 'delete') {
+      runHasDelete = true;
+    }
+    if (i - start < size) {
+      continue;
+    }
+    if (runHasDelete && lines[i].type !== 'context' && i - start < size * 4) {
+      continue;
+    }
+    slices.push(sliceOf(hunk, lines.slice(start, i), start === 0));
+    start = i;
+  }
+  slices.push(sliceOf(hunk, lines.slice(start), start === 0));
+  return slices;
+}
+
+/** Rows a slice takes: every line in unified view; context plus the longer side of each change run in split. */
+export function sliceRowCount(lines: DiffLine[], split: boolean): number {
+  if (!split) {
+    return lines.length;
+  }
+  let rows = 0;
+  let dels = 0;
+  let adds = 0;
+  for (const line of lines) {
+    if (line.type === 'context') {
+      rows += Math.max(dels, adds) + 1;
+      dels = 0;
+      adds = 0;
+      continue;
+    }
+    if (line.type === 'delete') {
+      dels++;
+    } else {
+      adds++;
+    }
+  }
+  return rows + Math.max(dels, adds);
 }
 
 export function buildHunkPatch(file: DiffFile, hunk: DiffHunk): string {

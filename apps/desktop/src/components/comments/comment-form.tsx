@@ -17,6 +17,8 @@ interface CommentFormProps {
   lineLabel?: string;
   reviewable?: boolean;
   threadPending?: boolean;
+  /** The thread's last comment is Claude's: a reply goes to Claude unless the user opts out. */
+  claudeReplies?: boolean;
   /** Persists unsent text (per repo) so it survives refreshes and reloads; cleared on submit or cancel. */
   draftKey?: string;
   isReply?: boolean;
@@ -87,7 +89,9 @@ export function CommentForm(props: CommentFormProps) {
     threadPending = false,
     draftKey,
     isReply = false,
+    claudeReplies = false,
   } = props;
+  const [sendToClaude, setSendToClaude] = useState(true);
   const reviewState = useReviewState();
   const storageKey = draftKey ? `${reviewState.sessionId ?? 'none'}:${draftKey}` : undefined;
   const [body, setBodyState] = useState(() => readDraft(storageKey));
@@ -113,7 +117,7 @@ export function CommentForm(props: CommentFormProps) {
     if (!trimmed) {
       return;
     }
-    onSubmit(trimmed, { pending });
+    onSubmit(trimmed, { pending, askClaude: !pending && claudeReplies && sendToClaude });
     setBody('');
   };
 
@@ -220,7 +224,20 @@ export function CommentForm(props: CommentFormProps) {
           className="block w-full px-3 py-2 text-[13px] leading-5 bg-bg text-text rounded-md border border-border focus:border-focus resize-y outline-none placeholder:text-text-muted min-h-[72px]"
         />
       </div>
-      {review.enabled && (
+      {review.enabled && claudeReplies && !mentionsAgent(body) && (
+        <div className="px-3 pb-2 text-xs text-text-muted" title={`${modKey}Enter submits`}>
+          {sendToClaude ? 'Claude will reply' : 'Saved in Diffity only'}
+          {' · '}
+          <button
+            type="button"
+            onClick={() => setSendToClaude(!sendToClaude)}
+            className="underline decoration-text-muted/50 underline-offset-2 hover:text-text cursor-pointer"
+          >
+            {sendToClaude ? 'don’t send to Claude' : 'send to Claude'}
+          </button>
+        </div>
+      )}
+      {review.enabled && !(claudeReplies && !mentionsAgent(body)) && (
         <div className="px-3 pb-2 text-xs text-text-muted" title={`${modKey}Enter submits`}>
           {destinationHint({ reviewMode, prNumber, mentions: mentionsAgent(body), ownPr: review.ownPrNumber })}
         </div>

@@ -1,13 +1,19 @@
 import { useMemo, useRef, useState, useCallback, useImperativeHandle, useEffect, useLayoutEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ParsedDiff } from '@diffity/parser';
-import { FileBlock, LARGE_DIFF_LINE_THRESHOLD } from './file-block';
+import { FileBlock } from './file-block';
+import { ConfirmDialog } from '../ui/confirm-dialog';
+import { buttonGhost } from '../ui/button-styles';
+import { cn } from '../../lib/cn';
+import { deferReason, getRowCount } from '../../lib/diff-utils';
+import { loadAllHeldBackFiles, useLargeDiff } from '../../lib/large-diff';
 import { DiffContextHeader } from '../layout/diff-context-bar';
 import { GeneralComments } from '../comments/general-comments';
 import { OutsideThreads } from '../comments/outside-threads';
 import { GENERAL_THREAD_FILE_PATH } from '../comments/types';
 import { useHighlighter } from '../../hooks/use-highlighter';
 import { type ViewMode, getFilePath } from '../../lib/diff-utils';
+import type { DiffFile } from '@diffity/parser';
 import type { CommentThread, LineSelection } from '../comments/types';
 import type { CommentActions } from '../../hooks/use-comment-actions';
 
@@ -29,6 +35,8 @@ const EMPTY_CONTENT_HEIGHT = 100;
 const LINE_HEIGHT = 22;
 const HUNK_HEADER_HEIGHT = 32;
 const FILE_BLOCK_PADDING = 16;
+const LIST_TOP_PADDING = 16;
+const HELD_BACK_HEIGHT = FILE_HEADER_HEIGHT + 56;
 
 interface DiffViewProps {
   diff: ParsedDiff;
@@ -53,23 +61,50 @@ interface DiffViewProps {
   /** Restored before the first paint so coming back to a view does not jump. */
   initialScrollTop?: number;
   onScrollTopChange?: (top: number) => void;
+  hideWhitespace?: boolean;
 }
 
-function estimateFileHeight(file: { hunks: { lines: { length: number } }[]; isBinary: boolean }, collapsed: boolean): number {
+function estimateFileHeight(file: DiffFile, collapsed: boolean, heldBack: boolean): number {
   if (collapsed) {
     return FILE_HEADER_HEIGHT;
+  }
+  if (heldBack) {
+    return HELD_BACK_HEIGHT;
   }
   if (file.isBinary || file.hunks.length === 0) {
     return EMPTY_CONTENT_HEIGHT;
   }
-  let lineCount = 0;
-  for (const hunk of file.hunks) {
-    lineCount += hunk.lines.length;
-  }
-  if (lineCount >= LARGE_DIFF_LINE_THRESHOLD) {
-    return EMPTY_CONTENT_HEIGHT;
-  }
-  return FILE_HEADER_HEIGHT + lineCount * LINE_HEIGHT + file.hunks.length * HUNK_HEADER_HEIGHT + FILE_BLOCK_PADDING;
+  return FILE_HEADER_HEIGHT + getRowCount(file) * LINE_HEIGHT + file.hunks.length * HUNK_HEADER_HEIGHT + FILE_BLOCK_PADDING;
+}
+
+function LargeDiffNotice(props: { files: DiffFile[] }) {
+  const { files } = props;
+  const [confirming, setConfirming] = useState(false);
+  const rows = files.reduce((sum, file) => sum + getRowCount(file), 0);
+
+  return (
+    <div className="flex items-center gap-2 h-9 px-3 rounded-lg border border-border bg-bg-secondary text-[13px] text-text-secondary">
+      <span className="w-1.5 h-1.5 rounded-full bg-modified shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1 truncate">
+        Large diff: {files.length} file{files.length === 1 ? ' is' : 's are'} collapsed (lock, generated, minified or very large)
+      </span>
+      <button onClick={() => setConfirming(true)} className={cn(buttonGhost, 'h-6 px-2 text-xs text-text')}>
+        Expand all
+      </button>
+      {confirming && (
+        <ConfirmDialog
+          title={`Load ${files.length} collapsed file${files.length === 1 ? '' : 's'}?`}
+          message={`That renders about ${rows.toLocaleString()} more changed lines. Diffity may get slow while they load.`}
+          confirmLabel="Load all"
+          onConfirm={() => {
+            setConfirming(false);
+            loadAllHeldBackFiles();
+          }}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
+    </div>
+  );
 }
 
 export function DiffView(props: DiffViewProps) {
@@ -78,7 +113,7 @@ export function DiffView(props: DiffViewProps) {
     reviewedFiles, onReviewedChange, onActiveFileChange, scrollRef,
     handle, baseRef, canRevert, onRevert,
     threads, commentsEnabled, commentActions, onAddThread,
-    pendingSelection, onPendingSelectionChange, initialScrollTop = 0, onScrollTopChange,
+    pendingSelection, onPendingSelectionChange, initialScrollTop = 0, onScrollTopChange, hideWhitespace = false,
   } = props;
   const { highlight } = useHighlighter();
   const scrollElementRef = useRef<HTMLElement>(null);
@@ -103,16 +138,55 @@ export function DiffView(props: DiffViewProps) {
     return map;
   }, [diff, highlight, theme]);
 
+  const heldBackPaths = useMemo(() => {
+    const threadPaths = new Set(threads.map((thread) => thread.filePath));
+    const paths = new Set<string>();
+    for (const file of diff.files) {
+      const path = getFilePath(file);
+      if (deferReason(file) && !threadPaths.has(path)) {
+        paths.add(path);
+      }
+    }
+    return paths;
+  }, [diff.files, threads]);
+  const loadedAll = useLargeDiff((state) => state.all);
+  const loadedPaths = useLargeDiff((state) => state.loaded);
+  const stillHeldBack = useMemo(
+    () => (loadedAll ? [] : diff.files.filter((file) => heldBackPaths.has(getFilePath(file)) && !loadedPaths.has(getFilePath(file)))),
+    [diff.files, heldBackPaths, loadedAll, loadedPaths],
+  );
+
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  useLayoutEffect(() => {
+    const header = headerRef.current;
+    if (!header) {
+      return;
+    }
+    const update = () => setScrollMargin(header.offsetHeight + LIST_TOP_PADDING);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+
   const virtualizer = useVirtualizer({
     initialOffset: initialScrollTop,
+    scrollMargin,
     count: diff.files.length,
     getScrollElement: () => scrollElementRef.current,
-    estimateSize: (index) => estimateFileHeight(diff.files[index], collapsedFiles.has(getFilePath(diff.files[index]))),
+    estimateSize: (index) => {
+      const path = getFilePath(diff.files[index]);
+      return estimateFileHeight(diff.files[index], collapsedFiles.has(path), heldBackPaths.has(path) && !loadedAll && !loadedPaths.has(path));
+    },
     overscan: VIRTUALIZER_OVERSCAN,
   });
 
   const scrollTargetRef = useRef<string | null>(null);
   const [highlightedFile, setHighlightedFile] = useState<string | null>(null);
+  const handleHighlightEnd = useCallback((path: string) => {
+    setHighlightedFile((current) => (current === path ? null : current));
+  }, []);
 
   const [pendingThreadScroll, setPendingThreadScroll] = useState<string | null>(null);
 
@@ -265,8 +339,8 @@ export function DiffView(props: DiffViewProps) {
   const items = virtualizer.getVirtualItems();
   const [paddingTop, paddingBottom] = items.length > 0
     ? [
-        items[0].start,
-        virtualizer.getTotalSize() - items[items.length - 1].end,
+        items[0].start - scrollMargin,
+        virtualizer.getTotalSize() - (items[items.length - 1].end - scrollMargin),
       ]
     : [0, 0];
 
@@ -281,8 +355,9 @@ export function DiffView(props: DiffViewProps) {
       onScroll={handleScroll}
       className="flex-1 overflow-y-auto pb-12"
     >
-      <div className="flex flex-col gap-4 px-5 pt-4 empty:hidden">
+      <div ref={headerRef} className="flex flex-col gap-4 px-5 pt-4 empty:hidden">
         {baseRef && <DiffContextHeader diffRef={baseRef} />}
+        {stillHeldBack.length > 0 && <LargeDiffNotice files={stillHeldBack} />}
       {commentsEnabled && (
         <>
           <GeneralComments
@@ -311,11 +386,8 @@ export function DiffView(props: DiffViewProps) {
             >
               <FileBlock
                 highlighted={highlightedFile === filePath}
-                onHighlightEnd={() => {
-                  if (highlightedFile === filePath) {
-                    setHighlightedFile(null);
-                  }
-                }}
+                onHighlightEnd={handleHighlightEnd}
+                hideWhitespace={hideWhitespace}
                 file={file}
                 viewMode={viewMode}
                 collapsed={collapsedFiles.has(filePath)}

@@ -252,6 +252,17 @@ function diffFor(ref: string): DiffResult {
 
 let fingerprintBump = 0;
 
+interface LargeFixture {
+  diff: DiffResult;
+  patches?: Record<string, string>;
+}
+
+/** Dev only: `?mockDiff=<url>` serves a recorded `get_diff` result (e.g. a 2,000-file diff) to measure rendering. */
+const largeFixtureUrl = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('mockDiff');
+const largeFixture: Promise<LargeFixture> | null = largeFixtureUrl
+  ? fetch(largeFixtureUrl).then((response) => response.json()).then((json) => ('diff' in json ? json : { diff: json }))
+  : null;
+
 const commits: Commit[] = Array.from({ length: 40 }, (_, i) => ({
   sha: `${(0xabcdef0 + i * 7919).toString(16)}${'0'.repeat(33)}`,
   shortSha: (0xabcdef0 + i * 7919).toString(16).slice(0, 7),
@@ -333,8 +344,9 @@ const handlers: Record<string, (args: Args) => unknown> = {
   watch_repo: () => null,
   unwatch_repo: () => null,
   resolve_ref: (args) => diffFor(String(args.ref)).resolved,
-  get_diff: (args) => diffFor(String(args.ref)),
-  diff_fingerprint: (args) => diffFor(String(args.ref)).fingerprint,
+  get_diff: (args) => (largeFixture ? largeFixture.then((fixture) => fixture.diff) : diffFor(String(args.ref))),
+  get_file_patch: (args) => (largeFixture ? largeFixture.then((fixture) => fixture.patches?.[String(args.path)] ?? '') : ''),
+  diff_fingerprint: (args) => (largeFixture ? largeFixture.then((fixture) => fixture.diff.fingerprint) : diffFor(String(args.ref)).fingerprint),
   get_file_versions: (args) => FIXTURE_VERSIONS[String(args.path)] ?? { oldContents: null, newContents: null },
   list_commits: (args) => {
     const search = typeof args.search === 'string' ? args.search.toLowerCase() : '';

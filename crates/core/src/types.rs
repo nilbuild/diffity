@@ -88,6 +88,9 @@ pub struct DiffFileSummary {
     /// Line count of the old side (for context expansion below the last hunk); `None` when the file is new or binary.
     #[serde(default)]
     pub old_line_count: Option<u32>,
+    /// The patch was too large to send with the diff; `get_file_patch` returns it.
+    #[serde(default)]
+    pub patch_omitted: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]

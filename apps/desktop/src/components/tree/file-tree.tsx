@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback, useRef, useImperativeHandle, forwardRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import type { DiffFile } from '@diffity/parser';
 import {
   buildFileTree,
@@ -7,8 +8,9 @@ import {
   filterTree,
   filterTreeToPaths,
   collectAllDirPaths,
+  type TreeNode,
 } from '../../lib/file-tree';
-import { FileTreeItem, CommentCount, StatusLetter } from './file-tree-item';
+import { CommentCount, FileTreeRow, StatusLetter, TreeItemMenu } from './file-tree-item';
 import { getFilePath } from '../../lib/diff-utils';
 import { cn } from '../../lib/cn';
 
@@ -22,6 +24,18 @@ interface FileTreeProps {
   flat?: boolean;
   onFileClick: (path: string) => void;
   onExpandedStateChange?: (allExpanded: boolean) => void;
+}
+
+const ROW_HEIGHT = 28;
+
+function visibleRows(nodes: TreeNode[], expanded: Set<string>, depth = 0, out: { node: TreeNode; depth: number }[] = []) {
+  for (const node of nodes) {
+    out.push({ node, depth });
+    if (node.type === 'dir' && expanded.has(node.path)) {
+      visibleRows(node.children, expanded, depth + 1, out);
+    }
+  }
+  return out;
 }
 
 export interface FileTreeHandle {
@@ -106,6 +120,8 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     });
   }, []);
 
+  const [flatMenu, setFlatMenu] = useState<{ path: string; binary: boolean; at: { x: number; y: number } } | null>(null);
+
   const flatFiles = useMemo(() => {
     if (!flat) {
       return [];
@@ -129,7 +145,38 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
     </div>
   );
 
-  const renderFlat = () => flatFiles.map((entry) => {
+  const treeRows = useMemo(
+    () => (flat ? [] : visibleRows(displayTree, effectiveExpandedDirs)),
+    [flat, displayTree, effectiveExpandedDirs],
+  );
+  const rowCount = flat ? flatFiles.length : treeRows.length;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 12,
+  });
+
+  const activeIndex = useMemo(() => {
+    if (!activeFile) {
+      return -1;
+    }
+    if (flat) {
+      return flatFiles.findIndex((entry) => entry.path === activeFile);
+    }
+    return treeRows.findIndex((row) => row.node.path === activeFile);
+  }, [activeFile, flat, flatFiles, treeRows]);
+
+  useEffect(() => {
+    if (activeIndex < 0) {
+      return;
+    }
+    virtualizer.scrollToIndex(activeIndex, { align: 'auto' });
+  }, [activeIndex, virtualizer]);
+
+  const renderFlatRow = (index: number) => {
+    const entry = flatFiles[index];
     const slash = entry.path.lastIndexOf('/');
     const name = entry.path.slice(slash + 1);
     const dir = slash > 0 ? entry.path.slice(0, slash) : '';
@@ -138,12 +185,15 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
 
     return (
       <button
-        key={entry.path}
         className={cn(
           'flex items-center gap-2 w-full h-7 px-2 rounded-md text-left text-[13px] cursor-pointer',
           isActive ? 'bg-selected' : 'hover:bg-hover',
         )}
         onClick={() => onFileClick(entry.path)}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setFlatMenu({ path: entry.path, binary: entry.file.isBinary, at: { x: event.clientX, y: event.clientY } });
+        }}
         title={entry.path}
       >
         <span className={cn('min-w-0 flex-1 flex items-baseline gap-1.5 overflow-hidden', isReviewed && 'opacity-55')}>
@@ -155,24 +205,39 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
         <StatusLetter status={entry.file.status} />
       </button>
     );
-  });
+  };
+
+  const renderTreeRow = (index: number) => {
+    const row = treeRows[index];
+    return (
+      <FileTreeRow
+        node={row.node}
+        depth={row.depth}
+        active={activeFile === row.node.path}
+        reviewed={reviewedFiles.has(row.node.path)}
+        threadCount={commentCountsByFile.get(row.node.path) ?? 0}
+        expanded={row.node.type === 'dir' && effectiveExpandedDirs.has(row.node.path)}
+        onToggleDir={handleToggleDir}
+        onFileClick={onFileClick}
+      />
+    );
+  };
 
   return (
-    <div className="flex-1 overflow-y-auto px-2 pb-3">
-      {isEmpty ? renderEmpty() : flat ? renderFlat() : (
-        displayTree.map(node => (
-          <FileTreeItem
-            key={node.path}
-            node={node}
-            depth={0}
-            activeFile={activeFile}
-            reviewedFiles={reviewedFiles}
-            commentCountsByFile={commentCountsByFile}
-            expandedDirs={effectiveExpandedDirs}
-            onToggleDir={handleToggleDir}
-            onFileClick={onFileClick}
-          />
-        ))
+    <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 pb-3 select-none">
+      {flatMenu && <TreeItemMenu path={flatMenu.path} isFile binary={flatMenu.binary} position={flatMenu.at} onClose={() => setFlatMenu(null)} />}
+      {isEmpty ? renderEmpty() : (
+        <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+          {virtualizer.getVirtualItems().map((item) => (
+            <div
+              key={item.key}
+              className="absolute left-0 top-0 w-full"
+              style={{ height: ROW_HEIGHT, transform: `translateY(${item.start}px)` }}
+            >
+              {flat ? renderFlatRow(item.index) : renderTreeRow(item.index)}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

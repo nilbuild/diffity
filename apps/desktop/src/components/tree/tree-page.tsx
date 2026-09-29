@@ -42,6 +42,7 @@ import { FileBlockSkeleton, hideStaticSplash } from '../layout/skeleton';
 import { CodeIcon, EditorIcon, FileIcon } from '../ui/icon';
 import { useEditorName } from '../../hooks/use-editor-name';
 import { modKey } from '../../lib/platform';
+import { handleCopyShortcut } from '../../lib/file-copy';
 
 function formatTreeThreadsForCopy(threads: CommentThread[]): string {
   const unresolvedThreads = threads.filter(
@@ -316,6 +317,14 @@ export function TreePage() {
       toast.error('Could not open the editor', { description: errorMessage(error) });
     });
   }, [navPath]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      handleCopyShortcut(event, isFileMode ? navPath : null);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isFileMode, navPath]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {

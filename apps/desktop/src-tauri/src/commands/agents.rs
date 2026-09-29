@@ -66,10 +66,11 @@ pub async fn respond_permission(
     state: State<'_, AppState>,
     request_id: String,
     option_id: Option<String>,
+    for_run: Option<bool>,
 ) -> Result<(), AppError> {
     state
         .agents
-        .respond_permission(&request_id, option_id)
+        .respond_permission(&request_id, option_id, for_run.unwrap_or(false))
         .await
 }
 

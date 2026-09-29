@@ -7,6 +7,7 @@ import type { AgentAction, AgentInfo, AgentMode, PermissionDiff, PermissionOptio
 import { refForSession } from '../../lib/api';
 import { goToThread, viewLabel } from '../../lib/thread-location';
 import type { CommentThread } from '../../components/comments/types';
+import { getPermissionSetting, runSkipsPrompts, showBypassNotice } from './permission-setting';
 
 export type ClaudeAction = Extract<
   AgentAction,
@@ -35,6 +36,10 @@ export interface ClaudeRun {
   ref: string | null;
   /** Threads Claude started during the run, oldest first. */
   newThreadIds: string[];
+  /** The run edits without any permission prompts (Settings → Claude Code → Permissions). */
+  skipsPrompts: boolean;
+  /** The user chose "Allow for this run": later edits in this run are approved automatically. */
+  editsApproved: boolean;
 }
 
 export interface ClaudePermission {
@@ -146,6 +151,8 @@ export function enqueueClaude(action: ClaudeAction, context: ClaudeRunContext) {
     sessionId: null,
     ref: action.kind === 'review' ? action.ref : context.ref ?? refForSession(context.sessionId),
     newThreadIds: [],
+    skipsPrompts: false,
+    editsApproved: false,
   };
   useClaude.setState((state) => ({ runs: [...state.runs, run] }));
   void pump();
@@ -165,13 +172,16 @@ export async function stopClaude() {
   await tauri.cancelPrompt(running.chatId).catch(() => undefined);
 }
 
-export async function answerClaudePermission(optionId: string | null) {
+export async function answerClaudePermission(optionId: string | null, forRun = false) {
   const permission = useClaude.getState().permission;
   if (!permission) {
     return;
   }
   useClaude.setState({ permission: null });
-  await tauri.respondPermission(permission.requestId, optionId).catch((error) => {
+  if (optionId && forRun && permission.diff) {
+    patchRun(permission.runId, { editsApproved: true });
+  }
+  await tauri.respondPermission(permission.requestId, optionId, forRun).catch((error) => {
     toast.error(tauri.errorMessage(error));
   });
 }
@@ -285,7 +295,7 @@ async function postRepliesToGitHub(sessionId: string, threadIds: string[]): Prom
   return posted;
 }
 
-async function batchOutcome(sessionId: string, threadIds: string[]): Promise<string | null> {
+async function batchOutcome(sessionId: string, threadIds: string[]): Promise<{ title: string; detail: string | null } | null> {
   if (threadIds.length === 0) {
     return null;
   }
@@ -294,12 +304,22 @@ async function batchOutcome(sessionId: string, threadIds: string[]): Promise<str
   const resolved = worked.filter((thread) => thread.status !== 'open').length;
   const replied = worked.filter((thread) => thread.status === 'open' && thread.comments[thread.comments.length - 1]?.authorType === 'agent').length;
   const untouched = worked.length - resolved - replied;
+  const plural = (count: number) => `${count} comment${count === 1 ? '' : 's'}`;
+  if (resolved + replied === 0) {
+    return worked.length > 0 ? { title: `Claude left ${plural(worked.length)} untouched`, detail: null } : null;
+  }
+  if (untouched === 0 && resolved === 0) {
+    return { title: `Claude replied to ${plural(replied)}`, detail: null };
+  }
+  if (untouched === 0 && replied === 0) {
+    return { title: `Claude resolved ${plural(resolved)}`, detail: null };
+  }
   const parts = [
-    resolved > 0 ? `resolved ${resolved}` : null,
-    replied > 0 ? `replied to ${replied}` : null,
+    resolved > 0 ? `${resolved} resolved` : null,
+    replied > 0 ? `${replied} replied` : null,
     untouched > 0 ? `${untouched} untouched` : null,
   ].filter(Boolean);
-  return parts.length > 0 ? `Claude ${parts.join(', ')} of ${worked.length} comment${worked.length === 1 ? '' : 's'}` : null;
+  return { title: `Claude handled ${resolved + replied} of ${plural(worked.length)}`, detail: parts.join(' · ') };
 }
 
 async function execute(run: ClaudeRun) {
@@ -323,7 +343,11 @@ async function execute(run: ClaudeRun) {
     sessionId,
     title: chatTitle(run.action),
   });
-  patchRun(run.id, { chatId: chat.id, sessionId, startedAt: Date.now(), ref });
+  const skipsPrompts = runSkipsPrompts(modeFor(run.action), run.action, await getPermissionSetting());
+  patchRun(run.id, { chatId: chat.id, sessionId, startedAt: Date.now(), ref, skipsPrompts });
+  if (skipsPrompts) {
+    showBypassNotice(() => openSettingsAt('claude'));
+  }
 
   const before = await tauri.listThreads(sessionId).catch(() => []);
   const baseline = new Set(before.map((thread) => thread.id));
@@ -390,10 +414,12 @@ async function execute(run: ClaudeRun) {
   const hasTarget = !!ref && (added > 0 || finished.threadIds.length > 0);
   const batch = run.action.kind === 'resolve' ? await batchOutcome(sessionId, finished.threadIds) : null;
   const posted = await postRepliesToGitHub(sessionId, run.context.postRepliesToGitHub ?? []);
-  toast.success(batch ?? finishedMessage(finished, added), {
-    description: batch ? `Edits are in your working tree; each thread has Claude’s reply.${posted > 0 ? ` Posted ${posted} repl${posted === 1 ? 'y' : 'ies'} to GitHub.` : ''}` : undefined,
+  const postedNote = posted > 0 ? `Posted ${posted} repl${posted === 1 ? 'y' : 'ies'} to GitHub` : null;
+  const description = batch ? [batch.detail, 'Edits are in your working tree', postedNote].filter(Boolean).join(' · ') : postedNote ?? undefined;
+  toast.success(batch?.title ?? finishedMessage(finished, added), {
+    description,
     duration: hasTarget ? 12_000 : undefined,
-    action: hasTarget ? { label: batch ? 'View Claude’s changes' : added > 0 ? 'Show comments' : 'Show thread', onClick: () => openRunResult(finished) } : undefined,
+    action: hasTarget ? { label: batch ? 'View changes' : added > 0 ? 'Show comments' : 'Show thread', onClick: () => openRunResult(finished) } : undefined,
   });
 }
 

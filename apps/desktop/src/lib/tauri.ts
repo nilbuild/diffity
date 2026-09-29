@@ -76,6 +76,8 @@ export const setSetting = (key: string, value: string) => invoke<void>('set_sett
 export const resolveRef = (repoPath: string, ref: string) => invoke<ResolvedRef>('resolve_ref', { repoPath, ref });
 export const getDiff = (repoPath: string, ref: string, ignoreWhitespace: boolean) =>
   invoke<DiffResult>('get_diff', { repoPath, ref, ignoreWhitespace });
+export const getFilePatch = (repoPath: string, ref: string, path: string, oldPath: string | null, ignoreWhitespace: boolean) =>
+  invoke<string>('get_file_patch', { repoPath, ref, path, oldPath, ignoreWhitespace });
 export const getFileVersions = (repoPath: string, ref: string, path: string, oldPath?: string | null) =>
   invoke<FileVersions>('get_file_versions', { repoPath, ref, path, oldPath: oldPath ?? null });
 export const diffFingerprint = (repoPath: string, ref: string) =>
@@ -143,8 +145,8 @@ export function sendPrompt(
   return invoke<void>('send_prompt', { chatId, text, context, action, onEvent: channel });
 }
 export const cancelPrompt = (chatId: string) => invoke<void>('cancel_prompt', { chatId });
-export const respondPermission = (requestId: string, optionId: string | null) =>
-  invoke<void>('respond_permission', { requestId, optionId });
+export const respondPermission = (requestId: string, optionId: string | null, forRun = false) =>
+  invoke<void>('respond_permission', { requestId, optionId, forRun });
 export const deleteChat = (chatId: string) => invoke<void>('delete_chat', { chatId });
 
 // github

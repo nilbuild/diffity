@@ -164,21 +164,21 @@ export function HunkBlock(props: HunkBlockProps) {
       const group = changeGroups[groupIdx];
       sections.push(
         <tbody key={`change-${groupIdx}`} className="group/undo">
-          {currentRows}
-          <tr className="relative z-10">
-            <td colSpan={4} className="relative h-0">
-              <div className="absolute right-3 bottom-0 z-10 flex items-center gap-1.5 opacity-0 group-hover/undo:opacity-100 pointer-events-none group-hover/undo:pointer-events-auto">
+          <tr className="relative z-10" aria-hidden={false}>
+            <td colSpan={4} className="relative h-0 p-0">
+              <div className="absolute right-2 top-0.5 z-10 opacity-0 group-hover/undo:opacity-100 focus-within:opacity-100 pointer-events-none group-hover/undo:pointer-events-auto">
                 <button
                   onClick={() => onRevertChange(hunk, group.startIndex, group.endIndex)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-deleted/40 bg-bg text-deleted hover:bg-deleted hover:text-white transition-colors cursor-pointer"
-                  title="Undo this change"
+                  className="flex items-center gap-1 h-5 px-1.5 text-[11px] rounded border border-control-border bg-raised text-text-secondary hover:text-deleted hover:border-deleted/40 transition-colors cursor-pointer"
+                  title="Discard this change (restores these lines from the base)"
                 >
                   <UndoIcon className="w-3 h-3" />
-                  Undo
+                  Discard change
                 </button>
               </div>
             </td>
           </tr>
+          {currentRows}
         </tbody>
       );
     } else {

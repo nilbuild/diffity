@@ -115,6 +115,15 @@ impl AgentManager {
         agents
     }
 
+    async fn permission_setting(&self) -> crate::policy::PermissionSetting {
+        let store = self.store.clone();
+        let value = blocking(move || store.get_setting(crate::policy::PERMISSIONS_SETTING))
+            .await
+            .ok()
+            .flatten();
+        crate::policy::PermissionSetting::parse(value.as_deref())
+    }
+
     /// `refresh` bypasses the 30s detection cache (Settings → Re-detect).
     pub async fn list_agents(&self, refresh: bool) -> Result<Vec<AgentInfo>> {
         Ok(self
@@ -428,7 +437,9 @@ impl AgentManager {
         blocking(move || chats::add_message(&store, &id, ChatRole::User, &user)).await?;
 
         let sink: EventSink = Arc::from(on_event);
-        let events = rt.session.prompt(prompt, sink).await?;
+        let setting = self.permission_setting().await;
+        let run = crate::policy::run_permissions(rec.chat.mode, &action, setting);
+        let events = rt.session.prompt(prompt, run, sink).await?;
 
         let (store, id) = (self.store.clone(), chat_id.to_string());
         let content = ChatMessageContent::Agent(events);
@@ -451,8 +462,9 @@ impl AgentManager {
         &self,
         request_id: &str,
         option_id: Option<String>,
+        for_run: bool,
     ) -> Result<()> {
-        if self.broker.respond(request_id, option_id) {
+        if self.broker.respond(request_id, option_id, for_run) {
             return Ok(());
         }
         Err(AppError::not_found(format!(

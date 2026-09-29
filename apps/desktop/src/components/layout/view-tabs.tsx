@@ -1,5 +1,6 @@
 import { useRepoNav } from '../../hooks/use-repo';
 import { cn } from '../../lib/cn';
+import { segmentActive, segmentInactive } from '../ui/button-styles';
 import { ChangesIcon, FolderSimpleIcon, type GlyphProps } from '../ui/icon';
 import type { ComponentType } from 'react';
 
@@ -67,7 +68,7 @@ export function ViewTabs(props: { current: RepoView; vertical?: boolean }) {
             title={tab.hint}
             className={cn(
               'flex flex-auto min-w-0 items-center justify-center gap-1.5 h-7 px-2 rounded-md text-[13px] transition-colors cursor-pointer',
-              active ? 'bg-raised text-text font-medium ring-1 ring-control-border' : 'text-text-secondary hover:text-text',
+              active ? segmentActive : segmentInactive,
             )}
           >
             <Icon size="md" className={active ? 'text-text' : 'text-text-muted'} />

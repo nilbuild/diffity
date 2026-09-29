@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '../../lib/cn';
+import { segmentActive, segmentInactive } from './button-styles';
 
 interface SegmentedToggleOption<T extends string> {
   value: T;
@@ -32,8 +33,8 @@ export function SegmentedToggle<T extends string>(props: SegmentedToggleProps<T>
               'flex items-center justify-center gap-1.5 h-[22px] rounded-[4px] text-[13px] transition-colors duration-150 cursor-pointer',
               iconOnly ? 'w-6' : 'px-2.5',
               isActive
-                ? 'bg-raised text-text font-medium ring-1 ring-control-border'
-                : 'text-text-secondary hover:text-text'
+                ? segmentActive
+                : segmentInactive
             )}
             onClick={() => onChange(option.value)}
           >

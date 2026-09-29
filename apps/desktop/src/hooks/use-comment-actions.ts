@@ -9,9 +9,9 @@ function reportError(error: unknown) {
   toast.error(api.errorMessage(error));
 }
 
-function mentionFollowUp(thread: CommentThread) {
+function mentionFollowUp(thread: CommentThread, askClaude = false) {
   const newest = thread.comments[thread.comments.length - 1];
-  if (!newest?.mentionsAgent || newest.pending) {
+  if (!newest || newest.pending || !(newest.mentionsAgent || askClaude)) {
     return;
   }
   enqueueClaude({ kind: 'thread', threadId: thread.id }, { repoPath: api.getRepoPath(), sessionId: thread.sessionId ?? null });
@@ -56,7 +56,7 @@ export function useCommentActions(sessionId: string | null, enabled: boolean) {
     }
     api.replyToThread(threadId, body, author, options).then((thread) => {
       invalidateThreads();
-      mentionFollowUp(thread);
+      mentionFollowUp(thread, options?.askClaude);
     }, reportError);
   }, [enabled, invalidateThreads]);
 

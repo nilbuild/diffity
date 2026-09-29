@@ -10,6 +10,8 @@ export interface SubmitOptions {
   pending: boolean;
   /** Pull request number to post this new comment to right away. */
   postToGitHub?: number;
+  /** Route this reply to Claude (the thread's last comment was Claude's). */
+  askClaude?: boolean;
 }
 
 export interface Comment {

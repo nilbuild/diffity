@@ -109,6 +109,7 @@ pub fn run() {
             commands::repo::set_setting,
             commands::diff::resolve_ref,
             commands::diff::get_diff,
+            commands::diff::get_file_patch,
             commands::diff::get_file_versions,
             commands::diff::diff_fingerprint,
             commands::diff::revert_file,

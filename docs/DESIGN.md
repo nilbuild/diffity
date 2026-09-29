@@ -66,10 +66,12 @@ not a redesign.
 - Action colours: one solid `primary` (blue) action per view; Claude actions use `buttonClaude` (terracotta tint) or
   `buttonClaudeSolid` / `buttonGroupClaude`; PR actions show a green PR icon; git sync tints Pull (`pull`) and
   Push/Publish (`push`) only when there is something to move; notices use a coloured dot.
-- Buttons (`components/ui/button-styles.ts`): `buttonPrimary` (primary solid; disabled = neutral fill, muted text),
+- Buttons (`components/ui/button-styles.ts`): `buttonPrimary` (primary solid; disabled = neutral fill, muted text and a
+  1px `control-border/70` outline, same for `buttonClaudeSolid`),
   `buttonOutline` (1px `control-border`, raised fill, the default toolbar button), `buttonGhost`, `buttonIcon` /
   `buttonIconOutline`, `buttonGroup` (outlined split button with a visible divider). Toggles show their active state
-  with a neutral `bg-selected text-text`; segmented controls use a `raised` thumb with a `control-border` ring.
+  with a neutral `bg-selected text-text`; segmented controls use the `toggle` thumb (`segmentActive`: white with a
+  `control-border` ring in light, one step lighter than the track in dark) and `segmentInactive` muted labels.
 - Inputs (`inputField`): white (`raised`) fill with a `control-border` outline; focus = `border-focus`, no ring or glow.
 - Colour is soft: tinted badges (`bg-x/12 text-x`), avatars as tinted initials, notices as neutral pills with a small
   coloured dot/icon. Text contrast: `text-secondary` and `text-muted` both meet AA on their surfaces.
@@ -81,6 +83,10 @@ not a redesign.
   overlays `#232327`; dark diff rows (`#182b1f` added, `#2f191b` removed); neutral hunk band. Light diff colours are
   gentle GitHub tints (`#edfcf1` / `#fef1f0`, neutral blue-grey hunk band `#f3f6fa`). Accent `#0969da` / `#3b82f6`
   only for primary buttons and focus; links are underlined text. `claude` (`#c96442` / `#e08a6d`) marks Claude. Selected states are soft neutral fills (`selected`, `active`).
+
+- Toasts (sonner, styled in `app.css`): 360px, `overlay` surface, icon + one-line title, optional one-line
+  description, actions as small outline buttons on their own right-aligned row (cancel is a ghost button), close × top
+  right. Keep titles to a few words ("Copied 12 lines", "Claude replied to 1 comment").
 
 ## Desktop additions (styled like the web UI)
 
@@ -133,10 +139,15 @@ not a redesign.
   Connections: Claude Code, GitHub; Diffity: About), pane title + close, grouped label/hint rows with a fixed control column,
   theme swatches, status cards for Claude Code and the GitHub account, inline confirm for sign-out.
 - Pull requests: the branch switcher and the ref-picker entry check one out; a 40px PR bar (bottom border) sits above
-  the diff: state icon · title · #N · checks icon … Sync comments (badge) · GitHub · Details (· Back to <branch>).
+  the diff: state icon · title · #N · checks icon · Reviewing/Your PR chip · Details … Sync comments (badge) · GitHub
+  (· Back to <branch>).
   Details opens a 920px dialog: description on the left, a tinted sidebar with status, branches, checks, changes,
   GitHub comments and actions.
 - `@claude` autocomplete in comment and reply forms.
+- Shortcuts sheet (`?`), time.fyi style: find field over grouped rows with key caps; the list lives in `lib/shortcuts.ts`
+  and also feeds Settings → Keyboard shortcuts and the ⌘K hints.
+- Large diffs: lock/generated/minified/large files are held back behind "Load diff" with a "Large diff" notice and
+  Expand all; long files render in lazily mounted slices; see UX-AUDIT round 16.
 - Comments across views: toolbar "Comments N" chip (all open threads of the repo, `c`) opens a right-hand drawer grouped
   by view then file; a neutral status-bar pill points at open comments in other views; outdated / committed
   threads show their anchor snippet with an "Outdated" badge and "View in commit abc1234".

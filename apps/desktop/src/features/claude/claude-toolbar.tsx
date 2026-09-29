@@ -61,6 +61,14 @@ export function ClaudeStatus() {
       >
         <span className="inline-block w-3 h-3 border-[1.5px] border-claude/25 border-t-claude rounded-full animate-spin shrink-0" />
         <span className="font-medium">{runLabel(run.action)}</span>
+        {(run.skipsPrompts || run.editsApproved) && (
+          <span
+            className="text-text-secondary"
+            title={run.skipsPrompts ? 'Claude edits files and runs commands without asking. Change in Settings → Claude Code.' : 'You allowed edits for this run'}
+          >
+            · {run.skipsPrompts ? 'no permission prompts' : 'auto-approving edits'}
+          </span>
+        )}
         {elsewhere && where && (
           <span className="text-text-secondary truncate max-w-[180px]">on {where}</span>
         )}

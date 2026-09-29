@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { Spinner } from '../../components/icons/spinner';
-import { buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
+import { buttonGhost, buttonOutline, buttonPrimary, segmentInactive } from '../../components/ui/button-styles';
 
 export function PreferencesPane(props: { children: ReactNode }) {
   const { children } = props;
@@ -110,7 +110,7 @@ export function SegmentedControl<T extends string>(props: {
             onClick={() => onChange(option.value)}
             className={cn(
               'h-6 min-w-0 cursor-pointer truncate rounded-md px-2.5 text-xs transition-colors',
-              active ? 'bg-toggle text-text' : 'text-text-secondary hover:text-text',
+              active ? 'bg-toggle text-text ring-1 ring-toggle-border' : segmentInactive,
             )}
           >
             {option.label}

@@ -44,6 +44,9 @@ function SpinnerCell() {
 export function HunkHeader(props: HunkHeaderProps) {
   const { hunk, expandControls } = props;
 
+  if (!expandControls && !hunk.header) {
+    return null;
+  }
   if (!expandControls) {
     return (
       <tr className="bg-diff-hunk-bg group/hunk">

@@ -14,13 +14,14 @@ import {
   settingsInputClass,
 } from './preferences';
 import { AlertCircleIcon, CheckIcon, RefreshIcon, SparkleIcon } from '../../components/ui/icon';
+import { PERMISSION_OPTIONS, savePermissionSetting, usePermissionSetting, type PermissionSetting } from '../claude/permission-setting';
 
 const CLAUDE_PATH_KEY = 'agent.claude.path';
 
 const CAPABILITIES = [
   { title: 'Review a diff', detail: 'Reads the changes you are looking at and leaves comments on lines. Never edits files while reviewing.' },
   { title: 'Answer @claude', detail: 'Mention @claude in a comment or reply and Claude answers in the thread.' },
-  { title: 'Resolve comments', detail: 'Makes the requested edits, asking before every file write, then resolves the thread with a summary.' },
+  { title: 'Resolve comments', detail: 'Makes the requested edits, then resolves the thread with a summary. Permissions below decide whether it asks first.' },
   { title: 'Stay local', detail: 'Uses your own Claude Code login. Nothing is posted to GitHub unless you post it.' },
 ];
 
@@ -166,6 +167,52 @@ function PathRow(props: { onSaved: () => Promise<void> }) {
   );
 }
 
+function PermissionsGroup() {
+  const setting = usePermissionSetting();
+
+  const choose = async (value: PermissionSetting) => {
+    if (value === setting) {
+      return;
+    }
+    try {
+      await savePermissionSetting(value);
+    } catch (error) {
+      toast.error('Could not save the setting', { description: tauri.errorMessage(error) });
+    }
+  };
+
+  return (
+    <PreferencesGroup label="Permissions">
+      <p className="pt-1.5 pb-1 text-[11.5px] leading-snug text-text-muted">
+        When Claude fixes comments or replies in a thread. Reviews and questions never edit files or run commands that change them.
+      </p>
+      <div role="radiogroup" aria-label="Permissions" className="flex flex-col">
+        {PERMISSION_OPTIONS.map((option) => {
+          const checked = option.value === setting;
+          return (
+            <label key={option.value} className="flex items-start gap-2.5 py-2 cursor-pointer">
+              <input
+                type="radio"
+                name="claude-permissions"
+                checked={checked}
+                onChange={() => void choose(option.value)}
+                className="mt-0.5 accent-primary"
+              />
+              <span className="min-w-0">
+                <span className="block text-[13px] text-text">
+                  {option.label}
+                  {option.value === 'skip' && <span className="ml-1.5 text-[11px] text-text-muted">Default</span>}
+                </span>
+                <span className="block text-[11.5px] leading-snug text-text-muted">{option.hint}</span>
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </PreferencesGroup>
+  );
+}
+
 export function ClaudePane() {
   const { data: agents, isLoading } = useQuery({ queryKey: ['agents'], queryFn: () => tauri.listAgents() });
   const { busy, redetect } = useRedetect();
@@ -181,6 +228,7 @@ export function ClaudePane() {
       <PreferencesGroup label="Location">
         <PathRow onSaved={redetect} />
       </PreferencesGroup>
+      <PermissionsGroup />
       <PreferencesGroup label="What Claude can do here">
         <ul className="flex flex-col gap-2.5 pt-1.5">
           {CAPABILITIES.map((item) => (

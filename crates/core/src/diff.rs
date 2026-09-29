@@ -216,24 +216,138 @@ fn untracked_for(repo: &Path, plan: &DiffPlan) -> Result<Vec<String>> {
         .collect())
 }
 
-fn untracked_patch(repo: &Path, file: &str) -> Result<String> {
-    let out = git::run_with_codes(
-        repo,
-        &[
-            "diff",
-            "--no-index",
-            "--no-color",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--src-prefix=a/",
-            "--dst-prefix=b/",
-            "--",
-            "/dev/null",
-            file,
-        ],
-        &[0, 1],
-    )?;
-    Ok(String::from_utf8_lossy(&out).into_owned())
+/// Per-file patches bigger than this are left out of `get_diff` (the file keeps its header, `patch_omitted` is set)
+/// and fetched on demand with `get_file_patch`, so one huge file never inflates the whole view.
+pub const LARGE_FILE_PATCH_BYTES: usize = 256 * 1024;
+
+/// An untracked file as `git diff --no-index /dev/null <file>` would print it, built in-process: one git process
+/// per untracked file cost ~10ms each (2s for 200 files).
+fn untracked_entry(repo: &Path, file: &str) -> (DiffFileSummary, String) {
+    let full = repo.join(file);
+    let meta = std::fs::symlink_metadata(&full).ok();
+    let is_link = meta.as_ref().is_some_and(|m| m.file_type().is_symlink());
+    let data = if is_link {
+        std::fs::read_link(&full)
+            .map(|target| target.to_string_lossy().into_owned().into_bytes())
+            .unwrap_or_default()
+    } else {
+        std::fs::read(&full).unwrap_or_default()
+    };
+    let mode = if is_link {
+        "120000"
+    } else if meta.as_ref().is_some_and(is_executable) {
+        "100755"
+    } else {
+        "100644"
+    };
+    let binary = is_binary(&data);
+    let summary = DiffFileSummary {
+        path: file.to_string(),
+        old_path: None,
+        status: FileStatus::Untracked,
+        additions: if binary { 0 } else { count_lines(&data) },
+        deletions: 0,
+        binary,
+        old_line_count: None,
+        patch_omitted: false,
+    };
+    (summary, synth_new_file_patch(file, &data, mode, binary))
+}
+
+#[cfg(unix)]
+fn is_executable(meta: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    meta.permissions().mode() & 0o111 != 0
+}
+
+#[cfg(not(unix))]
+fn is_executable(_meta: &std::fs::Metadata) -> bool {
+    false
+}
+
+fn synth_new_file_patch(path: &str, data: &[u8], mode: &str, binary: bool) -> String {
+    let mut out = format!("diff --git a/{path} b/{path}\nnew file mode {mode}\n");
+    if data.is_empty() {
+        return out;
+    }
+    if binary {
+        out.push_str(&format!("Binary files /dev/null and b/{path} differ\n"));
+        return out;
+    }
+    let text = String::from_utf8_lossy(data);
+    let lines = count_lines(data);
+    out.reserve(text.len() + lines as usize + 64);
+    out.push_str(&format!("--- /dev/null\n+++ b/{path}\n"));
+    if lines == 1 {
+        out.push_str("@@ -0,0 +1 @@\n");
+    } else {
+        out.push_str(&format!("@@ -0,0 +1,{lines} @@\n"));
+    }
+    for line in text.split_inclusive('\n') {
+        out.push('+');
+        out.push_str(line);
+    }
+    if !text.ends_with('\n') {
+        out.push_str("\n\\ No newline at end of file\n");
+    }
+    out
+}
+
+/// Start offsets of each `diff --git` section of a patch.
+fn section_starts(patch: &str) -> Vec<usize> {
+    let mut starts = Vec::new();
+    if patch.starts_with("diff --git ") {
+        starts.push(0);
+    }
+    let mut from = 0;
+    while let Some(i) = patch[from..].find("\ndiff --git ") {
+        starts.push(from + i + 1);
+        from += i + 1;
+    }
+    starts
+}
+
+/// The summary a section belongs to, read from its `diff --git a/… b/<path>` line.
+fn section_owner(header: &str, index: &HashMap<&str, usize>) -> Option<usize> {
+    let mut from = 0;
+    while let Some(i) = header[from..].find(" b/") {
+        let candidate = &header[from + i + 3..];
+        if let Some(found) = index.get(candidate) {
+            return Some(*found);
+        }
+        from += i + 3;
+    }
+    None
+}
+
+/// Appends `patch` to `out`, replacing every section over `limit` bytes by its header (everything before the first
+/// hunk) and flagging the owning summary as `patch_omitted`.
+fn push_trimmed(out: &mut String, patch: &str, files: &mut [DiffFileSummary], index: &HashMap<&str, usize>, limit: usize) {
+    let starts = section_starts(patch);
+    if starts.is_empty() {
+        out.push_str(patch);
+        return;
+    }
+    out.push_str(&patch[..starts[0]]);
+    for (n, start) in starts.iter().enumerate() {
+        let end = starts.get(n + 1).copied().unwrap_or(patch.len());
+        let section = &patch[*start..end];
+        if section.len() <= limit {
+            out.push_str(section);
+            continue;
+        }
+        let header_line = section.lines().next().unwrap_or("");
+        let Some(owner) = section_owner(header_line, index) else {
+            out.push_str(section);
+            continue;
+        };
+        let header_end = section.find("\n@@ ").map(|i| i + 1).unwrap_or(section.len());
+        out.push_str(&section[..header_end]);
+        if !out.ends_with('\n') {
+            out.push('\n');
+        }
+        files[owner].patch_omitted = true;
+    }
 }
 
 fn parse_name_status(bytes: &[u8]) -> Vec<(FileStatus, Option<String>, String)> {
@@ -303,25 +417,15 @@ fn count_lines(data: &[u8]) -> u32 {
     newlines + 1
 }
 
-fn untracked_summary(repo: &Path, file: &str) -> DiffFileSummary {
-    let data = std::fs::read(repo.join(file)).unwrap_or_default();
-    let binary = is_binary(&data);
-    DiffFileSummary {
-        path: file.to_string(),
-        old_path: None,
-        status: FileStatus::Untracked,
-        additions: if binary { 0 } else { count_lines(&data) },
-        deletions: 0,
-        binary,
-        old_line_count: None,
-    }
-}
-
-fn file_summaries(repo: &Path, plan: &DiffPlan, untracked: &[String], ignore_whitespace: bool) -> Result<Vec<DiffFileSummary>> {
-    let ns = git::run_bytes(repo, &diff_args(plan, &["--name-status", "-z"], false))?;
-    let num = git::run_bytes(repo, &diff_args(plan, &["--numstat", "-z"], ignore_whitespace))?;
+fn file_summaries(repo: &Path, plan: &DiffPlan, ignore_whitespace: bool) -> Result<Vec<DiffFileSummary>> {
+    let (ns, num) = std::thread::scope(|scope| {
+        let ns = scope.spawn(|| git::run_bytes(repo, &diff_args(plan, &["--name-status", "-z"], false)));
+        let num = git::run_bytes(repo, &diff_args(plan, &["--numstat", "-z"], ignore_whitespace));
+        (joined(ns), num)
+    });
+    let (ns, num) = (ns?, num?);
     let counts = parse_numstat(&num);
-    let mut files: Vec<DiffFileSummary> = parse_name_status(&ns)
+    let files: Vec<DiffFileSummary> = parse_name_status(&ns)
         .into_iter()
         .map(|(status, old_path, path)| {
             let (additions, deletions, binary) = counts.get(&path).copied().unwrap_or((0, 0, false));
@@ -333,15 +437,25 @@ fn file_summaries(repo: &Path, plan: &DiffPlan, untracked: &[String], ignore_whi
                 deletions,
                 binary,
                 old_line_count: None,
+                patch_omitted: false,
             }
         })
         .collect();
-    files.extend(untracked.iter().map(|f| untracked_summary(repo, f)));
     Ok(files)
 }
 
 fn fingerprint_with(repo: &Path, plan: &DiffPlan, untracked: &[String]) -> Result<String> {
-    let stat = git::run_bytes(repo, &diff_args(plan, &["--stat"], false))?;
+    let (stat, names) = std::thread::scope(|scope| {
+        let names = scope.spawn(|| {
+            if plan.new != Source::WorkTree {
+                return Ok(Vec::new());
+            }
+            git::run_bytes(repo, &diff_args(plan, &["--name-only", "-z"], false))
+        });
+        let stat = git::run_bytes(repo, &diff_args(plan, &["--stat"], false));
+        (stat, joined(names))
+    });
+    let (stat, names) = (stat?, names?);
     let mut hasher = Sha256::new();
     hasher.update(&stat);
     hasher.update([0u8]);
@@ -351,7 +465,6 @@ fn fingerprint_with(repo: &Path, plan: &DiffPlan, untracked: &[String]) -> Resul
     }
     hasher.update(git::head_sha(repo)?.unwrap_or_default().as_bytes());
     if plan.new == Source::WorkTree {
-        let names = git::run_bytes(repo, &diff_args(plan, &["--name-only", "-z"], false))?;
         let mut paths = git::split_nul(&names);
         paths.extend(untracked.iter().cloned());
         for p in paths {
@@ -377,30 +490,82 @@ pub fn diff_fingerprint(repo: &Path, r: &str) -> Result<String> {
     fingerprint_with(repo, &plan, &untracked)
 }
 
-/// Full diff for a ref: unified patch (untracked files appended), per-file summaries and fingerprint.
+/// Full diff for a ref: unified patch (untracked files appended), per-file summaries and fingerprint. The git calls
+/// run in parallel; sections over `LARGE_FILE_PATCH_BYTES` are withheld (see `get_file_patch`).
 pub fn get_diff(repo: &Path, r: &str, ignore_whitespace: bool) -> Result<DiffResult> {
+    get_diff_with_limit(repo, r, ignore_whitespace, LARGE_FILE_PATCH_BYTES)
+}
+
+fn joined<T>(handle: std::thread::ScopedJoinHandle<'_, Result<T>>) -> Result<T> {
+    handle.join().unwrap_or_else(|_| Err(AppError::internal("git thread panicked")))
+}
+
+pub fn get_diff_with_limit(repo: &Path, r: &str, ignore_whitespace: bool, limit: usize) -> Result<DiffResult> {
     let plan = plan(repo, r)?;
     let untracked = untracked_for(repo, &plan)?;
-    let mut patch = git::run(repo, &diff_args(&plan, &[], ignore_whitespace))?;
-    for file in &untracked {
-        let p = untracked_patch(repo, file)?;
+    let (tracked_patch, files, fingerprint, untracked_entries) = std::thread::scope(|scope| {
+        let patch = scope.spawn(|| git::run(repo, &diff_args(&plan, &[], ignore_whitespace)));
+        let fingerprint = scope.spawn(|| fingerprint_with(repo, &plan, &untracked));
+        let entries = scope.spawn(|| Ok(untracked.iter().map(|f| untracked_entry(repo, f)).collect::<Vec<_>>()));
+        let files = file_summaries(repo, &plan, ignore_whitespace).and_then(|mut files| {
+            fill_old_line_counts(repo, &plan, &mut files)?;
+            Ok(files)
+        });
+        (joined(patch), files, joined(fingerprint), joined(entries))
+    });
+    let tracked_patch = tracked_patch?;
+    let mut files = files?;
+    let fingerprint = fingerprint?;
+    let untracked_entries: Vec<(DiffFileSummary, String)> = untracked_entries?;
+
+    let tracked_count = files.len();
+    let mut untracked_patches = Vec::with_capacity(untracked_entries.len());
+    for (summary, patch) in untracked_entries {
+        files.push(summary);
+        untracked_patches.push(patch);
+    }
+
+    let paths: Vec<String> = files.iter().map(|f| f.path.clone()).collect();
+    let index: HashMap<&str, usize> = paths.iter().enumerate().map(|(i, p)| (p.as_str(), i)).collect();
+    let mut patch = String::with_capacity(tracked_patch.len().min(limit * 64));
+    push_trimmed(&mut patch, &tracked_patch, &mut files, &index, limit);
+    drop(tracked_patch);
+    for (offset, p) in untracked_patches.iter().enumerate() {
         if p.is_empty() {
             continue;
         }
         if !patch.is_empty() && !patch.ends_with('\n') {
             patch.push('\n');
         }
-        patch.push_str(&p);
+        if p.len() > limit {
+            let header_end = p.find("\n@@ ").map(|i| i + 1).unwrap_or(p.len());
+            patch.push_str(&p[..header_end]);
+            files[tracked_count + offset].patch_omitted = true;
+            continue;
+        }
+        patch.push_str(p);
     }
-    let mut files = file_summaries(repo, &plan, &untracked, ignore_whitespace)?;
-    fill_old_line_counts(repo, &plan, &mut files)?;
-    let fingerprint = fingerprint_with(repo, &plan, &untracked)?;
     Ok(DiffResult {
         resolved: plan.resolved,
         files,
         patch,
         fingerprint,
     })
+}
+
+/// The full patch of one file for a ref (used for files `get_diff` withheld as too large).
+pub fn get_file_patch(repo: &Path, r: &str, path: &str, old_path: Option<&str>, ignore_whitespace: bool) -> Result<String> {
+    let plan = plan(repo, r)?;
+    if plan.include_untracked && untracked_for(repo, &plan)?.iter().any(|f| f == path) {
+        return Ok(untracked_entry(repo, path).1);
+    }
+    let mut args = diff_args(&plan, &[], ignore_whitespace);
+    args.push("--");
+    if let Some(old) = old_path.filter(|old| *old != path) {
+        args.push(old);
+    }
+    args.push(path);
+    git::run(repo, &args)
 }
 
 /// Parses `git cat-file --batch` output into one line count per requested object (`None` when missing).

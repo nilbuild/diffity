@@ -2,7 +2,9 @@ import type { TreeNode } from '../../lib/file-tree';
 import { cn } from '../../lib/cn';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { ChevronIcon, CollapseAllIcon, CopyIcon, EditorIcon, FileIcon, FolderIcon } from '../ui/icon';
+import { ChevronIcon, CollapseAllIcon, CopyIcon, EditorIcon, FileIcon, FileTextIcon, FolderIcon } from '../ui/icon';
+import { useLocation, useSearchParams } from 'react-router';
+import { contentsLabel, copyAbsolutePath, copyFileContents, copyRelativePath } from '../../lib/file-copy';
 import { ContextMenu, MenuItem, MenuSeparator } from '../ui/popover';
 import { errorMessage, openInEditor } from '../../lib/api';
 import { useEditorName } from '../../hooks/use-editor-name';
@@ -93,11 +95,15 @@ interface TreeItemMenuProps {
   position: { x: number; y: number } | null;
   onClose: () => void;
   onFocusFolder?: () => void;
+  isFile?: boolean;
+  binary?: boolean;
 }
 
-function TreeItemMenu(props: TreeItemMenuProps) {
-  const { path, position, onClose, onFocusFolder } = props;
+export function TreeItemMenu(props: TreeItemMenuProps) {
+  const { path, position, onClose, onFocusFolder, isFile = false, binary = false } = props;
   const editor = useEditorName();
+  const [params] = useSearchParams();
+  const viewRef = useLocation().pathname.endsWith('/diff') ? params.get('ref') ?? 'work' : 'work';
 
   const run = (action: () => void) => () => {
     onClose();
@@ -113,14 +119,18 @@ function TreeItemMenu(props: TreeItemMenuProps) {
           openInEditor(path).catch((error) => toast.error('Could not open the editor', { description: errorMessage(error) }));
         })}
       />
-      <MenuItem
-        icon={<CopyIcon size="sm" />}
-        label="Copy path"
-        onSelect={run(() => {
-          void navigator.clipboard.writeText(path);
-          toast.success('Path copied');
-        })}
-      />
+      <MenuSeparator />
+      <MenuItem icon={<CopyIcon size="sm" />} label="Copy relative path" hint="⌥⌘C" onSelect={run(() => copyRelativePath(path))} />
+      <MenuItem icon={<CopyIcon size="sm" />} label="Copy absolute path" onSelect={run(() => copyAbsolutePath(path))} />
+      {isFile && (
+        <MenuItem
+          icon={<FileTextIcon size="sm" />}
+          label={binary ? 'Copy file contents (binary file)' : contentsLabel(viewRef)}
+          hint={binary ? undefined : '⇧⌥⌘C'}
+          disabled={binary}
+          onSelect={run(() => void copyFileContents(path, viewRef))}
+        />
+      )}
       {onFocusFolder && (
         <>
           <MenuSeparator />
@@ -131,19 +141,22 @@ function TreeItemMenu(props: TreeItemMenuProps) {
   );
 }
 
-export function FileTreeItem(props: FileTreeItemProps) {
-  const {
-    node,
-    depth,
-    activeFile,
-    reviewedFiles,
-    commentCountsByFile,
-    expandedDirs,
-    onToggleDir,
-    onCollapseDir,
-    onExpandOnly,
-    onFileClick,
-  } = props;
+interface FileTreeRowProps {
+  node: TreeNode;
+  depth: number;
+  active: boolean;
+  reviewed: boolean;
+  threadCount: number;
+  expanded: boolean;
+  onToggleDir: (path: string) => void;
+  onCollapseDir?: (path: string) => void;
+  onExpandOnly?: (path: string) => void;
+  onFileClick: (path: string) => void;
+}
+
+/** One row of the tree (a folder or a file), without its children; the context menu mounts only while open. */
+export function FileTreeRow(props: FileTreeRowProps) {
+  const { node, depth, active, reviewed, threadCount, expanded, onToggleDir, onCollapseDir, onExpandOnly, onFileClick } = props;
   const paddingLeft = BASE_PADDING + depth * INDENT;
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const openMenu = (event: React.MouseEvent) => {
@@ -152,11 +165,9 @@ export function FileTreeItem(props: FileTreeItemProps) {
   };
 
   if (node.type === 'dir') {
-    const isExpanded = expandedDirs.has(node.path);
-
     const handleChevronClick = (event: React.MouseEvent) => {
       event.stopPropagation();
-      if (onCollapseDir && isExpanded) {
+      if (onCollapseDir && expanded) {
         onCollapseDir(node.path);
         return;
       }
@@ -174,67 +185,102 @@ export function FileTreeItem(props: FileTreeItemProps) {
         >
           <IndentGuides depth={depth} />
           <span onClick={handleChevronClick} className="flex items-center justify-center w-4 h-4 shrink-0 rounded hover:bg-hover">
-            <ChevronIcon expanded={isExpanded} />
+            <ChevronIcon expanded={expanded} />
           </span>
-          <FolderIcon open={isExpanded} />
+          <FolderIcon open={expanded} />
           <span className="truncate text-text">{node.name}</span>
         </button>
-        <TreeItemMenu
-          path={node.path}
-          position={menu}
-          onClose={() => setMenu(null)}
-          onFocusFolder={onExpandOnly ? () => onExpandOnly(node.path) : undefined}
-        />
-        {isExpanded && node.children.map((child) => (
-          <FileTreeItem
-            key={child.path}
-            node={child}
-            depth={depth + 1}
-            activeFile={activeFile}
-            reviewedFiles={reviewedFiles}
-            commentCountsByFile={commentCountsByFile}
-            expandedDirs={expandedDirs}
-            onToggleDir={onToggleDir}
-            onCollapseDir={onCollapseDir}
-            onExpandOnly={onExpandOnly}
-            onFileClick={onFileClick}
+        {menu && (
+          <TreeItemMenu
+            path={node.path}
+            position={menu}
+            onClose={() => setMenu(null)}
+            onFocusFolder={onExpandOnly ? () => onExpandOnly(node.path) : undefined}
           />
-        ))}
+        )}
       </>
     );
   }
 
-  const isActive = activeFile === node.path;
-  const isReviewed = reviewedFiles.has(node.path);
-  const threadCount = commentCountsByFile.get(node.path) ?? 0;
+  return (
+    <>
+      <button
+        className={cn(rowClass, active ? 'bg-selected' : 'hover:bg-hover')}
+        style={{ paddingLeft: paddingLeft + CHEVRON + 6 }}
+        onClick={() => onFileClick(node.path)}
+        title={node.path}
+        onContextMenu={openMenu}
+      >
+        <IndentGuides depth={depth} />
+        <FileIcon className={cn('w-3.5 h-3.5 shrink-0', active ? 'text-text-secondary' : 'text-text-muted')} />
+        <span className={cn('flex-1 min-w-0 truncate', active ? 'text-text font-medium' : 'text-text', reviewed && 'text-text-muted line-through decoration-text-muted/60')}>
+          {node.name}
+        </span>
+        <CommentCount count={threadCount} />
+        {reviewed && <span className="text-added text-[11px] shrink-0" title="Viewed">&#10003;</span>}
+        {node.file && <StatusLetter status={node.file.status} />}
+      </button>
+      {menu && (
+        <TreeItemMenu
+          path={node.path}
+          isFile
+          binary={!!node.file?.isBinary}
+          position={menu}
+          onClose={() => setMenu(null)}
+          onFocusFolder={onExpandOnly ? () => {
+            const parts = node.path.split('/');
+            onExpandOnly(parts.length > 1 ? parts.slice(0, -1).join('/') : '');
+          } : undefined}
+        />
+      )}
+    </>
+  );
+}
+
+export function FileTreeItem(props: FileTreeItemProps) {
+  const {
+    node,
+    depth,
+    activeFile,
+    reviewedFiles,
+    commentCountsByFile,
+    expandedDirs,
+    onToggleDir,
+    onCollapseDir,
+    onExpandOnly,
+    onFileClick,
+  } = props;
+  const expanded = node.type === 'dir' && expandedDirs.has(node.path);
 
   return (
     <>
-    <button
-      className={cn(rowClass, isActive ? 'bg-selected' : 'hover:bg-hover')}
-      style={{ paddingLeft: paddingLeft + CHEVRON + 6 }}
-      onClick={() => onFileClick(node.path)}
-      title={node.path}
-      onContextMenu={openMenu}
-    >
-      <IndentGuides depth={depth} />
-      <FileIcon className={cn('w-3.5 h-3.5 shrink-0', isActive ? 'text-text-secondary' : 'text-text-muted')} />
-      <span className={cn('flex-1 min-w-0 truncate', isActive ? 'text-text font-medium' : 'text-text', isReviewed && 'text-text-muted line-through decoration-text-muted/60')}>
-        {node.name}
-      </span>
-      <CommentCount count={threadCount} />
-      {isReviewed && <span className="text-added text-[11px] shrink-0" title="Viewed">&#10003;</span>}
-      {node.file && <StatusLetter status={node.file.status} />}
-    </button>
-      <TreeItemMenu
-        path={node.path}
-        position={menu}
-        onClose={() => setMenu(null)}
-        onFocusFolder={onExpandOnly ? () => {
-          const parts = node.path.split('/');
-          onExpandOnly(parts.length > 1 ? parts.slice(0, -1).join('/') : '');
-        } : undefined}
+      <FileTreeRow
+        node={node}
+        depth={depth}
+        active={activeFile === node.path}
+        reviewed={reviewedFiles.has(node.path)}
+        threadCount={commentCountsByFile.get(node.path) ?? 0}
+        expanded={expanded}
+        onToggleDir={onToggleDir}
+        onCollapseDir={onCollapseDir}
+        onExpandOnly={onExpandOnly}
+        onFileClick={onFileClick}
       />
+      {expanded && node.children.map((child) => (
+        <FileTreeItem
+          key={child.path}
+          node={child}
+          depth={depth + 1}
+          activeFile={activeFile}
+          reviewedFiles={reviewedFiles}
+          commentCountsByFile={commentCountsByFile}
+          expandedDirs={expandedDirs}
+          onToggleDir={onToggleDir}
+          onCollapseDir={onCollapseDir}
+          onExpandOnly={onExpandOnly}
+          onFileClick={onFileClick}
+        />
+      ))}
     </>
   );
 }

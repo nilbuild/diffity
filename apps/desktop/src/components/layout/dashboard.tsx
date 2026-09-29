@@ -443,10 +443,7 @@ export function Dashboard(props: DashboardProps) {
                 <button onClick={() => setCompareSignal((value) => value + 1)} className="text-text-secondary hover:text-text underline decoration-text-muted/40 underline-offset-2 cursor-pointer">
                   Compare branches
                 </button>
-                <span aria-hidden className="text-text-muted">·</span>
-                <button onClick={() => nav.toTree()} className="text-text-secondary hover:text-text underline decoration-text-muted/40 underline-offset-2 cursor-pointer">
-                  Browse files
-                </button>
+
               </div>
             )}
 

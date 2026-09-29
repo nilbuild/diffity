@@ -17,6 +17,17 @@ pub async fn get_diff(repo_path: String, r#ref: String, ignore_whitespace: bool)
 }
 
 #[tauri::command]
+pub async fn get_file_patch(
+    repo_path: String,
+    r#ref: String,
+    path: String,
+    old_path: Option<String>,
+    ignore_whitespace: bool,
+) -> Result<String, AppError> {
+    blocking(move || diff::get_file_patch(Path::new(&repo_path), &r#ref, &path, old_path.as_deref(), ignore_whitespace)).await
+}
+
+#[tauri::command]
 pub async fn get_file_versions(
     repo_path: String,
     r#ref: String,

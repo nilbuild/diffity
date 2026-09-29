@@ -44,6 +44,8 @@ export interface DiffFileSummary {
   deletions: number;
   binary: boolean;
   oldLineCount?: number | null;
+  /** The patch was too large to send with the diff; fetch it with `get_file_patch`. */
+  patchOmitted?: boolean;
 }
 
 export interface OverviewFile {

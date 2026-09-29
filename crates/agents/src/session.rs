@@ -8,7 +8,7 @@ use agent_client_protocol::schema::v1::{
     InitializeRequest, LoadSessionRequest, McpServer, McpServerStdio, NewSessionRequest,
     PromptRequest, ReadTextFileRequest, ReadTextFileResponse, RequestPermissionOutcome,
     RequestPermissionRequest, RequestPermissionResponse, SelectedPermissionOutcome,
-    SessionNotification, SessionUpdate, TextContent, ToolCallContent, WriteTextFileRequest,
+    SessionModeState, SessionNotification, SetSessionModeRequest, SessionUpdate, TextContent, ToolCallContent, WriteTextFileRequest,
     WriteTextFileResponse,
 };
 use agent_client_protocol::schema::ProtocolVersion;
@@ -19,20 +19,27 @@ use tokio::sync::{mpsc, oneshot};
 use diffity_core::{AppError, Result};
 
 use crate::detect::LaunchSpec;
-use crate::policy::{self, PermissionDecision};
+use crate::policy::{self, PermissionDecision, RunPermissions};
 use crate::types::{AgentEvent, AgentMode, PermissionDiff, PermissionOption, PlanEntry};
 
 pub type EventSink = Arc<dyn Fn(AgentEvent) + Send + Sync>;
 
 const STDERR_LINES: usize = 40;
 
+/// The user's answer to a permission request. `for_run` means "Allow for this run".
+#[derive(Debug, Default)]
+struct Choice {
+    option: Option<String>,
+    for_run: bool,
+}
+
 #[derive(Default)]
 pub struct PermissionBroker {
-    pending: Mutex<HashMap<String, oneshot::Sender<Option<String>>>>,
+    pending: Mutex<HashMap<String, oneshot::Sender<Choice>>>,
 }
 
 impl PermissionBroker {
-    fn register(&self) -> (String, oneshot::Receiver<Option<String>>) {
+    fn register(&self) -> (String, oneshot::Receiver<Choice>) {
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = oneshot::channel();
         if let Ok(mut map) = self.pending.lock() {
@@ -41,21 +48,26 @@ impl PermissionBroker {
         (id, rx)
     }
 
-    pub fn respond(&self, request_id: &str, option_id: Option<String>) -> bool {
+    pub fn respond(&self, request_id: &str, option_id: Option<String>, for_run: bool) -> bool {
         let tx = self
             .pending
             .lock()
             .ok()
             .and_then(|mut m| m.remove(request_id));
         match tx {
-            Some(tx) => tx.send(option_id).is_ok(),
+            Some(tx) => tx
+                .send(Choice {
+                    option: option_id,
+                    for_run,
+                })
+                .is_ok(),
             None => false,
         }
     }
 
     fn cancel_all(&self, ids: &[String]) {
         for id in ids {
-            self.respond(id, None);
+            self.respond(id, None, false);
         }
     }
 }
@@ -75,6 +87,8 @@ struct Shared {
     approved_writes: Mutex<HashSet<PathBuf>>,
     stderr: Mutex<VecDeque<String>>,
     edit_rejected: Arc<AtomicBool>,
+    run: Mutex<RunPermissions>,
+    run_approved: AtomicBool,
 }
 
 fn enum_str<T: Serialize>(value: &T) -> String {
@@ -229,6 +243,23 @@ impl Shared {
         self.edit_rejected.store(true, Ordering::SeqCst);
     }
 
+    fn run(&self) -> RunPermissions {
+        self.run
+            .lock()
+            .map(|r| *r)
+            .unwrap_or(RunPermissions::AskEach)
+    }
+
+    fn auto_allow(&self, is_edit: bool) -> bool {
+        policy::auto_allow(self.run(), is_edit, self.run_approved.load(Ordering::SeqCst))
+    }
+
+    fn record_allow(&self, is_edit: bool, for_run: bool) {
+        if policy::approves_run(self.run(), is_edit, for_run) {
+            self.run_approved.store(true, Ordering::SeqCst);
+        }
+    }
+
     fn take_approved_write(&self, path: &Path) -> bool {
         self.approved_writes
             .lock()
@@ -322,7 +353,23 @@ async fn handle_permission(
     if let Some(d) = &diff {
         write_paths.push(shared.resolve_path(Path::new(&d.path)));
     }
-    let is_edit = diff.is_some() || matches!(kind.as_str(), "edit" | "delete" | "move");
+    let is_edit = diff.is_some() || policy::is_edit_kind(&kind);
+    if shared.auto_allow(is_edit) {
+        let allow = req
+            .options
+            .iter()
+            .find(|o| enum_str(&o.kind) == "allow_once")
+            .or_else(|| {
+                req.options
+                    .iter()
+                    .find(|o| enum_str(&o.kind).starts_with("allow"))
+            })
+            .map(|o| o.option_id.0.to_string());
+        if allow.is_some() {
+            shared.approve_writes(write_paths);
+            return responder.respond(permission_response(allow));
+        }
+    }
     let options: Vec<(String, String)> = req
         .options
         .iter()
@@ -352,7 +399,8 @@ async fn handle_permission(
     });
     let shared = shared.clone();
     cx.spawn(async move {
-        let choice = rx.await.ok().flatten();
+        let answer = rx.await.unwrap_or_default();
+        let choice = answer.option;
         shared.track(&request_id, false);
         let allowed = choice
             .as_ref()
@@ -360,6 +408,7 @@ async fn handle_permission(
             .is_some_and(|(_, kind)| kind.starts_with("allow"));
         if allowed && policy::can_write_files(shared.mode) {
             shared.approve_writes(write_paths);
+            shared.record_allow(is_edit, answer.for_run);
         }
         if !allowed && is_edit {
             shared.mark_edit_rejected();
@@ -422,7 +471,7 @@ async fn handle_write(
         ));
     }
     let path = shared.resolve_path(&req.path);
-    if shared.take_approved_write(&path) {
+    if shared.take_approved_write(&path) || shared.auto_allow(true) {
         return match write_file(&path, &req.content).await {
             Ok(r) => responder.respond(r),
             Err(e) => responder.respond_with_error(e),
@@ -457,15 +506,16 @@ async fn handle_write(
     });
     let shared = shared.clone();
     cx.spawn(async move {
-        let choice = rx.await.ok().flatten();
+        let answer = rx.await.unwrap_or_default();
         shared.track(&request_id, false);
-        if choice.as_deref() != Some("allow") {
+        if answer.option.as_deref() != Some("allow") {
             shared.mark_edit_rejected();
             return responder.respond_with_error(agent_client_protocol::Error::new(
                 -32001,
                 "The user rejected this write.",
             ));
         }
+        shared.record_allow(true, answer.for_run);
         match write_file(&path, &req.content).await {
             Ok(r) => responder.respond(r),
             Err(e) => responder.respond_with_error(e),
@@ -476,6 +526,7 @@ async fn handle_write(
 enum Command {
     Prompt {
         text: String,
+        mode_id: &'static str,
         reply: oneshot::Sender<Result<String>>,
     },
     Cancel,
@@ -536,6 +587,12 @@ impl AgentSession {
             approved_writes: Mutex::new(HashSet::new()),
             stderr: Mutex::new(VecDeque::new()),
             edit_rejected: config.edit_rejected.clone(),
+            run: Mutex::new(if policy::can_write_files(config.mode) {
+                RunPermissions::AskEach
+            } else {
+                RunPermissions::ReadOnly
+            }),
+            run_approved: AtomicBool::new(false),
         });
 
         let stderr_shared = shared.clone();
@@ -617,13 +674,17 @@ impl AgentSession {
                         .await?;
 
                     let mut session_id: Option<String> = None;
+                    let mut modes: Option<SessionModeState> = None;
                     if let (Some(prev), true) = (resume, init.agent_capabilities.load_session) {
                         let load = cx
                             .send_request(LoadSessionRequest::new(prev.clone(), cwd.clone()).mcp_servers(vec![mcp.clone()]))
                             .block_task()
                             .await;
                         match load {
-                            Ok(_) => session_id = Some(prev),
+                            Ok(loaded) => {
+                                modes = loaded.modes;
+                                session_id = Some(prev);
+                            }
                             Err(e) => tracing::warn!("session/load failed, starting a new session: {e:?}"),
                         }
                     }
@@ -635,6 +696,7 @@ impl AgentSession {
                                 .block_task()
                                 .await?;
                             tracing::debug!("session/new modes={:?}", created.modes);
+                            modes = created.modes;
                             created.session_id.0.to_string()
                         }
                     };
@@ -642,10 +704,27 @@ impl AgentSession {
                         let _ = tx.send(Ok(session_id.clone()));
                     }
 
+                    let mut current_mode = modes.as_ref().map(|m| m.current_mode_id.0.to_string());
+                    let available: Vec<String> = modes
+                        .map(|m| m.available_modes.into_iter().map(|mode| mode.id.0.to_string()).collect())
+                        .unwrap_or_default();
                     while let Some(cmd) = cmd_rx.recv().await {
-                        let Command::Prompt { text, reply } = cmd else {
+                        let Command::Prompt { text, mode_id, reply } = cmd else {
                             continue;
                         };
+                        if needs_mode_switch(&available, current_mode.as_deref(), mode_id) {
+                            let switched = cx
+                                .send_request(SetSessionModeRequest::new(session_id.clone(), mode_id))
+                                .block_task()
+                                .await;
+                            match switched {
+                                Ok(_) => {
+                                    tracing::debug!("session/set_mode {mode_id}");
+                                    current_mode = Some(mode_id.to_string());
+                                }
+                                Err(e) => tracing::warn!("session/set_mode {mode_id} failed: {e:?}"),
+                            }
+                        }
                         let prompt = cx
                             .send_request(PromptRequest::new(
                                 session_id.clone(),
@@ -718,7 +797,12 @@ impl AgentSession {
             .unwrap_or(false)
     }
 
-    pub async fn prompt(&self, text: String, sink: EventSink) -> Result<Vec<AgentEvent>> {
+    pub async fn prompt(
+        &self,
+        text: String,
+        run: RunPermissions,
+        sink: EventSink,
+    ) -> Result<Vec<AgentEvent>> {
         {
             let mut turn = self
                 .shared
@@ -729,6 +813,14 @@ impl AgentSession {
                 return Err(AppError::new("agent_busy", "a prompt is already running"));
             }
             self.shared.edit_rejected.store(false, Ordering::SeqCst);
+            self.shared.run_approved.store(false, Ordering::SeqCst);
+            if let Ok(mut current) = self.shared.run.lock() {
+                *current = if policy::can_write_files(self.shared.mode) {
+                    run
+                } else {
+                    RunPermissions::ReadOnly
+                };
+            }
             *turn = Some(Turn {
                 sink,
                 events: Vec::new(),
@@ -742,6 +834,7 @@ impl AgentSession {
         let (reply_tx, reply_rx) = oneshot::channel();
         let sent = self.commands.send(Command::Prompt {
             text,
+            mode_id: run.acp_mode_id(),
             reply: reply_tx,
         });
         let outcome = match sent {
@@ -788,6 +881,14 @@ impl AgentSession {
             let _ = tokio::time::timeout(std::time::Duration::from_secs(3), handle).await;
         }
     }
+}
+
+/// Switch only to a mode the agent advertises, and only when it isn't already active.
+fn needs_mode_switch(available: &[String], current: Option<&str>, wanted: &str) -> bool {
+    if current == Some(wanted) {
+        return false;
+    }
+    available.iter().any(|m| m == wanted)
 }
 
 /// Cancels the turn and frees the turn slot when a `prompt` future is dropped before completion.
@@ -864,6 +965,27 @@ mod tests {
         assert!(!is_own_tool(Some("mcp__other__add_comment")));
         assert!(!is_own_tool(Some("Edit diffity.rs")));
         assert!(!is_own_tool(None));
+    }
+
+    #[test]
+    fn switches_mode_only_when_offered() {
+        let offered = vec!["default".to_string(), "bypassPermissions".to_string()];
+        assert!(needs_mode_switch(&offered, Some("default"), "bypassPermissions"));
+        assert!(!needs_mode_switch(&offered, Some("bypassPermissions"), "bypassPermissions"));
+        assert!(needs_mode_switch(&offered, Some("bypassPermissions"), "default"));
+        assert!(!needs_mode_switch(&["default".to_string()], Some("default"), "bypassPermissions"));
+        assert!(!needs_mode_switch(&[], None, "bypassPermissions"));
+    }
+
+    #[test]
+    fn broker_carries_run_scope() {
+        let broker = PermissionBroker::default();
+        let (id, mut rx) = broker.register();
+        assert!(broker.respond(&id, Some("allow".into()), true));
+        let choice = rx.try_recv().unwrap();
+        assert_eq!(choice.option.as_deref(), Some("allow"));
+        assert!(choice.for_run);
+        assert!(!broker.respond(&id, None, false), "answered requests are gone");
     }
 
     #[test]

@@ -308,3 +308,53 @@ fn root_commit_range_diffs_against_empty_tree() {
     assert_eq!(res.resolved.base_sha.as_deref(), Some(root.as_str()));
     assert_eq!(file(&res, "README.md").status, FileStatus::Modified);
 }
+
+fn without_index_lines(patch: &str) -> String {
+    patch.lines().filter(|l| !l.starts_with("index ")).map(|l| format!("{l}\n")).collect()
+}
+
+#[test]
+fn untracked_patches_match_git_no_index() {
+    let repo = Repo::with_commit();
+    repo.write("multi.txt", "one\ntwo\nthree\n");
+    repo.write("single.txt", "only\n");
+    repo.write("no-eol.txt", "a\nb");
+    repo.write("empty.txt", "");
+    repo.write_bytes("blob.bin", &[1, 0, 2]);
+    let res = diff::get_diff(&repo.path, "work", false).unwrap();
+    for name in ["multi.txt", "single.txt", "no-eol.txt", "empty.txt", "blob.bin"] {
+        let out = std::process::Command::new("git")
+            .current_dir(&repo.path)
+            .args(["diff", "--no-index", "--no-color", "--src-prefix=a/", "--dst-prefix=b/", "--", "/dev/null", name])
+            .output()
+            .unwrap();
+        let expected = String::from_utf8_lossy(&out.stdout).into_owned();
+        assert_eq!(without_index_lines(&file_patch(&res.patch, name)), without_index_lines(&expected), "{name}");
+        assert_eq!(without_index_lines(&diff::get_file_patch(&repo.path, "work", name, None, false).unwrap()), without_index_lines(&expected), "{name}");
+    }
+    assert_eq!(file(&res, "multi.txt").additions, 3);
+}
+
+#[test]
+fn large_file_patches_are_withheld_and_fetched_per_file() {
+    let repo = Repo::with_commit();
+    repo.write("big.txt", &(0..200).map(|i| format!("line {i}\n")).collect::<String>());
+    repo.write("small.txt", "a\n");
+    repo.commit("base");
+    repo.write("big.txt", &(0..200).map(|i| format!("changed {i}\n")).collect::<String>());
+    repo.write("small.txt", "b\n");
+    repo.write("new big.txt", &(0..200).map(|i| format!("new {i}\n")).collect::<String>());
+    let res = diff::get_diff_with_limit(&repo.path, "work", false, 1024).unwrap();
+    assert!(file(&res, "big.txt").patch_omitted);
+    assert!(file(&res, "new big.txt").patch_omitted);
+    assert!(!file(&res, "small.txt").patch_omitted);
+    assert!(res.patch.contains("diff --git a/big.txt b/big.txt"));
+    assert!(!res.patch.contains("changed 5"));
+    assert!(res.patch.contains("+b"));
+    let full = diff::get_file_patch(&repo.path, "work", "big.txt", None, false).unwrap();
+    assert!(full.contains("+changed 199"));
+    let untracked = diff::get_file_patch(&repo.path, "work", "new big.txt", None, false).unwrap();
+    assert!(untracked.contains("+new 199"));
+    let full_res = diff::get_diff(&repo.path, "work", false).unwrap();
+    assert!(full_res.files.iter().all(|f| !f.patch_omitted));
+}

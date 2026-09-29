@@ -308,17 +308,20 @@ export function PrBar(props: { diffRef: string; threads?: CommentThread[] }) {
           {pr.title}
         </button>
         <span className="shrink-0 text-[13px] text-text-muted tabular-nums">#{pr.number}</span>
-        <span
-          className={cn('shrink-0 px-1.5 py-0.5 rounded-full text-[11px] font-medium', ownPr ? 'bg-claude/12 text-claude' : 'bg-fill text-text-secondary')}
-          title={ownPr ? 'You opened this pull request: comments are notes for Claude; reviewers’ comments can be sent to Claude too' : 'Someone else’s pull request: your comments form a GitHub review'}
-        >
-          {ownPr ? 'Your PR' : `Reviewing @${pr.author}’s PR`}
-        </span>
         {checks && (
           <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center" title={checks.label}>
             {checks.icon}
           </span>
         )}
+        <span
+          className={cn('ml-1 shrink-0 inline-flex h-5 items-center px-2.5 rounded-full text-[11px] font-medium', ownPr ? 'bg-claude/12 text-claude' : 'bg-fill text-text-secondary')}
+          title={ownPr ? 'You opened this pull request: comments are notes for Claude; reviewers’ comments can be sent to Claude too' : 'Someone else’s pull request: your comments form a GitHub review'}
+        >
+          {ownPr ? 'Your PR' : `Reviewing @${pr.author}’s PR`}
+        </span>
+        <button onClick={() => setDialog(true)} className={cn(buttonOutline, 'h-6 px-2 text-xs')} title="Description, branches, checks and actions">
+          Details
+        </button>
         <span className="min-w-2 flex-1" />
         {ownPr && reviewerOpen > 0 && (
           <button onClick={requestSendToClaude} className={cn(buttonClaude, 'h-7 px-2.5')} title="Send reviewers’ open comments to Claude; you pick which and whether its replies go back to GitHub">
@@ -349,9 +352,6 @@ export function PrBar(props: { diffRef: string; threads?: CommentThread[] }) {
           <GitHubIcon size="sm" />
           GitHub
         </a>
-        <button onClick={() => setDialog(true)} className={cn(buttonOutline, 'h-7 px-2.5')} title="Description, branches, checks and actions">
-          Details
-        </button>
         {back && (
           <button onClick={back.onBack} disabled={back.disabled} className={cn(buttonOutline, 'ml-1 h-7 px-2')} title={back.title}>
             <ArrowLeftIcon size="sm" />

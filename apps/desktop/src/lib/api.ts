@@ -1,9 +1,9 @@
-import { parseDiff, type ParsedDiff } from '@diffity/parser';
+import { parseDiff, type DiffFile, type ParsedDiff } from '@diffity/parser';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import type { CommentThread, CommentAuthor, CommentSide, Comment, SubmitOptions } from '../components/comments/types';
 import * as tauri from './tauri';
-import type { PullRequest, Thread, Comment as BackendComment, TreeEntry } from './types';
+import type { DiffFileSummary, PullRequest, Thread, Comment as BackendComment, TreeEntry } from './types';
 import { TREE_REF } from './types';
 
 dayjs.extend(relativeTime);
@@ -149,22 +149,43 @@ export function parseGitHubRemote(url: string | null): GitHubRemote | null {
 export async function fetchDiff(hideWhitespace: boolean, ref?: string): Promise<ParsedDiff> {
   const result = await tauri.getDiff(getRepoPath(), ref || 'work', hideWhitespace);
   const diff = parseDiff(result.patch);
-  const lineCounts = new Map<string, number>();
+  const summaries = new Map<string, DiffFileSummary>();
   for (const file of result.files) {
-    if (file.oldLineCount !== null && file.oldLineCount !== undefined) {
-      lineCounts.set(file.path, file.oldLineCount);
-    }
+    summaries.set(file.path, file);
   }
+  let totalAdditions = 0;
+  let totalDeletions = 0;
   for (const file of diff.files) {
+    const summary = summaries.get(file.newPath) ?? summaries.get(file.oldPath);
+    if (summary?.patchOmitted) {
+      file.patchOmitted = true;
+      file.additions = summary.additions;
+      file.deletions = summary.deletions;
+    }
+    totalAdditions += file.additions;
+    totalDeletions += file.deletions;
     if (file.status === 'added' || file.isBinary) {
       continue;
     }
-    const count = lineCounts.get(file.newPath) ?? lineCounts.get(file.oldPath);
-    if (count !== undefined) {
+    const count = summary?.oldLineCount;
+    if (count !== null && count !== undefined) {
       file.oldFileLineCount = count;
     }
   }
+  diff.stats = { ...diff.stats, totalAdditions, totalDeletions };
   return diff;
+}
+
+/** The full hunks of a file `fetchDiff` received without them (`patchOmitted`), parsed on its own. */
+export async function fetchFilePatch(file: DiffFile, hideWhitespace: boolean, ref?: string): Promise<DiffFile> {
+  const path = file.status === 'deleted' ? file.oldPath : file.newPath;
+  const oldPath = file.oldPath && file.oldPath !== path && file.oldPath !== '/dev/null' ? file.oldPath : null;
+  const patch = await tauri.getFilePatch(getRepoPath(), ref || 'work', path, oldPath, hideWhitespace);
+  const parsed = parseDiff(patch).files[0];
+  if (!parsed) {
+    return { ...file, patchOmitted: false };
+  }
+  return { ...parsed, oldFileLineCount: file.oldFileLineCount, patchOmitted: false };
 }
 
 export function fetchDiffFingerprint(ref?: string): Promise<string> {

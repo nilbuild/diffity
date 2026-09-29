@@ -1,5 +1,6 @@
 //! Live smoke test against an installed agent. Costs tokens.
 //! `cargo build -p diffity-mcp && cargo run -p diffity-agents --example smoke -- <claude|codex|gemini> [repo] [review|ask|edit|thread]`
+//! `resolve` leaves a plain comment asking for a fix and runs `resolve` on it; `SMOKE_PERMISSIONS=askOnce|askEach` overrides the default (skip).
 //! `thread` leaves a user comment mentioning `@claude` on math.js and runs the `thread` action (auto-approves writes).
 
 use std::path::{Path, PathBuf};
@@ -67,10 +68,11 @@ async fn main() -> anyhow::Result<()> {
     };
     let mode_arg = args.next();
     let thread_mode = mode_arg.as_deref() == Some("thread");
+    let resolve_mode = mode_arg.as_deref() == Some("resolve");
     let mode = match mode_arg.as_deref() {
         Some("ask") => AgentMode::Ask,
         Some("edit") => AgentMode::Edit,
-        Some("thread") => AgentMode::Resolve,
+        Some("thread") | Some("resolve") => AgentMode::Resolve,
         _ => AgentMode::Review,
     };
     let repo_path = repo.to_string_lossy().into_owned();
@@ -86,6 +88,9 @@ async fn main() -> anyhow::Result<()> {
     ));
     manager.on_threads_changed(Arc::new(|sid: &str| println!("[threads-changed] {sid}")));
 
+    if let Ok(value) = std::env::var("SMOKE_PERMISSIONS") {
+        store.set_setting(diffity_agents::policy::PERMISSIONS_SETTING, &value)?;
+    }
     for info in manager.list_agents(false).await? {
         println!("[agent] {info:?}");
     }
@@ -100,6 +105,8 @@ async fn main() -> anyhow::Result<()> {
         })
         .await?;
 
+    let prompts = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let prompts_seen = prompts.clone();
     let (perm_tx, mut perm_rx) = tokio::sync::mpsc::unbounded_channel::<(String, Option<String>)>();
     let sink = Box::new(move |ev: AgentEvent| {
         match &ev {
@@ -116,6 +123,7 @@ async fn main() -> anyhow::Result<()> {
             ..
         } = &ev
         {
+            prompts_seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let allow = options
                 .iter()
                 .find(|o| o.kind.starts_with("allow") && o.kind.ends_with("once"))
@@ -127,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move {
         while let Some((id, option)) = perm_rx.recv().await {
             println!("[auto-permission] {id} -> {option:?}");
-            let _ = responder.respond_permission(&id, option).await;
+            let _ = responder.respond_permission(&id, option, false).await;
         }
     });
 
@@ -159,6 +167,29 @@ async fn main() -> anyhow::Result<()> {
         })?;
         println!("[thread] created {} mentionsAgent={}", thread.id, thread.comments[0].mentions_agent);
         (String::new(), AgentAction::Thread { thread_id: thread.id })
+    } else if resolve_mode {
+        let thread = store.create_thread(&diffity_core::types::NewThread {
+            session_id: session.id.clone(),
+            file_path: "math.js".into(),
+            side: diffity_core::types::Side::New,
+            start_line: 3,
+            end_line: 3,
+            body: "Off-by-one: this should be `<`, not `<=`. Please fix.".into(),
+            severity: None,
+            anchor_content: None,
+            author_type: None,
+            author_name: None,
+            pending: None,
+        })?;
+        println!("[thread] created {}", thread.id);
+        (
+            String::new(),
+            AgentAction::Resolve {
+                thread_id: Some(thread.id),
+                thread_ids: vec![],
+                note: None,
+            },
+        )
     } else {
         (text, action)
     };
@@ -194,6 +225,10 @@ async fn main() -> anyhow::Result<()> {
     if let Ok(contents) = std::fs::read_to_string(repo.join("math.js")) {
         println!("[math.js]\n{contents}");
     }
+    println!(
+        "[permission prompts shown] {}",
+        prompts.load(std::sync::atomic::Ordering::SeqCst)
+    );
     let messages = manager.get_chat_messages(&chat.id).await?;
     println!("[persisted messages] {}", messages.len());
     manager.shutdown().await;

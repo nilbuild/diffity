@@ -117,6 +117,8 @@ export function ThreadCard(props: ThreadCardProps) {
   const resolved = isThreadResolved(thread);
   const activity = useThreadActivity(thread.id);
   const canAskClaude = review.enabled && !resolved && !thread.pending && activity === 'idle' && !!onReply;
+  const lastByClaude = thread.comments[thread.comments.length - 1]?.author.type === 'agent';
+  const showAskClaude = canAskClaude && !lastByClaude;
 
   const { details } = useGitHubPr();
   const queryClient = useQueryClient();
@@ -171,7 +173,7 @@ export function ThreadCard(props: ThreadCardProps) {
               Add to my review
             </button>
           )}
-          {!compact && canAskClaude && !canPromote && (
+          {!compact && showAskClaude && !canPromote && (
             <button
               onClick={resolveWithClaude}
               className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
@@ -193,7 +195,7 @@ export function ThreadCard(props: ThreadCardProps) {
             items={[
               ...(compact && onResolve && onUnresolve && !resolved ? [{ label: 'Mark as addressed', onSelect: onResolve }] : []),
               ...(compact && onUnresolve && resolved ? [{ label: 'Reopen', onSelect: onUnresolve }] : []),
-              ...(compact && canAskClaude ? [{ label: 'Ask Claude about it', onSelect: resolveWithClaude }] : []),
+              ...(canAskClaude && (compact || !showAskClaude || canPromote) ? [{ label: 'Ask Claude about it', onSelect: resolveWithClaude }] : []),
               ...(compact && canPromote ? [{ label: 'Add to my review', onSelect: () => void promote() }] : []),
               { label: 'Delete thread', onSelect: onDeleteThread, danger: true },
             ]}
@@ -212,12 +214,14 @@ export function ThreadCard(props: ThreadCardProps) {
         ))}
       </div>
       {activity !== 'idle' && (
-        <div className="flex items-center gap-2 px-4 pb-2 text-xs text-text-muted">
-          {activity === 'working' ? (
-            <span className="inline-block w-3 h-3 border-2 border-claude/25 border-t-claude rounded-full animate-spin" />
-          ) : (
-            <SparkleIcon className="w-3 h-3" />
-          )}
+        <div className="flex items-center gap-2 px-3 pb-2 text-xs text-text-muted">
+          <span className="flex w-5 justify-center shrink-0">
+            {activity === 'working' ? (
+              <span className="inline-block w-3 h-3 border-2 border-claude/25 border-t-claude rounded-full animate-spin" />
+            ) : (
+              <SparkleIcon className="w-3 h-3 text-claude" />
+            )}
+          </span>
           {activity === 'working' ? 'Claude Code is working…' : 'Queued for Claude Code'}
         </div>
       )}
@@ -230,12 +234,13 @@ export function ThreadCard(props: ThreadCardProps) {
                 setShowReply(false);
               }}
               onCancel={() => setShowReply(false)}
-              placeholder="Reply..."
+              placeholder={lastByClaude && review.enabled ? 'Reply to Claude…' : 'Reply…'}
               submitLabel="Reply"
               reviewable={!claudeThread}
               isReply
               draftKey={replyKey}
               threadPending={!!thread.pending}
+              claudeReplies={lastByClaude && review.enabled}
             />
           </div>
         ) : (
@@ -244,7 +249,7 @@ export function ThreadCard(props: ThreadCardProps) {
               onClick={() => setShowReply(true)}
               className="flex items-center w-full h-8 px-2.5 rounded-md border border-control-border bg-raised text-left text-[13px] text-text-muted hover:border-focus hover:text-text-secondary transition-colors cursor-text"
             >
-              Reply…
+              {lastByClaude && review.enabled ? 'Reply to Claude…' : 'Reply…'}
             </button>
           </div>
         )

@@ -436,11 +436,93 @@ full webview reload.
   "Settings" → "Claude settings", "Sign in" → "Sign in to GitHub", empty-state "Review uncommitted changes" → "View
   uncommitted changes".
 
+## Round 15 (copy, toasts, Claude permissions)
+
+- Copy: every file menu (tree right-click in Files/Changes and the flat list, the diff card ⋯, ⌘P rows, palette
+  actions for the current file) offers Copy relative path (⌥⌘C), Copy absolute path and Copy file contents (⇧⌥⌘C).
+  In a commit/PR view the item reads "Copy contents at abc1234" and copies that version. Binary files are disabled
+  with a reason; files over 1 MB ask first ("Copy anyway"). The diff card ⋯ also has Copy diff (a unified patch).
+  Toast: "Copied N lines". Both shortcuts are in the shortcuts list. Tree rows are no longer text-selectable, so a
+  right-click doesn't highlight the name.
+- Home's caught-up line drops the duplicate "Browse files".
+- Disabled primary/Claude buttons get a 1px `control-border` outline so they read as buttons, not blank chips.
+- Change-group revert: the floating red "Undo" pill that overlapped cards is now a small "Discard change" control
+  on a zero-height row at the top of the group (visible on hover/focus), inside the diff column.
+- Thread "Claude Code is working…" row aligns its spinner with the avatar column, so the text lines up with comments.
+- Toasts: fixed 360px, icon + one-line title (truncates), optional one-line description (errors may wrap to 3 lines),
+  actions as small buttons on their own row, right-aligned, and a close ×. Claude's finish toast is short: "Claude
+  replied to 1 comment" / "Claude resolved 2 comments" / "Claude handled 2 of 3 comments" with "Edits are in your
+  working tree" and a "View changes" action.
+- Ask Claude: the thread header button shows only when the latest comment isn't Claude's; otherwise it's "Ask Claude
+  about it" in ⋯. A reply to a thread whose last comment is Claude's goes to Claude automatically (a `thread` run):
+  the field reads "Reply to Claude…" and the hint says "Claude will reply · don't send to Claude" (per-reply opt-out).
+  Draft (pending) replies never trigger it.
+- Permissions (Settings → Claude Code → Permissions): Skip all permission prompts (default) · Ask once per run · Ask
+  for each edit. With Skip, fixing runs (resolve, thread, review feedback, edit chats) switch the ACP session to
+  `bypassPermissions` (`session/set_mode`, only when the adapter offers it; the broker also auto-allows as a
+  fallback). Reviews and questions never bypass: they stay in `default` mode, file writes and shell commands are
+  auto-denied, their prompts say read-only and MCP write tools are gated. Ask once: the first allowed edit approves
+  the rest of the run's edits; shell commands keep asking. The approval dialog offers Deny · Allow once · Allow for
+  this run (primary for edits) and "Don't ask again" (switches the setting to Skip). The run pill adds "· no permission
+  prompts" (or "· auto-approving edits"). The first bypass run shows a one-time toast with "Change in Settings".
+  Smoke: a real resolve run on a dirty repo made the fix with 0 prompts; with Ask once it prompted once.
+
+## Round 16 (shortcuts sheet, large diffs, PR bar, segmented controls)
+
+- **Shortcuts sheet** (`components/layout/shortcuts-sheet.tsx`), copied from time.fyi's `shortcuts-sheet.tsx`: a 540px
+  sheet 18vh from the top, no title or close button, a 48px "Find a shortcut…" field (15px) over the list, rows 36px
+  (13px label, keys as soft caps on the right: `bg-fill`, 4px radius, 11px, "or" between alternatives), 12px
+  section headings, "Nothing matches." when empty. The field filters by every word (section, label, keys). `?` opens
+  it (also the ⌘K row and the ⋯ menu); Esc and a backdrop click close it through `onCancel`/the click handler, never
+  the effect cleanup (StrictMode). One source of truth: `lib/shortcuts.ts` (`SHORTCUT_SECTIONS`, `chord()`,
+  `shortcutHint(id)`) feeds the sheet, Settings → Keyboard shortcuts and the ⌘K hints (now drawn with the same
+  `KeyCaps`). Modifiers print in macOS order (⇧⌘P, ⌥⇧⌘C).
+- **PR bar:** "Details" sits right after the "Reviewing @author's PR" / "Your PR" chip (small outline button); the
+  chip has 10px side padding (was 6px); checks moved next to #N. Right side unchanged.
+- **Segmented controls in dark mode:** the active thumb used `raised` (#242428), darker than the `fill` track
+  (#26262a), so Files/Changes and Unified/Split barely showed the selection. New `toggle` thumb (#3f3f46 dark, white
+  light) with a near-invisible dark ring (`toggle-border`), full-contrast text; shared as `segmentActive` /
+  `segmentInactive` in `button-styles.ts` and used by the sidebar view tabs, `SegmentedToggle` (Unified/Split,
+  comment filters, Code/Preview) and the Settings radio groups.
+- **Large diffs.** Test repo (scratchpad `bigdiff`, `gen-bigdiff.py`): 2,206 files: one file with 20,000 changed
+  lines, 2,000 modified files, a 757 KB single-line minified file, a 3,000-package `package-lock.json`, 2 binaries,
+  200 untracked files.
+  - Backend: untracked patches are built in-process (one `git diff --no-index` per untracked file cost ~10 ms each);
+    the git calls run in parallel; any file whose patch exceeds 256 KB is withheld from `get_diff` (header only,
+    `patchOmitted`) and fetched on demand with the new `get_file_patch` command.
+  - Frontend: lock / generated / minified (any line over 1,000 chars) / large (1,000+ rows or withheld) files are held
+    back behind "Load diff" (unless they carry comments), with a notice "Large diff: N files are collapsed" and
+    "Expand all" (confirm: "renders about N more changed lines"). Load state lives outside the virtualised cards.
+    Files over 400 rows render in ~120-line slices that mount only within 1,600px of the viewport (a spacer of the
+    measured height otherwise; slices holding a thread or the composer stay mounted). Highlighting runs in 8 ms
+    slices, starts 120 ms after a card mounts (cards scrolled past are never highlighted), skips lines over 1,000
+    chars and files over 10,000 rows. Word diffs skip lines over 1,000 chars (LCS on a 750 KB line hung the parser).
+    Lines over 1,000 chars show "… N more characters · Show all". The Changes sidebar tree is virtualised (28px rows,
+    follows the active file); its context menus mount only when open. File cards are memoised and the virtualiser now
+    accounts for the comments above the list (`scrollMargin`): before, a tall general-comments block made j/k and
+    sidebar jumps land on a blank screen.
+  - Measured (Chrome, Vite dev build, 1440×900, same fixture through the mock API; backend in release):
+
+    | | Before | After |
+    | --- | --- | --- |
+    | `get_diff` (backend) | 3.0 s, 5.6 MB JSON | 0.8 s, 2.6 MB JSON (3 files withheld) |
+    | First file card painted | 3.4 s (3-file diff: 1.55 s) | 1.9 s |
+    | Long tasks while loading | 4.0 s total, worst 1.76 s | 2.2 s total, worst 0.86 s (≈ the 3-file baseline) |
+    | DOM nodes after load | 17,262 (2,240 sidebar rows) | 2,408 |
+    | Scroll, 300 px/frame for 4 s | 4 fps, 14/17 frames > 50 ms, worst 443 ms | 46 fps, 8 frames > 50 ms, worst 127 ms |
+    | Scroll, 100 px/frame | — | 88 fps, 7 frames > 50 ms, worst 91 ms |
+    | JS heap after scrolling | 444 MB | 294 MB |
+    | Load the 20k-line file | rendered all 30k rows | 280 ms to first rows (fetch + parse + render), 160 rows mounted |
+    | Scroll inside it, 100 px/frame | — | 104 fps, 6 frames > 50 ms, worst 89 ms |
+    | Load the minified file | word diff on the 757 KB line | 40 ms |
+
+    j/k, ⌘P, sidebar jumps, Expand all and scroll-to-file inside a sliced file verified; no console errors.
+
 ## Remaining
 
 - "Post to GitHub now" pushes only new threads; replies to existing GitHub threads still go out with the review.
 
-- Very large diffs (thousands of files) are still rendered eagerly apart from auto-collapsed files; no virtualisation.
+- Large diffs: the first view still parses the whole (trimmed) patch up front; the Files view tree (whole repository) is not virtualised; syntax highlighting is off for files over 10,000 rows. Measured in Chrome, not WKWebView.
 - The window title is only the repo name (no ref).
 - A PR review posted from a non-PR view (e.g. an old commit) can only post comments GitHub can anchor; unanchored ones are reported as failed.
 - The edit-rejected guard is per turn, so after one denial Claude can't resolve any thread in that run, even ones whose edits were approved (conservative by design).

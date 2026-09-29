@@ -40,6 +40,8 @@ export interface DiffFile {
   newMode?: string;
   similarityIndex?: number;
   oldFileLineCount?: number;
+  /** The backend withheld this file's hunks as too large; they are fetched on demand. */
+  patchOmitted?: boolean;
 }
 
 export interface ParsedDiff {

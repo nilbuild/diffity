@@ -310,3 +310,13 @@ describe('parseDiff', () => {
     });
   });
 });
+
+describe('long lines', () => {
+  it('skips word diffs for minified-length lines', () => {
+    const long = 'x'.repeat(5000);
+    const diff = parseDiff(`diff --git a/a.js b/a.js\n--- a/a.js\n+++ b/a.js\n@@ -1 +1 @@\n-${long}\n+${long}y\n`);
+    const lines = diff.files[0].hunks[0].lines;
+    expect(lines[0].wordDiff).toBeUndefined();
+    expect(lines[1].wordDiff).toBeUndefined();
+  });
+});

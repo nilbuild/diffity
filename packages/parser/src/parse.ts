@@ -32,6 +32,9 @@ function stripPrefix(path: string): string {
   return path;
 }
 
+/** Word diffs are skipped for longer lines (minified code): tokenising and LCS on them costs seconds. */
+export const WORD_DIFF_MAX_LINE_LENGTH = 1000;
+
 function attachWordDiffs(hunk: DiffHunk): void {
   const lines = hunk.lines;
   let i = 0;
@@ -58,6 +61,9 @@ function attachWordDiffs(hunk: DiffHunk): void {
         for (let p = 0; p < pairCount; p++) {
           const delLine = lines[deleteStart + p];
           const addLine = lines[addStart + p];
+          if (delLine.content.length > WORD_DIFF_MAX_LINE_LENGTH || addLine.content.length > WORD_DIFF_MAX_LINE_LENGTH) {
+            continue;
+          }
           const segments = computeWordDiff(delLine.content, addLine.content);
           delLine.wordDiff = segments;
           addLine.wordDiff = segments;

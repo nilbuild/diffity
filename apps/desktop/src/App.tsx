@@ -13,7 +13,7 @@ import { TreeRoute } from './routes/tree';
 import { OverviewRoute } from './routes/overview';
 import { SettingsDialog } from './features/settings/settings-dialog';
 import { QuickOpen, useQuickOpenShortcut } from './features/palette/quick-open';
-import { ShortcutModal } from './components/layout/shortcut-modal';
+import { ShortcutsSheet } from './components/layout/shortcuts-sheet';
 import { TopProgress, hideStaticSplash } from './components/layout/skeleton';
 import { closeShortcuts, openSettings, openShortcuts, useUi } from './lib/ui-store';
 
@@ -48,7 +48,7 @@ function GlobalShortcutModal() {
   if (!open) {
     return null;
   }
-  return <ShortcutModal onClose={closeShortcuts} />;
+  return <ShortcutsSheet onClose={closeShortcuts} />;
 }
 
 function useWindowChrome() {
@@ -146,6 +146,7 @@ export function App() {
         position="bottom-right"
         offset={{ bottom: 40, right: 16 }}
         gap={8}
+        closeButton
         toastOptions={{
           style: {
             background: 'var(--color-overlay)',
@@ -155,11 +156,13 @@ export function App() {
             boxShadow: 'none',
             fontSize: '13px',
             fontFamily: 'var(--font-sans)',
-            padding: '12px 14px',
+            padding: '10px 36px 10px 12px',
           },
           classNames: {
             description: '!text-text-secondary !text-xs',
             actionButton: '!bg-raised !text-text !border !border-control-border hover:!bg-control-hover !h-6 !px-2 !rounded-md !text-xs !font-medium',
+            cancelButton: '!bg-transparent !text-text-secondary !border !border-transparent hover:!bg-control-hover !h-6 !px-2 !rounded-md !text-xs !font-medium',
+            closeButton: '!bg-transparent !border-0 !text-text-muted hover:!text-text hover:!bg-control-hover',
           },
         }}
       />

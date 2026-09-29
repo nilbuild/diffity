@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
@@ -23,15 +23,17 @@ import { buildFirstOpenThreadByFile, buildThreadCountsByFile } from '../../lib/c
 import { focusThreadElement, getHunkHeaders, scrollToElement } from '../../lib/dom-utils';
 import { setFocusThread, useUi } from '../../lib/ui-store';
 import { orderLikeSidebar } from '../../lib/file-tree';
+import { contentsLabel, copyFileContents, copyFileDiff, copyRelativePath, handleCopyShortcut } from '../../lib/file-copy';
 import { usePageActions, useViewFiles, type PaletteAction } from '../../features/palette/palette-store';
 import { statusLetter } from '../tree/file-tree-item';
 import { requestAskClaude } from '../../features/claude/ask-claude-review';
 import { requestSendToClaude } from '../../features/review/finish-review';
 import { OutsideThreads } from '../comments/outside-threads';
-import type { LineSelection } from '../comments/types';
+import type { CommentThread, LineSelection } from '../comments/types';
 import { DiffBar } from './view-options';
 import { repoBase } from '../../hooks/use-repo';
 import { getRepoPath } from '../../lib/api';
+import { enterLargeDiffScope } from '../../lib/large-diff';
 import { readViewMemory, writeViewMemory } from '../../lib/view-memory';
 import { MovedComposer, selectionInDiff } from '../comments/moved-composer';
 import { Workspace } from '../layout/title-bar';
@@ -40,9 +42,12 @@ import { useViewedFiles } from '../../hooks/use-viewed-files';
 import { useGitHubPr, useOwnPr } from '../../hooks/use-repo-state';
 import { prDiffRef } from '../layout/ref-menu';
 import { openCommitDialog } from '../../features/pr/commit-dialog';
-import { ChevronDownIcon, ChevronUpIcon, CollapseAllIcon, ExpandAllIcon, EyeOffIcon, GitPullRequestIcon, PushIcon, SendIcon, SparkleIcon, SplitViewIcon, UnifiedViewIcon } from '../ui/icon';
+import { ChevronDownIcon, ChevronUpIcon, CollapseAllIcon, CopyIcon, ExpandAllIcon, EyeOffIcon, GitPullRequestIcon, PushIcon, SendIcon, SparkleIcon, SplitViewIcon, UnifiedViewIcon } from '../ui/icon';
 import { buttonPrimary } from '../ui/button-styles';
 import { cn } from '../../lib/cn';
+import { shortcutHint } from '../../lib/shortcuts';
+
+const NO_THREADS: CommentThread[] = [];
 
 interface DiffPageProps {
   diffRef: string;
@@ -55,6 +60,9 @@ export function DiffPage(props: DiffPageProps) {
   const [hideWhitespace, setHideWhitespace] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { data: rawDiff, error } = useDiff(hideWhitespace, refParam);
+  useLayoutEffect(() => {
+    enterLargeDiffScope(`${getRepoPath()}\u0000${refParam}`);
+  }, [refParam]);
   const flat = useUi((state) => state.sidebarFlat);
   const diff = useMemo(() => (rawDiff ? { ...rawDiff, files: orderLikeSidebar(rawDiff.files, flat) } : rawDiff), [rawDiff, flat]);
   const { data: info } = useInfo(refParam);
@@ -102,8 +110,9 @@ export function DiffPage(props: DiffPageProps) {
   }, [location, diff, refParam, navigate]);
 
   const { data: serverThreads, isFetched: threadsFetched } = useReviewThreads(reviewsEnabled ? sessionId : null);
-  const threads = reviewsEnabled && serverThreads ? serverThreads : [];
-  const commentActions = useCommentActions(sessionId, reviewsEnabled);
+  const threads = reviewsEnabled && serverThreads ? serverThreads : NO_THREADS;
+  const rawCommentActions = useCommentActions(sessionId, reviewsEnabled);
+  const commentActions = useMemo(() => rawCommentActions, Object.values(rawCommentActions));
   const commentCountsByFile = useMemo(() => buildThreadCountsByFile(threads), [threads]);
 
   const filesWithComments = useMemo(() => {
@@ -383,21 +392,39 @@ export function DiffPage(props: DiffPageProps) {
 
   const paletteActions = useMemo<PaletteAction[]>(() => {
     const list: PaletteAction[] = [
-      { id: 'view-unified', title: 'Unified diff', group: 'View', hint: 'U', icon: <UnifiedViewIcon size="sm" />, run: () => setViewMode('unified') },
-      { id: 'view-split', title: 'Split diff', group: 'View', hint: 'S', icon: <SplitViewIcon size="sm" />, run: () => setViewMode('split') },
+      { id: 'view-unified', title: 'Unified diff', group: 'View', hint: shortcutHint('view-unified'), icon: <UnifiedViewIcon size="sm" />, run: () => setViewMode('unified') },
+      { id: 'view-split', title: 'Split diff', group: 'View', hint: shortcutHint('view-split'), icon: <SplitViewIcon size="sm" />, run: () => setViewMode('split') },
       { id: 'view-whitespace', title: hideWhitespace ? 'Show whitespace changes' : 'Hide whitespace changes', group: 'View', icon: <EyeOffIcon size="sm" />, run: () => setHideWhitespace(!hideWhitespace) },
-      { id: 'view-collapse', title: 'Collapse all files', group: 'View', hint: '⇧X', icon: <CollapseAllIcon size="sm" />, run: () => setCollapsedFiles(new Set(diff?.files.map((file) => getFilePath(file)) ?? [])) },
+      { id: 'view-collapse', title: 'Collapse all files', group: 'View', hint: shortcutHint('view-collapse'), icon: <CollapseAllIcon size="sm" />, run: () => setCollapsedFiles(new Set(diff?.files.map((file) => getFilePath(file)) ?? [])) },
       { id: 'view-expand', title: 'Expand all files', group: 'View', icon: <ExpandAllIcon size="sm" />, run: () => setCollapsedFiles(new Set()) },
-      { id: 'file-next', title: 'Next file', group: 'View', hint: 'J', keywords: 'down', icon: <ChevronDownIcon size="sm" />, run: () => navigateFile(1) },
-      { id: 'file-prev', title: 'Previous file', group: 'View', hint: 'K', keywords: 'up', icon: <ChevronUpIcon size="sm" />, run: () => navigateFile(-1) },
+      { id: 'file-next', title: 'Next file', group: 'View', hint: shortcutHint('file-next'), keywords: 'down', icon: <ChevronDownIcon size="sm" />, run: () => navigateFile(1) },
+      { id: 'file-prev', title: 'Previous file', group: 'View', hint: shortcutHint('file-prev'), keywords: 'up', icon: <ChevronUpIcon size="sm" />, run: () => navigateFile(-1) },
       { id: 'claude-review', title: 'Ask Claude to review…', group: 'Actions', keywords: 'ai review', icon: <SparkleIcon size="sm" className="text-claude" />, run: () => requestAskClaude(refParam) },
       { id: 'claude-send', title: 'Send comments to Claude…', group: 'Actions', keywords: 'ai resolve fix', icon: <SendIcon size="sm" className="text-claude" />, run: requestSendToClaude },
     ];
+    if (activeFile) {
+      const file = diff?.files.find((item) => getFilePath(item) === activeFile);
+      list.push(
+        { id: 'copy-path', title: `Copy path of ${activeFile.split('/').pop()}`, group: 'Actions', hint: shortcutHint('copy-path'), icon: <CopyIcon size="sm" />, run: () => copyRelativePath(activeFile) },
+        { id: 'copy-contents', title: `${contentsLabel(refParam)} of ${activeFile.split('/').pop()}`, group: 'Actions', hint: shortcutHint('copy-contents'), icon: <CopyIcon size="sm" />, run: () => void copyFileContents(activeFile, refParam) },
+      );
+      if (file) {
+        list.push({ id: 'copy-diff', title: `Copy diff of ${activeFile.split('/').pop()}`, group: 'Actions', icon: <CopyIcon size="sm" />, run: () => copyFileDiff(file) });
+      }
+    }
     if (ownPr && githubDetails) {
       list.push({ id: 'commit-push', title: `Commit & push to PR #${githubDetails.prNumber}`, group: 'Actions', icon: <PushIcon size="sm" />, run: () => openCommitDialog(githubDetails.prNumber) });
     }
     return list;
-  }, [hideWhitespace, diff, navigateFile, refParam, ownPr, githubDetails]);
+  }, [hideWhitespace, diff, navigateFile, refParam, ownPr, githubDetails, activeFile]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      handleCopyShortcut(event, activeFile, refParam);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [activeFile, refParam]);
   usePageActions('diff', paletteActions);
 
   const handleActiveFileFromScroll = useCallback((path: string) => {
@@ -538,6 +565,7 @@ export function DiffPage(props: DiffPageProps) {
               onPendingSelectionChange={setPendingSelection}
               initialScrollTop={initialScrollTop}
               onScrollTopChange={handleScrollTop}
+              hideWhitespace={hideWhitespace}
             />
           </div>
         )}

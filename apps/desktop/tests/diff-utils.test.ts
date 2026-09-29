@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { DiffFile, DiffHunk, DiffLine } from '@diffity/parser';
-import { getAutoCollapsedPaths, getChangeGroups, buildChangeGroupPatch } from '../src/lib/diff-utils';
+import { getAutoCollapsedPaths, getChangeGroups, buildChangeGroupPatch, deferReason, getFilePath, sliceHunk } from '../src/lib/diff-utils';
 
 function makeFile(path: string, status: DiffFile['status'] = 'modified'): DiffFile {
   return {
@@ -9,14 +9,25 @@ function makeFile(path: string, status: DiffFile['status'] = 'modified'): DiffFi
     status,
     additions: 1,
     deletions: 0,
-    hunks: [],
+    isBinary: false,
+    hunks: [{ header: '@@ -1 +1 @@', oldStart: 1, oldCount: 1, newStart: 1, newCount: 1, lines: [{ type: 'add', content: 'x', oldLineNumber: null, newLineNumber: 1 }] }],
   };
 }
 
-describe('getAutoCollapsedPaths', () => {
+function heldBack(files: DiffFile[]): Set<string> {
+  const paths = getAutoCollapsedPaths(files);
+  for (const file of files) {
+    if (deferReason(file)) {
+      paths.add(getFilePath(file));
+    }
+  }
+  return paths;
+}
+
+describe('collapsed or held back files', () => {
   it('collapses deleted files', () => {
     const files = [makeFile('src/old.ts', 'deleted'), makeFile('src/new.ts')];
-    const collapsed = getAutoCollapsedPaths(files);
+    const collapsed = heldBack(files);
 
     expect(collapsed.has('src/old.ts')).toBe(true);
     expect(collapsed.has('src/new.ts')).toBe(false);
@@ -43,7 +54,7 @@ describe('getAutoCollapsedPaths', () => {
     for (const name of lockFiles) {
       it(`collapses ${name}`, () => {
         const files = [makeFile(name)];
-        const collapsed = getAutoCollapsedPaths(files);
+        const collapsed = heldBack(files);
 
         expect(collapsed.has(name)).toBe(true);
       });
@@ -51,7 +62,7 @@ describe('getAutoCollapsedPaths', () => {
 
     it('collapses lock files in subdirectories', () => {
       const files = [makeFile('packages/app/package-lock.json')];
-      const collapsed = getAutoCollapsedPaths(files);
+      const collapsed = heldBack(files);
 
       expect(collapsed.has('packages/app/package-lock.json')).toBe(true);
     });
@@ -60,21 +71,21 @@ describe('getAutoCollapsedPaths', () => {
   describe('minified files', () => {
     it('collapses .min.js files', () => {
       const files = [makeFile('dist/app.min.js')];
-      const collapsed = getAutoCollapsedPaths(files);
+      const collapsed = heldBack(files);
 
       expect(collapsed.has('dist/app.min.js')).toBe(true);
     });
 
     it('collapses .min.css files', () => {
       const files = [makeFile('styles/main.min.css')];
-      const collapsed = getAutoCollapsedPaths(files);
+      const collapsed = heldBack(files);
 
       expect(collapsed.has('styles/main.min.css')).toBe(true);
     });
 
     it('does not collapse regular .js files', () => {
       const files = [makeFile('src/app.js')];
-      const collapsed = getAutoCollapsedPaths(files);
+      const collapsed = heldBack(files);
 
       expect(collapsed.size).toBe(0);
     });
@@ -83,56 +94,56 @@ describe('getAutoCollapsedPaths', () => {
   describe('generated files', () => {
     it('collapses .d.ts files', () => {
       const files = [makeFile('types/index.d.ts')];
-      const collapsed = getAutoCollapsedPaths(files);
+      const collapsed = heldBack(files);
 
       expect(collapsed.has('types/index.d.ts')).toBe(true);
     });
 
     it('collapses .map files', () => {
       const files = [makeFile('dist/app.js.map')];
-      const collapsed = getAutoCollapsedPaths(files);
+      const collapsed = heldBack(files);
 
       expect(collapsed.has('dist/app.js.map')).toBe(true);
     });
 
     it('collapses .snap files', () => {
       const files = [makeFile('tests/__snapshots__/app.test.snap')];
-      const collapsed = getAutoCollapsedPaths(files);
+      const collapsed = heldBack(files);
 
       expect(collapsed.has('tests/__snapshots__/app.test.snap')).toBe(true);
     });
 
     it('collapses files in dist/', () => {
       const files = [makeFile('dist/index.js')];
-      const collapsed = getAutoCollapsedPaths(files);
+      const collapsed = heldBack(files);
 
       expect(collapsed.has('dist/index.js')).toBe(true);
     });
 
     it('collapses files in build/', () => {
       const files = [makeFile('build/output.js')];
-      const collapsed = getAutoCollapsedPaths(files);
+      const collapsed = heldBack(files);
 
       expect(collapsed.has('build/output.js')).toBe(true);
     });
 
     it('collapses .generated.ts files', () => {
       const files = [makeFile('src/api.generated.ts')];
-      const collapsed = getAutoCollapsedPaths(files);
+      const collapsed = heldBack(files);
 
       expect(collapsed.has('src/api.generated.ts')).toBe(true);
     });
 
     it('collapses protobuf generated files', () => {
       const files = [makeFile('proto/message.pb.go')];
-      const collapsed = getAutoCollapsedPaths(files);
+      const collapsed = heldBack(files);
 
       expect(collapsed.has('proto/message.pb.go')).toBe(true);
     });
 
     it('collapses .lock extension files', () => {
       const files = [makeFile('some-tool.lock')];
-      const collapsed = getAutoCollapsedPaths(files);
+      const collapsed = heldBack(files);
 
       expect(collapsed.has('some-tool.lock')).toBe(true);
     });
@@ -145,7 +156,7 @@ describe('getAutoCollapsedPaths', () => {
       makeFile('README.md'),
       makeFile('package.json'),
     ];
-    const collapsed = getAutoCollapsedPaths(files);
+    const collapsed = heldBack(files);
 
     expect(collapsed.size).toBe(0);
   });
@@ -158,7 +169,7 @@ describe('getAutoCollapsedPaths', () => {
       makeFile('src/old.ts', 'deleted'),
       makeFile('lib/utils.ts'),
     ];
-    const collapsed = getAutoCollapsedPaths(files);
+    const collapsed = heldBack(files);
 
     expect(collapsed.size).toBe(3);
     expect(collapsed.has('src/app.tsx')).toBe(false);
@@ -405,5 +416,52 @@ describe('buildChangeGroupPatch', () => {
 
     expect(patch).toContain('--- /dev/null');
     expect(patch).toContain('+++ b/src/file.ts');
+  });
+});
+
+describe('deferReason', () => {
+  it('names why a file is held back', () => {
+    expect(deferReason(makeFile('package-lock.json'))).toBe('Lock file');
+    expect(deferReason(makeFile('dist/app.min.js'))).toBe('Minified file');
+    expect(deferReason(makeFile('dist/index.js'))).toBe('Generated file');
+    expect(deferReason(makeFile('src/app.ts'))).toBeNull();
+  });
+
+  it('holds back long lines, big and omitted files but never binaries', () => {
+    const long = makeFile('src/vendor.js');
+    long.hunks[0].lines[0].content = 'x'.repeat(5000);
+    expect(deferReason(long)).toBe('Minified file');
+
+    const big = makeFile('src/big.ts');
+    big.hunks[0].lines = Array.from({ length: 1200 }, (_, i) => ({ type: 'add' as const, content: 'x', oldLineNumber: null, newLineNumber: i + 1 }));
+    expect(deferReason(big)).toBe('Large diff');
+
+    const omitted = { ...makeFile('src/huge.ts'), hunks: [], patchOmitted: true, additions: 10 };
+    expect(deferReason(omitted)).toBe('Large diff');
+
+    expect(deferReason({ ...makeFile('assets/logo.png'), isBinary: true })).toBeNull();
+  });
+});
+
+describe('sliceHunk', () => {
+  it('keeps short hunks whole and never cuts a delete/add run', () => {
+    const lines: DiffLine[] = [];
+    let oldLine = 1;
+    let newLine = 1;
+    for (let i = 0; i < 300; i++) {
+      lines.push({ type: 'context', content: 'c', oldLineNumber: oldLine++, newLineNumber: newLine++ });
+      lines.push({ type: 'delete', content: 'd', oldLineNumber: oldLine++, newLineNumber: null });
+      lines.push({ type: 'add', content: 'a', oldLineNumber: null, newLineNumber: newLine++ });
+    }
+    const hunk: DiffHunk = { header: '@@ -1,600 +1,600 @@', oldStart: 1, oldCount: 600, newStart: 1, newCount: 600, lines };
+    expect(sliceHunk({ ...hunk, lines: lines.slice(0, 30) }, 120)).toHaveLength(1);
+    const slices = sliceHunk(hunk, 120);
+    expect(slices.length).toBeGreaterThan(5);
+    expect(slices[0].header).toBe(hunk.header);
+    expect(slices.slice(1).every((slice) => slice.header === '')).toBe(true);
+    expect(slices.flatMap((slice) => slice.lines)).toEqual(lines);
+    for (const slice of slices.slice(1)) {
+      expect(slice.lines[0].type).not.toBe('add');
+    }
   });
 });
