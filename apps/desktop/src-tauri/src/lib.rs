@@ -155,6 +155,7 @@ pub fn run() {
             commands::github::git_stash_push,
             commands::github::git_stash_restore,
             commands::github::git_checkout,
+            commands::github::git_clone,
             commands::github::push_review,
             commands::github::pull_review,
             commands::github::github_pushable_threads,

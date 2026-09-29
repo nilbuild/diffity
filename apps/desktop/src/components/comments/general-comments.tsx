@@ -36,7 +36,7 @@ export function GeneralComments(props: GeneralCommentsProps) {
           <CommentIcon className="w-3.5 h-3.5 text-text-muted" />
           <span className="text-text-secondary">General comments</span>
           {threads.length > 0 && (
-            <span className="text-[11px] leading-4 font-medium bg-accent/12 text-accent px-1.5 rounded-full">{threads.length}</span>
+            <span className="text-[11px] leading-4 font-medium bg-active text-text-secondary px-1.5 rounded-full">{threads.length}</span>
           )}
         </button>
         <div className="flex-1" />
@@ -46,7 +46,7 @@ export function GeneralComments(props: GeneralCommentsProps) {
             setIsExpanded(true);
             setShowForm(true);
           }}
-          className="text-[13px] text-accent hover:text-accent-hover transition-colors cursor-pointer"
+          className="h-7 px-2.5 -mr-1.5 rounded-md text-[13px] text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
         >
           Add comment
         </button>

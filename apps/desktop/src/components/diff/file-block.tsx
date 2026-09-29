@@ -480,7 +480,7 @@ export function FileBlock(props: FileBlockProps) {
           {renderable && (
             <button
               onClick={() => setRichView(!richView)}
-              className={`inline-flex items-center gap-1 h-6 px-2 rounded-md text-xs transition-colors cursor-pointer ${richView ? 'bg-selected text-accent' : 'text-text-secondary hover:text-text hover:bg-hover'}`}
+              className={`inline-flex items-center gap-1 h-6 px-2 rounded-md text-xs transition-colors cursor-pointer ${richView ? 'bg-selected text-text' : 'text-text-secondary hover:text-text hover:bg-hover'}`}
               title={richView ? 'Show source diff' : 'Show rich diff'}
             >
               {richView ? <CodeIcon className="w-3 h-3" /> : <FileIcon className="w-3 h-3" />}

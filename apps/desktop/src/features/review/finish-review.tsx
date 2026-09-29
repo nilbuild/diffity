@@ -1,3 +1,4 @@
+import { ChevronDown, Sparkles } from 'lucide-react';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
@@ -11,7 +12,6 @@ import { getRepoPath } from '../../lib/api';
 import { enqueueClaude } from '../claude/claude-runner';
 import type { CommentThread } from '../../components/comments/types';
 import { toast } from 'sonner';
-import { ChevronDownIcon } from '../../components/icons/chevron-down-icon';
 import { SparkleIcon } from '../../components/icons/sparkle-icon';
 import { GitHubIcon } from '../../components/icons/github-icon';
 import { CheckIcon } from '../../components/icons/check-icon';
@@ -44,7 +44,7 @@ function Choice(props: { selected: boolean; onSelect: () => void; icon: ReactNod
       onClick={onSelect}
       className={cn(
         'flex items-start gap-2.5 w-full text-left px-3 py-2 rounded-md border transition-colors cursor-pointer',
-        selected ? 'border-accent/40 bg-selected' : 'border-border hover:bg-hover',
+        selected ? 'border-text-muted/50 bg-selected' : 'border-border hover:bg-hover',
       )}
     >
       <span
@@ -135,7 +135,7 @@ function SendToClaude(props: { threads: CommentThread[] }) {
       className={buttonOutline}
       title={`Claude answers questions and makes the requested changes for ${plural(count, 'open comment')}, asking before each edit`}
     >
-      <SparkleIcon className="w-3.5 h-3.5 text-accent" />
+      <Sparkles size={15} strokeWidth={1.75} className="text-text-secondary" />
       Send {count} to Claude
     </button>
   );
@@ -205,7 +205,7 @@ function PullRequestReview(props: { pr: GitHubDetails }) {
             {pendingCount}
           </span>
         )}
-        <ChevronDownIcon className="w-3 h-3" />
+        <ChevronDown size={14} strokeWidth={1.75} />
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1.5 w-[440px] bg-overlay rounded-lg ring-1 ring-overlay-border z-50 font-sans">
@@ -229,7 +229,7 @@ function PullRequestReview(props: { pr: GitHubDetails }) {
               }}
               placeholder="Review summary (optional)"
               rows={3}
-              className="block w-full px-3 py-2 text-[13px] bg-bg text-text border border-border rounded-md resize-y outline-none focus:border-accent/45 placeholder:text-text-muted min-h-[70px]"
+              className="block w-full px-3 py-2 text-[13px] bg-bg text-text border border-border rounded-md resize-y outline-none focus:border-focus placeholder:text-text-muted min-h-[70px]"
             />
           </div>
           <div className="px-4 pt-3 space-y-2">

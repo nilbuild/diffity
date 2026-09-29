@@ -136,9 +136,63 @@ pub async fn checkout(repo: &str, target: &str) -> Result<()> {
     Ok(())
 }
 
+/// `https://github.com/o/r`, `git@github.com:o/r.git` or `o/r` → a clone URL and the folder name it creates.
+pub fn clone_target(input: &str) -> Result<(String, String)> {
+    let input = input.trim().trim_end_matches('/');
+    if input.is_empty() || input.starts_with('-') || input.chars().any(char::is_whitespace) {
+        return Err(AppError::invalid("Enter a repository URL, e.g. https://github.com/owner/repo"));
+    }
+    let url = if input.contains("://") || input.starts_with("git@") {
+        input.to_string()
+    } else if input.split('/').count() == 2 && !input.starts_with('.') {
+        format!("https://github.com/{input}.git")
+    } else {
+        return Err(AppError::invalid("Enter a repository URL, e.g. https://github.com/owner/repo"));
+    };
+    let name = url
+        .rsplit(['/', ':'])
+        .next()
+        .unwrap_or_default()
+        .trim_end_matches(".git")
+        .to_string();
+    if name.is_empty() || name == "." || name == ".." {
+        return Err(AppError::invalid("Could not work out a folder name from that URL"));
+    }
+    Ok((url, name))
+}
+
+/// Clones `input` into a new folder inside `parent`; returns the new repository path.
+pub async fn clone(parent: &str, input: &str) -> Result<String> {
+    let (url, name) = clone_target(input)?;
+    let dest = std::path::Path::new(parent).join(&name);
+    if dest.exists() {
+        return Err(AppError::new("exists", format!("{} already exists", dest.display())));
+    }
+    run_ok(parent, &["clone", "--", &url, &name]).await?;
+    Ok(dest.to_string_lossy().into_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clone_target_accepts_common_forms() {
+        assert_eq!(
+            clone_target("https://github.com/o/repo").unwrap(),
+            ("https://github.com/o/repo".to_string(), "repo".to_string())
+        );
+        assert_eq!(
+            clone_target("git@github.com:o/repo.git").unwrap(),
+            ("git@github.com:o/repo.git".to_string(), "repo".to_string())
+        );
+        assert_eq!(
+            clone_target("o/repo").unwrap(),
+            ("https://github.com/o/repo.git".to_string(), "repo".to_string())
+        );
+        assert!(clone_target("--upload-pack=x").is_err());
+        assert!(clone_target("just words").is_err());
+    }
 
     fn git(dir: &std::path::Path, args: &[&str]) {
         let status = std::process::Command::new("git")

@@ -15,6 +15,8 @@ import { toggleComments } from '../lib/ui-store';
 import { PullRequestsDialog } from '../features/pr/pull-requests-dialog';
 import { CheckoutGuardDialog } from '../features/pr/checkout-guard-dialog';
 import { checkoutPullRequest } from '../features/pr/pr-checkout';
+import { RailFrame } from '../components/layout/activity-rail';
+import { rememberLocation, swapRepoCache } from '../lib/repo-locations';
 
 function repoName(repoPath: string) {
   return repoPath.split('/').filter(Boolean).pop() ?? 'repository';
@@ -84,9 +86,13 @@ export function RepoLayout() {
   if (previousRepo !== repoPath) {
     setRepoPath(repoPath);
     if (previousRepo !== null) {
-      client.clear();
+      swapRepoCache(client, previousRepo, repoPath);
     }
   }
+
+  useEffect(() => {
+    rememberLocation(repoPath, location.pathname + location.search);
+  }, [repoPath, location.pathname, location.search]);
 
   useTheme();
   useWindowTitle(repoPath);
@@ -115,9 +121,11 @@ export function RepoLayout() {
           ];
         }}
       >
-        <Suspense fallback={<AppSplash label={`Opening ${repoName(repoPath)}…`} />}>
-          <Outlet />
-        </Suspense>
+        <RailFrame>
+          <Suspense fallback={<AppSplash label={`Opening ${repoName(repoPath)}…`} />}>
+            <Outlet />
+          </Suspense>
+        </RailFrame>
       </RouteErrorBoundary>
       <ClaudeApprovalModal />
       <CommentsPanel />

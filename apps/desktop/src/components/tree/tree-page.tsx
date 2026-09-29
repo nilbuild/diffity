@@ -27,7 +27,6 @@ import { CommentToolbarActions } from '../comments/comment-toolbar-actions';
 import { OptionsMenu } from '../layout/options-menu';
 import { RepoTitle, TitleBar } from '../layout/title-bar';
 import { StatusBar } from '../layout/status-bar';
-import { PageSwitcher } from '../layout/page-switcher';
 import { useTreeStaleness } from '../../hooks/use-tree-staleness';
 import { isRenderableFile, isMarkdownFile, isImageFile } from '../../lib/file-types';
 import { CodeIcon } from '../icons/code-icon';
@@ -40,7 +39,6 @@ import { focusThreadElement } from '../../lib/dom-utils';
 import { setFocusThread } from '../../lib/ui-store';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
-import { CommentsButton } from '../../features/comments/comments-button';
 import { FinishReview } from '../../features/review/finish-review';
 import { PencilIcon } from '../icons/pencil-icon';
 import { buttonOutline } from '../ui/button-styles';
@@ -384,7 +382,6 @@ export function TreePage() {
       <TitleBar>
         <div data-tauri-drag-region className='flex items-center gap-2.5 min-w-0 shrink'>
           <RepoTitle name={info?.name} />
-          <PageSwitcher current='tree' />
         </div>
         <div data-tauri-drag-region className='flex-1 min-w-2 self-stretch' />
         <div className='flex items-center gap-2 shrink-0'>
@@ -394,7 +391,6 @@ export function TreePage() {
             onDeleteAllComments={commentActions.deleteAllThreads}
             formatForCopy={formatForCopy}
           />
-          <CommentsButton />
           {threads.length > 0 && (
             <>
               <ClaudeToolbar diffRef={null} sessionId={sessionId} threads={threads} />
@@ -427,7 +423,7 @@ export function TreePage() {
             <button
               className={
                 breadcrumbs.length > 0
-                  ? 'text-accent hover:underline cursor-pointer'
+                  ? 'text-text-secondary hover:text-text cursor-pointer'
                   : 'text-text font-medium'
               }
               onClick={() => handleDirClick('')}
@@ -441,7 +437,7 @@ export function TreePage() {
                   <span className='text-text font-medium'>{crumb.name}</span>
                 ) : (
                   <button
-                    className='text-accent hover:underline cursor-pointer'
+                    className='text-text-secondary hover:text-text cursor-pointer'
                     onClick={() => handleDirClick(crumb.path)}
                   >
                     {crumb.name}

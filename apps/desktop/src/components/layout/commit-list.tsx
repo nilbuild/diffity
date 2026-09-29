@@ -3,15 +3,19 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { type Commit, fetchCommits } from '../../lib/api';
 import { Spinner } from '../icons/spinner';
+import { cn } from '../../lib/cn';
 import { GitCompareIcon } from '../icons/git-compare-icon';
 import { GitCommitIcon } from '../icons/git-commit-icon';
 
 interface CommitListProps {
   search: string;
   header?: ReactNode;
-  onCommitClick: (hash: string) => void;
+  selectedHash: string | null;
+  onSelect: (commit: Commit) => void;
+  onOpen: (commit: Commit) => void;
   onCompareFrom: (hash: string) => void;
   onFetchingChange?: (fetching: boolean) => void;
+  onLoaded?: (commits: Commit[]) => void;
 }
 
 const PAGE_SIZE = 40;
@@ -68,19 +72,26 @@ export function HistoryRow(props: {
   meta: ReactNode;
   trailing?: ReactNode;
   hoverAction?: ReactNode;
+  selected?: boolean;
   onClick: () => void;
+  onDoubleClick?: () => void;
   tooltip?: string;
 }) {
-  const { icon, title, meta, trailing, hoverAction, onClick, tooltip } = props;
+  const { icon, title, meta, trailing, hoverAction, selected = false, onClick, onDoubleClick, tooltip } = props;
 
   return (
     <li className="group relative">
       <button
         onClick={onClick}
-        className="flex items-center gap-3 w-full min-h-[52px] px-3 py-2 rounded-lg text-left hover:bg-hover transition-colors cursor-pointer"
+        onDoubleClick={onDoubleClick}
+        data-selected={selected || undefined}
+        className={cn(
+          'flex items-center gap-3 w-full min-h-[52px] px-3 py-2 rounded-lg text-left transition-colors cursor-pointer',
+          selected ? 'bg-selected' : 'hover:bg-hover',
+        )}
         title={tooltip}
       >
-        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-fill text-text-secondary shrink-0">{icon}</span>
+        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-raised ring-1 ring-border text-text-secondary shrink-0">{icon}</span>
         <span className="min-w-0 flex-1">
           <span className="block text-[13px] leading-5 text-text font-medium truncate">{title}</span>
           <span className="flex items-center gap-1.5 text-xs leading-5 text-text-secondary min-w-0">{meta}</span>
@@ -108,12 +119,15 @@ function CommitStat(props: { commit: Commit }) {
   );
 }
 
-function CommitRow(props: { commit: Commit; onClick: () => void; onCompareFrom: () => void }) {
-  const { commit, onClick, onCompareFrom } = props;
+function CommitRow(props: { commit: Commit; selected: boolean; onClick: () => void; onDoubleClick: () => void; onCompareFrom: () => void }) {
+  const { commit, selected, onClick, onDoubleClick, onCompareFrom } = props;
 
   return (
     <HistoryRow
+      selected={selected}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
+      tooltip="Double-click to review this commit"
       icon={<GitCommitIcon className="w-3.5 h-3.5" />}
       title={commit.message}
       meta={
@@ -147,14 +161,14 @@ export function SectionHeader(props: { children: ReactNode }) {
   const { children } = props;
 
   return (
-    <div className="sticky top-0 z-10 bg-bg px-3 pt-4 pb-1.5 text-xs font-medium text-text-secondary">
+    <div className="sticky top-0 z-10 bg-bg-secondary px-3 pt-3 pb-1.5 text-xs font-medium text-text-secondary">
       {children}
     </div>
   );
 }
 
 export function CommitList(props: CommitListProps) {
-  const { search, header, onCommitClick, onCompareFrom, onFetchingChange } = props;
+  const { search, header, selectedHash, onSelect, onOpen, onCompareFrom, onFetchingChange, onLoaded } = props;
   const term = useDebounced(search.trim(), 250);
   const sentinel = useRef<HTMLDivElement>(null);
 
@@ -171,6 +185,10 @@ export function CommitList(props: CommitListProps) {
   useEffect(() => {
     onFetchingChange?.(refetching);
   }, [refetching, onFetchingChange]);
+
+  useEffect(() => {
+    onLoaded?.(commits);
+  }, [commits, onLoaded]);
 
   const groups = useMemo(() => {
     const result: { label: string; commits: Commit[] }[] = [];
@@ -234,7 +252,14 @@ export function CommitList(props: CommitListProps) {
         <SectionHeader>{group.label}</SectionHeader>
         <ul>
           {group.commits.map((commit) => (
-            <CommitRow key={commit.hash} commit={commit} onClick={() => onCommitClick(commit.hash)} onCompareFrom={() => onCompareFrom(commit.hash)} />
+            <CommitRow
+              key={commit.hash}
+              commit={commit}
+              selected={selectedHash === commit.hash}
+              onClick={() => onSelect(commit)}
+              onDoubleClick={() => onOpen(commit)}
+              onCompareFrom={() => onCompareFrom(commit.hash)}
+            />
           ))}
         </ul>
       </section>

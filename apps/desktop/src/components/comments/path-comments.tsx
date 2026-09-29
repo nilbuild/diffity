@@ -79,7 +79,7 @@ export function PathComments(props: PathCommentsProps) {
             {!showForm && (
               <button
                 onClick={() => setShowForm(true)}
-                className="text-xs text-accent hover:text-accent-hover transition-colors cursor-pointer"
+                className="h-7 px-2.5 -ml-2.5 rounded-md text-[13px] text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
               >
                 Add comment
               </button>

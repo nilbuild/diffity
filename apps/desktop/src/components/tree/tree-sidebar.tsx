@@ -1,3 +1,4 @@
+import { ChevronsDownUp, ChevronsUpDown, PanelLeftClose } from 'lucide-react';
 import { useMemo, useState, useCallback, useEffect, forwardRef } from 'react';
 import {
   buildFileTreeFromPaths,
@@ -8,10 +9,7 @@ import {
   collectAllDirPaths,
 } from '../../lib/file-tree';
 import { FileTreeItem } from './file-tree-item';
-import { SidebarIcon } from '../icons/sidebar-icon';
 import { CommentedOnlyToggle, SidebarFilter, SidebarFrame, SidebarHeader, SidebarIconButton } from '../layout/sidebar-frame';
-import { CollapseAllIcon } from '../icons/collapse-all-icon';
-import { ExpandAllIcon } from '../icons/expand-all-icon';
 
 interface TreeSidebarProps {
   paths: string[];
@@ -120,7 +118,7 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
   const emptyReviewedFiles = useMemo(() => new Set<string>(), []);
 
   return (
-    <SidebarFrame collapsed={collapsed} onExpand={() => setCollapsed(false)}>
+    <SidebarFrame collapsed={collapsed} onExpand={() => setCollapsed(false)} view="tree">
       <SidebarHeader
         title={
           <span className="truncate">
@@ -139,10 +137,10 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
                 setExpandedDirs(new Set(allDirPaths));
               }}
             >
-              {allExpanded ? <CollapseAllIcon className="w-3.5 h-3.5" /> : <ExpandAllIcon className="w-3.5 h-3.5" />}
+              {allExpanded ? <ChevronsDownUp size={15} strokeWidth={1.75} /> : <ChevronsUpDown size={15} strokeWidth={1.75} />}
             </SidebarIconButton>
             <SidebarIconButton title="Hide sidebar" onClick={() => setCollapsed(true)}>
-              <SidebarIcon className="w-3.5 h-3.5" />
+              <PanelLeftClose size={15} strokeWidth={1.75} />
             </SidebarIconButton>
           </>
         }

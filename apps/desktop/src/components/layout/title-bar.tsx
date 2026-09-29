@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { isMac, isTauri } from '../../lib/platform';
+import { useInsideRail } from './activity-rail';
 
 interface TitleBarProps {
   children: ReactNode;
@@ -11,13 +12,15 @@ export const hasOverlayTitleBar = isTauri && isMac;
 
 export function TitleBar(props: TitleBarProps) {
   const { children, className } = props;
+  const insideRail = useInsideRail();
 
   return (
     <div
       data-tauri-drag-region
       className={cn(
         'flex items-center gap-2 h-11 shrink-0 pl-3 pr-2.5 bg-bg-secondary border-b border-border font-sans text-[13px] select-none',
-        hasOverlayTitleBar && 'pl-[86px]',
+        hasOverlayTitleBar && !insideRail && 'pl-[86px]',
+        insideRail && (hasOverlayTitleBar ? 'pl-[30px]' : 'pl-4'),
         className,
       )}
     >

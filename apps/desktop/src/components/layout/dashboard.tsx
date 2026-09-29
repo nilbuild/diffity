@@ -14,11 +14,12 @@ import { ChevronDownIcon } from '../icons/chevron-down-icon';
 import { Spinner } from '../icons/spinner';
 import { hideStaticSplash } from './skeleton';
 import { RepoTitle, TitleBar } from './title-bar';
-import { PageSwitcher } from './page-switcher';
 import { OptionsMenu } from './options-menu';
 import { StatusBar } from './status-bar';
-import { CommentsButton } from '../../features/comments/comments-button';
-import { commitRef } from '../../lib/api';
+import { commitRef, type Commit } from '../../lib/api';
+import { HistoryDetail, type HistoryTarget } from './history-detail';
+import { SidebarFrame } from './sidebar-frame';
+import { GitCommitIcon } from '../icons/git-commit-icon';
 import { prDiffRef } from './ref-menu';
 import { cn } from '../../lib/cn';
 import { buttonIconSmall, buttonOutline, buttonPrimary, inputField, overlayPanel } from '../ui/button-styles';
@@ -179,6 +180,9 @@ export function Dashboard(props: DashboardProps) {
   const base = useBaseBranch(details?.baseRef ?? null, branch);
   const [search, setSearch] = useState('');
   const [searching, setSearching] = useState(false);
+  const [selected, setSelected] = useState<HistoryTarget | null>(null);
+  const [firstCommit, setFirstCommit] = useState<Commit | null>(null);
+  const handleLoaded = useCallback((commits: Commit[]) => setFirstCommit(commits[0] ?? null), []);
 
   useEffect(() => {
     hideStaticSplash();
@@ -188,34 +192,34 @@ export function Dashboard(props: DashboardProps) {
   const showBranch = !details && base && branch && branch !== base && `origin/${branch}` !== base;
   const hasWorking = uncommitted > 0 || !!details || !!showBranch;
 
+  const workingTargets: HistoryTarget[] = [];
+  if (uncommitted > 0) {
+    workingTargets.push({ ref: 'work', title: 'Uncommitted changes', icon: <PencilIcon className="w-3.5 h-3.5" />, meta: `${uncommitted} file${uncommitted === 1 ? '' : 's'} · staged, unstaged and new` });
+  }
+  if (details) {
+    workingTargets.push({ ref: prDiffRef(details), title: details.prTitle, icon: <GitPullRequestIcon className="w-3.5 h-3.5" />, meta: `Pull request #${details.prNumber} · into ${details.baseRef}` });
+  }
+  if (showBranch && base) {
+    workingTargets.push({ ref: `${base}...HEAD`, title: `${branch} vs ${base.replace(/^origin\//, '')}`, icon: <GitCompareIcon className="w-3.5 h-3.5" />, meta: 'Every commit on this branch' });
+  }
+
+  const activeTarget = selected ?? workingTargets[0] ?? (firstCommit ? commitTarget(firstCommit) : null);
+
   const working = hasWorking ? (
     <section>
       <SectionHeader>Working</SectionHeader>
       <ul>
-        {uncommitted > 0 && (
+        {workingTargets.map((target) => (
           <HistoryRow
-            icon={<PencilIcon className="w-3.5 h-3.5" />}
-            title="Uncommitted changes"
-            meta={<span>{uncommitted} file{uncommitted === 1 ? '' : 's'} · staged, unstaged and new</span>}
-            onClick={() => onNavigate('work')}
+            key={target.ref}
+            icon={target.icon}
+            title={target.title}
+            meta={<span className="truncate">{target.meta}</span>}
+            selected={activeTarget?.ref === target.ref}
+            onClick={() => setSelected(target)}
+            onDoubleClick={() => onNavigate(target.ref)}
           />
-        )}
-        {details && (
-          <HistoryRow
-            icon={<GitPullRequestIcon className="w-3.5 h-3.5 text-added" />}
-            title={details.prTitle}
-            meta={<span className="truncate">Pull request #{details.prNumber} · into {details.baseRef}</span>}
-            onClick={() => onNavigate(prDiffRef(details))}
-          />
-        )}
-        {showBranch && base && (
-          <HistoryRow
-            icon={<GitCompareIcon className="w-3.5 h-3.5" />}
-            title={`${branch} vs ${base.replace(/^origin\//, '')}`}
-            meta={<span>Every commit on this branch</span>}
-            onClick={() => onNavigate(`${base}...HEAD`)}
-          />
-        )}
+        ))}
       </ul>
     </section>
   ) : null;
@@ -225,19 +229,17 @@ export function Dashboard(props: DashboardProps) {
       <TitleBar>
         <div data-tauri-drag-region className="flex items-center gap-2.5 min-w-0 shrink">
           <RepoTitle name={info?.name} />
-          <PageSwitcher current="overview" />
         </div>
         <div data-tauri-drag-region className="flex-1 min-w-2 self-stretch" />
         <div className="flex items-center gap-2 shrink-0">
-          <CommentsButton />
           <OptionsMenu theme={theme} onToggleTheme={toggleTheme} />
         </div>
       </TitleBar>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-[880px] mx-auto px-6 pt-5 pb-10">
-          <div className="flex items-center gap-2 px-1">
-            <div className="relative flex-1 max-w-[420px]">
+      <div className="flex flex-1 min-h-0">
+        <SidebarFrame collapsed={false} onExpand={() => undefined} view="overview" storageKey="diffity-history-width" defaultWidth={420}>
+          <div className="flex items-center gap-2 px-3 pt-1 pb-2 shrink-0">
+            <div className="relative flex-1 min-w-0">
               <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
               <input
                 autoComplete="off"
@@ -251,7 +253,7 @@ export function Dashboard(props: DashboardProps) {
                     setSearch('');
                   }
                 }}
-                placeholder="Search commits by message, author or hash"
+                placeholder="Search commits"
                 className={cn(inputField, 'pl-8 pr-8')}
               />
               {searching && <Spinner className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3" />}
@@ -265,19 +267,30 @@ export function Dashboard(props: DashboardProps) {
                 </button>
               )}
             </div>
-            <div className="flex-1" />
             <ComparePopover onNavigate={onNavigate} defaultBase={base} />
           </div>
-          <CommitList
-            search={search}
-            header={working}
-            onFetchingChange={setSearching}
-            onCommitClick={(hash) => onNavigate(commitRef(hash))}
-            onCompareFrom={(hash) => onNavigate(`${hash}..HEAD`)}
-          />
-        </div>
+          <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-4">
+            <CommitList
+              search={search}
+              header={working}
+              selectedHash={activeTarget?.commit?.hash ?? null}
+              onFetchingChange={setSearching}
+              onLoaded={handleLoaded}
+              onSelect={(commit) => setSelected(commitTarget(commit))}
+              onOpen={(commit) => onNavigate(commitRef(commit.hash))}
+              onCompareFrom={(hash) => onNavigate(`${hash}..HEAD`)}
+            />
+          </div>
+        </SidebarFrame>
+        <main className="flex-1 min-w-0 overflow-y-auto">
+          <HistoryDetail target={activeTarget} onOpen={onNavigate} />
+        </main>
       </div>
       <StatusBar />
     </div>
   );
+}
+
+function commitTarget(commit: Commit): HistoryTarget {
+  return { ref: commitRef(commit.hash), title: commit.message, icon: <GitCommitIcon className="w-3.5 h-3.5" />, commit };
 }

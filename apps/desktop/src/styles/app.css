@@ -54,7 +54,8 @@
   --color-fill-hover: #e4e7eb;
   --color-hover: rgba(31, 35, 40, 0.05);
   --color-active: rgba(31, 35, 40, 0.08);
-  --color-selected: rgba(9, 105, 218, 0.1);
+  --color-selected: rgba(31, 35, 40, 0.08);
+  --color-focus: #a3acb6;
 
   --shadow-sticky: 0 1px 0 var(--color-border);
   --shadow-md: 0 2px 8px rgba(140, 149, 159, 0.12);
@@ -103,7 +104,8 @@
   --color-fill-hover: #2f2f2f;
   --color-hover: rgba(255, 255, 255, 0.06);
   --color-active: rgba(255, 255, 255, 0.1);
-  --color-selected: rgba(59, 130, 246, 0.18);
+  --color-selected: rgba(255, 255, 255, 0.1);
+  --color-focus: #5c5c5c;
 
   --shadow-sticky: 0 1px 0 var(--color-border);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);

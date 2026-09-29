@@ -173,7 +173,7 @@ function SettingsDialogBody() {
         className="mx-4 flex h-[min(600px,calc(100vh-64px))] w-[780px] max-w-full overflow-hidden rounded-xl bg-overlay text-text ring-1 ring-overlay-border outline-none"
       >
         <nav className="flex w-[200px] shrink-0 flex-col overflow-y-auto border-r border-border bg-bg-secondary px-2 pb-3 pt-4 scrollbar-none">
-          <div className="mb-3 flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border bg-bg px-2 focus-within:border-accent/45">
+          <div className="mb-3 flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border bg-bg px-2 focus-within:border-focus">
             <SearchIcon className="h-3 w-3 shrink-0 text-text-muted" />
             <input
               autoComplete="off"

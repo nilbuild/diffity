@@ -115,7 +115,7 @@ export function CommentForm(props: CommentFormProps) {
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           rows={3}
-          className="block w-full px-3 py-2 text-[13px] leading-5 bg-bg text-text rounded-md border border-border focus:border-accent/45 resize-y outline-none placeholder:text-text-muted min-h-[72px]"
+          className="block w-full px-3 py-2 text-[13px] leading-5 bg-bg text-text rounded-md border border-border focus:border-focus resize-y outline-none placeholder:text-text-muted min-h-[72px]"
         />
       </div>
       <div className="flex items-center gap-2 px-2 pb-2">

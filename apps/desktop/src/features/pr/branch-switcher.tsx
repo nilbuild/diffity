@@ -30,10 +30,10 @@ function Row(props: { icon: ReactNode; title: ReactNode; meta?: ReactNode; selec
         selected ? 'bg-selected' : 'hover:bg-hover',
       )}
     >
-      <span className={cn('flex items-center shrink-0', selected ? 'text-accent' : 'text-text-secondary')}>{icon}</span>
+      <span className={cn('flex items-center shrink-0', selected ? 'text-text' : 'text-text-secondary')}>{icon}</span>
       <span className="min-w-0 flex-1 truncate text-[13px] text-text">{title}</span>
       {meta && <span className="shrink-0 flex items-center gap-2 text-xs text-text-secondary">{meta}</span>}
-      <span className="w-3.5 shrink-0 flex items-center">{selected && <CheckIcon className="w-3.5 h-3.5 text-accent" />}</span>
+      <span className="w-3.5 shrink-0 flex items-center">{selected && <CheckIcon className="w-3.5 h-3.5 text-text-secondary" />}</span>
     </button>
   );
 }
@@ -81,7 +81,7 @@ function BranchSwitcherPanel(props: { current: string | null; onDone: () => void
   };
 
   return (
-    <div className="absolute left-0 bottom-full mb-1.5 w-[420px] max-h-[min(520px,70vh)] flex flex-col bg-overlay rounded-lg ring-1 ring-overlay-border z-50 font-sans overflow-hidden text-text">
+    <div className="absolute left-0 bottom-full mb-1.5 w-[320px] max-h-[min(460px,70vh)] flex flex-col bg-overlay rounded-lg ring-1 ring-overlay-border z-50 font-sans overflow-hidden text-text">
       <div className="shrink-0 p-2 border-b border-overlay-border">
         <div className="relative">
           <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
@@ -97,7 +97,7 @@ function BranchSwitcherPanel(props: { current: string | null; onDone: () => void
                 pickPr(prInput);
               }
             }}
-            placeholder={prsEnabled ? 'Switch branch or pull request (#123 or URL)' : 'Switch branch'}
+            placeholder={prsEnabled ? 'Branch, #PR or PR URL' : 'Switch branch'}
             className={cn(inputField, 'pl-8')}
           />
         </div>
@@ -184,12 +184,7 @@ function BranchSwitcherPanel(props: { current: string | null; onDone: () => void
             }
             tooltip={`${pr.title}\n${pr.author} · ${pr.headRef} → ${pr.baseRef}`}
             selected={details?.prNumber === pr.number}
-            meta={
-              <>
-                <span className="max-w-[90px] truncate">{pr.author}</span>
-                <ChecksStatus checks={pr.checks} />
-              </>
-            }
+            meta={<ChecksStatus checks={pr.checks} />}
             onClick={() => pickPr(String(pr.number))}
           />
         ))}

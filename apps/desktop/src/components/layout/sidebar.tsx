@@ -1,14 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronsDownUp, ChevronsUpDown, List, ListTree, PanelLeftClose } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { DiffFile, ParsedDiff } from '@diffity/parser';
 import { DiffStats } from '../diff/diff-stats';
 import { FileTree } from '../tree/file-tree';
 import type { FileTreeHandle } from '../tree/file-tree';
-import { SidebarIcon } from '../icons/sidebar-icon';
-import { ListIcon } from '../icons/list-icon';
-import { TreeIcon } from '../icons/tree-icon';
 import { CommentedOnlyToggle, SidebarFilter, SidebarFrame, SidebarHeader, SidebarIconButton } from './sidebar-frame';
-import { CollapseAllIcon } from '../icons/collapse-all-icon';
-import { ExpandAllIcon } from '../icons/expand-all-icon';
 
 interface SidebarProps {
   files: DiffFile[];
@@ -18,6 +14,7 @@ interface SidebarProps {
   onFileClick: (path: string) => void;
   onCommentedFileClick: (path: string) => void;
   stats?: ParsedDiff['stats'];
+  viewOptions?: ReactNode;
 }
 
 const FLAT_KEY = 'diffity-sidebar-flat';
@@ -39,6 +36,7 @@ export function Sidebar(props: SidebarProps) {
     onFileClick,
     onCommentedFileClick,
     stats,
+    viewOptions,
   } = props;
   const fileTreeRef = useRef<FileTreeHandle>(null);
   const [search, setSearch] = useState('');
@@ -82,7 +80,7 @@ export function Sidebar(props: SidebarProps) {
   };
 
   return (
-    <SidebarFrame collapsed={collapsed} onExpand={() => setCollapsed(false)}>
+    <SidebarFrame collapsed={collapsed} onExpand={() => setCollapsed(false)} view="diff">
       <SidebarHeader
         title={
           <>
@@ -92,11 +90,12 @@ export function Sidebar(props: SidebarProps) {
         }
         actions={
           <>
+            {viewOptions}
             <SidebarIconButton
               title={flat ? 'Show as tree' : 'Show as flat list'}
               onClick={() => setFlat(!flat)}
             >
-              {flat ? <TreeIcon className="w-3.5 h-3.5" /> : <ListIcon className="w-3.5 h-3.5" />}
+              {flat ? <ListTree size={15} strokeWidth={1.75} /> : <List size={15} strokeWidth={1.75} />}
             </SidebarIconButton>
             {!flat && (
               <SidebarIconButton
@@ -109,11 +108,11 @@ export function Sidebar(props: SidebarProps) {
                   fileTreeRef.current?.expandAll();
                 }}
               >
-                {allExpanded ? <CollapseAllIcon className="w-3.5 h-3.5" /> : <ExpandAllIcon className="w-3.5 h-3.5" />}
+                {allExpanded ? <ChevronsDownUp size={15} strokeWidth={1.75} /> : <ChevronsUpDown size={15} strokeWidth={1.75} />}
               </SidebarIconButton>
             )}
             <SidebarIconButton title="Hide sidebar" onClick={() => setCollapsed(true)}>
-              <SidebarIcon className="w-3.5 h-3.5" />
+              <PanelLeftClose size={15} strokeWidth={1.75} />
             </SidebarIconButton>
           </>
         }

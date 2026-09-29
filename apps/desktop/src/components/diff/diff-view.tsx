@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, useCallback, useImperativeHandle, useEffect 
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { ParsedDiff } from '@diffity/parser';
 import { FileBlock, LARGE_DIFF_LINE_THRESHOLD } from './file-block';
+import { DiffContextHeader } from '../layout/diff-context-bar';
 import { GeneralComments } from '../comments/general-comments';
 import { OutsideThreads } from '../comments/outside-threads';
 import { GENERAL_THREAD_FILE_PATH } from '../comments/types';
@@ -267,8 +268,10 @@ export function DiffView(props: DiffViewProps) {
       onScroll={handleScroll}
       className="flex-1 overflow-y-auto pb-12"
     >
+      <div className="flex flex-col gap-4 px-5 pt-4 empty:hidden">
+        {baseRef && <DiffContextHeader diffRef={baseRef} />}
       {commentsEnabled && (
-        <div className="flex flex-col gap-4 px-5 pt-4">
+        <>
           <GeneralComments
             threads={threads}
             commentActions={commentActions}
@@ -278,9 +281,11 @@ export function DiffView(props: DiffViewProps) {
             commentActions={commentActions}
             className="rounded-lg border border-border"
           />
-        </div>
+        </>
       )}
-      <div className="pt-4" style={{ paddingTop, paddingBottom }}>
+      </div>
+      <div className="pt-4">
+      <div style={{ paddingTop, paddingBottom }}>
         {items.map((virtualItem) => {
           const file = diff.files[virtualItem.index];
           const filePath = getFilePath(file);
@@ -318,6 +323,7 @@ export function DiffView(props: DiffViewProps) {
             </div>
           );
         })}
+      </div>
       </div>
     </main>
   );

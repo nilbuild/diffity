@@ -12,7 +12,7 @@ export const buttonGroup = 'flex items-stretch h-7 shrink-0 rounded-md border bo
 export const buttonGroupItem = 'flex items-center gap-1.5 px-2.5 text-[13px] text-text hover:bg-control-hover transition-colors cursor-pointer disabled:opacity-45 disabled:cursor-default';
 export const buttonGroupDivider = 'border-l border-control-border';
 
-export const inputField = 'w-full h-7 px-2.5 rounded-md bg-fill border border-transparent text-[13px] placeholder:font-sans text-text placeholder:text-text-muted outline-none transition-colors hover:bg-fill-hover focus:bg-bg focus:hover:bg-bg focus:border-accent/45';
+export const inputField = 'w-full h-7 px-2.5 rounded-md bg-raised border border-border text-[13px] text-text placeholder:font-sans placeholder:text-text-muted outline-none transition-colors hover:border-control-border focus:border-focus focus:hover:border-focus';
 
 export const overlayPanel = 'bg-overlay rounded-lg ring-1 ring-overlay-border';
 

@@ -1,9 +1,11 @@
 import { forwardRef, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
+import { inputField } from '../ui/button-styles';
 import { CommentIcon } from '../icons/comment-icon';
 import { SearchIcon } from '../icons/search-icon';
-import { SidebarIcon } from '../icons/sidebar-icon';
+import { PanelLeftOpen } from 'lucide-react';
 import { XIcon } from '../icons/x-icon';
+import { ViewTabs, type RepoView } from './view-tabs';
 
 const WIDTH_KEY = 'diffity-sidebar-width';
 const DEFAULT_WIDTH = 300;
@@ -17,25 +19,25 @@ function clampWidth(width: number) {
   return Math.min(maxWidth(), Math.max(MIN_WIDTH, Math.round(width)));
 }
 
-function readStoredWidth() {
+function readStoredWidth(key: string, fallback: number) {
   try {
-    const stored = Number(localStorage.getItem(WIDTH_KEY));
+    const stored = Number(localStorage.getItem(key));
     if (!stored) {
-      return DEFAULT_WIDTH;
+      return clampWidth(fallback);
     }
     return clampWidth(stored);
   } catch {
-    return DEFAULT_WIDTH;
+    return fallback;
   }
 }
 
-function storeWidth(width: number | null) {
+function storeWidth(key: string, width: number | null) {
   try {
     if (width === null) {
-      localStorage.removeItem(WIDTH_KEY);
+      localStorage.removeItem(key);
       return;
     }
-    localStorage.setItem(WIDTH_KEY, String(width));
+    localStorage.setItem(key, String(width));
   } catch {
     return;
   }
@@ -44,12 +46,15 @@ function storeWidth(width: number | null) {
 interface SidebarFrameProps {
   collapsed: boolean;
   onExpand: () => void;
+  view: RepoView;
+  storageKey?: string;
+  defaultWidth?: number;
   children: ReactNode;
 }
 
 export function SidebarFrame(props: SidebarFrameProps) {
-  const { collapsed, onExpand, children } = props;
-  const [width, setWidth] = useState(readStoredWidth);
+  const { collapsed, onExpand, view, storageKey = WIDTH_KEY, defaultWidth = DEFAULT_WIDTH, children } = props;
+  const [width, setWidth] = useState(() => readStoredWidth(storageKey, defaultWidth));
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -84,26 +89,28 @@ export function SidebarFrame(props: SidebarFrameProps) {
     drag.current = null;
     setDragging(false);
     setWidth((current) => {
-      storeWidth(current);
+      storeWidth(storageKey, current);
       return current;
     });
-  }, []);
+  }, [storageKey]);
 
   const handleReset = useCallback(() => {
-    storeWidth(null);
-    setWidth(clampWidth(DEFAULT_WIDTH));
-  }, []);
+    storeWidth(storageKey, null);
+    setWidth(clampWidth(defaultWidth));
+  }, [storageKey, defaultWidth]);
 
   if (collapsed) {
     return (
-      <div className="w-11 min-w-11 border-r border-border bg-bg-secondary flex items-start justify-center pt-2">
+      <div className="w-11 min-w-11 border-r border-border bg-bg-secondary flex flex-col items-center gap-1 pt-2">
         <button
           className="w-7 h-7 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover cursor-pointer"
           onClick={onExpand}
           title="Show sidebar"
         >
-          <SidebarIcon className="w-4 h-4" />
+          <PanelLeftOpen size={16} strokeWidth={1.75} />
         </button>
+        <div className="w-5 h-px bg-border my-1" />
+        <ViewTabs current={view} vertical />
       </div>
     );
   }
@@ -113,7 +120,10 @@ export function SidebarFrame(props: SidebarFrameProps) {
       className="relative shrink-0 bg-bg-secondary flex border-r border-border"
       style={{ width }}
     >
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">{children}</div>
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        <ViewTabs current={view} />
+        {children}
+      </div>
       <div
         role="separator"
         aria-orientation="vertical"
@@ -161,7 +171,7 @@ export function SidebarIconButton(props: { title: string; onClick: () => void; a
     <button
       className={cn(
         'w-7 h-7 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer',
-        active ? 'bg-selected text-accent' : 'text-text-secondary hover:text-text hover:bg-hover',
+        active ? 'bg-selected text-text' : 'text-text-secondary hover:text-text hover:bg-hover',
       )}
       onClick={onClick}
       title={title}
@@ -192,7 +202,7 @@ export const SidebarFilter = forwardRef<HTMLInputElement, SidebarFilterProps>(fu
           autoCorrect="off"
           spellCheck={false}
           ref={ref}
-          className="w-full h-7 pl-8 pr-7 rounded-md bg-fill border border-transparent text-[13px] text-text outline-none transition-colors placeholder:text-text-muted hover:bg-fill-hover focus:bg-bg focus:hover:bg-bg focus:border-accent/45"
+          className={cn(inputField, 'pl-8 pr-7')}
           type="text"
           placeholder={placeholder}
           value={value}
@@ -231,8 +241,8 @@ export function CommentedOnlyToggle(props: { active: boolean; count: number; onT
   return (
     <button
       className={cn(
-        'inline-flex items-center gap-1.5 shrink-0 h-7 px-2 rounded-md text-xs font-medium tabular-nums transition-colors cursor-pointer',
-        active ? 'bg-selected text-accent' : 'bg-fill text-text-secondary hover:bg-fill-hover hover:text-text',
+        'inline-flex items-center gap-1.5 shrink-0 h-7 px-2 rounded-md border text-xs font-medium tabular-nums transition-colors cursor-pointer',
+        active ? 'bg-selected text-text border-transparent' : 'bg-raised border-border text-text-secondary hover:border-control-border hover:text-text',
       )}
       onClick={onToggle}
       title={active ? 'Show all files' : 'Show only files with open comments'}

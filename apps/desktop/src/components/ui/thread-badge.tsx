@@ -9,10 +9,10 @@ interface ThreadBadgeProps {
 }
 
 const variantStyles: Record<ThreadBadgeVariant, string> = {
-  resolved: 'bg-added/20 text-added',
-  dismissed: 'bg-text-muted/20 text-text-muted line-through',
-  outdated: 'bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200',
-  pending: 'bg-modified/15 text-modified',
+  resolved: 'bg-added/12 text-added',
+  dismissed: 'bg-fill text-text-muted line-through',
+  outdated: 'bg-fill text-text-secondary',
+  pending: 'bg-fill text-text-secondary',
 };
 
 const defaultLabels: Record<ThreadBadgeVariant, string> = {

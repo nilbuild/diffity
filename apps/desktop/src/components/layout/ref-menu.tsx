@@ -7,8 +7,8 @@ import { useBaseBranch, useGitHubPr, useGitStatus, useHasGitHubRemote } from '..
 import { openPullRequests } from '../../lib/ui-store';
 import { commitRef, descriptionForRef, fetchCommits, parseCommitRef, type Commit, type GitHubDetails } from '../../lib/api';
 import { cn } from '../../lib/cn';
-import { buttonOutline, inputField } from '../ui/button-styles';
-import { ChevronDownIcon } from '../icons/chevron-down-icon';
+import { buttonIcon, buttonOutline, inputField } from '../ui/button-styles';
+import { ArrowLeft, ChevronDown } from 'lucide-react';
 import { CheckIcon } from '../icons/check-icon';
 import { GitBranchIcon } from '../icons/git-branch-icon';
 import { GitCommitIcon } from '../icons/git-commit-icon';
@@ -16,6 +16,7 @@ import { GitCompareIcon } from '../icons/git-compare-icon';
 import { GitPullRequestIcon } from '../icons/git-pull-request-icon';
 import { PencilIcon } from '../icons/pencil-icon';
 import { Spinner } from '../icons/spinner';
+import { useCommitDetails, useBack } from './diff-context-bar';
 import { SearchIcon } from '../icons/search-icon';
 
 interface RefMenuProps {
@@ -35,17 +36,20 @@ function shortBase(base: string): string {
 export function useTargetLabel(diffRef: string, branch: string | null): { label: string; icon: ReactNode } {
   const { details } = useGitHubPr();
   const base = useBaseBranch(details?.baseRef ?? null, branch);
+  const commitSha = parseCommitRef(diffRef);
+  const { data: commit } = useCommitDetails(commitSha);
   if (details && diffRef === prDiffRef(details)) {
-    return { label: `Pull request #${details.prNumber}`, icon: <GitPullRequestIcon className="w-3.5 h-3.5" /> };
+    return { label: `PR #${details.prNumber} · ${details.prTitle}`, icon: <GitPullRequestIcon className="w-3.5 h-3.5" /> };
   }
   if (base && branch && diffRef === `${base}...HEAD`) {
     return { label: `${branch} vs ${shortBase(base)}`, icon: <GitCompareIcon className="w-3.5 h-3.5" /> };
   }
-  if (parseCommitRef(diffRef)) {
-    return { label: descriptionForRef(diffRef), icon: <GitCommitIcon className="w-3.5 h-3.5" /> };
+  if (commitSha) {
+    const short = commitSha.slice(0, 7);
+    return { label: commit ? `${short} · ${commit.message}` : `Commit ${short}`, icon: <GitCommitIcon className="w-3.5 h-3.5" /> };
   }
   if (diffRef.includes('..')) {
-    return { label: diffRef, icon: <GitCompareIcon className="w-3.5 h-3.5" /> };
+    return { label: diffRef.replace(/\.{2,3}/, ' … '), icon: <GitCompareIcon className="w-3.5 h-3.5" /> };
   }
   return { label: descriptionForRef(diffRef), icon: <PencilIcon className="w-3.5 h-3.5" /> };
 }
@@ -74,13 +78,13 @@ function Item(props: ItemProps) {
         selected ? 'bg-selected' : 'hover:bg-hover',
       )}
     >
-      <span className={cn('flex items-center shrink-0', selected ? 'text-accent' : 'text-text-secondary')}>{icon}</span>
+      <span className={cn('flex items-center shrink-0', selected ? 'text-text' : 'text-text-secondary')}>{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block text-[13px] leading-5 truncate text-text">{title}</span>
         {hint && <span className="block text-xs leading-4 text-text-secondary truncate">{hint}</span>}
       </span>
       {meta && <span className="shrink-0 text-xs text-text-secondary tabular-nums">{meta}</span>}
-      <span className="w-3.5 shrink-0 flex items-center">{selected && <CheckIcon className="w-3.5 h-3.5 text-accent" />}</span>
+      <span className="w-3.5 shrink-0 flex items-center">{selected && <CheckIcon className="w-3.5 h-3.5 text-text-secondary" />}</span>
     </button>
   );
 }
@@ -97,10 +101,10 @@ function CommitItem(props: { commit: Commit; selected: boolean; onClick: () => v
         selected ? 'bg-selected' : 'hover:bg-hover',
       )}
     >
-      <code className={cn('shrink-0 font-mono text-[11px] w-[52px]', selected ? 'text-accent' : 'text-text-muted')}>{commit.shortHash}</code>
+      <code className={cn('shrink-0 font-mono text-[11px] w-[52px]', selected ? 'text-text-secondary' : 'text-text-muted')}>{commit.shortHash}</code>
       <span className="min-w-0 flex-1 truncate text-[13px] text-text">{commit.message}</span>
       <span className="shrink-0 text-xs text-text-muted whitespace-nowrap">{shortRelative(commit.date)}</span>
-      <span className="w-3.5 shrink-0 flex items-center">{selected && <CheckIcon className="w-3.5 h-3.5 text-accent" />}</span>
+      <span className="w-3.5 shrink-0 flex items-center">{selected && <CheckIcon className="w-3.5 h-3.5 text-text-secondary" />}</span>
     </button>
   );
 }
@@ -143,20 +147,28 @@ export function RefMenu(props: RefMenuProps) {
   useDismiss(ref, open, close);
   const target = useTargetLabel(diffRef, branch);
 
+  const back = useBack();
+  const isDefault = diffRef === 'work';
+
   return (
-    <div className="relative min-w-0" ref={ref}>
+    <div className="relative min-w-0 flex items-center gap-1" ref={ref}>
+      {!isDefault && (
+        <button onClick={back} className={buttonIcon} title="Back">
+          <ArrowLeft size={16} strokeWidth={1.75} />
+        </button>
+      )}
       <button
         onClick={() => setOpen(!open)}
         className={cn(
           buttonOutline,
-          'max-w-full min-w-0 px-2.5',
+          'max-w-[460px] min-w-0 px-2.5',
           open && 'bg-control-hover',
         )}
         title="Choose what to review"
       >
         <span className="shrink-0 text-text-secondary">{target.icon}</span>
         <span className="truncate font-medium">{target.label}</span>
-        <ChevronDownIcon className="w-3 h-3 shrink-0 text-text-secondary" />
+        <ChevronDown size={14} strokeWidth={1.75} className="shrink-0 text-text-secondary" />
       </button>
       {open && (
         <RefMenuPanel
@@ -230,9 +242,9 @@ function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (
 
   return (
     <div className="absolute left-0 top-full mt-1.5 w-[440px] max-h-[min(560px,75vh)] flex flex-col bg-overlay rounded-lg ring-1 ring-overlay-border z-50 font-sans overflow-hidden">
-      <div className="shrink-0 p-2 border-b border-overlay-border">
+      <div className="shrink-0 p-1.5 border-b border-overlay-border">
         <div className="relative">
-          <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+          <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
           <input
             autoComplete="off"
             autoCorrect="off"
@@ -246,7 +258,7 @@ function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (
               }
             }}
             placeholder="Search commits, or type a sha or range"
-            className={cn(inputField, 'pl-8')}
+            className={cn(inputField, 'pl-8 border-transparent bg-transparent hover:border-transparent focus:border-transparent focus:hover:border-transparent')}
           />
         </div>
       </div>
@@ -263,7 +275,7 @@ function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (
         {showWork && (
           <div
             className={cn(
-              'flex items-center gap-2.5 w-full h-9 pl-2.5 pr-1.5 rounded-md transition-colors',
+              'flex items-center gap-2.5 w-full h-8 pl-2.5 pr-1 rounded-md transition-colors',
               workSelected ? 'bg-selected' : 'hover:bg-hover',
             )}
           >
@@ -272,33 +284,37 @@ function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (
               className="flex items-center gap-2.5 min-w-0 flex-1 h-full text-left cursor-pointer"
               title="Staged, unstaged and new files together"
             >
-              <PencilIcon className={cn('w-3.5 h-3.5 shrink-0', workSelected ? 'text-accent' : 'text-text-secondary')} />
-              <span className="text-[13px] text-text truncate">Uncommitted changes</span>
-              {counts.work !== undefined && <span className="text-xs text-text-secondary shrink-0">{counts.work} file{counts.work === 1 ? '' : 's'}</span>}
+              <PencilIcon className={cn('w-3.5 h-3.5 shrink-0', workSelected ? 'text-text' : 'text-text-secondary')} />
+              <span className={cn('text-[13px] truncate', counts.work === 0 ? 'text-text-secondary' : 'text-text')}>
+                {counts.work === 0 ? 'No uncommitted changes' : 'Uncommitted changes'}
+              </span>
+              {!!counts.work && <span className="text-xs text-text-muted shrink-0 tabular-nums">{counts.work}</span>}
             </button>
-            <div className="flex items-center h-6 p-[2px] gap-[2px] rounded-md border border-control-border bg-raised shrink-0">
-              {WORK_SEGMENTS.map((segment) => {
-                const count = counts[segment.value];
-                const empty = segment.value !== 'work' && count === 0;
-                const active = diffRef === segment.value;
-                return (
-                  <button
-                    key={segment.value}
-                    disabled={empty}
-                    title={segment.tooltip}
-                    onClick={() => onPick(segment.value)}
-                    className={cn(
-                      'h-[18px] px-1.5 rounded-[3px] text-[11px] tabular-nums transition-colors',
-                      active ? 'bg-selected text-accent font-medium' : 'text-text-secondary hover:text-text hover:bg-hover cursor-pointer',
-                      empty && 'text-text-muted/70 hover:text-text-muted/70 hover:bg-transparent cursor-default',
-                    )}
-                  >
-                    {segment.label}
-                    {segment.value !== 'work' && count !== undefined && <span className="ml-1 opacity-70">{count}</span>}
-                  </button>
-                );
-              })}
-            </div>
+            {!!counts.work && (
+              <div className="flex items-center gap-0.5 shrink-0">
+                {WORK_SEGMENTS.map((segment) => {
+                  const count = counts[segment.value];
+                  const empty = segment.value !== 'work' && count === 0;
+                  const active = diffRef === segment.value;
+                  return (
+                    <button
+                      key={segment.value}
+                      disabled={empty}
+                      title={empty ? `${segment.tooltip} (nothing right now)` : segment.tooltip}
+                      onClick={() => onPick(segment.value)}
+                      className={cn(
+                        'h-6 px-1.5 rounded text-xs transition-colors',
+                        active ? 'bg-active text-text font-medium' : 'text-text-secondary hover:text-text hover:bg-hover cursor-pointer',
+                        empty && 'text-text-muted/60 hover:text-text-muted/60 hover:bg-transparent cursor-default',
+                      )}
+                    >
+                      {segment.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <span className="w-3.5 shrink-0 flex items-center">{diffRef === 'work' && <CheckIcon className="w-3.5 h-3.5 text-text-secondary" />}</span>
           </div>
         )}
 

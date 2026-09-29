@@ -46,7 +46,7 @@ export function CommentCount(props: { count: number }) {
   }
   return (
     <span
-      className="shrink-0 min-w-4 h-4 px-1 rounded-full bg-accent/15 text-accent text-[10px] font-semibold leading-4 text-center tabular-nums"
+      className="shrink-0 min-w-4 h-4 px-1 rounded-full bg-fill text-text-secondary text-[10px] font-semibold leading-4 text-center tabular-nums"
       title={`${count} open comment thread${count === 1 ? '' : 's'}`}
     >
       {count}
@@ -177,7 +177,7 @@ export function FileTreeItem(props: FileTreeItemProps) {
       }}
     >
       <IndentGuides depth={depth} />
-      <FileIcon className={cn('w-3.5 h-3.5 shrink-0', isActive ? 'text-accent' : 'text-text-muted')} />
+      <FileIcon className={cn('w-3.5 h-3.5 shrink-0', isActive ? 'text-text-secondary' : 'text-text-muted')} />
       <span className={cn('flex-1 min-w-0 truncate', isActive ? 'text-text font-medium' : 'text-text', isReviewed && 'text-text-muted line-through decoration-text-muted/60')}>
         {node.name}
       </span>

@@ -31,7 +31,7 @@ export function SegmentedToggle<T extends string>(props: SegmentedToggleProps<T>
               'flex items-center justify-center gap-1.5 h-[22px] rounded-[4px] text-[13px] transition-colors duration-150 cursor-pointer',
               iconOnly ? 'w-6' : 'px-2.5',
               isActive
-                ? 'bg-selected text-accent font-medium'
+                ? 'bg-selected text-text font-medium'
                 : 'text-text-secondary hover:text-text hover:bg-hover'
             )}
             onClick={() => onChange(option.value)}

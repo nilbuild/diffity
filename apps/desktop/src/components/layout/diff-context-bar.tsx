@@ -5,16 +5,12 @@ import { fetchCommit, parseCommitRef } from '../../lib/api';
 import { useRepoNav } from '../../hooks/use-repo';
 import { useCopy } from '../../hooks/use-copy';
 import { useGitHubPr } from '../../hooks/use-repo-state';
-import { ArrowLeftIcon } from '../icons/arrow-left-icon';
 import { CheckIcon } from '../icons/check-icon';
-import { ExternalLinkIcon } from '../icons/external-link-icon';
+import { CopyIcon } from '../icons/copy-icon';
+import { AuthorAvatar } from './commit-list';
 import { prDiffRef } from './ref-menu';
 
-interface DiffContextBarProps {
-  diffRef: string;
-}
-
-function useBack() {
+export function useBack() {
   const navigate = useNavigate();
   const nav = useRepoNav();
   return () => {
@@ -27,95 +23,72 @@ function useBack() {
   };
 }
 
-function CommitSummary(props: { sha: string }) {
-  const { sha } = props;
-  const { copied, copy } = useCopy();
-  const { data: commit, isLoading } = useQuery({
+export function useCommitDetails(sha: string | null) {
+  return useQuery({
     queryKey: ['commit', sha],
-    queryFn: () => fetchCommit(sha),
+    queryFn: () => fetchCommit(sha ?? ''),
+    enabled: !!sha,
     staleTime: Infinity,
   });
+}
 
+function CommitHeader(props: { sha: string }) {
+  const { sha } = props;
+  const { copied, copy } = useCopy();
+  const { data: commit, isLoading } = useCommitDetails(sha);
+
+  if (isLoading) {
+    return <div className="h-10 w-2/3 rounded bg-fill animate-pulse" />;
+  }
   return (
-    <span className="flex items-center gap-2 min-w-0">
-      <span className="text-text-secondary shrink-0">Commit</span>
-      <button
-        onClick={() => copy(sha)}
-        className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-fill text-accent hover:bg-fill-hover shrink-0 cursor-pointer"
-        title="Copy full commit hash"
-      >
-        {copied ? <CheckIcon className="inline w-3 h-3 text-added" /> : sha.slice(0, 7)}
-      </button>
-      {isLoading && <span className="w-40 h-3 rounded bg-bg-tertiary animate-pulse" />}
-      {commit && (
-        <>
-          <span className="font-medium text-text truncate" title={commit.message}>
-            {commit.message}
-          </span>
-          <span className="text-text-muted shrink-0 hidden lg:inline">
-            {commit.author} · <span title={dayjs(commit.date).format('YYYY-MM-DD HH:mm')}>{commit.relativeDate}</span>
-          </span>
-        </>
-      )}
-    </span>
+    <div className="min-w-0">
+      <h2 className="text-[15px] font-semibold leading-6 text-text break-words">{commit?.message ?? `Commit ${sha.slice(0, 7)}`}</h2>
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-secondary">
+        {commit && (
+          <>
+            <AuthorAvatar name={commit.author} />
+            <span>{commit.author}</span>
+            <span className="text-text-muted">·</span>
+            <span title={dayjs(commit.date).format('YYYY-MM-DD HH:mm')}>{commit.relativeDate}</span>
+            <span className="text-text-muted">·</span>
+          </>
+        )}
+        <button
+          onClick={() => copy(sha)}
+          className="inline-flex items-center gap-1 font-mono text-[11px] text-text-secondary hover:text-text cursor-pointer"
+          title="Copy full commit hash"
+        >
+          {sha.slice(0, 7)}
+          {copied ? <CheckIcon className="w-3 h-3 text-added" /> : <CopyIcon className="w-3 h-3" />}
+        </button>
+      </div>
+    </div>
   );
 }
 
-export function DiffContextBar(props: DiffContextBarProps) {
+/** A light header at the top of the diff for a commit or a compared range (not a sticky bar). */
+export function DiffContextHeader(props: { diffRef: string }) {
   const { diffRef } = props;
-  const back = useBack();
   const { details } = useGitHubPr();
   const commitSha = parseCommitRef(diffRef);
   const isPr = details !== null && diffRef === prDiffRef(details);
-  const isRange = !isPr && diffRef.includes('..');
 
-  const renderSummary = () => {
-    if (commitSha) {
-      return <CommitSummary sha={commitSha} />;
-    }
-    if (isPr && details) {
-      return (
-        <span className="flex items-center gap-2 min-w-0">
-          <span className="font-medium text-text truncate">{details.prTitle}</span>
-          <a href={details.prUrl} className="inline-flex items-center gap-1 text-text-muted hover:text-accent shrink-0" title="Open on GitHub">
-            #{details.prNumber}
-            <ExternalLinkIcon className="w-3 h-3" />
-          </a>
-          <span className="text-text-muted shrink-0 hidden lg:inline font-mono text-[11px]">
-            {details.headRef} → {details.baseRef}
-          </span>
-        </span>
-      );
-    }
-    return (
-      <span className="flex items-center gap-2 min-w-0">
-        <span className="text-text-muted shrink-0">Comparing</span>
-        <span className="font-mono text-[11px] text-text truncate">{diffRef}</span>
-      </span>
-    );
-  };
-
-  if (isPr) {
+  if (commitSha) {
+    return <CommitHeader sha={commitSha} />;
+  }
+  if (isPr || !diffRef.includes('..')) {
     return null;
   }
-
-  if (!commitSha && !isPr && !isRange) {
-    return null;
-  }
-
+  const [base, head] = diffRef.split(/\.{2,3}/);
   return (
-    <div className="flex items-center gap-2 h-9 shrink-0 px-3 bg-bg-secondary border-b border-border font-sans text-[13px]">
-      {!isPr && (
-        <button
-          onClick={back}
-          className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer shrink-0"
-          title="Back"
-        >
-          <ArrowLeftIcon className="w-3.5 h-3.5" />
-          Back
-        </button>
-      )}
-      <div className="min-w-0 flex-1">{renderSummary()}</div>
+    <div className="min-w-0">
+      <h2 className="text-[15px] font-semibold leading-6 text-text">
+        Comparing <span className="font-mono text-[13px]">{base}</span> <span className="text-text-muted">…</span>{' '}
+        <span className="font-mono text-[13px]">{head || 'HEAD'}</span>
+      </h2>
+      <p className="mt-0.5 text-xs text-text-secondary">
+        {diffRef.includes('...') ? `What changed on ${head || 'HEAD'} since it split from ${base}` : `Every change after ${base}, up to ${head || 'HEAD'}`}
+      </p>
     </div>
   );
 }

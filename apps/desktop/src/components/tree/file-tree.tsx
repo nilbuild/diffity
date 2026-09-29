@@ -125,7 +125,7 @@ export const FileTree = forwardRef<FileTreeHandle, FileTreeProps>(function FileT
         ? 'No matching files'
         : commentedFilesOnly
           ? 'No files with open comments'
-          : 'No files'}
+          : 'No changed files'}
     </div>
   );
 

@@ -201,3 +201,4 @@ export const onRepoChanged = (handler: (payload: RepoChangedPayload) => void): P
   listen<RepoChangedPayload>('repo-changed', (event) => handler(event.payload));
 export const onThreadsChanged = (handler: (payload: ThreadsChangedPayload) => void): Promise<UnlistenFn> =>
   listen<ThreadsChangedPayload>('threads-changed', (event) => handler(event.payload));
+export const gitClone = (parent: string, url: string) => invoke<string>('git_clone', { parent, url });

@@ -138,15 +138,15 @@ function ThreadRow(props: ThreadRowProps) {
         }
       }}
       className={cn(
-        'group flex gap-2.5 px-3 py-2 rounded-md transition-colors outline-none focus-visible:bg-hover',
-        openable ? 'hover:bg-hover cursor-pointer' : 'opacity-70',
+        'group flex gap-2.5 px-3 py-2.5 rounded-lg bg-bg-secondary border border-border-muted transition-colors outline-none focus-visible:border-border',
+        openable ? 'hover:border-border hover:bg-fill cursor-pointer' : 'opacity-70',
       )}
       title={openable ? 'Open this comment' : undefined}
     >
       <span
         className={cn(
           'mt-0.5 w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[10px] font-semibold',
-          isAgent ? 'bg-accent/15 text-accent' : 'bg-fill text-text-secondary',
+          isAgent ? 'bg-accent/12 text-accent' : 'bg-fill text-text-secondary',
         )}
       >
         {isAgent ? <SparkleIcon className="w-3 h-3" /> : thread.authorName.charAt(0).toUpperCase()}
@@ -171,14 +171,14 @@ function ThreadRow(props: ThreadRowProps) {
             {thread.replyCount > 0 && (
               <span>{thread.replyCount} repl{thread.replyCount === 1 ? 'y' : 'ies'}</span>
             )}
-            {note && <span className="text-orange-700 dark:text-orange-300">{note}</span>}
+            {note && <span className="text-text-secondary">{note}</span>}
             {thread.movedTo && (
               <button
                 onClick={(event) => {
                   event.stopPropagation();
                   onOpenCommit(thread);
                 }}
-                className="text-accent hover:underline cursor-pointer"
+                className="text-text-secondary underline decoration-text-muted/40 underline-offset-2 hover:text-text cursor-pointer"
                 title={thread.movedTo.subject}
               >
                 View in commit {thread.movedTo.shortSha}
@@ -329,38 +329,40 @@ function CommentsPanelBody() {
           />
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto py-2 px-1">
+      <div className="flex-1 overflow-y-auto py-2">
         {isLoading && <div className="px-4 py-6 text-xs text-text-muted">Loading comments…</div>}
         {error && <div className="px-4 py-6 text-xs text-deleted">Could not load comments: {String((error as { message?: string }).message ?? error)}</div>}
         {!isLoading && !error && groups.length === 0 && (
           <div className="px-6 py-10 text-center text-xs text-text-muted leading-relaxed">{emptyMessage(filters, threads.length)}</div>
         )}
         {groups.map((group) => (
-          <section key={group.ref} className="mb-2">
-            <div className="sticky top-0 z-10 flex items-center gap-2 px-3 h-8 bg-bg">
+          <section key={group.ref} className="mb-4">
+            <div className="sticky top-0 z-10 flex items-center gap-2 px-4 h-9 bg-bg">
               <ViewIcon viewRef={group.ref} />
               <span className="text-xs font-medium text-text truncate" title={group.ref}>{group.label}</span>
               {group.ref === currentRef && (
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-accent/12 text-accent shrink-0">This view</span>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-fill text-text-secondary shrink-0">This view</span>
               )}
               <span className="text-xs text-text-muted shrink-0">{group.count}</span>
               {group.ref !== currentRef && (
                 <button
                   onClick={() => openView(group.ref)}
-                  className="ml-auto text-xs text-accent hover:underline cursor-pointer shrink-0"
+                  className="ml-auto h-6 px-2 -mr-1 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer shrink-0"
                 >
                   Open view
                 </button>
               )}
             </div>
             {group.files.map((file) => (
-              <div key={file.path} className="px-2">
-                <div className="px-3 pt-2 pb-1 font-mono text-[11px] text-text-secondary truncate" title={file.path}>
+              <div key={file.path} className="px-3">
+                <div className="px-1 pt-2 pb-1.5 font-mono text-[11px] text-text-secondary truncate" title={file.path}>
                   {fileLabel(file.path)}
                 </div>
-                {file.threads.map((thread) => (
-                  <ThreadRow key={thread.id} thread={thread} onOpen={openThread} onOpenCommit={openCommit} />
-                ))}
+                <div className="flex flex-col gap-2">
+                  {file.threads.map((thread) => (
+                    <ThreadRow key={thread.id} thread={thread} onOpen={openThread} onOpenCommit={openCommit} />
+                  ))}
+                </div>
               </div>
             ))}
           </section>

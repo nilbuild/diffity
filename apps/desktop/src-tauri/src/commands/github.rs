@@ -208,3 +208,9 @@ pub async fn github_set_resolved(
     emit_threads_changed(&app, &thread.session_id);
     Ok(thread)
 }
+
+/// Clones a repository URL (or `owner/repo`) into a new folder inside `parent`.
+#[tauri::command]
+pub async fn git_clone(parent: String, url: String) -> Result<String, AppError> {
+    diffity_github::gitcli::clone(&parent, &url).await
+}

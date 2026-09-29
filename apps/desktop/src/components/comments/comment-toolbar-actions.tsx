@@ -1,12 +1,9 @@
+import { ChevronDown, ChevronUp, Copy, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useCopy } from '../../hooks/use-copy';
 import { useThreadNavigation } from '../../hooks/use-thread-navigation';
 import type { CommentThread } from './types';
-import { CopyIcon } from '../icons/copy-icon';
 import { CheckIcon } from '../icons/check-icon';
-import { ChevronUpIcon } from '../icons/chevron-up-icon';
-import { ChevronDownIcon } from '../icons/chevron-down-icon';
-import { TrashIcon } from '../icons/trash-icon';
 import { ConfirmDialog } from '../ui/confirm-dialog';
 import { buttonGroup } from '../ui/button-styles';
 
@@ -46,28 +43,28 @@ export function CommentToolbarActions(props: CommentToolbarActionsProps) {
           className="flex items-center px-1.5 text-text-secondary hover:bg-control-hover hover:text-text transition-colors cursor-pointer"
           title="Previous open comment"
         >
-          <ChevronUpIcon className="w-3.5 h-3.5" />
+          <ChevronUp size={15} strokeWidth={1.75} />
         </button>
         <button
           onClick={goToNext}
           className="flex items-center px-1.5 text-text-secondary hover:bg-control-hover hover:text-text transition-colors cursor-pointer"
           title="Next open comment"
         >
-          <ChevronDownIcon className="w-3.5 h-3.5" />
+          <ChevronDown size={15} strokeWidth={1.75} />
         </button>
         <button
           onClick={() => copy(formatForCopy())}
           className="flex items-center px-1.5 border-l border-control-border text-text-secondary hover:bg-control-hover hover:text-text transition-colors cursor-pointer"
           title="Copy open comments as Markdown (paste into any AI chat)"
         >
-          {copied ? <CheckIcon className="w-3.5 h-3.5 text-added" /> : <CopyIcon className="w-3.5 h-3.5" />}
+          {copied ? <CheckIcon className="w-3.5 h-3.5 text-added" /> : <Copy size={14} strokeWidth={1.75} />}
         </button>
         <button
           onClick={() => setShowDeleteConfirm(true)}
           className="flex items-center px-1.5 text-text-secondary hover:bg-control-hover hover:text-deleted transition-colors cursor-pointer"
           title="Delete all comments"
         >
-          <TrashIcon className="w-3.5 h-3.5" />
+          <Trash2 size={14} strokeWidth={1.75} />
         </button>
       </div>
       {showDeleteConfirm && (

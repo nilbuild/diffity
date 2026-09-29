@@ -1,7 +1,6 @@
+import { ChevronDown, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { SparkleIcon } from '../../components/icons/sparkle-icon';
 import { StopIcon } from '../../components/icons/stop-icon';
-import { ChevronDownIcon } from '../../components/icons/chevron-down-icon';
 import { CommentIcon } from '../../components/icons/comment-icon';
 import { menuItemClass } from '../../components/layout/options-menu';
 import { useDismiss } from '../../hooks/use-dismiss';
@@ -144,7 +143,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
             className={buttonGroupItem}
             title="Ask Claude Code to review these changes"
           >
-            <SparkleIcon className="w-3.5 h-3.5 text-accent" />
+            <Sparkles size={15} strokeWidth={1.75} className="text-text-secondary" />
             Review<span className="hidden min-[1360px]:inline -ml-[3px]">with Claude</span>
           </button>
         ) : (
@@ -153,7 +152,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
             disabled={openThreads.length === 0}
             className={buttonGroupItem}
           >
-            <SparkleIcon className="w-3.5 h-3.5 text-accent" />
+            <Sparkles size={15} strokeWidth={1.75} className="text-text-secondary" />
             Resolve with Claude
           </button>
         )}
@@ -162,7 +161,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
           className="flex items-center px-1.5 border-l border-control-border text-text-secondary hover:bg-control-hover hover:text-text transition-colors cursor-pointer"
           title="More Claude actions"
         >
-          <ChevronDownIcon className="w-3.5 h-3.5" />
+          <ChevronDown size={14} strokeWidth={1.75} />
         </button>
       </div>
       {open && (
@@ -172,7 +171,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
               <div className={sectionLabel}>Review with a focus</div>
               {REVIEW_FOCUSES.map((focus) => (
                 <button key={focus.value} className={menuItemClass} onClick={() => review(focus.value)}>
-                  <SparkleIcon className="w-3.5 h-3.5" />
+                  <Sparkles size={15} strokeWidth={1.75} />
                   {focus.label}
                 </button>
               ))}

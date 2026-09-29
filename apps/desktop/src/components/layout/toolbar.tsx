@@ -1,29 +1,20 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import type { ParsedDiff } from '@diffity/parser';
-import { getFilePath, type ViewMode } from '../../lib/diff-utils';
-import { EyeOffIcon } from '../icons/eye-off-icon';
-import { UnifiedViewIcon } from '../icons/unified-view-icon';
-import { SplitViewIcon } from '../icons/split-view-icon';
+import { getFilePath } from '../../lib/diff-utils';
 import { CommentToolbarActions } from '../comments/comment-toolbar-actions';
 import { OptionsMenu } from './options-menu';
 import { GENERAL_THREAD_FILE_PATH } from '../comments/types';
 import type { CommentThread } from '../comments/types';
 import { isThreadResolved } from '../comments/types';
-import { RepoTitle, TitleBar, TitleBarDivider } from './title-bar';
-import { PageSwitcher } from './page-switcher';
+import { RepoTitle, TitleBar } from './title-bar';
+import { CommentsButton } from '../../features/comments/comments-button';
 import { RefMenu } from './ref-menu';
-import { SegmentedToggle } from '../ui/segmented-toggle';
-import { buttonIconOutline } from '../ui/button-styles';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
 import { FinishReview } from '../../features/review/finish-review';
-import { CommentsButton } from '../../features/comments/comments-button';
 import { useRepoMeta } from '../../hooks/use-repo-state';
-import { cn } from '../../lib/cn';
 import type { GitHubDetails } from '../../lib/api';
 
 interface ToolbarProps {
-  hideWhitespace: boolean;
-  onHideWhitespaceChange: (hide: boolean) => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onShowHelp: () => void;
@@ -37,8 +28,6 @@ interface ToolbarProps {
   githubDetails?: GitHubDetails | null;
   hasGitHubRemote?: boolean;
   sessionId?: string | null;
-  viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
 }
 
 function extractCodeContext(diff: ParsedDiff | undefined, filePath: string, side: 'old' | 'new', startLine: number, endLine: number): string[] {
@@ -115,8 +104,6 @@ function formatThreadsForCopy(threads: CommentThread[], diff?: ParsedDiff, diffR
 
 export function Toolbar(props: ToolbarProps) {
   const {
-    hideWhitespace,
-    onHideWhitespaceChange,
     theme,
     onToggleTheme,
     onShowHelp,
@@ -128,8 +115,6 @@ export function Toolbar(props: ToolbarProps) {
     repoName,
     branch,
     sessionId,
-    viewMode,
-    onViewModeChange,
   } = props;
   const { data: meta } = useRepoMeta();
   const hasChanges = !diff || diff.files.length > 0;
@@ -138,33 +123,12 @@ export function Toolbar(props: ToolbarProps) {
     return formatThreadsForCopy(threads, diff, diffRef);
   }, [threads, diff, diffRef]);
 
-  const viewModeOptions = useMemo(() => [
-    { value: 'unified' as ViewMode, label: 'Unified', icon: <UnifiedViewIcon className="w-3.5 h-3.5" /> },
-    { value: 'split' as ViewMode, label: 'Split', icon: <SplitViewIcon className="w-3.5 h-3.5" /> },
-  ], []);
 
   return (
     <TitleBar>
       <div data-tauri-drag-region className="flex items-center gap-2.5 min-w-0 shrink">
         <RepoTitle name={repoName} path={meta?.path} />
-        <PageSwitcher current="diff" />
         {diffRef && <RefMenu diffRef={diffRef} branch={branch} />}
-        {hasChanges && (
-          <>
-            <TitleBarDivider />
-            <SegmentedToggle options={viewModeOptions} value={viewMode} onChange={onViewModeChange} iconOnly />
-          </>
-        )}
-        {(hasChanges || hideWhitespace) && (
-          <button
-            onClick={() => onHideWhitespaceChange(!hideWhitespace)}
-            className={cn(buttonIconOutline, hideWhitespace && 'bg-selected border-accent/40 text-accent hover:bg-selected hover:text-accent')}
-            title={hideWhitespace ? 'Whitespace changes are hidden — show them' : 'Hide whitespace-only changes'}
-            aria-pressed={hideWhitespace}
-          >
-            <EyeOffIcon className="w-3.5 h-3.5" />
-          </button>
-        )}
       </div>
       <div data-tauri-drag-region className="flex-1 min-w-2 self-stretch" />
       <div className="flex items-center gap-2 shrink-0">

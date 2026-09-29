@@ -122,7 +122,7 @@ export function SegmentedControl<T extends string>(props: {
 }
 
 export const settingsInputClass =
-  'h-7 min-w-0 flex-1 rounded-md border border-border bg-raised px-2.5 text-xs text-text placeholder:text-text-muted focus:border-accent/45 focus:outline-none';
+  'h-7 min-w-0 flex-1 rounded-md border border-border bg-raised px-2.5 text-xs text-text placeholder:text-text-muted focus:border-focus focus:outline-none';
 
 export function InlineConfirm(props: {
   message: ReactNode;

@@ -1,7 +1,7 @@
+import { Ellipsis } from 'lucide-react';
 import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { SunIcon } from '../icons/sun-icon';
 import { MoonIcon } from '../icons/moon-icon';
-import { EllipsisIcon } from '../icons/ellipsis-icon';
 import { GitHubIcon } from '../icons/github-icon';
 import { FolderOpenIcon } from '../icons/folder-open-icon';
 import { useNavigate } from 'react-router';
@@ -48,7 +48,7 @@ export function OptionsMenu(props: OptionsMenuProps) {
         onClick={() => setShowMenu(!showMenu)}
         title="More: shortcuts, theme, settings"
       >
-        <EllipsisIcon className="w-4 h-4" />
+        <Ellipsis size={16} strokeWidth={1.75} />
       </button>
       {showMenu && (
         <div className="absolute right-0 top-full mt-1 w-56 p-1 bg-overlay rounded-lg ring-1 ring-overlay-border z-50">

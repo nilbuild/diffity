@@ -12,7 +12,6 @@ import { Toolbar } from '../layout/toolbar';
 import { DiffView, type DiffViewHandle } from './diff-view';
 import { Sidebar } from '../layout/sidebar';
 import { DiffSkeleton, hideStaticSplash } from '../layout/skeleton';
-import { DiffContextBar } from '../layout/diff-context-bar';
 import { PrBar } from '../../features/pr/pr-bar';
 import { StatusBar } from '../layout/status-bar';
 import { DiffEmptyState } from './diff-empty-state';
@@ -24,6 +23,7 @@ import { focusThreadElement, getHunkHeaders, scrollToElement } from '../../lib/d
 import { setFocusThread } from '../../lib/ui-store';
 import { OutsideThreads } from '../comments/outside-threads';
 import type { LineSelection } from '../comments/types';
+import { ViewOptions } from './view-options';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { useViewedFiles } from '../../hooks/use-viewed-files';
 import { useGitHubPr } from '../../hooks/use-repo-state';
@@ -333,13 +333,27 @@ export function DiffPage(props: DiffPageProps) {
   }
 
   const isEmpty = diff.files.length === 0;
+  const viewOptions = (
+    <ViewOptions
+      viewMode={viewMode}
+      onViewModeChange={setViewMode}
+      hideWhitespace={hideWhitespace}
+      onHideWhitespaceChange={setHideWhitespace}
+      onExpandAll={isEmpty ? undefined : () => {
+        manuallyToggledRef.current = new Set();
+        setCollapsedFiles(new Set());
+      }}
+      onCollapseAll={isEmpty ? undefined : () => {
+        manuallyToggledRef.current = new Set();
+        setCollapsedFiles(new Set(diff.files.map((file) => getFilePath(file))));
+      }}
+    />
+  );
 
   return (
     <ReviewStateProvider sessionId={reviewsEnabled ? sessionId : null} prMode={!!githubDetails}>
     <div className="flex flex-col h-screen bg-bg text-text font-sans">
       <Toolbar
-        hideWhitespace={hideWhitespace}
-        onHideWhitespaceChange={setHideWhitespace}
         theme={theme}
         onToggleTheme={toggleTheme}
         onShowHelp={openShortcuts}
@@ -353,13 +367,20 @@ export function DiffPage(props: DiffPageProps) {
         githubDetails={githubDetails}
         hasGitHubRemote={!!info?.github}
         sessionId={sessionId}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
       />
-      <DiffContextBar diffRef={refParam} />
       <PrBar diffRef={refParam} />
       {isEmpty ? (
-        <div className="flex flex-1 flex-col overflow-y-auto">
+        <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          files={[]}
+          activeFile={null}
+          reviewedFiles={reviewedFiles}
+          commentCountsByFile={commentCountsByFile}
+          onFileClick={handleSidebarFileClick}
+          onCommentedFileClick={handleSidebarCommentedFileClick}
+          viewOptions={viewOptions}
+        />
+        <div className="flex flex-1 min-w-0 flex-col overflow-y-auto">
           {reviewsEnabled && (
             <OutsideThreads
               threads={threads}
@@ -369,6 +390,7 @@ export function DiffPage(props: DiffPageProps) {
             />
           )}
           <DiffEmptyState diffRef={refParam} hideWhitespace={hideWhitespace} branch={info?.branch || null} />
+        </div>
         </div>
       ) : (
       <div className="flex flex-1 overflow-hidden">
@@ -380,6 +402,7 @@ export function DiffPage(props: DiffPageProps) {
           onFileClick={handleSidebarFileClick}
           onCommentedFileClick={handleSidebarCommentedFileClick}
           stats={diff.stats}
+          viewOptions={viewOptions}
         />
         {diff ? (
           <DiffView
