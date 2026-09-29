@@ -1,5 +1,7 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { SparkleIcon } from '../icons/sparkle-icon';
+import { cn } from '../../lib/cn';
+import { splitMentions } from '../../lib/mentions';
 
 interface MentionTextareaProps {
   value: string;
@@ -17,6 +19,28 @@ interface MentionQuery {
 
 const MENTION_TARGET = 'claude';
 
+const BACKDROP_RESET = 'absolute inset-0 m-0 overflow-hidden whitespace-pre-wrap break-words pointer-events-none select-none text-transparent resize-none placeholder:text-transparent';
+
+function MentionBackdrop(props: { value: string; className?: string; backdropRef: React.RefObject<HTMLDivElement | null> }) {
+  const { value, className, backdropRef } = props;
+
+  return (
+    <div ref={backdropRef} aria-hidden className={cn(className, BACKDROP_RESET)}>
+      {splitMentions(value).map((part, index) => {
+        if (!part.mention) {
+          return <span key={index}>{part.text}</span>;
+        }
+        return (
+          <mark key={index} className="rounded bg-accent/15 text-transparent ring-1 ring-accent/30">
+            {part.text}
+          </mark>
+        );
+      })}
+      {'\n'}
+    </div>
+  );
+}
+
 function findMentionQuery(value: string, caret: number): MentionQuery | null {
   const before = value.slice(0, caret);
   const match = /(^|[\s(])@([\w-]*)$/.exec(before);
@@ -33,6 +57,7 @@ function findMentionQuery(value: string, caret: number): MentionQuery | null {
 export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaProps>(function MentionTextarea(props, ref) {
   const { value, onChange, onKeyDown, placeholder, rows, className } = props;
   const innerRef = useRef<HTMLTextAreaElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState<MentionQuery | null>(null);
 
   useImperativeHandle(ref, () => innerRef.current as HTMLTextAreaElement);
@@ -75,8 +100,18 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaPr
     onKeyDown?.(e);
   };
 
+  const syncScroll = () => {
+    const el = innerRef.current;
+    const backdrop = backdropRef.current;
+    if (!el || !backdrop) {
+      return;
+    }
+    backdrop.scrollTop = el.scrollTop;
+  };
+
   return (
     <div className="relative">
+      <MentionBackdrop value={value} className={className} backdropRef={backdropRef} />
       <textarea
         ref={innerRef}
         value={value}
@@ -87,9 +122,10 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaPr
         onKeyDown={handleKeyDown}
         onClick={(e) => refreshQuery(value, e.currentTarget.selectionStart)}
         onBlur={() => setQuery(null)}
+        onScroll={syncScroll}
         placeholder={placeholder}
         rows={rows}
-        className={className}
+        className={cn(className, 'relative bg-transparent')}
       />
       {query && (
         <div className="absolute left-2 top-full -mt-1 z-30 w-60 py-1 bg-bg-secondary rounded-md shadow-lg ring-1 ring-border">
