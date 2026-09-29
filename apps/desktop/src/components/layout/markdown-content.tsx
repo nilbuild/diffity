@@ -5,6 +5,7 @@ import type { Components } from 'react-markdown';
 import { useHighlighter } from '../../hooks/use-highlighter';
 import { getTheme } from '../../hooks/use-theme';
 import { MermaidDiagram } from '../mermaid-diagram';
+import { rehypeMentions } from '../../lib/mentions';
 
 interface MarkdownContentProps {
   content: string;
@@ -141,7 +142,7 @@ export function MarkdownContent(props: MarkdownContentProps) {
 
   return (
     <div className="markdown-body">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeMentions]} components={components}>
         {content}
       </ReactMarkdown>
     </div>

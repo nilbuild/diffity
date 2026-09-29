@@ -23,6 +23,7 @@ interface ClaudeToolbarProps {
   diffRef: string | null;
   sessionId: string | null;
   threads: CommentThread[];
+  hasChanges?: boolean;
 }
 
 function formatElapsed(ms: number) {
@@ -81,7 +82,7 @@ export function ClaudeStatus() {
 }
 
 export function ClaudeToolbar(props: ClaudeToolbarProps) {
-  const { diffRef, sessionId, threads } = props;
+  const { diffRef, sessionId, threads, hasChanges = true } = props;
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
@@ -89,7 +90,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
   const run = useActiveRun();
 
   const openThreads = threads.filter((thread) => thread.status === 'open' && !thread.pending);
-  const reviewRef = diffRef && diffRef !== TREE_REF ? diffRef : null;
+  const reviewRef = diffRef && diffRef !== TREE_REF && hasChanges ? diffRef : null;
 
   const review = (focus?: string) => {
     if (!reviewRef) {

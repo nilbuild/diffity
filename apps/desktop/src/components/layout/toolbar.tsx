@@ -1,20 +1,14 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import type { ParsedDiff } from '@diffity/parser';
 import { getFilePath } from '../../lib/diff-utils';
-import { UnifiedViewIcon } from '../icons/unified-view-icon';
-import { SplitViewIcon } from '../icons/split-view-icon';
-import { SegmentedToggle } from '../ui/segmented-toggle';
 import { EyeIcon } from '../icons/eye-icon';
 import { EyeOffIcon } from '../icons/eye-off-icon';
-import { KeyboardIcon } from '../icons/keyboard-icon';
 import { GitBranchIcon } from '../icons/git-branch-icon';
 import { GitHubIcon } from '../icons/github-icon';
-import { DiffStats } from '../diff/diff-stats';
 import { GitHubDialog } from './github-dialog';
 import { CommentToolbarActions } from '../comments/comment-toolbar-actions';
 import { OptionsMenu, menuItemClass } from './options-menu';
 import { GENERAL_THREAD_FILE_PATH } from '../comments/types';
-import type { ViewMode } from '../../lib/diff-utils';
 import type { CommentThread } from '../comments/types';
 import { isThreadResolved } from '../comments/types';
 import { TitleBar } from './title-bar';
@@ -27,8 +21,6 @@ import { useRepoNav } from '../../hooks/use-repo';
 import type { GitHubDetails } from '../../lib/api';
 
 interface ToolbarProps {
-  viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
   hideWhitespace: boolean;
   onHideWhitespaceChange: (hide: boolean) => void;
   theme: 'light' | 'dark';
@@ -41,7 +33,6 @@ interface ToolbarProps {
   onScrollToThread: (threadId: string, filePath: string) => void;
   repoName: string | null;
   branch: string | null;
-  description: string | null;
   githubDetails?: GitHubDetails | null;
   hasGitHubRemote?: boolean;
   sessionId?: string | null;
@@ -122,8 +113,6 @@ function formatThreadsForCopy(threads: CommentThread[], diff?: ParsedDiff, diffR
 
 export function Toolbar(props: ToolbarProps) {
   const {
-    viewMode,
-    onViewModeChange,
     hideWhitespace,
     onHideWhitespaceChange,
     theme,
@@ -136,7 +125,6 @@ export function Toolbar(props: ToolbarProps) {
     onScrollToThread,
     repoName,
     branch,
-    description,
     githubDetails,
     hasGitHubRemote,
     sessionId,
@@ -149,89 +137,63 @@ export function Toolbar(props: ToolbarProps) {
     return formatThreadsForCopy(threads, diff, diffRef);
   }, [threads, diff, diffRef]);
 
-  const viewModeOptions = useMemo(() => [
-    { value: 'unified' as ViewMode, label: 'Unified', icon: <UnifiedViewIcon className="w-3.5 h-3.5" /> },
-    { value: 'split' as ViewMode, label: 'Split', icon: <SplitViewIcon className="w-3.5 h-3.5" /> },
-  ], []);
 
   return (
     <TitleBar>
-      <div className="flex items-center gap-2.5 min-w-0 shrink">
+      <div className="flex items-center gap-2 min-w-0 shrink">
         {repoName && (
           <button
             onClick={nav.toOverview}
-            className="font-semibold text-text text-sm truncate max-w-[220px] shrink-0 hover:text-accent transition-colors cursor-pointer"
+            className="font-semibold text-text text-sm truncate max-w-[180px] shrink-0 hover:text-accent transition-colors cursor-pointer"
             title="Repository overview"
           >
             {repoName}
           </button>
         )}
         {branch && (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-diff-hunk-bg text-diff-hunk-text rounded font-mono text-[11px] shrink-0">
-            <GitBranchIcon className="w-3 h-3" />
-            {branch}
+          <span className="hidden min-[1180px]:inline-flex items-center gap-1 px-1.5 py-0.5 bg-diff-hunk-bg text-diff-hunk-text rounded font-mono text-[11px] shrink min-w-0 max-w-[180px]" title={branch}>
+            <GitBranchIcon className="w-3 h-3 shrink-0" />
+            <span className="truncate">{branch}</span>
           </span>
         )}
         <PageSwitcher current="diff" />
-        {description && diffRef && <RefMenu diffRef={diffRef} description={description} />}
-        {diff && (
-          <span className="hidden 2xl:inline-flex items-center bg-bg-tertiary rounded-md overflow-hidden text-text-muted shrink-0">
-            <span className="px-2 py-0.5">{diff.stats.filesChanged} file{diff.stats.filesChanged !== 1 ? 's' : ''} changed</span>
-            <span className="px-2 py-0.5">
-              <DiffStats additions={diff.stats.totalAdditions} deletions={diff.stats.totalDeletions} />
-            </span>
-          </span>
-        )}
-        {(githubDetails || hasGitHubRemote) && (
-          <button
-            onClick={() => setShowGitHub(true)}
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-bg-tertiary rounded-md font-mono text-[11px] text-text-muted hover:text-text transition-colors cursor-pointer shrink-0"
-            title={githubDetails ? githubDetails.prTitle : 'GitHub'}
-          >
-            <GitHubIcon className="w-3 h-3" />
-            {githubDetails ? `#${githubDetails.prNumber}` : 'GitHub'}
-          </button>
-        )}
+        {diffRef && <RefMenu diffRef={diffRef} branch={branch} />}
       </div>
       <div className="flex items-center gap-2 ml-auto shrink-0">
         <GitSyncActions />
-        <SegmentedToggle options={viewModeOptions} value={viewMode} onChange={onViewModeChange} labelClassName="hidden 2xl:inline" />
+        {(githubDetails || hasGitHubRemote) && (
+          <button
+            onClick={() => setShowGitHub(true)}
+            className="inline-flex items-center gap-1 px-2 py-1 bg-bg-tertiary rounded-md text-xs text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer shrink-0"
+            title={githubDetails ? `Pull request #${githubDetails.prNumber}: ${githubDetails.prTitle}` : 'GitHub: sign in, push and pull PR comments'}
+          >
+            <GitHubIcon className="w-3.5 h-3.5" />
+            {githubDetails && <span className="font-mono">#{githubDetails.prNumber}</span>}
+          </button>
+        )}
         <CommentToolbarActions
           threads={threads}
           onScrollToThread={onScrollToThread}
           onDeleteAllComments={onDeleteAllComments}
           formatForCopy={formatForCopy}
         />
-        <ClaudeToolbar diffRef={diffRef ?? null} sessionId={sessionId ?? null} threads={threads} />
-        <FinishReview githubDetails={githubDetails ?? null} />
+        <ClaudeToolbar diffRef={diffRef ?? null} sessionId={sessionId ?? null} threads={threads} hasChanges={!diff || diff.files.length > 0} />
+        <FinishReview githubDetails={githubDetails ?? null} hasGitHubRemote={!!hasGitHubRemote} />
         <OptionsMenu
           theme={theme}
           onToggleTheme={onToggleTheme}
+          onShowHelp={onShowHelp}
           renderExtraItems={(close) => (
-            <>
-              <button
-                className={menuItemClass}
-                onClick={() => {
-                  onHideWhitespaceChange(!hideWhitespace);
-                  close();
-                }}
-              >
-                {hideWhitespace ? <EyeOffIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
-                {hideWhitespace ? 'Show whitespace' : 'Hide whitespace'}
-                {hideWhitespace && <span className="ml-auto text-accent text-[10px]">On</span>}
-              </button>
-              <button
-                className={menuItemClass}
-                onClick={() => {
-                  onShowHelp();
-                  close();
-                }}
-              >
-                <KeyboardIcon className="w-3.5 h-3.5" />
-                Keyboard shortcuts
-                <span className="ml-auto text-text-muted">?</span>
-              </button>
-            </>
+            <button
+              className={menuItemClass}
+              onClick={() => {
+                onHideWhitespaceChange(!hideWhitespace);
+                close();
+              }}
+            >
+              {hideWhitespace ? <EyeOffIcon className="w-3.5 h-3.5" /> : <EyeIcon className="w-3.5 h-3.5" />}
+              {hideWhitespace ? 'Show whitespace changes' : 'Hide whitespace changes'}
+            </button>
           )}
         />
       </div>

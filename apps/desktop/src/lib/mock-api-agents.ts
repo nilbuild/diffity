@@ -107,8 +107,11 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
   const messages = new Map<string, ChatMessage[]>();
   const cancelled = new Set<string>();
   const permissionWaiters = new Map<string, (optionId: string | null) => void>();
-  let auth: GithubAuthStatus = { authenticated: false, login: null, source: null, deviceFlowAvailable: true };
-  let currentPr: PullRequest | null = null;
+  const withPr = typeof localStorage !== 'undefined' && localStorage.getItem('mock.pr') === '1';
+  let auth: GithubAuthStatus = withPr
+    ? { authenticated: true, login: 'demo-user', source: 'gh', deviceFlowAvailable: true }
+    : { authenticated: false, login: null, source: null, deviceFlowAvailable: true };
+  let currentPr: PullRequest | null = withPr ? PRS[0] : null;
   let devicePolls = 0;
 
   const record = (chatId: string, message: ChatMessage) => {

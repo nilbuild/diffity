@@ -14,3 +14,16 @@ describe('mentionsAgent', () => {
     expect(mentionsAgent('```\n@claude\n```')).toBe(false);
   });
 });
+
+describe('splitMentions', () => {
+  it('splits whole-word mentions only', async () => {
+    const { splitMentions } = await import('../src/lib/mentions');
+    expect(splitMentions('Hey @Claude, check this')).toEqual([
+      { text: 'Hey ', mention: false },
+      { text: '@Claude', mention: true },
+      { text: ', check this', mention: false },
+    ]);
+    expect(splitMentions('@claude')).toEqual([{ text: '@claude', mention: true }]);
+    expect(splitMentions('bob@claude.ai and @claude_bot')).toEqual([{ text: 'bob@claude.ai and @claude_bot', mention: false }]);
+  });
+});

@@ -315,6 +315,7 @@ impl GithubService {
             )
             .await?;
         let full = slug.full_name();
+        let head_repo = branch_head_repo(repo_path, &branch).await.map(|s| s.full_name());
         let found = data
             .repository
             .map(|r| r.pull_requests.into_items())
@@ -322,9 +323,10 @@ impl GithubService {
             .into_iter()
             .find(|pr| {
                 pr.head_ref_name == branch
-                    && pr
-                        .head_repo_full_name()
-                        .is_some_and(|name| name.eq_ignore_ascii_case(&full))
+                    && pr.head_repo_full_name().is_some_and(|name| {
+                        name.eq_ignore_ascii_case(&full)
+                            || head_repo.as_deref().is_some_and(|h| name.eq_ignore_ascii_case(h))
+                    })
             });
         Ok(found.map(|pr| pr.to_pull_request()))
     }
@@ -737,7 +739,34 @@ fn event_name(event: ReviewEvent) -> &'static str {
 /// Git config key (under `branch.<name>.`) recording which PR a `pr-<n>` branch was checked out from.
 const PR_BRANCH_CONFIG: &str = "diffityPr";
 
+/// The repository a branch tracks (`branch.<b>.remote`), e.g. a fork after `gh pr checkout`.
+async fn branch_head_repo(repo_path: &str, branch: &str) -> Option<RepoSlug> {
+    let key = format!("branch.{branch}.remote");
+    let out = gitcli::run(repo_path, &["config", "--get", &key]).await.ok().filter(|out| out.ok)?;
+    let remote = out.output.trim().to_string();
+    if let Some(slug) = remote::parse_remote_url(&remote) {
+        return Some(slug);
+    }
+    let url_key = format!("remote.{remote}.url");
+    let url = gitcli::run(repo_path, &["config", "--get", &url_key]).await.ok().filter(|out| out.ok)?;
+    remote::parse_remote_url(url.output.trim())
+}
+
 async fn linked_pr_number(repo_path: &str, branch: &str) -> Option<u64> {
+    let merge_key = format!("branch.{branch}.merge");
+    let merge = gitcli::run(repo_path, &["config", "--get", &merge_key])
+        .await
+        .ok()
+        .filter(|out| out.ok)
+        .map(|out| out.output.trim().to_string());
+    if let Some(n) = merge
+        .as_deref()
+        .and_then(|m| m.strip_prefix("refs/pull/"))
+        .and_then(|rest| rest.strip_suffix("/head"))
+        .and_then(|n| n.parse::<u64>().ok())
+    {
+        return Some(n);
+    }
     let key = format!("branch.{branch}.{PR_BRANCH_CONFIG}");
     let configured = gitcli::run(repo_path, &["config", "--get", &key])
         .await

@@ -130,6 +130,12 @@ pub struct Commit {
     pub subject: String,
     pub author: String,
     pub date: String,
+    #[serde(default)]
+    pub files_changed: u32,
+    #[serde(default)]
+    pub additions: u32,
+    #[serde(default)]
+    pub deletions: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

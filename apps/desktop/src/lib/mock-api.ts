@@ -264,7 +264,12 @@ const commits: Commit[] = Array.from({ length: 40 }, (_, i) => ({
   ][i % 5],
   author: i % 3 === 0 ? 'Kamran Ahmed' : 'Jane Doe',
   date: new Date(Date.now() - i * 3600_000 * 7).toISOString(),
+  filesChanged: (i % 4) + 1,
+  additions: (i * 13) % 90 + 2,
+  deletions: (i * 7) % 40,
 }));
+
+
 
 const branches: Branch[] = [
   { name: 'feat/cache', isRemote: false, isCurrent: true, upstream: 'origin/feat/cache', ahead: 2, behind: 0 },
@@ -321,7 +326,7 @@ const handlers: Record<string, (args: Args) => unknown> = {
     const search = typeof args.search === 'string' ? args.search.toLowerCase() : '';
     const skip = Number(args.skip ?? 0);
     const count = Number(args.count ?? 20);
-    return commits.filter((c) => !search || c.subject.toLowerCase().includes(search)).slice(skip, skip + count);
+    return commits.filter((c) => !search || c.subject.toLowerCase().includes(search) || c.sha.startsWith(search) || c.author.toLowerCase().includes(search)).slice(skip, skip + count);
   },
   list_branches: () => branches,
   git_status: () => ({ branch: 'feat/cache', upstream: 'origin/feat/cache', ahead: 2, behind: 0, staged: 1, unstaged: 4, untracked: 2, dirty: true }),

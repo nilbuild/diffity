@@ -69,6 +69,9 @@ export interface Commit {
   subject: string;
   author: string;
   date: string;
+  filesChanged: number;
+  additions: number;
+  deletions: number;
 }
 
 export interface Branch {

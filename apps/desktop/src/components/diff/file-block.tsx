@@ -105,11 +105,13 @@ export function FileBlock(props: FileBlockProps) {
 
   const handleRevertFile = useCallback(async () => {
     setConfirmRevertFile(false);
+    const id = toast.loading(`Reverting ${filePath}…`);
     try {
       await apiRevertFile(filePath);
+      toast.success(`Reverted ${filePath}`, { id });
       onRevert?.();
     } catch (error) {
-      toast.error('Could not revert the file', { description: errorMessage(error) });
+      toast.error('Could not revert the file', { id, description: errorMessage(error) });
     }
   }, [filePath, onRevert]);
 
@@ -123,11 +125,13 @@ export function FileBlock(props: FileBlockProps) {
   const handleRevertChange = useCallback(async (info: { hunk: DiffHunk; startIndex: number; endIndex: number }) => {
     setConfirmRevertChange(null);
     const patch = buildChangeGroupPatch(file, info.hunk, info.startIndex, info.endIndex);
+    const id = toast.loading('Undoing change…');
     try {
       await apiRevertHunk(patch);
+      toast.success('Change undone', { id });
       onRevert?.();
     } catch (error) {
-      toast.error('Could not undo the change', { description: errorMessage(error) });
+      toast.error('Could not undo the change', { id, description: errorMessage(error) });
     }
   }, [file, onRevert]);
 

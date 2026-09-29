@@ -39,6 +39,8 @@ import type {
   ViewedFile,
 } from './types';
 
+export type CommitRecord = Commit;
+
 export function isAppError(value: unknown): value is AppError {
   return typeof value === 'object' && value !== null && 'code' in value && 'message' in value;
 }

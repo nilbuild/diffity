@@ -13,6 +13,7 @@
     "opener:default",
     "window-state:default",
     "core:webview:allow-create-webview-window",
-    "core:window:allow-set-focus"
+    "core:window:allow-set-focus",
+    "core:window:allow-set-background-color"
   ]
 }

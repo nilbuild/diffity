@@ -369,3 +369,29 @@ dialog {
     ),
     var(--color-bg-secondary);
 }
+
+@keyframes top-progress {
+  0% {
+    width: 0;
+    margin-left: 0;
+  }
+  50% {
+    width: 60%;
+    margin-left: 20%;
+  }
+  100% {
+    width: 0;
+    margin-left: 100%;
+  }
+}
+
+.top-progress {
+  animation: top-progress 1.1s ease-in-out infinite;
+}
+
+.top-progress-done {
+  animation: none;
+  width: 100%;
+  opacity: 0;
+  transition: opacity 0.2s;
+}

@@ -44,7 +44,46 @@ fn verify(repo: &Path, rev: &str) -> Result<String> {
     git::verify_commit(repo, rev)?.ok_or_else(|| AppError::invalid_ref(format!("unknown revision '{rev}'")))
 }
 
+/// `<sha>~1` / `<sha>^` of a root commit has no parent; those ranges diff the commit against the empty tree.
+fn root_parent_of(repo: &Path, left: &str) -> Result<Option<String>> {
+    let Some(child) = left.strip_suffix("~1").or_else(|| left.strip_suffix('^')) else {
+        return Ok(None);
+    };
+    let Some(sha) = git::verify_commit(repo, child)? else {
+        return Ok(None);
+    };
+    let parents = git::run_trim(repo, &["rev-list", "--parents", "-n1", &sha])?;
+    if parents.split_whitespace().count() > 1 {
+        return Ok(None);
+    }
+    Ok(Some(sha))
+}
+
+fn root_commit_plan(r: &str, sha: String) -> DiffPlan {
+    DiffPlan {
+        resolved: ResolvedRef {
+            r#ref: r.to_string(),
+            label: r.to_string(),
+            can_revert: false,
+            base_sha: None,
+            head_sha: Some(sha.clone()),
+        },
+        args: vec![EMPTY_TREE_SHA.to_string(), sha.clone()],
+        include_untracked: false,
+        old: Source::EmptyTree,
+        new: Source::Commit(sha),
+    }
+}
+
 fn range_plan(repo: &Path, r: &str, left: &str, right: &str) -> Result<DiffPlan> {
+    if git::verify_commit(repo, left)?.is_none() {
+        if let Some(root) = root_parent_of(repo, left)? {
+            let right_sha = verify(repo, right)?;
+            if right_sha == root {
+                return Ok(root_commit_plan(r, root));
+            }
+        }
+    }
     let left_sha = verify(repo, left)?;
     let right_sha = verify(repo, right)?;
     let base = git::merge_base(repo, &left_sha, &right_sha)?

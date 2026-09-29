@@ -132,6 +132,7 @@ async fn mcp_tool_call_reaches_bridge_and_creates_thread() {
         r#ref: "work".into(),
         mode: AgentMode::Review,
         agent_name: "Claude".into(),
+        edit_rejected: Default::default(),
     };
     let token = bridge.register(binding.clone());
     let (_child, mut client) = start_client(&socket, &token).await;

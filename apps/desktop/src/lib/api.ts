@@ -58,7 +58,12 @@ export interface Commit {
   hash: string;
   shortHash: string;
   message: string;
+  author: string;
+  date: string;
   relativeDate: string;
+  filesChanged: number;
+  additions: number;
+  deletions: number;
 }
 
 export interface OverviewFile {
@@ -78,23 +83,35 @@ export interface CommitsPage {
 const WORKING_TREE_LABELS: Record<string, string> = {
   staged: 'Staged changes',
   unstaged: 'Unstaged changes',
-  work: 'All changes',
-  '.': 'All changes',
+  work: 'Uncommitted changes',
+  '.': 'Uncommitted changes',
 };
+
+const COMMIT_REF = /^([0-9a-f]{7,40})~1\.\.\1$/i;
+
+/** The commit sha when `ref` is a single-commit ref (`<sha>~1..<sha>`). */
+export function parseCommitRef(ref: string): string | null {
+  const match = COMMIT_REF.exec(ref);
+  return match ? match[1] : null;
+}
+
+export function isWorkingTreeRef(ref: string): boolean {
+  return ref in WORKING_TREE_LABELS;
+}
 
 export function descriptionForRef(ref: string): string {
   const label = WORKING_TREE_LABELS[ref];
   if (label) {
     return label;
   }
-  const commit = /^([0-9a-f]{7,40})~1\.\.\1$/i.exec(ref);
+  const commit = parseCommitRef(ref);
   if (commit) {
-    return `Commit ${commit[1].slice(0, 7)}`;
+    return `Commit ${commit.slice(0, 7)}`;
   }
   if (ref.includes('..')) {
     return ref;
   }
-  return `Changes from ${ref}`;
+  return `Changes since ${ref}`;
 }
 
 export function commitRef(hash: string): string {
@@ -170,14 +187,29 @@ export async function fetchOverview(): Promise<Overview> {
 export async function fetchCommits(skip = 0, count = 10, search?: string): Promise<CommitsPage> {
   const commits = await tauri.listCommits(getRepoPath(), count, skip, search ?? null);
   return {
-    commits: commits.map((commit) => ({
-      hash: commit.sha,
-      shortHash: commit.shortSha,
-      message: commit.subject,
-      relativeDate: dayjs(commit.date).fromNow(),
-    })),
+    commits: commits.map(toCommit),
     hasMore: commits.length === count,
   };
+}
+
+function toCommit(commit: tauri.CommitRecord): Commit {
+  return {
+    hash: commit.sha,
+    shortHash: commit.shortSha,
+    message: commit.subject,
+    author: commit.author,
+    date: commit.date,
+    relativeDate: dayjs(commit.date).fromNow(),
+    filesChanged: commit.filesChanged ?? 0,
+    additions: commit.additions ?? 0,
+    deletions: commit.deletions ?? 0,
+  };
+}
+
+export async function fetchCommit(sha: string): Promise<Commit | null> {
+  const commits = await tauri.listCommits(getRepoPath(), 20, 0, sha);
+  const found = commits.find((commit) => commit.sha.startsWith(sha.toLowerCase()));
+  return found ? toCommit(found) : null;
 }
 
 function toAuthor(comment: BackendComment): CommentAuthor {

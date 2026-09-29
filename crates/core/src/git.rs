@@ -216,20 +216,46 @@ pub fn repo_info(path: &Path) -> Result<RepoInfo> {
     })
 }
 
-const LOG_FORMAT: &str = "--format=%H%x1f%h%x1f%s%x1f%an%x1f%aI%x1e";
+const LOG_FORMAT: &str = "--format=%x1e%H%x1f%h%x1f%s%x1f%an%x1f%aI";
+
+fn parse_shortstat(line: &str) -> (u32, u32, u32) {
+    let mut stats = (0, 0, 0);
+    for part in line.split(',') {
+        let part = part.trim();
+        let Some((n, rest)) = part.split_once(' ') else {
+            continue;
+        };
+        let Ok(n) = n.parse::<u32>() else {
+            continue;
+        };
+        if rest.starts_with("file") {
+            stats.0 = n;
+        } else if rest.starts_with("insertion") {
+            stats.1 = n;
+        } else if rest.starts_with("deletion") {
+            stats.2 = n;
+        }
+    }
+    stats
+}
 
 fn parse_log(out: &str) -> Vec<Commit> {
     out.split('\x1e')
         .map(|r| r.trim_matches(|c| c == '\n' || c == '\r'))
         .filter(|r| !r.is_empty())
         .filter_map(|r| {
-            let mut parts = r.split('\x1f');
+            let (header, stat) = r.split_once('\n').unwrap_or((r, ""));
+            let mut parts = header.split('\x1f');
+            let (files_changed, additions, deletions) = parse_shortstat(stat.trim());
             Some(Commit {
                 sha: parts.next()?.to_string(),
                 short_sha: parts.next()?.to_string(),
                 subject: parts.next()?.to_string(),
                 author: parts.next()?.to_string(),
                 date: parts.next()?.to_string(),
+                files_changed,
+                additions,
+                deletions,
             })
         })
         .collect()
@@ -237,7 +263,7 @@ fn parse_log(out: &str) -> Vec<Commit> {
 
 fn log_query(repo: &Path, limit: u32, filter: Option<String>) -> Result<Vec<Commit>> {
     let n = format!("-n{limit}");
-    let mut args = vec!["log", LOG_FORMAT, &n];
+    let mut args = vec!["log", LOG_FORMAT, "--shortstat", &n];
     let filter_arg;
     if let Some(f) = filter {
         filter_arg = f;
@@ -261,7 +287,7 @@ pub fn list_commits(repo: &Path, count: u32, skip: u32, search: Option<&str>) ->
     let Some(search) = search else {
         let n = format!("-n{count}");
         let s = format!("--skip={skip}");
-        let out = run(repo, &["log", LOG_FORMAT, &n, &s])?;
+        let out = run(repo, &["log", LOG_FORMAT, "--shortstat", &n, &s])?;
         return Ok(parse_log(&out));
     };
     let limit = count.saturating_add(skip);
@@ -270,7 +296,7 @@ pub fn list_commits(repo: &Path, count: u32, skip: u32, search: Option<&str>) ->
     let lower = search.to_lowercase();
     if lower.len() >= 4 && lower.chars().all(|c| c.is_ascii_hexdigit()) {
         if let Some(sha) = verify_commit(repo, &lower)? {
-            let out = run(repo, &["log", LOG_FORMAT, "-n1", &sha])?;
+            let out = run(repo, &["log", LOG_FORMAT, "--shortstat", "-n1", &sha])?;
             merged.extend(parse_log(&out));
         }
     }

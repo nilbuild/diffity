@@ -41,22 +41,33 @@ export function usePendingReview(sessionId: string | null): Review | null {
 
 export interface SubmitReviewInput {
   body: string;
-  verdict: ReviewVerdict;
+  verdict: ReviewVerdict | null;
   sendToClaude: boolean;
   prNumber: number | null;
 }
 
 const VERDICT_LABEL: Record<ReviewVerdict, string> = {
-  comment: 'Review submitted',
+  comment: 'Review posted',
   approve: 'Approved',
   requestChanges: 'Changes requested',
 };
+
+function successTitle(review: Review, pushed: boolean, claude: boolean): string {
+  if (pushed && review.verdict) {
+    return VERDICT_LABEL[review.verdict];
+  }
+  if (claude) {
+    return 'Sent to Claude';
+  }
+  const count = review.commentCount;
+  return count > 0 ? `Published ${count} ${count === 1 ? 'comment' : 'comments'}` : 'Note published';
+}
 
 function triggerClaude(review: Review, sendToClaude: boolean): string | null {
   const context = { repoPath: getRepoPath(), sessionId: review.sessionId };
   if (sendToClaude || review.bodyMentionsAgent) {
     enqueueClaude({ kind: 'reviewFeedback', reviewId: review.id }, context);
-    return 'sent to Claude';
+    return 'Claude is working through it (see the status in the toolbar)';
   }
   for (const threadId of review.mentionedThreadIds) {
     enqueueClaude({ kind: 'thread', threadId }, context);
@@ -84,9 +95,11 @@ export function useReviewActions(sessionId: string | null) {
       if (input.prNumber !== null) {
         try {
           const result = await tauri.pushSubmittedReview(getRepoPath(), sessionId, input.prNumber, review.id);
-          pushed = result.failed > 0 ? `posted to #${input.prNumber} with ${result.failed} failed` : `posted to #${input.prNumber}`;
+          pushed = result.failed > 0 ? `posted to PR #${input.prNumber}, ${result.failed} failed` : `posted to PR #${input.prNumber}`;
         } catch (error) {
-          toast.error('Could not post to GitHub', { description: tauri.errorMessage(error) });
+          toast.error(`Comments were saved, but posting to PR #${input.prNumber} failed`, {
+            description: `${tauri.errorMessage(error)} — use the GitHub button to push them again.`,
+          });
         }
       }
       return { review, pushed, sendToClaude: input.sendToClaude };
@@ -96,7 +109,7 @@ export function useReviewActions(sessionId: string | null) {
       const claude = triggerClaude(result.review, result.sendToClaude);
       const count = result.review.commentCount;
       const parts = [count > 0 ? `${count} ${count === 1 ? 'comment' : 'comments'}` : null, result.pushed, claude].filter(Boolean);
-      toast.success(VERDICT_LABEL[result.review.verdict ?? 'comment'], { description: parts.join(' · ') || undefined });
+      toast.success(successTitle(result.review, result.pushed !== null, claude !== null), { description: parts.join(' · ') || undefined });
     },
     onError: (error) => toast.error(tauri.errorMessage(error)),
   });
@@ -105,7 +118,7 @@ export function useReviewActions(sessionId: string | null) {
     mutationFn: () => tauri.discardReview(sessionId ?? ''),
     onSuccess: () => {
       refresh();
-      toast.success('Review discarded');
+      toast.success('Draft comments discarded');
     },
     onError: (error) => toast.error(tauri.errorMessage(error)),
   });

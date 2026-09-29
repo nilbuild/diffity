@@ -137,7 +137,7 @@ export function GitHubDialog(props: GitHubDialogProps) {
   );
 }
 
-function SignInPanel(props: { onSignedIn: (status: GithubAuthStatus) => void }) {
+export function SignInPanel(props: { onSignedIn: (status: GithubAuthStatus) => void }) {
   const { onSignedIn } = props;
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState<'gh' | 'token' | null>(null);

@@ -76,7 +76,7 @@ interface DiffFileSummary { path: string; oldPath: string | null; status: FileSt
 interface OverviewFile { path: string; status: 'staged' | 'modified' | 'added'; }   // dashboard; modified wins over staged, untracked = added
 interface DiffResult { resolved: ResolvedRef; files: DiffFileSummary[]; patch: string; fingerprint: string; }
 interface FileVersions { oldContents: string | null; newContents: string | null; }
-interface Commit { sha: string; shortSha: string; subject: string; author: string; date: string; }
+interface Commit { sha: string; shortSha: string; subject: string; author: string; date: string; filesChanged: number; additions: number; deletions: number; }   // --shortstat
 interface Branch { name: string; isRemote: boolean; isCurrent: boolean; upstream: string | null; ahead: number; behind: number; }
 interface GitStatus { branch: string | null; upstream: string | null; ahead: number; behind: number; staged: number; unstaged: number; untracked: number; dirty: boolean; }
 
@@ -210,6 +210,7 @@ github_set_resolved(threadId, resolved: bool) -> Thread
 - `diffity-mcp` (rmcp, stdio) exposes tools and forwards each call as one NDJSON line `{"token","tool","args"}` → response `{"ok":true,"result":...}` or `{"ok":false,"error":"..."}`.
 - Tools: `get_diff()`, `list_threads(status?)`, `add_comment(file, startLine, endLine?, side?, body, severity?)`, `add_general_comment(body)`, `reply(threadId, body)`, `resolve(threadId, summary?)`, `dismiss(threadId, reason?)`. Thread ids accept 8-char prefixes. `add_comment` validates the file is in the session diff and the line range exists on that side.
 - Tool calls write via `diffity_core::Store` and the desktop emits `threads-changed` (agents crate exposes a callback hook `on_threads_changed(session_id)`).
+- Rejected edits: when the user denies a file write (or an edit/delete/move permission) during a turn, the chat's binding flag `edit_rejected` is set and `resolve` returns `edit_rejected` for the rest of that turn, telling the agent to `reply` instead. The flag resets at the start of each turn.
 - In `ask` / `review` modes the ACP client refuses `fs/write_text_file` and denies write/execute permission requests automatically. In `resolve` / `edit` modes, writes surface as `permissionRequest` with a diff.
 
 ## Frontend structure (`apps/desktop/src`)
@@ -233,7 +234,7 @@ features/welcome/open-repo.ts   folder picker, PR URL parsing
 Adapter mapping (`lib/api.ts`, web endpoint → command):
 - `/api/diff` → `get_diff` + `parseDiff(patch)`; `oldFileLineCount` from `DiffFileSummary.oldLineCount`. `/api/diff-fingerprint` → `diff_fingerprint`.
 - `/api/info` → `open_repo` + `resolve_ref` + `get_session` (description = web labels, `capabilities.revert = canRevert`, `github` parsed from `remoteUrl`). `/api/tree/info` → same with the `__tree__` session.
-- `/api/overview` → `repo_overview`; `/api/commits` → `list_commits` (`hasMore = page full`, relative dates via dayjs; clicking a commit opens `<sha>~1..<sha>`).
+- `/api/overview` → `repo_overview`; `/api/commits` → `list_commits` (`hasMore = page full`, relative dates via dayjs; clicking a commit opens `<sha>~1..<sha>`; for a root commit the backend diffs against the empty tree).
 - `/api/file/:path?ref` → `get_file_versions(...).oldContents`; rich Markdown/SVG diff uses both sides. `/api/tree*` → `list_tree` (entries derived client-side), `read_file`; `/api/tree/raw` → `read_file_base64` data URLs (images, Markdown images).
 - Threads: `list_threads` / `create_thread` / `add_reply` / `set_thread_status` / `edit_comment` / `delete_*`; backend threads are mapped to the web `CommentThread` (`author: {name, type}`, plus `pending`, `reviewId`, `sessionId`). Tree path comments keep the web convention `filePath = "__path__:<path>"`.
 - `revert_file` / `revert_hunk` / `open_in_editor`; GitHub dialog → `github_auth_status`, `github_import_gh_token`, `github_set_token`, `github_logout`, `find_pr`, `github_pushable_threads`, `push_review(threadIds)`, `pull_review` (both on the PR session `origin/<base>...HEAD`).
@@ -299,7 +300,7 @@ Watcher: `watch::WatcherRegistry` (held in a static in `commands/repo.rs`); `wat
 GitHub-style pending reviews plus `@claude` mentions.
 
 - **Pending review.** `create_thread({ ..., pending: true })` / `add_reply(..., pending: true)` put a user comment in the session's pending review (get-or-created; at most one per session, enforced by a unique partial index). A thread is pending iff its first comment is pending (`Thread.pending`); replies to a pending thread are always pending; only user comments can be pending. Pending comments can be edited/deleted with the normal commands. `start_review` creates the empty pending review explicitly (optional).
-- **Submit.** `submit_review(sessionId, body, verdict)` publishes every pending comment (re-stamped `createdAt` = submit time so ordering reflects publication), reopens resolved/dismissed threads that received a review reply, and stamps the review `submitted`. Without a pending review it still submits a body-only review when the body is non-empty or the verdict is not `comment` (else `invalid`). `discard_review` deletes the pending review, its draft threads and draft replies.
+- **Submit.** `submit_review(sessionId, body, verdict)` (verdict `null` = local review, no PR) publishes every pending comment (re-stamped `createdAt` = submit time so ordering reflects publication), reopens resolved/dismissed threads that received a review reply, and stamps the review `submitted`. Without a pending review it still submits a body-only review when the body is non-empty or the verdict is not `comment` (else `invalid`). `discard_review` deletes the pending review, its draft threads and draft replies.
 - **Review fields.** `pendingCount`, `commentCount`, `threadIds` (threads the review started or replied to, in order), `mentionedThreadIds` (threads with a user review comment mentioning `@claude`), `bodyMentionsAgent`.
 - **Visibility.** The MCP bridge hides pending threads and strips pending comments (`tools::visible`); `find`/`reply`/`resolve` on a pending thread → `not_found`. GitHub push never selects pending threads/comments.
 - **Mentions.** `diffity_core::mentions::mentions_agent` (re-exported as `diffity_agents::mentions`, TS mirror `lib/mentions.ts`): case-insensitive `@claude`, whole word (not `bob@claude.ai`, `@claude_bot`, `@claude-code`, `@claude/sdk`), ignored inside inline code and fenced blocks. `Comment.mentionsAgent` is computed on load for user-authored comments only.

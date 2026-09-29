@@ -27,6 +27,7 @@ const DEFAULT_REF: &str = "work";
 struct Runtime {
     session: AgentSession,
     token: String,
+    edit_rejected: Arc<std::sync::atomic::AtomicBool>,
 }
 
 type Slot = Arc<Mutex<Option<Arc<Runtime>>>>;
@@ -255,11 +256,12 @@ impl AgentManager {
         }))
     }
 
-    async fn runtime(&self, rec: &chats::ChatRecord, binding: Binding) -> Result<Arc<Runtime>> {
+    async fn runtime(&self, rec: &chats::ChatRecord, mut binding: Binding) -> Result<Arc<Runtime>> {
         let slot = self.slot(&rec.chat.id);
         let mut guard = slot.lock().await;
         if let Some(rt) = guard.as_ref() {
             if rt.session.is_alive() {
+                binding.edit_rejected = rt.edit_rejected.clone();
                 self.bridge.update(&rt.token, |b| *b = binding);
                 return Ok(rt.clone());
             }
@@ -303,6 +305,7 @@ impl AgentManager {
         }
         self.bridge.ensure_started().await?;
 
+        let edit_rejected = binding.edit_rejected.clone();
         let token = self.bridge.register(binding);
         let started = AgentSession::start(SessionConfig {
             launch,
@@ -317,6 +320,7 @@ impl AgentManager {
             ],
             resume_session_id: rec.acp_session_id.clone(),
             broker: self.broker.clone(),
+            edit_rejected: edit_rejected.clone(),
         })
         .await;
         let session = match started {
@@ -337,7 +341,11 @@ impl AgentManager {
             );
             blocking(move || chats::set_acp_session(&store, &chat_id, &acp)).await?;
         }
-        let rt = Arc::new(Runtime { session, token });
+        let rt = Arc::new(Runtime {
+            session,
+            token,
+            edit_rejected,
+        });
         *guard = Some(rt.clone());
         Ok(rt)
     }
@@ -369,6 +377,7 @@ impl AgentManager {
                 .map(|k| k.display_name())
                 .unwrap_or("Agent")
                 .to_string(),
+            edit_rejected: Default::default(),
         };
 
         let (store, id) = (self.store.clone(), chat_id.to_string());

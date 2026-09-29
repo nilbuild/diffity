@@ -4,7 +4,7 @@ import type { Thread } from '../src/lib/types';
 
 describe('descriptionForRef', () => {
   it('labels working tree refs like the web app', () => {
-    expect(descriptionForRef('work')).toBe('All changes');
+    expect(descriptionForRef('work')).toBe('Uncommitted changes');
     expect(descriptionForRef('staged')).toBe('Staged changes');
     expect(descriptionForRef('unstaged')).toBe('Unstaged changes');
   });
@@ -12,7 +12,7 @@ describe('descriptionForRef', () => {
   it('labels commits, ranges and single refs', () => {
     expect(descriptionForRef(commitRef('abcdef1234567'))).toBe('Commit abcdef1');
     expect(descriptionForRef('main...HEAD')).toBe('main...HEAD');
-    expect(descriptionForRef('HEAD~3')).toBe('Changes from HEAD~3');
+    expect(descriptionForRef('HEAD~3')).toBe('Changes since HEAD~3');
   });
 });
 

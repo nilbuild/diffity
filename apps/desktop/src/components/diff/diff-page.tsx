@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useDiff } from '../../hooks/use-diff';
 import { useInfo } from '../../hooks/use-info';
 import { useTheme } from '../../hooks/use-theme';
@@ -9,19 +9,19 @@ import { useCommentActions } from '../../hooks/use-comment-actions';
 import { Toolbar } from '../layout/toolbar';
 import { DiffView, type DiffViewHandle } from './diff-view';
 import { Sidebar } from '../layout/sidebar';
-import { ShortcutModal } from '../layout/shortcut-modal';
 import { StaleDiffBanner } from '../layout/stale-diff-banner';
-import { CheckCircleIcon } from '../icons/check-circle-icon';
-import { PageLoader } from '../layout/skeleton';
+import { DiffSkeleton, hideStaticSplash } from '../layout/skeleton';
+import { DiffContextBar } from '../layout/diff-context-bar';
+import { DiffEmptyState } from './diff-empty-state';
+import { openShortcuts } from '../../lib/ui-store';
 import { useDiffStaleness } from '../../hooks/use-diff-staleness';
 import { type ViewMode, getFilePath, getAutoCollapsedPaths } from '../../lib/diff-utils';
 import { buildFirstOpenThreadByFile, buildThreadCountsByFile } from '../../lib/comment-navigation';
 import { getHunkHeaders, scrollToElement } from '../../lib/dom-utils';
-import { fetchGitHubDetails } from '../../lib/api';
 import type { LineSelection } from '../comments/types';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { useViewedFiles } from '../../hooks/use-viewed-files';
-import { useRepoNav } from '../../hooks/use-repo';
+import { useGitHubPr } from '../../hooks/use-repo-state';
 
 interface DiffPageProps {
   diffRef: string;
@@ -32,9 +32,7 @@ export function DiffPage(props: DiffPageProps) {
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => (localStorage.getItem('diffity-view-mode') as ViewMode | null) ?? 'split');
   const [hideWhitespace, setHideWhitespace] = useState(false);
-  const [showHelp, setShowHelp] = useState(false);
   const { theme, toggleTheme } = useTheme();
-  const nav = useRepoNav();
   const { data: diff, error } = useDiff(hideWhitespace, refParam);
   const { data: info } = useInfo(refParam);
   const [activeFile, setActiveFile] = useState<string | null>(null);
@@ -50,18 +48,16 @@ export function DiffPage(props: DiffPageProps) {
   const sessionId = info?.sessionId ?? null;
   const canRevert = !!info?.capabilities?.revert;
   const { isStale, resetStaleness } = useDiffStaleness(refParam, !!info?.capabilities?.staleness);
-  const { data: githubDetails = null } = useQuery({
-    queryKey: ['github-details'],
-    queryFn: fetchGitHubDetails,
-    enabled: !!info?.github,
-    staleTime: 60_000,
-    retry: false,
-  });
+  const { details: githubDetails } = useGitHubPr();
   const { reviewedFiles, setReviewed } = useViewedFiles(sessionId, diff);
 
   useEffect(() => {
     localStorage.setItem('diffity-view-mode', viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    hideStaticSplash();
+  }, []);
 
   const { data: serverThreads, isFetched: threadsFetched } = useReviewThreads(reviewsEnabled ? sessionId : null);
   const threads = reviewsEnabled && serverThreads ? serverThreads : [];
@@ -229,7 +225,6 @@ export function DiffPage(props: DiffPageProps) {
     },
     onUnifiedView: () => setViewMode('unified'),
     onSplitView: () => setViewMode('split'),
-    onShowHelp: () => setShowHelp(true),
     onFocusSearch: () => {
       const input = document.querySelector(
         'input[placeholder="Filter files..."]',
@@ -238,7 +233,7 @@ export function DiffPage(props: DiffPageProps) {
         input.focus();
       }
     },
-    onEscape: () => setShowHelp(false),
+    onEscape: () => undefined,
   });
 
   const queryClient = useQueryClient();
@@ -296,7 +291,7 @@ export function DiffPage(props: DiffPageProps) {
 
   const threadsLoading = reviewsEnabled && !threadsFetched;
   if (threadsLoading) {
-    return <PageLoader />;
+    return <DiffSkeleton />;
   }
 
   const isEmpty = diff.files.length === 0;
@@ -305,13 +300,11 @@ export function DiffPage(props: DiffPageProps) {
     <ReviewStateProvider sessionId={reviewsEnabled ? sessionId : null}>
     <div className="flex flex-col h-screen bg-bg text-text font-sans">
       <Toolbar
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
         hideWhitespace={hideWhitespace}
         onHideWhitespaceChange={setHideWhitespace}
         theme={theme}
         onToggleTheme={toggleTheme}
-        onShowHelp={() => setShowHelp(true)}
+        onShowHelp={openShortcuts}
         diff={diff || undefined}
         diffRef={refParam}
         threads={threads}
@@ -319,35 +312,23 @@ export function DiffPage(props: DiffPageProps) {
         onScrollToThread={handleScrollToThread}
         repoName={info?.name || null}
         branch={info?.branch || null}
-        description={info?.description || null}
         githubDetails={githubDetails}
         hasGitHubRemote={!!info?.github}
         sessionId={sessionId}
         onGitHubPulled={() => queryClient.invalidateQueries({ queryKey: ['threads'] })}
       />
+      <DiffContextBar
+        diffRef={refParam}
+        branch={info?.branch || null}
+        diff={isEmpty ? null : diff}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        hideWhitespace={hideWhitespace}
+        onHideWhitespaceChange={setHideWhitespace}
+      />
       {isStale && <StaleDiffBanner onRefresh={handleRefreshDiff} />}
       {isEmpty ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-2">
-          <div className="text-added opacity-40 mb-1">
-            <CheckCircleIcon />
-          </div>
-          <h2 className="text-base font-medium text-text-secondary">No changes found</h2>
-          <p className="text-xs text-text-muted">There are no differences to display.</p>
-          <div className="mt-4 flex items-center gap-2">
-            <button
-              onClick={nav.toOverview}
-              className="px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
-            >
-              Browse commits
-            </button>
-            <button
-              onClick={() => nav.toTree()}
-              className="px-3 py-1.5 text-xs font-medium rounded-md bg-bg-tertiary text-text-secondary hover:text-text transition-colors cursor-pointer"
-            >
-              Browse files
-            </button>
-          </div>
-        </div>
+        <DiffEmptyState diffRef={refParam} hideWhitespace={hideWhitespace} branch={info?.branch || null} />
       ) : (
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
@@ -385,7 +366,6 @@ export function DiffPage(props: DiffPageProps) {
         ) : null}
       </div>
       )}
-      {showHelp && <ShortcutModal onClose={() => setShowHelp(false)} />}
     </div>
     </ReviewStateProvider>
   );

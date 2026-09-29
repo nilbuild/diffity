@@ -43,6 +43,7 @@ import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
 import { FinishReview } from '../../features/review/finish-review';
 import { useRepoNav } from '../../hooks/use-repo';
 import { PencilIcon } from '../icons/pencil-icon';
+import { FileBlockSkeleton, hideStaticSplash } from '../layout/skeleton';
 
 function formatTreeThreadsForCopy(threads: CommentThread[]): string {
   const unresolvedThreads = threads.filter(
@@ -117,6 +118,10 @@ export function TreePage() {
   );
 
   const [focusedThreadId, setFocusedThreadId] = useState<string | null>(null);
+
+  useEffect(() => {
+    hideStaticSplash();
+  }, []);
   const [previewMode, setPreviewMode] = useState<'preview' | 'code'>('preview');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const mainRef = useRef<HTMLElement>(null);
@@ -318,7 +323,7 @@ export function TreePage() {
       );
     }
     if (!fileContent) {
-      return fileFetching ? null : (
+      return fileFetching ? <FileBlockSkeleton lines={14} /> : (
         <div className='flex items-center justify-center h-32 text-xs text-text-muted'>
           File not found
         </div>
@@ -365,7 +370,7 @@ export function TreePage() {
           )}
           <PageSwitcher current='tree' />
           <span className='text-text-muted truncate hidden lg:inline'>
-            Repository browser
+            All files in the working tree
           </span>
         </div>
         <div className='flex items-center gap-2 ml-auto shrink-0'>
@@ -467,7 +472,9 @@ export function TreePage() {
             renderFile()
           ) : entries.length > 0 ? (
             <FolderViewer entries={entries} onNavigate={handleNavigate} />
-          ) : entriesFetching ? null : (
+          ) : entriesFetching ? (
+            <FileBlockSkeleton lines={6} />
+          ) : (
             <div className='flex items-center justify-center h-32 text-xs text-text-muted'>
               Empty directory
             </div>

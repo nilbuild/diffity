@@ -1,5 +1,7 @@
 import { AlertCircleIcon } from "./icons/alert-circle-icon";
+import { useEffect } from "react";
 import { isAppError } from "../lib/tauri";
+import { hideStaticSplash } from "./layout/skeleton";
 
 type ErrorPageProps = {
   error: unknown;
@@ -9,9 +11,25 @@ type ErrorPageProps = {
 export function ErrorPage(props: ErrorPageProps) {
   const { error, actions } = props;
 
+  useEffect(() => {
+    hideStaticSplash();
+  }, []);
+
   let title = "Something went wrong";
   let message = "An unexpected error occurred.";
   let detail = "";
+  const code = isAppError(error) ? error.code : null;
+  let hint = "";
+  if (code === "not_a_repo") {
+    title = "Not a Git repository";
+    hint = "Diffity reviews changes tracked by Git. Run git init in that folder, or open the repository root.";
+  } else if (code === "not_found") {
+    title = "Folder not found";
+  } else if (code === "invalid_ref") {
+    title = "Could not find that commit or branch";
+  } else if (code === "git_failed") {
+    title = "Git command failed";
+  }
 
   const text = isAppError(error) ? error.message : error instanceof Error ? error.message : null;
   if (text !== null) {
@@ -26,23 +44,25 @@ export function ErrorPage(props: ErrorPageProps) {
   }
 
   return (
-    <div className="flex items-center justify-center h-screen bg-bg text-text">
+    <div data-tauri-drag-region className="flex items-center justify-center h-screen bg-bg text-text font-sans">
       <div className="max-w-lg text-center px-6">
         <AlertCircleIcon className="w-5 h-5 mx-auto mb-4 text-red-400" />
         <h1 className="text-lg font-semibold mb-2">{title}</h1>
-        <p className="text-sm text-text-secondary mb-6">{message}</p>
+        <p className="text-sm text-text-secondary mb-2 break-words">{message}</p>
+        {hint && <p className="text-xs text-text-muted mb-6">{hint}</p>}
+        {!hint && <div className="mb-4" />}
         {detail && (
           <pre className="text-left text-xs text-text-muted bg-bg-secondary border border-border rounded-md p-4 mb-6 overflow-x-auto max-h-40 whitespace-pre-wrap break-words">
             {detail}
           </pre>
         )}
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3">
           {actions.map((action) => {
             if (action.primary) {
               return (
                 <button
                   key={action.label}
-                  className="px-4 py-2 text-sm rounded-md bg-accent text-white hover:bg-accent-hover cursor-pointer transition-colors"
+                  className="px-4 py-2 text-sm whitespace-nowrap rounded-md bg-accent text-white hover:bg-accent-hover cursor-pointer transition-colors"
                   onClick={action.onClick}
                 >
                   {action.label}
@@ -53,7 +73,7 @@ export function ErrorPage(props: ErrorPageProps) {
             return (
               <button
                 key={action.label}
-                className="px-4 py-2 text-sm rounded-md border border-border hover:bg-hover cursor-pointer transition-colors"
+                className="px-4 py-2 text-sm whitespace-nowrap rounded-md border border-border hover:bg-hover cursor-pointer transition-colors"
                 onClick={action.onClick}
               >
                 {action.label}

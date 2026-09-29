@@ -17,6 +17,13 @@ You are resolving open review threads in Diffity by making the requested code ch
 
 Thread ids accept 8-char prefixes.
 
+## Rejected edits
+
+Every file write is shown to the user, who can allow or reject it. A rejected write means the user does NOT want that change.
+- Never call `resolve` (and never write "Fixed: …") for a thread unless your edit for it was actually applied. If any write for a thread is rejected, stop editing for that thread: make no further edits for it (not a retry, not the remaining parts of the same change, not another route to it).
+- Instead `reply` on the thread: say the edit was rejected, describe the change you proposed, and ask how they would like to proceed. Leave the thread open.
+- After any rejected write in this run, `resolve` fails with `edit_rejected` for every thread. When that happens, `reply` instead — do not retry `resolve`.
+
 ## Instructions
 
 1. Call `list_threads` with `status: "open"`. If a target thread was given, handle only that thread.
@@ -29,6 +36,7 @@ Thread ids accept 8-char prefixes.
    e. Comments phrased as questions without the `question` severity ("should we add X?", "can we rename this?") are requests — make the change.
    f. Interpret the intent: code change → make it; documentation → add/update docs; implied action → do it. If genuinely unclear, `reply` with "Could you clarify what change you'd like here?" instead of silently skipping.
    g. Read the relevant file for full context around the commented lines, then make the change with your file editing tools. Keep changes minimal and focused on the comment.
-   h. After the change, `resolve` the thread with a summary like "Fixed: <brief description>".
+   h. Only after the change was actually written, `resolve` the thread with a summary like "Fixed: <brief description>".
+   i. If the write was rejected, follow **Rejected edits** below: `reply`, do not `resolve`.
 4. Call `list_threads` again to confirm the final status.
-5. Reply with a short summary: threads resolved, threads skipped or awaiting clarification.
+5. Reply with a short summary: threads resolved, threads left open because an edit was rejected, threads skipped or awaiting clarification.

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { XIcon } from '../icons/x-icon';
+import { modKey } from '../../lib/platform';
 
 interface ShortcutModalProps {
   onClose: () => void;
@@ -7,33 +8,32 @@ interface ShortcutModalProps {
 
 const shortcuts = [
   {
-    category: 'Navigation',
+    category: 'Changes view',
     items: [
-      { key: 'j', description: 'Next file' },
-      { key: 'k', description: 'Previous file' },
-      { key: 'n', description: 'Next changed hunk' },
-      { key: 'p', description: 'Previous changed hunk' },
+      { key: 'j / k', description: 'Next / previous file' },
+      { key: 'n / p', description: 'Next / previous changed hunk' },
+      { key: 'u / s', description: 'Unified / split view' },
+      { key: 'x', description: 'Collapse or expand file' },
+      { key: 'Shift+x', description: 'Collapse or expand all files' },
+      { key: 'r', description: 'Mark file as viewed' },
+      { key: '/', description: 'Filter files' },
     ],
   },
   {
-    category: 'View',
+    category: 'Comments',
     items: [
-      { key: 'u', description: 'Unified view' },
-      { key: 's', description: 'Split view' },
-      { key: 'x', description: 'Collapse/expand file' },
-      { key: 'Shift+x', description: 'Collapse/expand all files' },
-      { key: 'r', description: 'Toggle file as viewed' },
-    ],
-  },
-  {
-    category: 'Other',
-    items: [
-      { key: '/', description: 'Focus search' },
-      { key: '⌘ Enter', description: 'Submit comment' },
+      { key: 'Click line', description: 'Comment on a line (drag for a range)' },
+      { key: `${modKey} Enter`, description: 'Submit comment' },
+      { key: 'Esc', description: 'Cancel comment / close dialog' },
       { key: '@claude', description: 'Ask Claude Code in a comment' },
-      { key: '⌘O', description: 'Open repository (start screen)' },
+    ],
+  },
+  {
+    category: 'App',
+    items: [
+      { key: `${modKey}O`, description: 'Open repository (start screen)' },
+      { key: `${modKey},`, description: 'Settings' },
       { key: '?', description: 'Show shortcuts' },
-      { key: 'Esc', description: 'Close modal / clear' },
     ],
   },
 ];

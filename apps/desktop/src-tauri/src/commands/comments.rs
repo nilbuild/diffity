@@ -152,7 +152,7 @@ pub async fn submit_review(
     let review = state.store.submit_review(
         &session_id,
         body.as_deref().unwrap_or(""),
-        verdict.unwrap_or(ReviewVerdict::Comment),
+        verdict,
     )?;
     emit_threads_changed(&app, &session_id);
     Ok(review)

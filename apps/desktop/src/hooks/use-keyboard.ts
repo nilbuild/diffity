@@ -11,7 +11,6 @@ interface KeyboardActions {
   onToggleReviewed: () => void;
   onUnifiedView: () => void;
   onSplitView: () => void;
-  onShowHelp: () => void;
   onFocusSearch: () => void;
   onEscape: () => void;
 }
@@ -43,10 +42,6 @@ export function useKeyboard(actions: KeyboardActions) {
       if (e.key === '/' && !isInputFocused()) {
         e.preventDefault();
         actionsRef.current.onFocusSearch();
-      }
-      if (e.key === '?' && !isInputFocused()) {
-        e.preventDefault();
-        actionsRef.current.onShowHelp();
       }
     };
     window.addEventListener('keydown', handleKeyDown);

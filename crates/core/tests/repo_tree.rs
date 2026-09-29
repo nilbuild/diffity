@@ -39,6 +39,8 @@ fn commits_branches_status() {
     assert_eq!(all.len(), 3);
     assert_eq!(all[0].subject, "fix bug in beta");
     assert_eq!(all[0].author, "Test");
+    assert_eq!((all[0].files_changed, all[0].additions, all[0].deletions), (1, 1, 0));
+    assert_eq!(all[2].files_changed, 2);
     let page = git::list_commits(&repo.path, 1, 1, None).unwrap();
     assert_eq!(page[0].subject, "Add alpha feature");
     let found = git::list_commits(&repo.path, 10, 0, Some("ALPHA")).unwrap();

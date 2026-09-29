@@ -1,6 +1,8 @@
 mod commands;
 mod env_fix;
 mod state;
+#[cfg(target_os = "macos")]
+mod traffic_lights;
 
 use std::sync::Arc;
 
@@ -60,7 +62,34 @@ pub fn run() {
         .setup(|app| {
             let state = init_state(app)?;
             app.manage(state);
+            #[cfg(target_os = "macos")]
+            if let Some(window) = app.get_webview_window("main") {
+                traffic_lights::center(&window.as_ref().window());
+            }
             Ok(())
+        })
+        // AppKit rebuilds the title bar (and reclaims the buttons) on any of these.
+        .on_window_event(|window, event| {
+            #[cfg(target_os = "macos")]
+            if matches!(
+                event,
+                tauri::WindowEvent::Resized(_)
+                    | tauri::WindowEvent::Moved(_)
+                    | tauri::WindowEvent::Focused(_)
+                    | tauri::WindowEvent::ThemeChanged(_)
+                    | tauri::WindowEvent::ScaleFactorChanged { .. }
+            ) {
+                traffic_lights::center(window);
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (window, event);
+        })
+        // Covers `repo-*` windows opened from the frontend via `new WebviewWindow`.
+        .on_page_load(|webview, _payload| {
+            #[cfg(target_os = "macos")]
+            traffic_lights::center(&webview.window());
+            #[cfg(not(target_os = "macos"))]
+            let _ = webview;
         })
         .invoke_handler(tauri::generate_handler![
             commands::repo::open_repo,

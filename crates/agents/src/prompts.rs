@@ -21,7 +21,8 @@ fn verdict_label(v: Option<ReviewVerdict>) -> &'static str {
     match v {
         Some(ReviewVerdict::Approve) => "approved",
         Some(ReviewVerdict::RequestChanges) => "changes requested",
-        _ => "comment",
+        Some(ReviewVerdict::Comment) => "comment",
+        None => "none (local review, not a pull request)",
     }
 }
 

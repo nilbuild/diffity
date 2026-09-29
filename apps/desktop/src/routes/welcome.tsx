@@ -22,6 +22,9 @@ import { PlusIcon } from '../components/icons/plus-icon';
 import { SunIcon } from '../components/icons/sun-icon';
 import { MoonIcon } from '../components/icons/moon-icon';
 import { hasOverlayTitleBar } from '../components/layout/title-bar';
+import { hideStaticSplash } from '../components/layout/skeleton';
+import { SettingsIcon } from '../components/icons/settings-icon';
+import { openSettings } from '../lib/ui-store';
 import { cn } from '../lib/cn';
 
 dayjs.extend(relativeTime);
@@ -106,13 +109,16 @@ export function WelcomePage() {
   useEffect(() => {
     setRepoPath(null);
     document.title = 'Diffity';
+    hideStaticSplash();
   }, []);
 
   const openRepo = async (path: string, newWindow = false, extra?: Record<string, string>) => {
     try {
       const info = await tauri.openRepo(path);
       if (!info.isGit) {
-        toast.error('Not a Git repository', { description: path });
+        toast.error(`${info.name} is not a Git repository`, {
+          description: 'Diffity reviews changes tracked by Git. Run `git init` in that folder, or pick the repository root.',
+        });
         return;
       }
       if (newWindow) {
@@ -121,7 +127,7 @@ export function WelcomePage() {
       }
       navigate(repoRoute(info.path, extra));
     } catch (error) {
-      toast.error('Could not open the folder', { description: tauri.errorMessage(error) });
+      toast.error('Could not open the folder', { description: `${tauri.errorMessage(error)}. It may have been moved or deleted.` });
     }
   };
 
@@ -142,7 +148,14 @@ export function WelcomePage() {
 
   return (
     <div className="relative flex flex-col h-screen bg-bg text-text font-sans">
-      <div data-tauri-drag-region className={cn('flex items-center justify-end h-10 shrink-0 px-3', hasOverlayTitleBar && 'pl-[78px]')}>
+      <div data-tauri-drag-region className={cn('flex items-center justify-end gap-1 h-11 shrink-0 px-3', hasOverlayTitleBar && 'pl-[92px]')}>
+        <button
+          onClick={openSettings}
+          className="p-1.5 rounded-md text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer"
+          title={`Settings (${modKey},)`}
+        >
+          <SettingsIcon className="w-4 h-4" />
+        </button>
         <button
           onClick={toggleTheme}
           className="p-1.5 rounded-md text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer"

@@ -7,11 +7,15 @@ import { getRepoPathOrNull, setRepoPath } from '../lib/api';
 import * as tauri from '../lib/tauri';
 import { isTauri } from '../lib/platform';
 import { queryClient } from '../lib/query-client';
-import { PageLoader } from '../components/layout/skeleton';
+import { AppSplash } from '../components/layout/skeleton';
 import { useRepoEvents, useRepoNav, useRepoPath } from '../hooks/use-repo';
 import { useTheme } from '../hooks/use-theme';
 import { ClaudeApprovalModal } from '../features/claude/claude-approval-modal';
 import { RouteErrorBoundary } from './route-error-boundary';
+
+function repoName(repoPath: string) {
+  return repoPath.split('/').filter(Boolean).pop() ?? 'repository';
+}
 
 function useWindowTitle(repoPath: string) {
   useEffect(() => {
@@ -87,13 +91,20 @@ export function RepoLayout() {
     <>
       <RouteErrorBoundary
         resetKey={location.pathname + location.search}
-        actions={(reset) => [
-          { label: 'View working changes', primary: true, onClick: () => { reset(); nav.toDiff('work'); } },
-          { label: 'Browse files', onClick: () => { reset(); nav.toTree(); } },
-          { label: 'Open another repository', onClick: () => { reset(); nav.toWelcome(); } },
-        ]}
+        actions={(reset, error) => {
+          const code = tauri.isAppError(error) ? error.code : null;
+          if (code === 'not_a_repo' || code === 'not_found') {
+            return [{ label: 'Open another repository', primary: true, onClick: () => { reset(); nav.toWelcome(); } }];
+          }
+          return [
+            { label: 'Try again', primary: true, onClick: () => { void client.resetQueries(); reset(); } },
+            { label: 'Uncommitted changes', onClick: () => { reset(); nav.toDiff('work'); } },
+            { label: 'Browse files', onClick: () => { reset(); nav.toTree(); } },
+            { label: 'Open another repository', onClick: () => { reset(); nav.toWelcome(); } },
+          ];
+        }}
       >
-        <Suspense fallback={<PageLoader />}>
+        <Suspense fallback={<AppSplash label={`Opening ${repoName(repoPath)}…`} />}>
           <Outlet />
         </Suspense>
       </RouteErrorBoundary>

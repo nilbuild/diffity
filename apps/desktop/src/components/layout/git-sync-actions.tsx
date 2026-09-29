@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
+import { useGitStatus, useRepoMeta } from '../../hooks/use-repo-state';
 import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import { getRepoPath } from '../../lib/api';
@@ -12,7 +13,7 @@ import { Spinner } from '../icons/spinner';
 type GitOp = 'fetch' | 'pull' | 'push';
 
 const OP_LABELS: Record<GitOp, { busy: string; done: string; failed: string }> = {
-  fetch: { busy: 'Fetching…', done: 'Fetched', failed: 'Fetch failed' },
+  fetch: { busy: 'Fetching from the remote…', done: 'Fetched', failed: 'Fetch failed' },
   pull: { busy: 'Pulling…', done: 'Pulled', failed: 'Pull failed' },
   push: { busy: 'Pushing…', done: 'Pushed', failed: 'Push failed' },
 };
@@ -28,13 +29,10 @@ const buttonClass = 'flex items-center gap-1 px-2 py-1 text-xs text-text-muted h
 export function GitSyncActions() {
   const queryClient = useQueryClient();
   const [running, setRunning] = useState<GitOp | null>(null);
-  const { data: status } = useQuery({
-    queryKey: ['git-status'],
-    queryFn: () => tauri.gitStatus(getRepoPath()),
-    staleTime: 10_000,
-  });
+  const { data: status } = useGitStatus();
+  const { data: meta } = useRepoMeta();
 
-  if (!status?.branch) {
+  if (!status?.branch || !meta?.remoteUrl) {
     return null;
   }
 
@@ -55,6 +53,8 @@ export function GitSyncActions() {
       setRunning(null);
       queryClient.invalidateQueries({ queryKey: ['git-status'] });
       queryClient.invalidateQueries({ queryKey: ['github-details'] });
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
+      queryClient.invalidateQueries({ queryKey: ['commits'] });
     }
   };
 
@@ -63,14 +63,14 @@ export function GitSyncActions() {
 
   return (
     <div className="flex items-stretch bg-bg-tertiary rounded-md overflow-hidden">
-      <button className={buttonClass} disabled={running !== null} onClick={() => run('fetch')} title={`Fetch${upstreamTitle}`}>
+      <button className={buttonClass} disabled={running !== null} onClick={() => run('fetch')} title={`Fetch: download new commits without changing your files${upstreamTitle}`}>
         {icon('fetch', <RefreshIcon className="w-3.5 h-3.5" />)}
       </button>
-      <button className={buttonClass} disabled={running !== null} onClick={() => run('pull')} title={`Pull${upstreamTitle}`}>
+      <button className={buttonClass} disabled={running !== null} onClick={() => run('pull')} title={status.behind > 0 ? `Pull ${status.behind} commit${status.behind === 1 ? '' : 's'}${upstreamTitle}` : `Pull${upstreamTitle}`}>
         {icon('pull', <DownloadIcon className="w-3.5 h-3.5" />)}
         {status.behind > 0 && <span className="tabular-nums">{status.behind}</span>}
       </button>
-      <button className={buttonClass} disabled={running !== null} onClick={() => run('push')} title={status.upstream ? `Push${upstreamTitle}` : 'Publish branch'}>
+      <button className={buttonClass} disabled={running !== null} onClick={() => run('push')} title={status.upstream ? (status.ahead > 0 ? `Push ${status.ahead} commit${status.ahead === 1 ? '' : 's'}${upstreamTitle}` : `Push${upstreamTitle}`) : 'Publish this branch to the remote'}>
         {icon('push', <UploadIcon className="w-3.5 h-3.5" />)}
         {status.ahead > 0 && <span className="tabular-nums">{status.ahead}</span>}
       </button>

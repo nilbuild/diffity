@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import { queryClient } from '../../lib/query-client';
+import { openSettings } from '../../lib/ui-store';
 import type { AgentAction, AgentInfo, AgentMode, PermissionDiff, PermissionOption } from '../../lib/types';
 import type { CommentThread } from '../../components/comments/types';
 
@@ -58,11 +59,11 @@ export function runLabel(action: ClaudeAction): string {
     case 'review':
       return 'Claude is reviewing…';
     case 'resolve':
-      return action.threadId ? 'Claude is resolving a thread…' : 'Claude is resolving comments…';
+      return action.threadId ? 'Claude is on a thread…' : 'Claude is resolving…';
     case 'thread':
       return 'Claude is replying…';
     case 'reviewFeedback':
-      return 'Claude is addressing your review…';
+      return 'Claude is on your review…';
   }
 }
 
@@ -221,7 +222,10 @@ async function execute(run: ClaudeRun) {
   const agent = agents.find((item) => item.id === AGENT_ID) ?? agents[0];
   const problem = agentProblem(agent);
   if (problem || !agent) {
-    toast.error('Could not start Claude', { description: problem ?? undefined });
+    toast.error('Could not start Claude', {
+      description: problem ?? undefined,
+      action: { label: 'Settings', onClick: openSettings },
+    });
     return;
   }
   const sessionId = await resolveSession(run);
@@ -308,7 +312,10 @@ async function pump() {
       try {
         await execute(next);
       } catch (error) {
-        toast.error('Could not start Claude', { description: friendlyError(tauri.errorMessage(error)) });
+        toast.error('Could not start Claude', {
+          description: friendlyError(tauri.errorMessage(error)),
+          action: { label: 'Settings', onClick: openSettings },
+        });
       } finally {
         removeRun(next.id);
       }

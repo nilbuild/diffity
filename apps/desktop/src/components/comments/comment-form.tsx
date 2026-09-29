@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import type { SubmitOptions } from './types';
 import { MentionTextarea } from './mention-textarea';
 import { useReviewState } from '../../features/review/review-state';
+import { modKey } from '../../lib/platform';
 
 interface CommentFormProps {
   onSubmit: (body: string, options: SubmitOptions) => void;
@@ -71,18 +72,28 @@ export function CommentForm(props: CommentFormProps) {
     }
     if (threadPending) {
       return (
-        <button onClick={() => submit(true)} disabled={!body.trim()} className={primaryClass}>
-          Add review comment
+        <button onClick={() => submit(true)} disabled={!body.trim()} className={primaryClass} title="Saved as a draft with the rest of your review">
+          Add draft reply
         </button>
       );
     }
     return (
       <>
-        <button onClick={() => submit(false)} disabled={!body.trim()} className={secondaryClass}>
-          Add single comment
+        <button
+          onClick={() => submit(false)}
+          disabled={!body.trim()}
+          className={secondaryClass}
+          title="Publish this comment right away (an @claude mention is answered immediately)"
+        >
+          {submitLabel === 'Reply' ? 'Reply now' : 'Comment now'}
         </button>
-        <button onClick={() => submit(true)} disabled={!body.trim()} className={primaryClass}>
-          {hasPendingReview ? 'Add review comment' : 'Start a review'}
+        <button
+          onClick={() => submit(true)}
+          disabled={!body.trim()}
+          className={primaryClass}
+          title="Save as a private draft; submit all drafts together when you are done (to Claude or a GitHub PR)"
+        >
+          {hasPendingReview ? 'Add to review' : 'Start a review'}
         </button>
       </>
     );
@@ -107,8 +118,8 @@ export function CommentForm(props: CommentFormProps) {
         />
       </div>
       <div className="flex items-center gap-2 px-1.5 pb-1.5">
-        <span className="flex-1 pl-1.5 text-[11px] text-text-muted truncate">
-          {review.enabled ? 'Type @claude to ask Claude Code' : ''}
+        <span className="flex-1 pl-1.5 text-[11px] text-text-muted truncate" title={`${modKey}Enter submits`}>
+          {review.enabled ? '@claude to ask Claude' : ''}
         </span>
         <button
           onClick={onCancel}

@@ -19,7 +19,7 @@ const defaultLabels: Record<ThreadBadgeVariant, string> = {
   resolved: 'Resolved',
   dismissed: 'Dismissed',
   outdated: 'Outdated',
-  pending: 'Pending',
+  pending: 'Draft',
 };
 
 export function ThreadBadge(props: ThreadBadgeProps) {

@@ -1,3 +1,6 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -17,7 +20,13 @@ pub struct Binding {
     pub r#ref: String,
     pub mode: AgentMode,
     pub agent_name: String,
+    /// Set when the user rejected a file edit during the current turn; `resolve` is refused while set.
+    pub edit_rejected: Arc<AtomicBool>,
 }
+
+pub const EDIT_REJECTED: &str = "The user rejected a file edit in this run, so this thread cannot be marked resolved. \
+Do not retry the edit and do not call `resolve`. Use `reply` on the thread to explain what you would change \
+(and anything you did change) and leave it open for the user to decide.";
 
 pub fn is_mutating(tool: &str) -> bool {
     crate::policy::WRITE_TOOLS.contains(&tool)
@@ -318,6 +327,9 @@ pub async fn call(
         "resolve" | "dismiss" => {
             let a: ThreadArgs = args(raw)?;
             let thread = find_thread(backend, &b.session_id, &a.thread_id).await?;
+            if tool == "resolve" && b.edit_rejected.load(Ordering::SeqCst) {
+                return Err(AppError::new("edit_rejected", EDIT_REJECTED));
+            }
             let note = if tool == "resolve" {
                 a.summary.or(a.body)
             } else {
@@ -381,6 +393,7 @@ mod tests {
             r#ref: "work".into(),
             mode: AgentMode::Resolve,
             agent_name: "Claude Code".into(),
+            edit_rejected: Default::default(),
         };
         (store, backend, binding)
     }
@@ -448,5 +461,23 @@ mod tests {
             .unwrap();
         assert_eq!(t.status, ThreadStatus::Open);
         assert!(t.comments.last().unwrap().mentions_agent);
+    }
+
+    #[tokio::test]
+    async fn resolve_is_refused_after_a_rejected_edit() {
+        let (store, backend, b) = setup();
+        let t = store.create_thread(&thread_input(&b.session_id, "rename this", false)).unwrap();
+        b.edit_rejected.store(true, Ordering::SeqCst);
+        let err = call(&backend, &b, "resolve", json!({ "threadId": t.id, "summary": "Fixed: renamed" }))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code, "edit_rejected");
+        assert_eq!(store.get_thread(&t.id).unwrap().status, ThreadStatus::Open);
+        call(&backend, &b, "reply", json!({ "threadId": t.id, "body": "I would rename it to foo" }))
+            .await
+            .unwrap();
+        b.edit_rejected.store(false, Ordering::SeqCst);
+        call(&backend, &b, "resolve", json!({ "threadId": t.id })).await.unwrap();
+        assert_eq!(store.get_thread(&t.id).unwrap().status, ThreadStatus::Resolved);
     }
 }

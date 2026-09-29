@@ -29,16 +29,25 @@ not a redesign.
 
 - Welcome screen (`routes/welcome.tsx`): brand logo, Open folder (⌘O) / new window, open a PR URL, recent
   repositories, drag a folder onto the window.
-- Page switcher (Changes | Files) and a ref menu (All / Staged / Unstaged / Commits and branches…) in the toolbar;
-  the repo name opens the overview (the web app's dashboard plus a Compare card).
+- Page switcher (Changes | Files) and a "what to review" picker in the toolbar (Uncommitted / Staged only / Unstaged
+  only, the PR or "branch vs base", recent commits, "All commits, ranges and branches…"). Under the toolbar a slim
+  context bar says what is shown (commit header with sha/subject/author/date and Back, PR title, compared range), the
+  files-changed stats, Hide whitespace and the Unified/Split toggle. The repo name opens the overview: status card
+  (branch, upstream, PR), "What do you want to review?" targets, uncommitted files, searchable commit list with
+  infinite scroll and "Changes since", and a Compare card.
 - Git fetch / pull / push icon group with ahead/behind counts.
 - Claude: "Review with Claude" split button with focus menu and "Resolve open comments"; a status pill
   ("Claude is reviewing… · 3 comments · 0:42", Stop) replaces it while a run is active; "Resolve with Claude" on
   each open thread; "Claude Code is working…" inside threads being addressed; file-write approval modal with a
   diff preview (Deny / Allow once / Always allow).
-- GitHub-style pending reviews: comment forms offer "Add single comment" and "Start a review" / "Add review
-  comment"; pending comments carry a "Pending" badge; "Finish your review" popover with summary, verdict and
-  destinations (Send to Claude, Post to GitHub PR #N).
+- Draft reviews: comment forms offer "Comment now" and "Start a review" / "Add to review"; drafts carry a "Draft"
+  badge. The toolbar button is "Submit comments" (no PR) or "Review #N" (PR for the branch). Without a PR the popover
+  offers "Send to Claude" vs "Just save the comments" (no verdict); with a PR it offers "Post to GitHub pull request
+  #N" with Comment / Approve / Request changes, plus "Also send to Claude". Button labels say what happens
+  ("Send 3 comments to Claude", "Publish 3 comments", "Post review to #N").
+- Loading: branded static splash in `index.html` → `AppSplash` while a repo opens, `DiffSkeleton` / file skeletons,
+  a thin top progress bar for first-time loads and mutations, loading toasts for git/revert operations.
+- Settings dialog (⌘,): theme, editor, Claude Code status/path, GitHub account, shortcuts.
 - `@claude` autocomplete in comment and reply forms.
 - GitHub dialog: the web app's push/pull dialog plus sign-in (import from `gh`, paste a token) and sign-out.
 - File headers: Preview toggle for Markdown/SVG (rich diff), open in editor, revert file.

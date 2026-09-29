@@ -73,6 +73,8 @@ export function useRepoEvents(repoPath: string) {
         queryClient.invalidateQueries({ queryKey: ['overview'] });
         queryClient.invalidateQueries({ queryKey: ['commits'] });
         queryClient.invalidateQueries({ queryKey: ['git-status'] });
+        queryClient.invalidateQueries({ queryKey: ['repo-meta'] });
+        queryClient.invalidateQueries({ queryKey: ['branches'] });
       })
       .then(keep, () => undefined);
     tauri

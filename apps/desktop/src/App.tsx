@@ -10,6 +10,44 @@ import { RepoLayout } from './routes/repo-layout';
 import { DiffRoute } from './routes/diff';
 import { TreeRoute } from './routes/tree';
 import { OverviewRoute } from './routes/overview';
+import { SettingsDialog } from './components/layout/settings-dialog';
+import { ShortcutModal } from './components/layout/shortcut-modal';
+import { TopProgress, hideStaticSplash } from './components/layout/skeleton';
+import { closeShortcuts, openSettings, openShortcuts, useUi } from './lib/ui-store';
+
+function isTyping(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) {
+    return false;
+  }
+  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable;
+}
+
+function useGlobalShortcuts() {
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === ',') {
+        event.preventDefault();
+        openSettings();
+        return;
+      }
+      if (event.key === '?' && !isTyping(event.target)) {
+        event.preventDefault();
+        openShortcuts();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+}
+
+function GlobalShortcutModal() {
+  const open = useUi((state) => state.shortcutsOpen);
+  if (!open) {
+    return null;
+  }
+  return <ShortcutModal onClose={closeShortcuts} />;
+}
 
 function useExternalLinks() {
   useEffect(() => {
@@ -32,6 +70,12 @@ function useExternalLinks() {
 
 export function App() {
   useExternalLinks();
+  useGlobalShortcuts();
+
+  useEffect(() => {
+    const timer = setTimeout(hideStaticSplash, 10_000);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -46,7 +90,10 @@ export function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <SettingsDialog />
+        <GlobalShortcutModal />
       </HashRouter>
+      <TopProgress />
       <Toaster
         position="bottom-right"
         toastOptions={{

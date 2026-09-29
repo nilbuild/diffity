@@ -288,3 +288,23 @@ fn old_line_counts_cover_every_old_side_file() {
     let staged = diff::get_diff(&repo.path, "staged", false).unwrap();
     assert_eq!(file(&staged, "README.md").old_line_count, Some(1));
 }
+
+#[test]
+fn root_commit_range_diffs_against_empty_tree() {
+    let repo = Repo::with_commit();
+    let root = repo.git(&["rev-parse", "HEAD"]);
+    let r = format!("{root}~1..{root}");
+    let res = diff::get_diff(&repo.path, &r, false).unwrap();
+    assert!(res.resolved.base_sha.is_none());
+    assert_eq!(file(&res, "README.md").status, FileStatus::Added);
+    let versions = diff::get_file_versions(&repo.path, &r, "README.md", None).unwrap();
+    assert!(versions.old_contents.is_none());
+    assert_eq!(versions.new_contents.as_deref(), Some("hello\n"));
+
+    repo.write("README.md", "hello\nagain\n");
+    repo.commit("second");
+    let head = repo.git(&["rev-parse", "HEAD"]);
+    let res = diff::get_diff(&repo.path, &format!("{head}~1..{head}"), false).unwrap();
+    assert_eq!(res.resolved.base_sha.as_deref(), Some(root.as_str()));
+    assert_eq!(file(&res, "README.md").status, FileStatus::Modified);
+}

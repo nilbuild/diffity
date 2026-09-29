@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use agent_client_protocol::schema::v1::{
@@ -73,6 +74,7 @@ struct Shared {
     pending: Mutex<HashSet<String>>,
     approved_writes: Mutex<HashSet<PathBuf>>,
     stderr: Mutex<VecDeque<String>>,
+    edit_rejected: Arc<AtomicBool>,
 }
 
 fn enum_str<T: Serialize>(value: &T) -> String {
@@ -223,6 +225,10 @@ impl Shared {
         }
     }
 
+    fn mark_edit_rejected(&self) {
+        self.edit_rejected.store(true, Ordering::SeqCst);
+    }
+
     fn take_approved_write(&self, path: &Path) -> bool {
         self.approved_writes
             .lock()
@@ -316,6 +322,7 @@ async fn handle_permission(
     if let Some(d) = &diff {
         write_paths.push(shared.resolve_path(Path::new(&d.path)));
     }
+    let is_edit = diff.is_some() || matches!(kind.as_str(), "edit" | "delete" | "move");
     let options: Vec<(String, String)> = req
         .options
         .iter()
@@ -353,6 +360,9 @@ async fn handle_permission(
             .is_some_and(|(_, kind)| kind.starts_with("allow"));
         if allowed && policy::can_write_files(shared.mode) {
             shared.approve_writes(write_paths);
+        }
+        if !allowed && is_edit {
+            shared.mark_edit_rejected();
         }
         responder.respond(permission_response(choice))
     })
@@ -450,6 +460,7 @@ async fn handle_write(
         let choice = rx.await.ok().flatten();
         shared.track(&request_id, false);
         if choice.as_deref() != Some("allow") {
+            shared.mark_edit_rejected();
             return responder.respond_with_error(agent_client_protocol::Error::new(
                 -32001,
                 "The user rejected this write.",
@@ -478,6 +489,8 @@ pub struct SessionConfig {
     pub mcp_args: Vec<String>,
     pub resume_session_id: Option<String>,
     pub broker: Arc<PermissionBroker>,
+    /// Shared with the MCP bridge binding; reset at the start of every turn.
+    pub edit_rejected: Arc<AtomicBool>,
 }
 
 pub struct AgentSession {
@@ -522,6 +535,7 @@ impl AgentSession {
             pending: Mutex::new(HashSet::new()),
             approved_writes: Mutex::new(HashSet::new()),
             stderr: Mutex::new(VecDeque::new()),
+            edit_rejected: config.edit_rejected.clone(),
         });
 
         let stderr_shared = shared.clone();
@@ -714,6 +728,7 @@ impl AgentSession {
             if turn.is_some() {
                 return Err(AppError::new("agent_busy", "a prompt is already running"));
             }
+            self.shared.edit_rejected.store(false, Ordering::SeqCst);
             *turn = Some(Turn {
                 sink,
                 events: Vec::new(),

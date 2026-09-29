@@ -5,6 +5,10 @@ import { EllipsisIcon } from '../icons/ellipsis-icon';
 import { GitHubIcon } from '../icons/github-icon';
 import { FolderOpenIcon } from '../icons/folder-open-icon';
 import { useNavigate } from 'react-router';
+import { SettingsIcon } from '../icons/settings-icon';
+import { KeyboardIcon } from '../icons/keyboard-icon';
+import { openSettings, openShortcuts } from '../../lib/ui-store';
+import { modKey } from '../../lib/platform';
 
 export const menuItemClass = 'flex items-center gap-2.5 w-full px-3 py-1.5 text-xs text-text-secondary hover:bg-hover hover:text-text transition-colors cursor-pointer text-left';
 
@@ -12,10 +16,11 @@ interface OptionsMenuProps {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   renderExtraItems?: (close: () => void) => ReactNode;
+  onShowHelp?: () => void;
 }
 
 export function OptionsMenu(props: OptionsMenuProps) {
-  const { theme, onToggleTheme, renderExtraItems } = props;
+  const { theme, onToggleTheme, renderExtraItems, onShowHelp } = props;
   const [showMenu, setShowMenu] = useState(false);
   const navigate = useNavigate();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -40,13 +45,24 @@ export function OptionsMenu(props: OptionsMenuProps) {
       <button
         className="p-1.5 rounded-md text-text-muted hover:text-text hover:bg-hover bg-bg-tertiary transition-colors cursor-pointer"
         onClick={() => setShowMenu(!showMenu)}
-        title="More options"
+        title="More: shortcuts, theme, settings"
       >
         <EllipsisIcon className="w-4 h-4" />
       </button>
       {showMenu && (
-        <div className="absolute right-0 top-full mt-1 w-48 py-1 bg-bg-secondary rounded-md shadow-lg ring-1 ring-border z-50">
+        <div className="absolute right-0 top-full mt-1 w-56 py-1 bg-bg-secondary rounded-md shadow-lg ring-1 ring-border z-50">
           {renderExtraItems && renderExtraItems(close)}
+          <button
+            className={menuItemClass}
+            onClick={() => {
+              close();
+              (onShowHelp ?? openShortcuts)();
+            }}
+          >
+            <KeyboardIcon className="w-3.5 h-3.5" />
+            Keyboard shortcuts
+            <span className="ml-auto text-text-muted">?</span>
+          </button>
           <button
             className={menuItemClass}
             onClick={() => {
@@ -57,6 +73,17 @@ export function OptionsMenu(props: OptionsMenuProps) {
             {theme === 'light' ? <MoonIcon className="w-3.5 h-3.5" /> : <SunIcon className="w-3.5 h-3.5" />}
             {theme === 'light' ? 'Dark mode' : 'Light mode'}
           </button>
+          <button
+            className={menuItemClass}
+            onClick={() => {
+              close();
+              openSettings();
+            }}
+          >
+            <SettingsIcon className="w-3.5 h-3.5" />
+            Settings…
+            <span className="ml-auto text-text-muted">{modKey},</span>
+          </button>
           <div className="border-t border-border my-1" />
           <button
             className={menuItemClass}
@@ -66,7 +93,7 @@ export function OptionsMenu(props: OptionsMenuProps) {
             }}
           >
             <FolderOpenIcon className="w-3.5 h-3.5" />
-            Open repository…
+            Open another repository…
           </button>
           <a
             href="https://github.com/kamranahmedse/diffity"
@@ -76,7 +103,7 @@ export function OptionsMenu(props: OptionsMenuProps) {
             onClick={close}
           >
             <GitHubIcon className="w-3.5 h-3.5" />
-            GitHub
+            About Diffity
           </a>
         </div>
       )}

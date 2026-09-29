@@ -3,7 +3,7 @@ import { ErrorPage } from '../components/error-page';
 
 interface RouteErrorBoundaryProps {
   resetKey: string;
-  actions: (reset: () => void) => Array<{ label: string; primary?: boolean; onClick: () => void }>;
+  actions: (reset: () => void, error: unknown) => Array<{ label: string; primary?: boolean; onClick: () => void }>;
   children: ReactNode;
 }
 
@@ -34,6 +34,6 @@ export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, Route
     if (this.state.error === null) {
       return this.props.children;
     }
-    return <ErrorPage error={this.state.error} actions={this.props.actions(this.reset)} />;
+    return <ErrorPage error={this.state.error} actions={this.props.actions(this.reset, this.state.error)} />;
   }
 }
