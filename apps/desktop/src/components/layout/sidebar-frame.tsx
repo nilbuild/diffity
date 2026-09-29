@@ -129,7 +129,7 @@ export function SidebarFrame(props: SidebarFrameProps) {
         <span
           className={cn(
             'absolute top-0 bottom-0 left-[2px] w-[2px] transition-colors',
-            dragging ? 'bg-accent' : 'bg-transparent group-hover:bg-accent/60',
+            dragging ? 'bg-text-muted/60' : 'bg-transparent group-hover:bg-text-muted/35',
           )}
         />
       </div>
