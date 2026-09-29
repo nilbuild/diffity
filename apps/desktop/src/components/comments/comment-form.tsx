@@ -15,8 +15,8 @@ interface CommentFormProps {
   threadPending?: boolean;
 }
 
-const primaryClass = 'px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
-const secondaryClass = 'px-3 py-1.5 text-xs font-medium rounded-md bg-bg text-text-secondary hover:text-text hover:bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
+const primaryClass = 'h-7 px-2.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
+const secondaryClass = 'h-7 px-2.5 text-xs font-medium rounded-md bg-bg text-text-secondary hover:text-text hover:bg-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer';
 
 export function CommentForm(props: CommentFormProps) {
   const {
@@ -100,13 +100,13 @@ export function CommentForm(props: CommentFormProps) {
   };
 
   return (
-    <div className="rounded-lg bg-bg-tertiary pt-2">
+    <div className="rounded-md border border-border bg-bg-secondary pt-1.5">
       {lineLabel && (
-        <div className="px-3 pb-1.5 -mt-0.5">
+        <div className="px-2.5 pb-1">
           <span className="text-xs text-text-secondary font-medium">{lineLabel}</span>
         </div>
       )}
-      <div className="mx-1.5 mb-0.5 rounded-md">
+      <div className="mx-1.5 mb-1.5 rounded-md">
         <MentionTextarea
           ref={textareaRef}
           value={body}
@@ -114,7 +114,7 @@ export function CommentForm(props: CommentFormProps) {
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           rows={3}
-          className="block w-full px-3 py-2 text-sm bg-bg text-text rounded-md resize-y outline-none placeholder:text-text-muted min-h-[80px]"
+          className="block w-full px-2.5 py-1.5 text-sm bg-bg text-text rounded-md border border-border focus:border-accent resize-y outline-none placeholder:text-text-muted min-h-[64px]"
         />
       </div>
       <div className="flex items-center gap-2 px-1.5 pb-1.5">
@@ -123,7 +123,7 @@ export function CommentForm(props: CommentFormProps) {
         </span>
         <button
           onClick={onCancel}
-          className="px-3 py-1.5 text-xs font-medium rounded-md text-text-secondary hover:bg-hover transition-colors cursor-pointer"
+          className="h-7 px-2.5 text-xs font-medium rounded-md text-text-secondary hover:bg-hover transition-colors cursor-pointer"
         >
           Cancel
         </button>

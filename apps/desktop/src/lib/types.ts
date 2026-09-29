@@ -312,6 +312,17 @@ export interface PullRequest {
   body: string;
   createdAt: string;
   reviewThreadCount: number;
+  updatedAt: string;
+  additions: number;
+  deletions: number;
+  changedFiles: number;
+  headRepo: string | null;
+  isCrossRepository: boolean;
+}
+
+export interface StashResult {
+  sha: string | null;
+  message: string;
 }
 
 export type ReviewEvent = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';

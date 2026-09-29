@@ -67,7 +67,7 @@ export function CommentThread(props: CommentThreadProps) {
 
   if (isCollapsed) {
     const collapsedContent = (
-      <td colSpan={colSpan} className="px-4 py-1.5">
+      <td colSpan={colSpan} className="px-3 py-1 font-sans">
         <button
           onClick={() => setIsCollapsed(false)}
           className='thread-card inline-flex items-center gap-1.5 px-2 py-1 text-xs text-text-muted hover:text-text-secondary hover:bg-hover rounded-md transition-colors cursor-pointer'
@@ -110,7 +110,7 @@ export function CommentThread(props: CommentThreadProps) {
       : `Lines ${thread.startLine}–${thread.endLine}`;
 
   const threadContent = (
-    <td colSpan={colSpan} className="px-4 py-3">
+    <td colSpan={colSpan} className="px-3 py-2 font-sans">
       <ThreadCard
         thread={thread}
         onReply={(body, options) => onReply(thread.id, body, currentAuthor, options)}
@@ -122,7 +122,7 @@ export function CommentThread(props: CommentThreadProps) {
         onEditComment={(commentId, body) => onEditComment(commentId, body)}
         onDeleteComment={(commentId) => onDeleteComment(thread.id, commentId)}
         onDeleteThread={() => onDeleteThread(thread.id)}
-        className="thread-card max-w-[700px] bg-bg-secondary"
+        className="thread-card max-w-[720px] bg-bg"
         headerLeft={
           <>
             <span className='text-[11px] text-text-muted font-mono'>

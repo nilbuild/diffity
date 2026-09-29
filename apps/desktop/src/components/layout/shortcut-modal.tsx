@@ -6,7 +6,7 @@ interface ShortcutModalProps {
   onClose: () => void;
 }
 
-const shortcuts = [
+export const shortcuts = [
   {
     category: 'Changes view',
     items: [

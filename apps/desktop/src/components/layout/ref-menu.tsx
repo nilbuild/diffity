@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { useRepoNav } from '../../hooks/use-repo';
 import { useDismiss } from '../../hooks/use-dismiss';
-import { useBaseBranch, useGitHubPr, useGitStatus, useRecentCommits } from '../../hooks/use-repo-state';
+import { useBaseBranch, useGitHubPr, useGitStatus, useHasGitHubRemote, useRecentCommits } from '../../hooks/use-repo-state';
+import { openPullRequests } from '../../lib/ui-store';
 import { commitRef, descriptionForRef, parseCommitRef, type GitHubDetails } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { ChevronDownIcon } from '../icons/chevron-down-icon';
@@ -101,7 +102,7 @@ export function RefMenu(props: RefMenuProps) {
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          'inline-flex items-center gap-1.5 max-w-full px-2 py-1 rounded-md text-xs transition-colors cursor-pointer',
+          'inline-flex items-center gap-1.5 max-w-full h-7 px-2 rounded-md text-xs transition-colors cursor-pointer',
           open ? 'bg-hover text-text' : 'bg-bg-tertiary text-text-secondary hover:bg-hover hover:text-text',
         )}
         title="Choose what to review"
@@ -122,14 +123,19 @@ export function RefMenu(props: RefMenuProps) {
             close();
             nav.toOverview();
           }}
+          onPullRequests={() => {
+            close();
+            openPullRequests();
+          }}
         />
       )}
     </div>
   );
 }
 
-function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (ref: string) => void; onOverview: () => void }) {
-  const { diffRef, branch, onPick, onOverview } = props;
+function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (ref: string) => void; onOverview: () => void; onPullRequests: () => void }) {
+  const { diffRef, branch, onPick, onOverview, onPullRequests } = props;
+  const hasGitHubRemote = useHasGitHubRemote();
   const { data: status } = useGitStatus();
   const { details, loading: prLoading } = useGitHubPr();
   const base = useBaseBranch(details?.baseRef ?? null, branch);
@@ -166,7 +172,7 @@ function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (
         onClick={() => onPick('unstaged')}
       />
 
-      {(details || prLoading || (branchRef && branch)) && <div className={sectionClass}>Branch</div>}
+      {(details || prLoading || hasGitHubRemote || (branchRef && branch)) && <div className={sectionClass}>Branch</div>}
       {prLoading && !details && (
         <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] text-text-muted">
           <Spinner className="w-3 h-3" />
@@ -190,6 +196,16 @@ function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (
           title={`${branch} vs ${shortBase(base ?? '')}`}
           hint={`Every commit on ${branch} that is not on ${shortBase(base ?? '')}`}
           onClick={() => onPick(branchRef)}
+        />
+      )}
+
+      {hasGitHubRemote && (
+        <Item
+          selected={false}
+          icon={<GitPullRequestIcon className="w-3.5 h-3.5" />}
+          title="Pull requests…"
+          hint="Check out an open pull request, or paste a URL or number"
+          onClick={onPullRequests}
         />
       )}
 

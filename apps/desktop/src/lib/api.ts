@@ -51,6 +51,7 @@ export interface GitHubDetails {
   commentCount: number;
   baseRef: string;
   headRef: string;
+  pr: PullRequest;
 }
 
 export interface RepoInfo {
@@ -363,6 +364,7 @@ export function toGitHubDetails(pr: PullRequest): GitHubDetails {
     commentCount: pr.reviewThreadCount,
     baseRef: pr.baseRef,
     headRef: pr.headRef,
+    pr,
   };
 }
 

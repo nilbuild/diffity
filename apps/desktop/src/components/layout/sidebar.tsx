@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { DiffFile } from '@diffity/parser';
+import type { DiffFile, ParsedDiff } from '@diffity/parser';
+import { DiffStats } from '../diff/diff-stats';
 import { FileTree } from '../tree/file-tree';
 import type { FileTreeHandle } from '../tree/file-tree';
 import { SidebarIcon } from '../icons/sidebar-icon';
@@ -16,6 +17,7 @@ interface SidebarProps {
   commentCountsByFile: Map<string, number>;
   onFileClick: (path: string) => void;
   onCommentedFileClick: (path: string) => void;
+  stats?: ParsedDiff['stats'];
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -26,6 +28,7 @@ export function Sidebar(props: SidebarProps) {
     commentCountsByFile,
     onFileClick,
     onCommentedFileClick,
+    stats,
   } = props;
   const fileTreeRef = useRef<FileTreeHandle>(null);
   const [search, setSearch] = useState('');
@@ -37,12 +40,12 @@ export function Sidebar(props: SidebarProps) {
   const commentedFileCountLabel = commentedFileCount > 99 ? '99+' : String(commentedFileCount);
   const countLabel = useMemo(() => {
     if (commentedFilesOnly) {
-      return `${commentedFileCount}/${files.length}`;
+      return `${commentedFileCount} of ${files.length} files`;
     }
     if (reviewedFiles.size > 0) {
-      return `${reviewedFiles.size}/${files.length}`;
+      return `${reviewedFiles.size} of ${files.length} viewed`;
     }
-    return `${files.length}`;
+    return `${files.length} file${files.length === 1 ? '' : 's'}`;
   }, [commentedFilesOnly, commentedFileCount, files.length, reviewedFiles.size]);
 
   useEffect(() => {
@@ -61,7 +64,7 @@ export function Sidebar(props: SidebarProps) {
 
   if (collapsed) {
     return (
-      <div className="w-10 min-w-10 border-r border-border bg-bg-secondary flex items-start justify-center pt-3">
+      <div className="w-9 min-w-9 border-r border-border bg-bg-secondary flex items-start justify-center pt-1.5">
         <button
           className="p-1.5 rounded-md text-text-muted hover:text-text hover:bg-hover cursor-pointer"
           onClick={() => setCollapsed(false)}
@@ -74,13 +77,11 @@ export function Sidebar(props: SidebarProps) {
   }
 
   return (
-    <aside className="w-72 min-w-72 border-r border-border bg-bg-secondary flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
-        <span className="text-xs font-medium text-text-secondary flex items-center gap-2 uppercase tracking-wider">
-          Files
-          <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 bg-bg-tertiary rounded-full text-[10px] font-semibold text-text-muted">
-            {countLabel}
-          </span>
+    <aside className="w-64 min-w-64 border-r border-border bg-bg-secondary flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between gap-2 h-9 pl-3 pr-1.5 shrink-0">
+        <span className="text-xs font-medium text-text-secondary flex items-center gap-2 min-w-0">
+          <span className="truncate">{countLabel}</span>
+          {stats && <DiffStats additions={stats.totalAdditions} deletions={stats.totalDeletions} />}
         </span>
         <div className="flex items-center gap-0.5">
           <button
@@ -109,11 +110,11 @@ export function Sidebar(props: SidebarProps) {
           </button>
         </div>
       </div>
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex items-center gap-1.5 px-2 pb-2 shrink-0">
         <div className="relative flex-1">
           <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
           <input
-            className="w-full h-8 pl-7 pr-7 border border-border rounded-md bg-bg text-xs outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 placeholder:text-text-muted"
+            className="w-full h-7 pl-7 pr-7 border border-border rounded-md bg-bg text-xs outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 placeholder:text-text-muted"
             type="text"
             placeholder="Filter files..."
             value={search}
@@ -130,7 +131,7 @@ export function Sidebar(props: SidebarProps) {
         </div>
         {commentedFileCount > 0 && (
           <button
-            className={`inline-flex items-center gap-1.5 shrink-0 h-8 px-2 rounded-md border transition-colors cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 shrink-0 h-7 px-2 rounded-md border transition-colors cursor-pointer ${
               commentedFilesOnly
                 ? 'border-accent bg-accent/8 text-accent'
                 : 'border-border bg-bg hover:bg-hover text-text-secondary hover:text-text'

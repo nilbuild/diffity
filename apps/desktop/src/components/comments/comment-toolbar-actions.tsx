@@ -8,6 +8,7 @@ import { ChevronUpIcon } from '../icons/chevron-up-icon';
 import { ChevronDownIcon } from '../icons/chevron-down-icon';
 import { TrashIcon } from '../icons/trash-icon';
 import { ConfirmDialog } from '../ui/confirm-dialog';
+import { buttonGroup } from '../ui/button-styles';
 
 interface CommentToolbarActionsProps {
   threads: CommentThread[];
@@ -34,8 +35,8 @@ export function CommentToolbarActions(props: CommentToolbarActionsProps) {
 
   return (
     <>
-      <div className="flex items-stretch bg-bg-tertiary rounded-md overflow-hidden">
-        <span className="flex items-center text-xs text-text-muted px-2 py-1 whitespace-nowrap tabular-nums">
+      <div className={buttonGroup}>
+        <span className="flex items-center text-xs text-text-secondary px-2 whitespace-nowrap tabular-nums">
           {currentIndex >= 0
             ? `${currentIndex + 1}/${unresolvedCount} open`
             : `${unresolvedCount} open`}
@@ -56,7 +57,7 @@ export function CommentToolbarActions(props: CommentToolbarActionsProps) {
         </button>
         <button
           onClick={() => copy(formatForCopy())}
-          className="flex items-center px-1.5 border-l border-bg text-text-muted hover:bg-hover hover:text-text transition-colors cursor-pointer"
+          className="flex items-center px-1.5 border-l border-border text-text-muted hover:bg-hover hover:text-text transition-colors cursor-pointer"
           title="Copy open comments as Markdown (paste into any AI chat)"
         >
           {copied ? <CheckIcon className="w-3.5 h-3.5 text-added" /> : <CopyIcon className="w-3.5 h-3.5" />}

@@ -10,6 +10,7 @@ import { TREE_REF } from '../../lib/types';
 import type { CommentThread } from '../../components/comments/types';
 import { enqueueClaude, openRunResult, runLabel, runViewLabel, stopClaude, useActiveRun, useQueuedCount } from './claude-runner';
 import { useCurrentViewRef } from '../../hooks/use-current-view';
+import { buttonGroup, buttonGroupItem } from '../../components/ui/button-styles';
 
 export const REVIEW_FOCUSES = [
   { value: 'security', label: 'Security' },
@@ -63,9 +64,9 @@ export function ClaudeStatus() {
   const canOpen = !!run.ref && (run.commentsAdded > 0 || elsewhere);
 
   return (
-    <div className="flex items-stretch bg-accent/10 rounded-md overflow-hidden text-xs min-w-0">
+    <div className="flex items-stretch h-7 bg-accent/10 rounded-md overflow-hidden text-xs min-w-0">
       <span
-        className="flex items-center gap-1.5 px-2 py-1 text-accent font-medium whitespace-nowrap min-w-0"
+        className="flex items-center gap-1.5 px-2 text-accent font-medium whitespace-nowrap min-w-0"
         title={where ? `Working on ${where}` : undefined}
       >
         <span className="inline-block w-3 h-3 border-2 border-accent/30 border-t-accent rounded-full animate-spin shrink-0" />
@@ -131,21 +132,21 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
 
   return (
     <div className="relative" ref={menuRef}>
-      <div className="flex items-stretch bg-bg-tertiary rounded-md overflow-hidden">
+      <div className={buttonGroup}>
         {reviewRef ? (
           <button
             onClick={() => review()}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-text-secondary hover:bg-hover hover:text-text transition-colors cursor-pointer"
+            className={buttonGroupItem}
             title="Ask Claude Code to review these changes"
           >
             <SparkleIcon className="w-3.5 h-3.5 text-accent" />
-            Review with Claude
+            Review<span className="hidden min-[1360px]:inline -ml-[3px]">with Claude</span>
           </button>
         ) : (
           <button
             onClick={resolveAll}
             disabled={openThreads.length === 0}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-text-secondary hover:bg-hover hover:text-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+            className={buttonGroupItem}
           >
             <SparkleIcon className="w-3.5 h-3.5 text-accent" />
             Resolve with Claude
@@ -153,14 +154,14 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
         )}
         <button
           onClick={() => setOpen(!open)}
-          className="flex items-center px-1.5 border-l border-bg text-text-muted hover:bg-hover hover:text-text transition-colors cursor-pointer"
+          className="flex items-center px-1.5 border-l border-border text-text-muted hover:bg-hover hover:text-text transition-colors cursor-pointer"
           title="More Claude actions"
         >
           <ChevronDownIcon className="w-3.5 h-3.5" />
         </button>
       </div>
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-60 py-1 bg-bg-secondary rounded-md shadow-lg ring-1 ring-border z-50">
+        <div className="absolute right-0 top-full mt-1 w-60 p-1 bg-bg-secondary rounded-lg shadow-lg ring-1 ring-border z-50">
           {reviewRef && (
             <>
               <div className="px-3 pt-1 pb-1.5 text-[10px] font-semibold text-text-muted uppercase tracking-widest">Review with a focus</div>

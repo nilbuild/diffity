@@ -177,6 +177,16 @@ pub struct PrNode {
     pub created_at: Option<String>,
     #[serde(default)]
     pub review_threads: Option<TotalCount>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+    #[serde(default)]
+    pub additions: Option<u32>,
+    #[serde(default)]
+    pub deletions: Option<u32>,
+    #[serde(default)]
+    pub changed_files: Option<u32>,
+    #[serde(default)]
+    pub is_cross_repository: Option<bool>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -236,6 +246,12 @@ impl PrNode {
             body: self.body.clone().unwrap_or_default(),
             created_at: self.created_at.clone().unwrap_or_default(),
             review_thread_count: self.review_threads.as_ref().map(|t| t.total_count).unwrap_or(0),
+            updated_at: self.updated_at.clone().unwrap_or_default(),
+            additions: self.additions.unwrap_or(0),
+            deletions: self.deletions.unwrap_or(0),
+            changed_files: self.changed_files.unwrap_or(0),
+            head_repo: self.head_repo_full_name().map(str::to_string),
+            is_cross_repository: self.is_cross_repository.unwrap_or(false),
         }
     }
 }
@@ -243,7 +259,7 @@ impl PrNode {
 pub fn pr_fields() -> &'static str {
     "id number title url state isDraft author{login} baseRefName headRefName headRefOid reviewDecision body \
      headRepository{nameWithOwner} commits(last:1){nodes{commit{statusCheckRollup{state}}}} \
-     createdAt reviewThreads(first:1){totalCount}"
+     createdAt updatedAt additions deletions changedFiles isCrossRepository reviewThreads(first:1){totalCount}"
 }
 
 pub fn find_pr_query() -> String {
@@ -405,7 +421,8 @@ mod tests {
       {"id":"PR_1","number":12,"title":"Add x","url":"https://github.com/o/r/pull/12","state":"OPEN","isDraft":false,
        "author":{"login":"alice"},"baseRefName":"main","headRefName":"feat","headRefOid":"abc123",
        "reviewDecision":"CHANGES_REQUESTED","body":null,"headRepository":{"nameWithOwner":"o/r"},
-       "commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]}},
+       "commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]},
+       "updatedAt":"2024-02-01T00:00:00Z","additions":5,"deletions":2,"changedFiles":3,"isCrossRepository":true},
       {"id":"PR_2","number":13,"title":"Y","url":"u","state":"OPEN","isDraft":true,"author":null,
        "baseRefName":"main","headRefName":"b","headRefOid":"def","reviewDecision":null,"body":"hi",
        "headRepository":null,"commits":{"nodes":[{"commit":{"statusCheckRollup":null}}]}}
@@ -423,10 +440,16 @@ mod tests {
         assert_eq!(first.review_decision.as_deref(), Some("CHANGES_REQUESTED"));
         assert_eq!(first.body, "");
         assert_eq!(nodes[0].head_repo_full_name(), Some("o/r"));
+        assert_eq!(first.updated_at, "2024-02-01T00:00:00Z");
+        assert_eq!((first.additions, first.deletions, first.changed_files), (5, 2, 3));
+        assert!(first.is_cross_repository);
+        assert_eq!(first.head_repo.as_deref(), Some("o/r"));
         let second = nodes[1].to_pull_request();
         assert_eq!(second.author, "ghost");
         assert_eq!(second.checks, None);
         assert!(second.is_draft);
+        assert!(!second.is_cross_repository);
+        assert_eq!(second.updated_at, "");
         assert_eq!(nodes[1].head_repo_full_name(), None);
     }
 

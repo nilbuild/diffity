@@ -32,7 +32,7 @@ export function FileTreeItem(props: FileTreeItemProps) {
     onExpandOnly,
     onFileClick,
   } = props;
-  const paddingLeft = depth * 12 + 8;
+  const paddingLeft = depth * 12 + 6;
 
   if (node.type === 'dir') {
     const isExpanded = expandedDirs.has(node.path);
@@ -62,12 +62,12 @@ export function FileTreeItem(props: FileTreeItemProps) {
     return (
       <>
         <button
-          className="flex items-center gap-1.5 w-full py-1 pr-2 text-left text-[13px] hover:bg-hover cursor-pointer"
+          className="flex items-center gap-1.5 w-full h-6 pr-2 text-left text-[13px] hover:bg-hover cursor-pointer"
           style={{ paddingLeft: `${paddingLeft}px` }}
           onClick={handleRowClick}
           onContextMenu={handleContextMenu}
         >
-          <span onClick={handleChevronClick} className="relative flex items-center rounded p-0.5 hover:bg-border/70 transition-colors">
+          <span onClick={handleChevronClick} className="relative flex items-center rounded p-0.5 hover:bg-hover transition-colors">
             <ChevronIcon expanded={isExpanded} />
           </span>
           <FolderIcon open={isExpanded} />
@@ -100,7 +100,7 @@ export function FileTreeItem(props: FileTreeItemProps) {
   return (
     <button
       className={cn(
-        'flex items-center gap-1.5 w-full py-1 pr-2 text-left text-[13px] cursor-pointer border-l-2',
+        'flex items-center gap-1.5 w-full h-6 pr-2 text-left text-[13px] cursor-pointer border-l-2',
         isActive
           ? 'bg-active border-l-accent'
           : 'border-l-transparent hover:bg-hover',

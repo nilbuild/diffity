@@ -14,6 +14,8 @@ import { Sidebar } from '../layout/sidebar';
 import { StaleDiffBanner } from '../layout/stale-diff-banner';
 import { DiffSkeleton, hideStaticSplash } from '../layout/skeleton';
 import { DiffContextBar } from '../layout/diff-context-bar';
+import { PrBar } from '../../features/pr/pr-bar';
+import { StatusBar } from '../layout/status-bar';
 import { DiffEmptyState } from './diff-empty-state';
 import { openShortcuts } from '../../lib/ui-store';
 import { useDiffStaleness } from '../../hooks/use-diff-staleness';
@@ -353,17 +355,11 @@ export function DiffPage(props: DiffPageProps) {
         githubDetails={githubDetails}
         hasGitHubRemote={!!info?.github}
         sessionId={sessionId}
-        onGitHubPulled={() => queryClient.invalidateQueries({ queryKey: ['threads'] })}
-      />
-      <DiffContextBar
-        diffRef={refParam}
-        branch={info?.branch || null}
-        diff={isEmpty ? null : diff}
         viewMode={viewMode}
         onViewModeChange={setViewMode}
-        hideWhitespace={hideWhitespace}
-        onHideWhitespaceChange={setHideWhitespace}
       />
+      <DiffContextBar diffRef={refParam} />
+      <PrBar diffRef={refParam} />
       {reviewsEnabled && <OtherViewsBanner sessionId={sessionId} />}
       {isStale && <StaleDiffBanner onRefresh={handleRefreshDiff} />}
       {isEmpty ? (
@@ -373,7 +369,7 @@ export function DiffPage(props: DiffPageProps) {
               threads={threads}
               commentActions={commentActions}
               viewEmpty
-              className="mx-4 mt-4 rounded-lg border border-border"
+              className="mx-auto mt-4 w-full max-w-2xl rounded-md border border-border"
             />
           )}
           <DiffEmptyState diffRef={refParam} hideWhitespace={hideWhitespace} branch={info?.branch || null} />
@@ -387,6 +383,7 @@ export function DiffPage(props: DiffPageProps) {
           commentCountsByFile={commentCountsByFile}
           onFileClick={handleSidebarFileClick}
           onCommentedFileClick={handleSidebarCommentedFileClick}
+          stats={diff.stats}
         />
         {diff ? (
           <DiffView
@@ -415,6 +412,7 @@ export function DiffPage(props: DiffPageProps) {
         ) : null}
       </div>
       )}
+      <StatusBar diffRef={refParam} />
     </div>
     </ReviewStateProvider>
   );

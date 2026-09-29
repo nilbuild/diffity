@@ -15,7 +15,7 @@ export function FolderViewer(props: FolderViewerProps) {
   const sorted = [...dirs, ...files];
 
   return (
-    <div className="border border-border/70 rounded-lg overflow-hidden">
+    <div className="border border-border rounded-md overflow-hidden">
       <table className="w-full text-sm">
         <tbody>
           {sorted.map((entry, i) => (
@@ -24,7 +24,7 @@ export function FolderViewer(props: FolderViewerProps) {
               className={`hover:bg-hover cursor-pointer ${i > 0 ? 'border-t border-border/70' : ''}`}
               onClick={() => onNavigate(entry.path, entry.type === 'tree' ? 'dir' : 'file')}
             >
-              <td className="px-4 py-2">
+              <td className="px-3 h-8">
                 <div className="flex items-center gap-2">
                   {entry.type === 'tree' ? (
                     <FolderIcon open={false} />

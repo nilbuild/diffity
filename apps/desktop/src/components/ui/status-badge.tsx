@@ -42,7 +42,7 @@ export function StatusBadge(props: StatusBadgeProps) {
 
   if (compact) {
     return (
-      <span className={cn('shrink-0 w-[18px] h-[18px] inline-flex items-center justify-center rounded text-[11px] font-bold font-mono', getStatusColor(status))}>
+      <span className={cn('shrink-0 w-4 h-4 inline-flex items-center justify-center rounded-[4px] text-[10px] font-semibold font-mono', getStatusColor(status))}>
         {getCompactLabel(status)}
       </span>
     );

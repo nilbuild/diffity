@@ -14,7 +14,7 @@ export function SvgPreview(props: SvgPreviewProps) {
   }, [content]);
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
+    <div className="border border-border rounded-md overflow-hidden">
       <div className="flex items-center justify-center p-8 bg-bg min-h-[200px]">
         <img
           src={dataUrl}

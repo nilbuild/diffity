@@ -124,7 +124,7 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
 
   if (collapsed) {
     return (
-      <div className="w-10 min-w-10 border-r border-border bg-bg-secondary flex items-start justify-center pt-3">
+      <div className="w-9 min-w-9 border-r border-border bg-bg-secondary flex items-start justify-center pt-1.5">
         <button
           className="p-1.5 rounded-md text-text-muted hover:text-text hover:bg-hover cursor-pointer"
           onClick={() => setCollapsed(false)}
@@ -137,13 +137,10 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
   }
 
   return (
-    <aside className="w-72 min-w-72 border-r border-border bg-bg-secondary flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border">
-        <span className="text-xs font-medium text-text-secondary flex items-center gap-2 uppercase tracking-wider">
-          Files
-          <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 bg-bg-tertiary rounded-full text-[10px] font-semibold text-text-muted">
-            {paths.length}
-          </span>
+    <aside className="w-64 min-w-64 border-r border-border bg-bg-secondary flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between h-9 pl-3 pr-1.5 shrink-0">
+        <span className="text-xs font-medium text-text-secondary">
+          {paths.length} file{paths.length === 1 ? '' : 's'}
         </span>
         <div className="flex items-center gap-0.5">
           <button
@@ -172,12 +169,12 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
           </button>
         </div>
       </div>
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex items-center gap-1.5 px-2 pb-2 shrink-0">
         <div className="relative flex-1">
           <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
           <input
             ref={ref}
-            className="w-full h-8 pl-7 pr-7 border border-border rounded-md bg-bg text-xs outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 placeholder:text-text-muted"
+            className="w-full h-7 pl-7 pr-7 border border-border rounded-md bg-bg text-xs outline-none focus:border-accent focus:ring-1 focus:ring-accent/20 placeholder:text-text-muted"
             type="text"
             placeholder='Press "/" to focus'
             value={search}
@@ -194,7 +191,7 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
         </div>
         {commentedFileCount > 0 && (
           <button
-            className={`inline-flex items-center gap-1.5 shrink-0 h-8 px-2 rounded-md border transition-colors cursor-pointer ${
+            className={`inline-flex items-center gap-1.5 shrink-0 h-7 px-2 rounded-md border transition-colors cursor-pointer ${
               effectiveCommentedOnly
                 ? 'border-accent bg-accent/8 text-accent'
                 : 'border-border bg-bg hover:bg-hover text-text-secondary hover:text-text'

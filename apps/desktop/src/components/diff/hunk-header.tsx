@@ -30,13 +30,13 @@ export function formatHunkHeader(hunk: DiffHunk): string {
 const SMALL_GAP_THRESHOLD = 40;
 
 const gutterCell = 'w-[25px] min-w-[25px] bg-diff-hunk-bg border-r border-border-muted p-0';
-const expandBtn = 'flex items-center justify-center w-full h-[18px] cursor-pointer text-diff-hunk-text/70 hover:text-diff-hunk-text transition-colors';
+const expandBtn = 'flex items-center justify-center w-full h-6 cursor-pointer text-diff-hunk-text/70 hover:text-diff-hunk-text transition-colors';
 const expandRow = 'bg-diff-hunk-bg';
 
 function SpinnerCell() {
   return (
     <td className={gutterCell}>
-      <div className="flex items-center justify-center h-[18px]">
+      <div className="flex items-center justify-center h-6">
         <Spinner />
       </div>
     </td>
@@ -49,7 +49,7 @@ export function HunkHeader(props: HunkHeaderProps) {
   if (!expandControls) {
     return (
       <tr className="bg-diff-hunk-bg group/hunk">
-        <td colSpan={4} className="px-3 py-1 font-mono text-xs text-diff-hunk-text select-none">
+        <td colSpan={4} className="px-3 py-0.5 code-text text-diff-hunk-text select-none">
           {formatHunkHeader(hunk)}
         </td>
       </tr>
@@ -64,7 +64,7 @@ export function HunkHeader(props: HunkHeaderProps) {
     }
     return (
       <tr className="bg-diff-hunk-bg group/hunk">
-        <td colSpan={4} className="px-3 py-1 font-mono text-xs text-diff-hunk-text select-none">
+        <td colSpan={4} className="px-3 py-0.5 code-text text-diff-hunk-text select-none">
           {formatHunkHeader(hunk)}
         </td>
       </tr>
@@ -85,7 +85,7 @@ export function HunkHeader(props: HunkHeaderProps) {
             </button>
           </td>
         )}
-        <td colSpan={3} className="px-3 py-1 font-mono text-xs text-diff-hunk-text select-none">
+        <td colSpan={3} className="px-3 py-0.5 code-text text-diff-hunk-text select-none">
           {formatHunkHeader(hunk)}
         </td>
       </tr>
@@ -106,7 +106,7 @@ export function HunkHeader(props: HunkHeaderProps) {
             </button>
           </td>
         )}
-        <td colSpan={3} className="px-3 py-1 font-mono text-xs text-diff-hunk-text select-none">
+        <td colSpan={3} className="px-3 py-0.5 code-text text-diff-hunk-text select-none">
           {formatHunkHeader(hunk)}
         </td>
       </tr>
@@ -127,7 +127,7 @@ export function HunkHeader(props: HunkHeaderProps) {
       </tr>
       <tr className="bg-diff-hunk-bg group/hunk">
         <td className={gutterCell} />
-        <td colSpan={3} className="px-3 py-1 font-mono text-xs text-diff-hunk-text select-none">
+        <td colSpan={3} className="px-3 py-0.5 code-text text-diff-hunk-text select-none">
           {formatHunkHeader(hunk)}
         </td>
       </tr>

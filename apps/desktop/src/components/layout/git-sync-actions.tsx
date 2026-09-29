@@ -24,7 +24,7 @@ const RUNNERS: Record<GitOp, (repoPath: string) => Promise<GitOpResult>> = {
   push: tauri.gitPush,
 };
 
-const buttonClass = 'flex items-center gap-1 px-2 py-1 text-xs text-text-muted hover:bg-hover hover:text-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default';
+const buttonClass = 'flex items-center gap-1 h-5 px-1.5 rounded text-[11px] text-text-muted hover:bg-hover hover:text-text transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default';
 
 export function GitSyncActions() {
   const queryClient = useQueryClient();
@@ -62,16 +62,16 @@ export function GitSyncActions() {
   const upstreamTitle = status.upstream ? ` (${status.upstream})` : '';
 
   return (
-    <div className="flex items-stretch bg-bg-tertiary rounded-md overflow-hidden">
+    <div className="flex items-center gap-0.5">
       <button className={buttonClass} disabled={running !== null} onClick={() => run('fetch')} title={`Fetch: download new commits without changing your files${upstreamTitle}`}>
-        {icon('fetch', <RefreshIcon className="w-3.5 h-3.5" />)}
+        {icon('fetch', <RefreshIcon className="w-3 h-3" />)}
       </button>
       <button className={buttonClass} disabled={running !== null} onClick={() => run('pull')} title={status.behind > 0 ? `Pull ${status.behind} commit${status.behind === 1 ? '' : 's'}${upstreamTitle}` : `Pull${upstreamTitle}`}>
-        {icon('pull', <DownloadIcon className="w-3.5 h-3.5" />)}
+        {icon('pull', <DownloadIcon className="w-3 h-3" />)}
         {status.behind > 0 && <span className="tabular-nums">{status.behind}</span>}
       </button>
       <button className={buttonClass} disabled={running !== null} onClick={() => run('push')} title={status.upstream ? (status.ahead > 0 ? `Push ${status.ahead} commit${status.ahead === 1 ? '' : 's'}${upstreamTitle}` : `Push${upstreamTitle}`) : 'Publish this branch to the remote'}>
-        {icon('push', <UploadIcon className="w-3.5 h-3.5" />)}
+        {icon('push', <UploadIcon className="w-3 h-3" />)}
         {status.ahead > 0 && <span className="tabular-nums">{status.ahead}</span>}
       </button>
     </div>

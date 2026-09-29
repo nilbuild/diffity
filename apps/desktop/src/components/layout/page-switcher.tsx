@@ -10,6 +10,7 @@ interface PageSwitcherProps {
 const PAGES: { value: Page; label: string }[] = [
   { value: 'diff', label: 'Changes' },
   { value: 'tree', label: 'Files' },
+  { value: 'overview', label: 'History' },
 ];
 
 export function PageSwitcher(props: PageSwitcherProps) {
@@ -17,20 +18,23 @@ export function PageSwitcher(props: PageSwitcherProps) {
   const nav = useRepoNav();
 
   return (
-    <div className="shrink-0">
     <SegmentedToggle
       options={PAGES}
       value={current}
       onChange={(value) => {
+        if (value === current && value !== 'diff') {
+          return;
+        }
         if (value === 'diff') {
           nav.toDiff('work');
           return;
         }
-        if (current !== 'tree') {
-          nav.toTree();
+        if (value === 'overview') {
+          nav.toOverview();
+          return;
         }
+        nav.toTree();
       }}
     />
-    </div>
   );
 }

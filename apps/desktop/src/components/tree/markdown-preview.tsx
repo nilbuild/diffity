@@ -163,7 +163,7 @@ export function MarkdownPreview(props: MarkdownPreviewProps) {
   }), [highlight, ready, resolveSrc]);
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
+    <div className="border border-border rounded-md overflow-hidden">
       {frontmatterEntries.length > 0 && (
         <FrontmatterTable entries={frontmatterEntries} />
       )}

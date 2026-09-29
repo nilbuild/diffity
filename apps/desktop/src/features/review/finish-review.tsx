@@ -1,12 +1,13 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 import { cn } from '../../lib/cn';
 import * as tauri from '../../lib/tauri';
 import type { ReviewVerdict } from '../../lib/types';
 import type { GitHubDetails } from '../../lib/api';
 import { useDismiss } from '../../hooks/use-dismiss';
 import { useGitHubAuth } from '../../hooks/use-repo-state';
-import { openSettings } from '../../lib/ui-store';
+import { openSettingsAt } from '../../lib/ui-store';
 import { ChevronDownIcon } from '../../components/icons/chevron-down-icon';
 import { SparkleIcon } from '../../components/icons/sparkle-icon';
 import { GitHubIcon } from '../../components/icons/github-icon';
@@ -150,7 +151,7 @@ export function FinishReview(props: FinishReviewProps) {
       return (
         <p className="text-[11px] text-text-muted">
           Reviewing a GitHub pull request?{' '}
-          <button onClick={openSettings} className="text-accent hover:underline cursor-pointer">
+          <button onClick={() => openSettingsAt('github')} className="text-accent hover:underline cursor-pointer">
             Sign in to GitHub
           </button>{' '}
           to post there too.
@@ -165,8 +166,7 @@ export function FinishReview(props: FinishReviewProps) {
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          'flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md transition-colors cursor-pointer whitespace-nowrap',
-          pendingCount > 0 ? 'bg-accent text-white hover:bg-accent-hover' : 'bg-bg-tertiary text-text-secondary hover:bg-hover hover:text-text',
+          pendingCount > 0 ? buttonPrimary : buttonOutline,
         )}
         title={pendingCount > 0 ? `${plural(pendingCount, 'draft comment')} waiting to be submitted` : 'Submit your comments, send them to Claude or post them to GitHub'}
       >
@@ -268,7 +268,7 @@ export function FinishReview(props: FinishReviewProps) {
           {sendToClaude && claudeProblem && (
             <div className="mx-3 mt-2 px-2.5 py-1.5 rounded-md bg-deleted/10 text-[11px] text-deleted">
               {claudeProblem}{' '}
-              <button onClick={openSettings} className="underline cursor-pointer">
+              <button onClick={() => openSettingsAt('claude')} className="underline cursor-pointer">
                 Open settings
               </button>
             </div>

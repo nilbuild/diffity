@@ -1,6 +1,8 @@
 use diffity_core::types::Thread;
 use diffity_core::AppError;
-use diffity_github::{DeviceCode, GitOpResult, GithubAuthStatus, PullRequest, PullResult, PushResult, ReviewEvent};
+use diffity_github::{
+    DeviceCode, GitOpResult, GithubAuthStatus, PullRequest, PullResult, PushResult, ReviewEvent, StashResult,
+};
 use serde_json::json;
 use tauri::{AppHandle, Emitter, State};
 
@@ -81,6 +83,45 @@ pub async fn checkout_pr(
     let pr = state.github.checkout_pr(&repo_path, url_or_number).await?;
     let _ = app.emit("repo-changed", json!({ "repoPath": repo_path }));
     Ok(pr)
+}
+
+/// `git stash push --include-untracked -m <message>` (before switching branches).
+#[tauri::command]
+pub async fn git_stash_push(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    repo_path: String,
+    message: String,
+) -> Result<StashResult, AppError> {
+    let result = state.github.stash_push(&repo_path, &message).await?;
+    let _ = app.emit("repo-changed", json!({ "repoPath": repo_path }));
+    Ok(result)
+}
+
+/// Pops the stash entry created by `git_stash_push` (matched by commit sha).
+#[tauri::command]
+pub async fn git_stash_restore(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    repo_path: String,
+    sha: String,
+) -> Result<(), AppError> {
+    let result = state.github.stash_restore(&repo_path, &sha).await;
+    let _ = app.emit("repo-changed", json!({ "repoPath": repo_path }));
+    result
+}
+
+/// Switches to a local branch (or commit); refuses when tracked files are dirty (code `dirty`).
+#[tauri::command]
+pub async fn git_checkout(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    repo_path: String,
+    target: String,
+) -> Result<(), AppError> {
+    state.github.checkout(&repo_path, &target).await?;
+    let _ = app.emit("repo-changed", json!({ "repoPath": repo_path }));
+    Ok(())
 }
 
 #[tauri::command]

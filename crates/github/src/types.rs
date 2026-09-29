@@ -53,6 +53,28 @@ pub struct PullRequest {
     /// Review threads on the PR (resolved or not).
     #[serde(default)]
     pub review_thread_count: u32,
+    #[serde(default)]
+    pub updated_at: String,
+    #[serde(default)]
+    pub additions: u32,
+    #[serde(default)]
+    pub deletions: u32,
+    #[serde(default)]
+    pub changed_files: u32,
+    /// `owner/name` of the head repository (null when the fork was deleted).
+    #[serde(default)]
+    pub head_repo: Option<String>,
+    /// Head branch lives in a fork.
+    #[serde(default)]
+    pub is_cross_repository: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct StashResult {
+    /// Commit sha of the stash entry, `None` when there was nothing to stash.
+    pub sha: Option<String>,
+    pub message: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]

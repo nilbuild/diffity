@@ -9,8 +9,9 @@ import { SettingsIcon } from '../icons/settings-icon';
 import { KeyboardIcon } from '../icons/keyboard-icon';
 import { openSettings, openShortcuts } from '../../lib/ui-store';
 import { modKey } from '../../lib/platform';
+import { buttonIcon } from '../ui/button-styles';
 
-export const menuItemClass = 'flex items-center gap-2.5 w-full px-3 py-1.5 text-xs text-text-secondary hover:bg-hover hover:text-text transition-colors cursor-pointer text-left';
+export const menuItemClass = 'flex items-center gap-2 w-full h-7 px-2.5 rounded-[5px] text-xs text-text-secondary hover:bg-hover hover:text-text transition-colors cursor-pointer text-left';
 
 interface OptionsMenuProps {
   theme: 'light' | 'dark';
@@ -43,14 +44,14 @@ export function OptionsMenu(props: OptionsMenuProps) {
   return (
     <div className="relative" ref={menuRef}>
       <button
-        className="p-1.5 rounded-md text-text-muted hover:text-text hover:bg-hover bg-bg-tertiary transition-colors cursor-pointer"
+        className={buttonIcon}
         onClick={() => setShowMenu(!showMenu)}
         title="More: shortcuts, theme, settings"
       >
         <EllipsisIcon className="w-4 h-4" />
       </button>
       {showMenu && (
-        <div className="absolute right-0 top-full mt-1 w-56 py-1 bg-bg-secondary rounded-md shadow-lg ring-1 ring-border z-50">
+        <div className="absolute right-0 top-full mt-1 w-56 p-1 bg-bg-secondary rounded-lg shadow-lg ring-1 ring-border z-50">
           {renderExtraItems && renderExtraItems(close)}
           <button
             className={menuItemClass}

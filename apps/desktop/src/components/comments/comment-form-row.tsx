@@ -36,13 +36,13 @@ export function CommentFormRow(props: CommentFormRowProps) {
       <tr>
         {side === 'old' ? (
           <>
-            <td colSpan={colSpan} className="px-4 py-3 bg-bg-secondary">{formContent}</td>
+            <td colSpan={colSpan} className="px-3 py-2 font-sans bg-bg-secondary">{formContent}</td>
             <td colSpan={colSpan} className="bg-bg-secondary"></td>
           </>
         ) : (
           <>
             <td colSpan={colSpan} className="bg-bg-secondary"></td>
-            <td colSpan={colSpan} className="px-4 py-3 bg-bg-secondary">{formContent}</td>
+            <td colSpan={colSpan} className="px-3 py-2 font-sans bg-bg-secondary">{formContent}</td>
           </>
         )}
       </tr>
@@ -51,7 +51,7 @@ export function CommentFormRow(props: CommentFormRowProps) {
 
   return (
     <tr>
-      <td colSpan={colSpan} className="px-4 py-3 bg-bg-secondary">
+      <td colSpan={colSpan} className="px-3 py-2 font-sans bg-bg-secondary">
         {formContent}
       </td>
     </tr>

@@ -96,9 +96,9 @@ export function CommentBubble(props: CommentBubbleProps) {
   };
 
   return (
-    <div className="px-1.5 py-1 first:pt-1.5 last:pb-1.5 group">
-      <div className="bg-bg rounded-lg px-3 py-2.5">
-        <div className="flex items-center gap-2 mb-1.5">
+    <div className="group border-t border-border-muted first:border-t-0">
+      <div className="px-3 py-2">
+        <div className="flex items-center gap-2 mb-0.5">
           <AuthorAvatar name={comment.author.name} avatarUrl={comment.author.avatarUrl} type={comment.author.type} />
           <span className="text-xs font-semibold text-text">{comment.author.name}</span>
           {comment.author.type === 'agent' && (
@@ -134,20 +134,20 @@ export function CommentBubble(props: CommentBubbleProps) {
               onChange={(e) => setEditBody(e.target.value)}
               onKeyDown={handleKeyDown}
               rows={3}
-              className="w-full px-3 py-2 text-sm bg-bg-tertiary text-text resize-y outline-none rounded-md min-h-[60px]"
+              className="w-full px-2.5 py-1.5 text-sm bg-bg text-text resize-y outline-none rounded-md border border-border focus:border-accent min-h-[60px]"
             />
             <div className="flex items-center gap-2 mt-1.5">
               <div className="flex-1" />
               <button
                 onClick={handleCancel}
-                className="px-3 py-1 text-xs font-medium rounded-md text-text-secondary hover:bg-hover transition-colors cursor-pointer"
+                className="h-6 px-2.5 text-xs font-medium rounded-md text-text-secondary hover:bg-hover transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSave}
                 disabled={!editBody.trim()}
-                className="px-3 py-1 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="h-6 px-2.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 Save
               </button>

@@ -21,7 +21,7 @@ branch) and in the browser mock.
 - Opening a commit showed "Commit abc1234" and nothing else → a context bar under the toolbar: Back, sha (click to copy), subject, author, relative date (full date on hover). PRs show title, #N link and head → base; ranges show "Comparing a...b".
 - Opening the root commit failed (`<sha>~1..<sha>`) → the backend diffs a root commit against the empty tree (test added).
 - Commit list rows were a sha + subject → subject, sha, author, relative time and files/+/− (`git log --shortstat`), search by message, author or hash, infinite scroll (with a "Load more" fallback), skeleton rows, error + retry, and a "Changes since" hover action (`<sha>..HEAD`).
-- Overview was a file list and a commit list → status card (repo, branch, upstream/ahead/behind or "no upstream", open PR or "sign in to see PRs"), "What do you want to review?" targets (uncommitted summary, last commit, PR or branch-vs-base, browse files), uncommitted files, commits, and a Compare card with base/head inputs and branch suggestions.
+- (superseded, see Landing and density) Overview was a file list and a commit list → status card (repo, branch, upstream/ahead/behind or "no upstream", open PR or "sign in to see PRs"), "What do you want to review?" targets (uncommitted summary, last commit, PR or branch-vs-base, browse files), uncommitted files, commits, and a Compare card with base/head inputs and branch suggestions.
 - Dashboard "M" status used a non-existent `text-changed` class (no colour) → `text-modified`, with tooltips for S/M/A.
 - PRs checked out with `gh pr checkout` from a fork were not detected (branch name/remote didn't match) → `find_pr` also reads `branch.<b>.merge` (`refs/pull/N/head`) and accepts the branch's tracked fork as head repo.
 
@@ -58,9 +58,53 @@ branch) and in the browser mock.
 - Keyboard shortcuts were only discoverable on the diff page → `?` works everywhere, listed in ⋯ and Settings, shortcut list updated (⌘,, comment keys).
 - Welcome: non-git folder toast now explains `git init`; moved/deleted recent repos say so.
 
+## Landing and density (compact pass)
+
+Walked through as a user opening a repo: what do I need first? The changes. The status card, "What do you want to
+review?" tiles, uncommitted-file list, commits card and compare card all answered questions nobody had yet.
+
+- **Decision: no overview as a destination.** A repo opens straight into Uncommitted changes (it already did; the
+  overview was one click away on the repo name and looked like the landing). We do not auto-jump to the last commit or
+  the branch when the tree is clean: the working tree view updates live as you edit, and jumping away would move the
+  view under you. Instead the clean-tree empty state is a short calm list: the PR (or "<branch> vs <base>"), Last commit
+  (sha + subject), "Pick a commit or compare branches" (History) and "Browse files". Empty repos only offer Browse files.
+- The overview became **History** (third tab: Changes | Files | History), one column: quick picks only when they exist
+  (uncommitted N files, the PR / branch vs base), a one-line Compare form, and the commit list with single-line rows.
+  Removed: status card (branch/upstream/PR moved to the status bar), target tiles, uncommitted file list (duplicate of
+  Changes), card headers and helper sentences.
+- Welcome was four stacked cards → one row (mark, tagline, Open folder ⌘O), a plain Recent list (name, muted parent
+  path, time; remove on hover), a small PR URL input with an Open button that appears when you type, and the drop hint.
+  "Open in new window" button dropped (⌘-click a recent repo instead).
+- Two header bars → one. View mode (icons) and Hide whitespace moved into the title bar next to the review picker; the
+  file count and +/− moved to the sidebar header; the context bar now only appears where it carries information
+  (commit, PR, range). Branch chip, git sync group and GitHub button moved to a 24px status bar at the bottom.
+- Empty views no longer show a disabled "Resolve with Claude" and "Submit comments".
+- Density: Geist / Geist Mono, 13px UI, 12.5px code on 20px rows (was 14px / 24px), 24px tree rows, 32px file headers,
+  28px buttons, one-border thread cards, lighter hunk bands, dim directory + bright file name in file headers, a coloured
+  left edge and tinted line numbers on changed lines, "N unmodified lines" on the bottom expand band. About 20% more
+  code lines fit on screen.
+- Dark theme re-based on near-black neutrals (#141414 / #1a1a1a / #282828 borders) with darker, more saturated diff rows.
+
+## Settings (rework)
+
+- The single-column settings sheet was cramped and mixed status, forms and links → time.fyi-style dialog: 780px, left rail with "Find a setting" search and grouped icon tabs (General, Editor, Keyboard shortcuts · Claude Code, GitHub · About), pane title + close, grouped label/hint rows with a fixed control column.
+- Theme had only Light/Dark → System / Light / Dark with mini-window swatches; System follows macOS live. Default diff layout lives in General.
+- Claude Code status was a line of coloured text → status card (Ready / Logged out / Not found badge, binary path, Re-detect), binary path row, "What Claude can do here".
+- GitHub account: avatar card with source (gh CLI or keychain), Switch, Sign out behind an inline confirm; signed out shows "Import from gh" and a token row.
+- Contextual links open the right pane (review popover → GitHub, Claude errors → Claude Code). Shortcuts pane reuses the shortcut modal data.
+
+## Pull requests
+
+- Checking out a PR was only possible from the welcome screen with a URL → a "Pull requests" toolbar button and a "Pull requests…" ref-picker entry open a searchable picker (state, draft, review decision, checks, +/−, author, updated, fork `owner:branch`); `#123` or a URL checks out closed/merged PRs too.
+- Checkout with local edits failed with a git error → a dialog explains what's uncommitted and offers Cancel or "Stash and check out" (`git stash push --include-untracked`); the stash is popped automatically on "Back to <branch>", and put back if the checkout fails.
+- After checkout the user landed on a bare diff → the PR diff opens with a PR bar (state, title, #N, author, base ← head, checks, description, Sync comments, Back to <branch>) and the PR's review threads are pulled in automatically.
+- The base branch could be stale, skewing the PR diff → `checkout_pr` fetches the base too; merged PRs whose branch was deleted fall back to `pull/<n>/head`.
+- Verified read-only on sindresorhus/p-queue #233 (same-repo, dirty tree → stash → back restores) and pmndrs/zustand #3580 (fork → `pr-3580`, 4 review comments pulled, "Review #3580" offered). Nothing was posted.
+
 ## Remaining
 
 - Very large diffs (thousands of files) are still rendered eagerly apart from auto-collapsed files; no virtualisation.
 - The window title is only the repo name (no ref).
 - A PR review posted from a non-PR view (e.g. an old commit) can only post comments GitHub can anchor; unanchored ones are reported as failed.
 - The edit-rejected guard is per turn, so after one denial Claude can't resolve any thread in that run, even ones whose edits were approved (conservative by design).
+- PR picker lists the 30 most recently updated open PRs; older ones need `#number`. No device-flow sign-in in the new GitHub pane (only when `DIFFITY_GITHUB_CLIENT_ID` is set; import/token cover it).

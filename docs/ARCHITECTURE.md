@@ -126,7 +126,9 @@ interface DeviceCode { userCode: string; verificationUri: string; deviceCode: st
 interface GitOpResult { ok: boolean; output: string; }
 interface PullRequest { number: number; title: string; url: string; state: string; isDraft: boolean; author: string;
   baseRef: string; headRef: string; headSha: string; reviewDecision: string | null; checks: string | null; body: string;
-  createdAt: string; reviewThreadCount: number; }
+  createdAt: string; reviewThreadCount: number;
+  updatedAt: string; additions: number; deletions: number; changedFiles: number; headRepo: string | null; isCrossRepository: boolean; }
+interface StashResult { sha: string | null; message: string; }   // sha null = nothing to stash
 type ReviewEvent = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';
 interface PushResult { pushed: number; skipped: number; failed: number; errors: string[]; }
 interface PullResult { pulled: number; updated: number; skipped: number; }
@@ -197,7 +199,10 @@ git_pull(repoPath) -> GitOpResult                         // --ff-only; refuse w
 git_push(repoPath) -> GitOpResult                         // sets upstream if missing
 find_pr(repoPath) -> Option<PullRequest>                  // PR for current branch
 list_prs(repoPath) -> PullRequest[]
-checkout_pr(repoPath, urlOrNumber) -> PullRequest
+checkout_pr(repoPath, urlOrNumber) -> PullRequest     // refuses a dirty tree (code `dirty`); fetches base + head; fork or deleted head → `pr-<n>` from pull/<n>/head
+git_stash_push(repoPath, message) -> StashResult       // git stash push --include-untracked -m <message>
+git_stash_restore(repoPath, sha) -> ()                 // pops the stash entry with that commit (--index, falls back to plain pop)
+git_checkout(repoPath, target) -> ()                   // local branch or sha; refuses a dirty tree (code `dirty`)
 push_review(repoPath, sessionId, prNumber, event: Option<ReviewEvent>, body: Option, threadIds: Option<string[]>, reviewId: Option) -> PushResult
 pull_review(repoPath, sessionId, prNumber) -> PullResult
 github_reply(threadId, body) -> Thread                    // local + GitHub for synced threads
@@ -230,6 +235,8 @@ components/                     web app components (diff/, comments/, tree/, lay
 features/claude/                claude-runner (queue + runs), claude-toolbar (Review/Resolve with Claude, status pill), claude-approval-modal
 features/review/                review-state (pending review context, submit/discard), finish-review popover
 features/welcome/open-repo.ts   folder picker, PR URL parsing
+features/settings/              settings dialog (⌘,): rail + panes (general, editor, shortcuts, claude, github, about), preferences.tsx row primitives
+features/pr/                    pull requests picker, checkout flow (dirty guard, stash, return point), PR bar (header on the PR diff)
 ```
 
 Adapter mapping (`lib/api.ts`, web endpoint → command):
@@ -329,7 +336,39 @@ Threads live in the session of the view they were left in (`work`, a commit `<sh
   - *Push:* `github_pushable_threads(repoPath, prNumber)` returns open, unsynced threads from **all** of the repo's sessions whose file is in the PR (general comments included) and whose commented side is anchored like GitHub's PR diff: new side ⇒ the session's new side is local `HEAD` (`work`, `staged`, `HEAD`, the PR ref, the file browser), old side ⇒ the session's base is the PR merge-base (in practice only the PR session). PR-session threads are listed first; others get an "other view" badge. `push_review(..., threadIds)` accepts ids from any session of the repo (with `threadIds: null` it pushes the given session only, as before). Threads stay in their original session and gain GitHub ids there.
   - *Pull:* `pull_review` matches remote threads against GitHub-linked threads in **any** session of the repo (so threads pushed from `work` update in place); new remote threads are created in the PR session, and the PR tab switches the ref picker to the PR ref so the Changes view shows them. Both commands emit `threads-changed` for every session of the repo.
 - **Dev helpers** (debug builds only): `DIFFITY_OPEN=<repo path>` (+ optional `DIFFITY_TAB=files`) opens that repo in the main window on launch (`dev_launch_target` command, `lib/dev.ts`). Webview `console.error`/`console.warn`, uncaught errors and unhandled rejections are forwarded to the terminal through `log_frontend` (tracing target `webview`). Default log level is `info` in dev; override with `RUST_LOG`.
-- `?pr=<url|number>` on a repo route (from the welcome page) checks the PR out once (when GitHub auth is available) and opens `origin/<base>...HEAD`.
+- `?pr=<url|number>` on a repo route (from the welcome page) runs the same checkout flow as the Pull requests picker (below).
+
+## Settings
+
+`features/settings/settings-dialog.tsx`, opened by ⌘, / ⋯ → Settings… / welcome gear (`openSettings()`), or on a section with
+`openSettingsAt('github' | 'claude' | …)` (review popover, Claude errors). Layout follows the time.fyi settings dialog: 780px modal,
+200px left rail (search field "Find a setting" that lists matching rows, grouped tabs with icons, ↑/↓ moves), pane header with close,
+`PreferencesGroup` (small label + rule) and `PreferencesRow` (label + hint left, 260px control column right, or stacked).
+- General: theme System / Light / Dark with mini-window swatches (`useTheme().preference`; System follows `prefers-color-scheme`
+  live and clears `localStorage['diffity-theme']`), default diff layout (`localStorage['diffity-view-mode']`).
+- Editor: VS Code / Cursor / Zed / System segmented + custom command (`setting editor`).
+- Keyboard shortcuts: read-only, from `shortcuts` in `components/layout/shortcut-modal.tsx`.
+- Claude Code: status card (`list_agents`, Re-detect = `list_agents(true)`), binary path (`agent.claude.path`), what Claude can do.
+- GitHub: account card (avatar, source, Switch, Sign out with inline confirm) or sign-in rows (import from `gh`, paste token).
+- About: app + Tauri version (`@tauri-apps/api/app`).
+
+## Pull request checkout
+
+- Entry points: toolbar "Pull requests" button, "Pull requests…" in the ref picker, welcome "open PR URL" (`?pr=`).
+- Picker (`features/pr/pull-requests-dialog.tsx`, `ui-store.pullRequestsOpen`): `list_prs` (open, 30 newest by update) with
+  state icon, title, draft, #, author, updated, head (`owner:branch` for forks), review decision, checks, +/−; search by
+  title/number/author/branch; typing `12`, `#12` or a PR URL offers "Check out pull request #12" (works for closed/merged PRs).
+  Sign-in and no-remote states. ↑/↓/Enter/Esc.
+- Flow (`features/pr/pr-checkout.ts`): not signed in → toast to Settings → GitHub. Staged/unstaged changes → `CheckoutGuardDialog`
+  (counts, Cancel, or "Stash and check out" = `git_stash_push`; untracked-only trees check out directly). Records a return point
+  per repo (`setting pr.return:<repoPath>` = `{branch, sha, stash, prNumber}`; kept when hopping PR → PR), `checkout_pr`,
+  `pull_review` into the PR session, then opens `origin/<base>...HEAD`. A failed checkout pops the stash it just made.
+- PR bar (`features/pr/pr-bar.tsx`, rendered by `diff-page` after `DiffContextBar`, which hides itself on the PR ref): state badge, title, #N link, author,
+  base ← head, review decision, checks, updated, collapsible description (Markdown, files/+/−, fork), "Sync comments" (read-only
+  `pull_review`, also run once per PR per app session when the PR view opens) and "Back to <branch>" (`git_checkout` with the same
+  dirty guard, then pops the stash recorded at checkout, clears the return point, opens `work`).
+- Review: on the checked-out PR `find_pr` resolves the PR (fork branches via `branch.pr-<n>.diffityPr`), so "Review #N" offers
+  posting to it.
 - (Backend only until the chat panel returns.) "Explain" with a line selection sends the selection (path, side, range, snippet) as a context chip; `prompts/explain.md` focuses the explanation on that range.
 
 Launch the app: `pnpm install && pnpm -C apps/desktop tauri dev` (optionally `DIFFITY_OPEN=/path/to/repo`). Bundle: `pnpm -C apps/desktop tauri build --debug --bundles app`.

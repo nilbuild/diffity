@@ -88,3 +88,109 @@ pub async fn branch_exists(repo: &str, branch: &str) -> Result<bool> {
     let refname = format!("refs/heads/{branch}");
     Ok(run(repo, &["show-ref", "--verify", "--quiet", &refname]).await?.ok)
 }
+
+async fn stash_top(repo: &str) -> Result<Option<String>> {
+    let out = run(repo, &["rev-parse", "--verify", "--quiet", "refs/stash"]).await?;
+    Ok(out.ok.then(|| out.output.trim().to_string()).filter(|sha| !sha.is_empty()))
+}
+
+/// `git stash push --include-untracked -m <message>`; returns the new stash commit, `None` when there was nothing to stash.
+pub async fn stash_push(repo: &str, message: &str) -> Result<Option<String>> {
+    let before = stash_top(repo).await?;
+    run_ok(repo, &["stash", "push", "--include-untracked", "-m", message]).await?;
+    let after = stash_top(repo).await?;
+    if after.is_none() || after == before {
+        return Ok(None);
+    }
+    Ok(after)
+}
+
+/// Pops the stash entry whose commit is `sha` (restoring the index when possible).
+pub async fn stash_restore(repo: &str, sha: &str) -> Result<()> {
+    let list = run_ok(repo, &["stash", "list", "--format=%H"]).await?;
+    let index = list.lines().position(|line| line.trim() == sha).ok_or_else(|| {
+        AppError::not_found("That stash no longer exists. It may have been restored or dropped already.")
+    })?;
+    let entry = format!("stash@{{{index}}}");
+    if run(repo, &["stash", "pop", "--index", &entry]).await?.ok {
+        return Ok(());
+    }
+    if is_dirty(repo).await? {
+        return Err(AppError::new(
+            "stash_conflict",
+            format!("Could not restore {entry} cleanly. Resolve the conflicts, then run `git stash drop {entry}`."),
+        ));
+    }
+    run_ok(repo, &["stash", "pop", &entry]).await?;
+    Ok(())
+}
+
+/// Switches to a local branch or commit; refuses when tracked files have uncommitted changes.
+pub async fn checkout(repo: &str, target: &str) -> Result<()> {
+    let target = target.trim();
+    if target.is_empty() || target.starts_with('-') {
+        return Err(AppError::invalid("invalid branch name"));
+    }
+    ensure_clean(repo, "switching branches").await?;
+    run_ok(repo, &["checkout", target, "--"]).await?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn git(dir: &std::path::Path, args: &[&str]) {
+        let status = std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .env("GIT_AUTHOR_NAME", "t")
+            .env("GIT_AUTHOR_EMAIL", "t@t")
+            .env("GIT_COMMITTER_NAME", "t")
+            .env("GIT_COMMITTER_EMAIL", "t@t")
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?}");
+    }
+
+    fn scratch() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        git(dir.path(), &["init", "-q", "-b", "main"]);
+        std::fs::write(dir.path().join("a.txt"), "one\n").unwrap();
+        git(dir.path(), &["add", "."]);
+        git(dir.path(), &["commit", "-qm", "init"]);
+        git(dir.path(), &["branch", "other"]);
+        dir
+    }
+
+    #[tokio::test]
+    async fn stash_round_trip_with_untracked() {
+        let dir = scratch();
+        let repo = dir.path().to_str().unwrap();
+        assert_eq!(stash_push(repo, "nothing").await.unwrap(), None);
+        std::fs::write(dir.path().join("a.txt"), "two\n").unwrap();
+        std::fs::write(dir.path().join("new.txt"), "n\n").unwrap();
+        git(dir.path(), &["add", "a.txt"]);
+        let sha = stash_push(repo, "diffity: test").await.unwrap().expect("stashed");
+        assert!(!is_dirty(repo).await.unwrap());
+        assert!(!dir.path().join("new.txt").exists());
+        checkout(repo, "other").await.unwrap();
+        assert_eq!(current_branch(repo).await.unwrap().as_deref(), Some("other"));
+        checkout(repo, "main").await.unwrap();
+        stash_restore(repo, &sha).await.unwrap();
+        assert_eq!(std::fs::read_to_string(dir.path().join("a.txt")).unwrap(), "two\n");
+        assert!(dir.path().join("new.txt").exists());
+        let staged = run_ok(repo, &["diff", "--cached", "--name-only"]).await.unwrap();
+        assert_eq!(staged, "a.txt");
+        assert_eq!(stash_restore(repo, &sha).await.unwrap_err().code, "not_found");
+    }
+
+    #[tokio::test]
+    async fn checkout_refuses_dirty_tree_and_options() {
+        let dir = scratch();
+        let repo = dir.path().to_str().unwrap();
+        assert_eq!(checkout(repo, "--orphan").await.unwrap_err().code, "invalid");
+        std::fs::write(dir.path().join("a.txt"), "dirty\n").unwrap();
+        assert_eq!(checkout(repo, "other").await.unwrap_err().code, "dirty");
+    }
+}

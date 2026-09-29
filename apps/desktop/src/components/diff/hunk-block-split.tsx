@@ -172,7 +172,7 @@ export function renderSplitRows(
     const rightNum = rightLine?.newLineNumber ?? null;
 
     result.push(
-      <tr key={`${keyPrefix}-${i}`} className="group/split-row font-mono text-sm leading-6">
+      <tr key={`${keyPrefix}-${i}`} className="group/split-row code-text">
         <SplitCell
           line={leftLine}
           side="left"

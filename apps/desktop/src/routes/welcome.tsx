@@ -15,10 +15,8 @@ import { parsePrUrl, pickFolder, remoteMatches } from '../features/welcome/open-
 import { useTheme } from '../hooks/use-theme';
 import { BrandLogo } from '../components/icons/brand-logo';
 import { FolderOpenIcon } from '../components/icons/folder-open-icon';
-import { GitBranchIcon } from '../components/icons/git-branch-icon';
 import { GitHubIcon } from '../components/icons/github-icon';
 import { XIcon } from '../components/icons/x-icon';
-import { PlusIcon } from '../components/icons/plus-icon';
 import { SunIcon } from '../components/icons/sun-icon';
 import { MoonIcon } from '../components/icons/moon-icon';
 import { hasOverlayTitleBar } from '../components/layout/title-bar';
@@ -26,6 +24,7 @@ import { hideStaticSplash } from '../components/layout/skeleton';
 import { SettingsIcon } from '../components/icons/settings-icon';
 import { openSettings } from '../lib/ui-store';
 import { cn } from '../lib/cn';
+import { buttonIcon, buttonOutline, buttonPrimary } from '../components/ui/button-styles';
 
 dayjs.extend(relativeTime);
 
@@ -148,70 +147,38 @@ export function WelcomePage() {
 
   return (
     <div className="relative flex flex-col h-screen bg-bg text-text font-sans">
-      <div data-tauri-drag-region className={cn('flex items-center justify-end gap-1 h-11 shrink-0 px-3', hasOverlayTitleBar && 'pl-[92px]')}>
-        <button
-          onClick={openSettings}
-          className="p-1.5 rounded-md text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer"
-          title={`Settings (${modKey},)`}
-        >
+      <div data-tauri-drag-region className={cn('flex items-center justify-end gap-0.5 h-11 shrink-0 px-2', hasOverlayTitleBar && 'pl-[84px]')}>
+        <button onClick={openSettings} className={buttonIcon} title={`Settings (${modKey},)`}>
           <SettingsIcon className="w-4 h-4" />
         </button>
-        <button
-          onClick={toggleTheme}
-          className="p-1.5 rounded-md text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer"
-          title={theme === 'light' ? 'Dark mode' : 'Light mode'}
-        >
+        <button onClick={toggleTheme} className={buttonIcon} title={theme === 'light' ? 'Dark mode' : 'Light mode'}>
           {theme === 'light' ? <MoonIcon className="w-4 h-4" /> : <SunIcon className="w-4 h-4" />}
         </button>
       </div>
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-xl mx-auto px-6 pt-[6vh] pb-10 space-y-6">
-          <div className="flex items-center gap-3">
-            <BrandLogo className="w-10 h-10 shrink-0" />
-            <div>
-              <h1 className="text-lg font-semibold text-text">diffity</h1>
-              <p className="text-xs text-text-muted">Review diffs, leave comments and hand them to Claude Code.</p>
+        <div className="max-w-[480px] mx-auto px-4 pt-[10vh] pb-10">
+          <div className="flex items-center gap-3 mb-6">
+            <BrandLogo className="w-8 h-8 shrink-0" />
+            <div className="min-w-0">
+              <h1 className="text-base font-semibold text-text leading-5">diffity</h1>
+              <p className="text-xs text-text-muted truncate">Review code and hand comments to Claude</p>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => void openFolder()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors cursor-pointer"
-            >
+            <button onClick={() => void openFolder()} className={cn(buttonPrimary, 'ml-auto')} title="Open a Git repository (⌘-click a recent one to open it in a new window)">
               <FolderOpenIcon className="w-3.5 h-3.5" />
               Open folder
-              <span className="ml-1 text-white/70">{modKey}O</span>
-            </button>
-            <button
-              onClick={() => void openFolder(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-bg-tertiary text-text-secondary hover:bg-hover hover:text-text transition-colors cursor-pointer"
-            >
-              <PlusIcon className="w-3.5 h-3.5" />
-              Open in new window
+              <kbd className="font-sans text-white/70">{modKey}O</kbd>
             </button>
           </div>
 
-          <PrUrlCard recent={recent.all} onOpen={openRepo} />
-
-          <div className="border border-border rounded-lg bg-bg-secondary overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <div className="flex items-center gap-2">
-                <h3 className="font-medium text-text text-sm">Recent repositories</h3>
-                {recent.repos.length > 0 && (
-                  <span className="px-2 py-0.5 text-xs font-mono rounded-full bg-bg-tertiary text-text-secondary">
-                    {recent.repos.length}
-                  </span>
-                )}
-              </div>
-              {recent.repos.length > 0 && (
-                <span className="text-[11px] text-text-muted">{modKey}-click opens a new window</span>
-              )}
-            </div>
-            <RecentList repos={recent.repos} loading={recent.loading} onOpen={openRepo} onRemove={recent.remove} />
+          <div className="flex items-center justify-between h-7 mb-1">
+            <h2 className="text-xs font-medium text-text-muted">Recent</h2>
           </div>
+          <RecentList repos={recent.repos} loading={recent.loading} onOpen={openRepo} onRemove={recent.remove} />
 
-          <p className="text-center text-[11px] text-text-muted">Drop a folder on this window to open it</p>
+          <div className="mt-6">
+            <PrUrlForm recent={recent.all} onOpen={openRepo} />
+          </div>
+          <p className="mt-6 text-center text-[11px] text-text-muted">Or drop a folder anywhere on this window</p>
         </div>
       </div>
       {dragging && (
@@ -238,10 +205,14 @@ function RecentList(props: RecentListProps) {
     return <div className="h-24" />;
   }
   if (repos.length === 0) {
-    return <p className="text-sm text-text-muted px-4 py-3">No recent repositories yet</p>;
+    return (
+      <p className="text-xs text-text-muted px-2 py-3 rounded-md border border-dashed border-border text-center">
+        Repositories you open show up here
+      </p>
+    );
   }
   return (
-    <ul className="divide-y divide-border">
+    <ul className="-mx-2">
       {repos.map((repo) => (
         <RecentRow key={repo.path} repo={repo} onOpen={onOpen} onRemove={onRemove} />
       ))}
@@ -251,35 +222,22 @@ function RecentList(props: RecentListProps) {
 
 function RecentRow(props: { repo: RecentRepo; onOpen: (path: string, newWindow?: boolean) => void; onRemove: (path: string) => void }) {
   const { repo, onOpen, onRemove } = props;
-  const { data: status } = useQuery({
-    queryKey: ['recent-status', repo.path],
-    queryFn: () => tauri.gitStatus(repo.path),
-    staleTime: 60_000,
-  });
+  const parent = repo.path.replace(/^\/Users\/[^/]+/, '~').replace(/\/[^/]+\/?$/, '');
 
   return (
-    <li className="group relative flex items-center hover:bg-bg-tertiary transition-colors">
+    <li className="group relative flex items-center rounded-md hover:bg-hover transition-colors">
       <button
         onClick={(event) => onOpen(repo.path, event.metaKey || event.ctrlKey)}
-        className="flex flex-1 min-w-0 items-center gap-3 px-4 py-2.5 text-left cursor-pointer"
+        className="flex flex-1 min-w-0 items-center gap-2 h-8 px-2 text-left cursor-pointer"
+        title={repo.path}
       >
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2 min-w-0">
-            <span className="text-sm font-medium text-text truncate">{repo.name}</span>
-            {status?.branch && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-diff-hunk-bg text-diff-hunk-text rounded font-mono text-[11px] shrink-0">
-                <GitBranchIcon className="w-3 h-3" />
-                {status.branch}
-              </span>
-            )}
-          </span>
-          <span className="block text-xs text-text-muted font-mono truncate mt-0.5">{repo.path.replace(/^\/Users\/[^/]+/, '~')}</span>
-        </span>
-        <span className="text-xs text-text-muted shrink-0 group-hover:invisible">{dayjs(repo.lastOpenedAt).fromNow()}</span>
+        <span className="text-[13px] font-medium text-text truncate shrink-0 max-w-[60%]">{repo.name}</span>
+        <span className="text-xs text-text-muted font-mono truncate min-w-0 flex-1">{parent}</span>
+        <span className="text-[11px] text-text-muted shrink-0 group-hover:invisible">{dayjs(repo.lastOpenedAt).fromNow()}</span>
       </button>
       <button
         onClick={() => onRemove(repo.path)}
-        className="absolute right-3 p-1 rounded-md text-text-muted hover:text-text hover:bg-hover invisible group-hover:visible cursor-pointer"
+        className="absolute right-1 p-1 rounded text-text-muted hover:text-text hover:bg-hover invisible group-hover:visible cursor-pointer"
         title="Remove from recent"
       >
         <XIcon className="w-3.5 h-3.5" />
@@ -288,7 +246,7 @@ function RecentRow(props: { repo: RecentRepo; onOpen: (path: string, newWindow?:
   );
 }
 
-function PrUrlCard(props: { recent: RecentRepo[]; onOpen: (path: string, newWindow?: boolean, extra?: Record<string, string>) => Promise<void> }) {
+function PrUrlForm(props: { recent: RecentRepo[]; onOpen: (path: string, newWindow?: boolean, extra?: Record<string, string>) => Promise<void> }) {
   const { recent, onOpen } = props;
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
@@ -320,35 +278,28 @@ function PrUrlCard(props: { recent: RecentRepo[]; onOpen: (path: string, newWind
   };
 
   return (
-    <div className="border border-border rounded-lg bg-bg-secondary overflow-hidden">
-      <div className="px-4 py-3 border-b border-border">
-        <h3 className="font-medium text-text text-sm">Open a pull request</h3>
+    <form
+      className="flex items-center gap-1.5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+    >
+      <div className="relative flex-1 min-w-0">
+        <GitHubIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
+        <input
+          type="text"
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          placeholder="Open a pull request URL…"
+          className="w-full h-7 text-xs bg-bg border border-border rounded-md pl-8 pr-3 text-text placeholder:text-text-muted focus:outline-none focus:border-accent"
+        />
       </div>
-      <form
-        className="flex items-center gap-2 px-4 py-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        <div className="relative flex-1 min-w-0">
-          <GitHubIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
-          <input
-            type="text"
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-            placeholder="https://github.com/owner/repo/pull/123"
-            className="w-full text-sm bg-bg border border-border rounded-md pl-8 pr-3 py-1.5 text-text placeholder:text-text-muted focus:outline-none focus:border-accent"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={!url.trim() || busy}
-          className="px-3 py-1.5 text-xs font-medium rounded-md bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-        >
-          {busy ? 'Opening…' : 'Open PR'}
+      {url.trim() && (
+        <button type="submit" disabled={busy} className={buttonOutline}>
+          {busy ? 'Opening…' : 'Open'}
         </button>
-      </form>
-    </div>
+      )}
+    </form>
   );
 }

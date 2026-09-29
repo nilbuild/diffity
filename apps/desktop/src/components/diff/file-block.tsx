@@ -29,6 +29,8 @@ import { DiffStats } from './diff-stats';
 import { Badge } from '../ui/badge';
 import { IconButton } from '../ui/icon-button';
 import { StatusBadge } from '../ui/status-badge';
+import { PathLabel } from '../ui/path-label';
+import { ChevronIcon } from '../icons/chevron-icon';
 import { HunkWithGap } from './hunk-with-gap';
 import { OrphanedThreads } from '../comments/orphaned-threads';
 import { ThreadBadge } from '../ui/thread-badge';
@@ -413,37 +415,37 @@ export function FileBlock(props: FileBlockProps) {
 
   return (
     <div
-      className={`border rounded-lg mx-4 my-3 overflow-clip ${highlighted ? 'animate-flash-highlight-border' : 'border-border'}`}
+      className={`border rounded-md mx-3 my-2 overflow-clip ${highlighted ? 'animate-flash-highlight-border' : 'border-border'}`}
       id={`file-${encodeURIComponent(filePath)}`}
       onAnimationEnd={onHighlightEnd}
     >
       <div
-        className={`group flex items-center gap-2 px-3 py-1.5 border-border text-xs sticky top-0 z-10 shadow-sticky ${highlighted ? 'animate-flash-highlight' : 'bg-bg-secondary'}`}
+        className={`group flex items-center gap-2 h-8 pl-1.5 pr-3 text-xs sticky top-0 z-10 ${collapsed ? '' : 'shadow-sticky'} ${highlighted ? 'animate-flash-highlight' : 'bg-bg-secondary'}`}
       >
         <IconButton
-          className="text-[10px] w-4 h-4 shrink-0"
+          className="w-5 h-5 shrink-0"
           onClick={() => onToggleCollapse(filePath)}
           title={collapsed ? 'Expand' : 'Collapse'}
         >
-          {collapsed ? '\u25b6' : '\u25bc'}
+          <ChevronIcon expanded={!collapsed} />
         </IconButton>
         <button
-          className="font-mono text-xs truncate text-left cursor-pointer hover:text-accent transition-colors"
+          className="flex min-w-0 font-mono text-[12px] text-left cursor-pointer hover:[&_span]:text-accent transition-colors"
           onClick={() => onToggleCollapse(filePath)}
         >
           {showRename ? (
-            <>
+            <span className="truncate">
               <span className="line-through text-text-muted">{file.oldPath}</span>
               <span className="text-text-muted"> → </span>
-              <span>{file.newPath}</span>
-            </>
+              <PathLabel path={file.newPath} nameClassName="font-medium" />
+            </span>
           ) : (
-            filePath
+            <PathLabel path={filePath} nameClassName="font-medium" />
           )}
         </button>
         <button
           onClick={() => copyPath(filePath)}
-          className="shrink-0 text-text-muted hover:text-text transition-colors cursor-pointer"
+          className="shrink-0 text-text-muted hover:text-text transition-colors cursor-pointer opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
           title="Copy file path"
         >
           {pathCopied ? (
@@ -554,15 +556,15 @@ export function FileBlock(props: FileBlockProps) {
             <table className="w-full border-collapse table-fixed">
               {viewMode === 'split' ? (
                 <colgroup>
-                  <col className="w-12.5" />
-                  <col className="w-[calc(50%-50px)]" />
-                  <col className="w-12.5" />
+                  <col className="w-12" />
+                  <col className="w-[calc(50%-48px)]" />
+                  <col className="w-12" />
                   <col />
                 </colgroup>
               ) : (
                 <colgroup>
-                  <col className="w-12.5" />
-                  <col className="w-12.5" />
+                  <col className="w-12" />
+                  <col className="w-12" />
                   <col className="w-5" />
                   <col />
                 </colgroup>

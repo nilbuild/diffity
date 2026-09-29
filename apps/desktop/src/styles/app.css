@@ -1,22 +1,29 @@
 @import "tailwindcss";
 
 @theme {
-  --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono',
-    'Consolas', 'Menlo', monospace;
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans',
-    Helvetica, Arial, sans-serif;
+  --font-sans: 'Geist Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --font-mono: 'Geist Mono Variable', 'SF Mono', Menlo, Consolas, monospace;
+
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 20px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-lg: 16px;
+  --text-lg--line-height: 24px;
 
   --color-bg: #ffffff;
   --color-bg-secondary: #f6f8fa;
   --color-bg-tertiary: #eaeef2;
   --color-border: #d0d7de;
-  --color-border-muted: #d8dee4;
+  --color-border-muted: #e1e5ea;
 
   --color-text: #1f2328;
-  --color-text-secondary: #656d76;
+  --color-text-secondary: #59636e;
   --color-text-muted: #8b949e;
 
-  --color-diff-add-bg: #dafbe1;
+  --color-diff-add-bg: #e6ffec;
   --color-diff-add-line: #ccffd8;
   --color-diff-add-word: #abf2bc;
   --color-diff-del-bg: #ffebe9;
@@ -37,55 +44,118 @@
   --color-modified: #9a6700;
   --color-renamed: #0969da;
 
+  --color-raised: #ffffff;
+  --color-toggle: #ffffff;
   --color-hover: rgba(208, 215, 222, 0.32);
-  --color-active: rgba(208, 215, 222, 0.48);
+  --color-active: rgba(208, 215, 222, 0.5);
 
-  --shadow-sticky: 0 1px 2px rgba(27, 31, 36, 0.08);
+  --shadow-sticky: 0 1px 0 var(--color-border);
   --shadow-md: 0 2px 8px rgba(140, 149, 159, 0.12);
 }
 
 [data-theme='dark'] {
-  --color-bg: #171717;
+  --color-bg: #141414;
   --color-bg-secondary: #1a1a1a;
-  --color-bg-tertiary: #262626;
-  --color-border: #262626;
+  --color-bg-tertiary: #242424;
+  --color-border: #282828;
   --color-border-muted: #1f1f1f;
 
-  --color-text: #e5e5e5;
-  --color-text-secondary: #a3a3a3;
+  --color-text: #e8e8e8;
+  --color-text-secondary: #a1a1a1;
   --color-text-muted: #737373;
 
-  --color-diff-add-bg: rgba(34, 197, 94, 0.1);
-  --color-diff-add-line: rgba(34, 197, 94, 0.18);
-  --color-diff-add-word: rgba(34, 197, 94, 0.35);
-  --color-diff-del-bg: rgba(239, 68, 68, 0.1);
-  --color-diff-del-line: rgba(239, 68, 68, 0.18);
-  --color-diff-del-word: rgba(239, 68, 68, 0.35);
-  --color-diff-hunk-bg: rgba(96, 165, 250, 0.1);
-  --color-diff-hunk-text: #60a5fa;
-  --color-diff-expanded-bg: rgba(96, 165, 250, 0.05);
-  --color-diff-expanded-gutter: rgba(96, 165, 250, 0.08);
+  --color-diff-add-bg: #182a1d;
+  --color-diff-add-line: #15241a;
+  --color-diff-add-word: #265232;
+  --color-diff-del-bg: #2e1819;
+  --color-diff-del-line: #271415;
+  --color-diff-del-word: #5c2527;
+  --color-diff-hunk-bg: #1c1c1c;
+  --color-diff-hunk-text: #8b9bb4;
+  --color-diff-expanded-bg: #161616;
+  --color-diff-expanded-gutter: #181818;
   --color-diff-comment-bg: rgba(234, 179, 8, 0.1);
   --color-diff-comment-gutter: rgba(234, 179, 8, 0.3);
 
-  --color-accent: #60a5fa;
-  --color-accent-hover: #93c5fd;
+  --color-accent: #3b82f6;
+  --color-accent-hover: #60a5fa;
 
   --color-added: #4ade80;
   --color-deleted: #f87171;
-  --color-modified: #facc15;
+  --color-modified: #e3b341;
   --color-renamed: #60a5fa;
 
-  --color-hover: rgba(161, 161, 170, 0.1);
-  --color-active: rgba(161, 161, 170, 0.18);
+  --color-raised: #1c1c1c;
+  --color-toggle: #363636;
+  --color-hover: rgba(255, 255, 255, 0.045);
+  --color-active: rgba(255, 255, 255, 0.09);
 
-  --shadow-sticky: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-sticky: 0 1px 0 var(--color-border);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+:root {
+  --code-size: 12.5px;
+  --code-line: 20px;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 20px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+code,
+kbd,
+pre,
+.font-mono {
+  font-variant-ligatures: none;
+}
+
+.code-text {
+  font-family: var(--font-mono);
+  font-size: var(--code-size);
+  line-height: var(--code-line);
+  font-variant-ligatures: none;
+}
+
+td.diff-gutter {
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+}
+
+tr.bg-diff-add-bg > td.diff-gutter:not(.bg-diff-comment-gutter),
+td.diff-gutter.bg-diff-add-bg {
+  background-color: var(--color-diff-add-line);
+  color: color-mix(in srgb, var(--color-added) 75%, transparent);
+}
+
+tr.bg-diff-del-bg > td.diff-gutter:not(.bg-diff-comment-gutter),
+td.diff-gutter.bg-diff-del-bg {
+  background-color: var(--color-diff-del-line);
+  color: color-mix(in srgb, var(--color-deleted) 75%, transparent);
+}
+
+tr.bg-diff-add-bg > td.diff-gutter:first-child,
+td.diff-gutter.bg-diff-add-bg {
+  box-shadow: inset 2px 0 0 var(--color-added);
+}
+
+tr.bg-diff-del-bg > td.diff-gutter:first-child,
+td.diff-gutter.bg-diff-del-bg {
+  box-shadow: inset 2px 0 0 var(--color-deleted);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border) var(--color-bg-secondary);
+  scrollbar-color: var(--color-border) transparent;
 }
 
 dialog {
@@ -99,12 +169,14 @@ dialog {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-bg-secondary);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-border);
-  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -190,9 +262,9 @@ dialog {
 
 /* GitHub-flavored markdown body */
 .gh-md-body {
-  padding: 32px;
+  padding: 24px 28px;
   font-family: var(--font-sans);
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.5;
   word-wrap: break-word;
   color: var(--color-text);

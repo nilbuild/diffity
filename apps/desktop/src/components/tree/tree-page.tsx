@@ -25,10 +25,9 @@ import { SvgPreview } from './svg-preview';
 import { PathComments } from '../comments/path-comments';
 import { CommentToolbarActions } from '../comments/comment-toolbar-actions';
 import { OptionsMenu } from '../layout/options-menu';
-import { TitleBar } from '../layout/title-bar';
+import { RepoTitle, TitleBar } from '../layout/title-bar';
+import { StatusBar } from '../layout/status-bar';
 import { PageSwitcher } from '../layout/page-switcher';
-import { GitSyncActions } from '../layout/git-sync-actions';
-import { GitBranchIcon } from '../icons/git-branch-icon';
 import { StaleDiffBanner } from '../layout/stale-diff-banner';
 import { useTreeStaleness } from '../../hooks/use-tree-staleness';
 import { isRenderableFile, isMarkdownFile, isImageFile } from '../../lib/file-types';
@@ -45,7 +44,6 @@ import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
 import { CommentsButton } from '../../features/comments/comments-button';
 import { OtherViewsBanner } from '../../features/comments/other-views-banner';
 import { FinishReview } from '../../features/review/finish-review';
-import { useRepoNav } from '../../hooks/use-repo';
 import { PencilIcon } from '../icons/pencil-icon';
 import { FileBlockSkeleton, hideStaticSplash } from '../layout/skeleton';
 
@@ -102,7 +100,6 @@ export function TreePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { theme, toggleTheme } = useTheme();
   const queryClient = useQueryClient();
-  const nav = useRepoNav();
   const { isStale, resetStaleness } = useTreeStaleness();
 
   const navPath = searchParams.get('path') || '';
@@ -385,38 +382,25 @@ export function TreePage() {
     <ReviewStateProvider sessionId={sessionId}>
     <div className='flex flex-col h-screen bg-bg text-text'>
       <TitleBar>
-        <div className='flex items-center gap-2.5 min-w-0 shrink'>
-          {info?.name && (
-            <button
-              className='font-semibold text-text text-sm truncate hover:text-accent transition-colors cursor-pointer'
-              onClick={nav.toOverview}
-              title='Repository overview'
-            >
-              {info.name}
-            </button>
-          )}
-          {info?.branch && (
-            <span className='inline-flex items-center gap-1 px-1.5 py-0.5 bg-diff-hunk-bg text-diff-hunk-text rounded font-mono text-[11px] shrink-0'>
-              <GitBranchIcon className='w-3 h-3' />
-              {info.branch}
-            </span>
-          )}
+        <div data-tauri-drag-region className='flex items-center gap-2 min-w-0 shrink'>
+          <RepoTitle name={info?.name} />
           <PageSwitcher current='tree' />
-          <span className='text-text-muted truncate hidden lg:inline'>
-            All files in the working tree
-          </span>
         </div>
-        <div className='flex items-center gap-2 ml-auto shrink-0'>
-          <GitSyncActions />
-          <CommentsButton />
+        <div data-tauri-drag-region className='flex-1 min-w-2 self-stretch' />
+        <div className='flex items-center gap-1.5 shrink-0'>
           <CommentToolbarActions
             threads={threads}
             onScrollToThread={handleScrollToThread}
             onDeleteAllComments={commentActions.deleteAllThreads}
             formatForCopy={formatForCopy}
           />
-          <ClaudeToolbar diffRef={null} sessionId={sessionId} threads={threads} />
-          <FinishReview githubDetails={null} />
+          <CommentsButton />
+          {threads.length > 0 && (
+            <>
+              <ClaudeToolbar diffRef={null} sessionId={sessionId} threads={threads} />
+              <FinishReview githubDetails={null} />
+            </>
+          )}
           <OptionsMenu theme={theme} onToggleTheme={toggleTheme} />
         </div>
       </TitleBar>
@@ -439,7 +423,7 @@ export function TreePage() {
           onDirClick={handleDirClick}
         />
 
-        <main ref={mainRef} className='flex-1 overflow-y-auto p-6'>
+        <main ref={mainRef} className='flex-1 overflow-y-auto px-4 py-3'>
           <PathComments
             pathKey={pathKey}
             threads={pathThreads}
@@ -494,7 +478,7 @@ export function TreePage() {
             )}
             {info?.editor === 'vscode' && (
               <button
-                className='ml-3 shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-bg-tertiary text-xs text-text-secondary hover:bg-hover hover:text-text cursor-pointer transition-colors'
+                className='ml-3 shrink-0 flex items-center gap-1.5 h-6 px-2 rounded-md border border-border bg-raised text-xs text-text-secondary hover:bg-hover hover:text-text cursor-pointer transition-colors'
                 onClick={handleOpenInEditor}
               >
                 <PencilIcon className='w-3 h-3' />
@@ -516,6 +500,7 @@ export function TreePage() {
           )}
         </main>
       </div>
+      <StatusBar />
     </div>
     </ReviewStateProvider>
   );

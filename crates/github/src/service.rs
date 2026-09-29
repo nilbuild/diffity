@@ -375,10 +375,15 @@ impl GithubService {
         let same_repo = pr
             .head_repo_full_name()
             .is_some_and(|name| name.eq_ignore_ascii_case(&full));
-        if same_repo {
-            let head = pr.head_ref_name.as_str();
-            let refspec = format!("+refs/heads/{head}:refs/remotes/origin/{head}");
-            gitcli::run_ok(repo_path, &["fetch", "origin", &refspec]).await?;
+        // The PR diff is `origin/<base>...HEAD`, so the base must be current too.
+        let base = pr.base_ref_name.as_str();
+        let base_refspec = format!("+refs/heads/{base}:refs/remotes/origin/{base}");
+        gitcli::run_ok(repo_path, &["fetch", "origin", &base_refspec]).await?;
+        let head = pr.head_ref_name.as_str();
+        let head_refspec = format!("+refs/heads/{head}:refs/remotes/origin/{head}");
+        // A merged PR's branch is often deleted: fall back to `pull/<n>/head`, like fork PRs.
+        let fetched_branch = same_repo && gitcli::run(repo_path, &["fetch", "origin", &head_refspec]).await?.ok;
+        if fetched_branch {
             let remote_ref = format!("origin/{head}");
             if gitcli::branch_exists(repo_path, head).await? {
                 gitcli::run_ok(repo_path, &["checkout", head]).await?;
@@ -395,6 +400,22 @@ impl GithubService {
             gitcli::run_ok(repo_path, &["config", &key, &number.to_string()]).await?;
         }
         Ok(pr.to_pull_request())
+    }
+
+    pub async fn stash_push(&self, repo_path: &str, message: &str) -> Result<StashResult> {
+        let sha = gitcli::stash_push(repo_path, message).await?;
+        Ok(StashResult {
+            sha,
+            message: message.to_string(),
+        })
+    }
+
+    pub async fn stash_restore(&self, repo_path: &str, sha: &str) -> Result<()> {
+        gitcli::stash_restore(repo_path, sha).await
+    }
+
+    pub async fn checkout(&self, repo_path: &str, target: &str) -> Result<()> {
+        gitcli::checkout(repo_path, target).await
     }
 
     #[allow(clippy::too_many_arguments)]

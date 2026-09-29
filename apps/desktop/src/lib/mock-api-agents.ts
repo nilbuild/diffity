@@ -42,6 +42,12 @@ const PRS: PullRequest[] = [
     body: '## Summary\n\nAdds an LRU-ish in-memory cache for served files plus a `/health` endpoint.\n\n- [x] cache with `MAX_ENTRIES`\n- [x] `--no-cache` flag\n- [ ] invalidate on file change\n\n```ts\nconst cached = options.cache ? getCached(filePath) : undefined;\n```',
     createdAt: '2026-09-20T10:00:00Z',
     reviewThreadCount: 2,
+    updatedAt: '2026-09-21T12:00:00Z',
+    additions: 12,
+    deletions: 3,
+    changedFiles: 2,
+    headRepo: 'demo/tiny-serve',
+    isCrossRepository: false,
   },
   {
     number: 41,
@@ -58,6 +64,12 @@ const PRS: PullRequest[] = [
     body: '',
     createdAt: '2026-09-20T10:00:00Z',
     reviewThreadCount: 2,
+    updatedAt: '2026-09-22T12:00:00Z',
+    additions: 24,
+    deletions: 6,
+    changedFiles: 3,
+    headRepo: 'hubot/tiny-serve',
+    isCrossRepository: true,
   },
   {
     number: 38,
@@ -74,6 +86,12 @@ const PRS: PullRequest[] = [
     body: 'Lets users map extensions to MIME types.',
     createdAt: '2026-09-20T10:00:00Z',
     reviewThreadCount: 2,
+    updatedAt: '2026-09-23T12:00:00Z',
+    additions: 36,
+    deletions: 9,
+    changedFiles: 4,
+    headRepo: 'demo/tiny-serve',
+    isCrossRepository: false,
   },
 ];
 
@@ -412,6 +430,17 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
         output:
           "To github.com:demo/tiny-serve.git\n ! [rejected]        feat/cache -> feat/cache (fetch first)\nerror: failed to push some refs to 'github.com:demo/tiny-serve.git'",
       };
+    },
+    git_stash_push: async (args) => {
+      await wait(300);
+      return { sha: 'mockstash', message: String(args.message) };
+    },
+    git_stash_restore: async () => {
+      await wait(300);
+    },
+    git_checkout: async () => {
+      await wait(300);
+      currentPr = null;
     },
     find_pr: () => currentPr,
     list_prs: () => PRS,

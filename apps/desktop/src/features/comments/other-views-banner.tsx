@@ -39,7 +39,7 @@ export function OtherViewsBanner(props: OtherViewsBannerProps) {
     : `in ${firstView[0]} and ${summary.views.length - 1} other view${summary.views.length > 2 ? 's' : ''}`;
 
   return (
-    <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-bg-secondary text-xs text-text-secondary">
+    <div className="flex items-center gap-2 h-8 px-3 border-b border-border bg-bg-secondary text-xs text-text-secondary">
       <CommentIcon className="w-3.5 h-3.5 text-accent shrink-0" />
       <span className="truncate">
         <span className="font-medium text-text">

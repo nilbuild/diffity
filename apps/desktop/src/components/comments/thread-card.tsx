@@ -49,8 +49,8 @@ export function ThreadCard(props: ThreadCardProps) {
   };
 
   return (
-    <div className={cn('rounded-lg overflow-hidden', className)} data-thread-id={thread.id}>
-      <div className="flex items-center justify-between px-3 pt-2.5 pb-1.5">
+    <div className={cn('rounded-md overflow-hidden border border-border', className)} data-thread-id={thread.id}>
+      <div className="flex items-center justify-between px-3 py-1.5 bg-bg-secondary border-b border-border-muted">
         <div className="flex items-center gap-2">
           {headerLeft}
         </div>
@@ -93,7 +93,7 @@ export function ThreadCard(props: ThreadCardProps) {
         </div>
       </div>
       {children}
-      <div className="px-1.5">
+      <div>
         {thread.comments.map((comment) => (
           <CommentBubble
             key={comment.id}

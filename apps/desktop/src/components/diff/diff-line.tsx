@@ -47,7 +47,7 @@ export function DiffLine(props: DiffLineProps) {
   const gutterBg = expanded ? 'bg-diff-expanded-gutter' : '';
 
   return (
-    <tr className={cn('group/row font-mono text-sm leading-6 hover:brightness-[0.97]', expanded ? 'bg-diff-expanded-bg' : getLineBg(line.type))}>
+    <tr className={cn('group/row code-text', expanded ? 'bg-diff-expanded-bg' : getLineBg(line.type))}>
       <CommentLineNumber
         lineNumber={line.oldLineNumber}
         className={cn('border-r border-border-muted', gutterBg)}
