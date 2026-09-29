@@ -108,7 +108,7 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
       <Shell
         title="Nothing is staged"
         message={other > 0 ? `You have ${other} unstaged or new file${other === 1 ? '' : 's'}. Stage with git add, or review everything that is uncommitted.` : 'Stage files with git add and they show up here.'}
-        actions={[{ label: 'Review all uncommitted changes', icon: <PencilIcon className="w-3.5 h-3.5" />, onClick: () => nav.toDiff('work') }, browseCommits]}
+        actions={[{ label: 'View all uncommitted changes', icon: <PencilIcon className="w-3.5 h-3.5" />, onClick: () => nav.toDiff('work') }, browseCommits]}
       />
     );
   }
@@ -118,7 +118,7 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
       <Shell
         title="No unstaged changes"
         message={status && status.staged > 0 ? 'Everything you changed is already staged.' : 'Your working tree matches the index.'}
-        actions={[{ label: 'Review all uncommitted changes', icon: <PencilIcon className="w-3.5 h-3.5" />, onClick: () => nav.toDiff('work') }, browseCommits]}
+        actions={[{ label: 'View all uncommitted changes', icon: <PencilIcon className="w-3.5 h-3.5" />, onClick: () => nav.toDiff('work') }, browseCommits]}
       />
     );
   }
@@ -159,7 +159,7 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
     <Shell
       title="No differences"
       message={`Nothing differs for ${diffRef}.`}
-      actions={[{ label: 'Review uncommitted changes', icon: <PencilIcon className="w-3.5 h-3.5" />, onClick: () => nav.toDiff('work') }, browseCommits]}
+      actions={[{ label: 'View uncommitted changes', icon: <PencilIcon className="w-3.5 h-3.5" />, onClick: () => nav.toDiff('work') }, browseCommits]}
     />
   );
 }

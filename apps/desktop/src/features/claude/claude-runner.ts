@@ -309,7 +309,7 @@ async function execute(run: ClaudeRun) {
   if (problem || !agent) {
     toast.error('Could not start Claude', {
       description: problem ?? undefined,
-      action: { label: 'Settings', onClick: () => openSettingsAt('claude') },
+      action: { label: 'Claude settings', onClick: () => openSettingsAt('claude') },
     });
     return;
   }
@@ -393,7 +393,7 @@ async function execute(run: ClaudeRun) {
   toast.success(batch ?? finishedMessage(finished, added), {
     description: batch ? `Edits are in your working tree; each thread has Claude’s reply.${posted > 0 ? ` Posted ${posted} repl${posted === 1 ? 'y' : 'ies'} to GitHub.` : ''}` : undefined,
     duration: hasTarget ? 12_000 : undefined,
-    action: hasTarget ? { label: batch ? 'Review changes' : 'View', onClick: () => openRunResult(finished) } : undefined,
+    action: hasTarget ? { label: batch ? 'View Claude’s changes' : added > 0 ? 'Show comments' : 'Show thread', onClick: () => openRunResult(finished) } : undefined,
   });
 }
 
@@ -422,7 +422,7 @@ async function pump() {
       } catch (error) {
         toast.error('Could not start Claude', {
           description: friendlyError(tauri.errorMessage(error)),
-          action: { label: 'Settings', onClick: () => openSettingsAt('claude') },
+          action: { label: 'Claude settings', onClick: () => openSettingsAt('claude') },
         });
       } finally {
         removeRun(next.id);

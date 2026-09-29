@@ -287,7 +287,7 @@ function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (
             selected={false}
             icon={<GitCompareIcon className="w-3.5 h-3.5" />}
             title={<>Open <span className="font-mono text-xs">{trimmed}</span></>}
-            hint={trimmed.includes('..') ? 'Compare this range' : 'Review this commit or ref'}
+            hint={trimmed.includes('..') ? 'Compare this range' : 'View this commit or ref'}
             onClick={() => onPick(trimmed)}
           />
         )}

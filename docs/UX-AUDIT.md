@@ -421,6 +421,21 @@ full webview reload.
   whenever it was not the current project.
 - The tile tooltip no longer covers the menu, and the menu is anchored to the tile's right edge.
 
+## Round 14 (say what the button does)
+
+- Home only shows "Up next" when there is real pending work: uncommitted changes, the checked-out PR, a branch ahead
+  of its base, or open comments. A clean repo gets one calm line, "You're all caught up · nothing to review", with
+  quiet links (Latest commit abc1234 · Compare branches, which opens the Compare popover · Browse files) and History
+  becomes the main content. The latest commit is no longer presented as something to review.
+- Primary labels say what happens: "View changes" (uncommitted), "View PR diff", "Compare with main" (branch vs
+  base), "Go to comments" (open comments); the To review rows carry the same label as their first menu item and as
+  their tooltip. "Ask Claude to review" is unchanged.
+- Other vague labels: "Review this commit" → "View commit", "Changes since this commit" → "View changes since this
+  commit", PR dialog "Review changes" → "View PR diff", Claude toast "Review changes"/"View" → "View Claude's
+  changes"/"Show comments"/"Show thread", Comments drawer "Open view" → "Open diff"/"Open in Files", toast actions
+  "Settings" → "Claude settings", "Sign in" → "Sign in to GitHub", empty-state "Review uncommitted changes" → "View
+  uncommitted changes".
+
 ## Remaining
 
 - "Post to GitHub now" pushes only new threads; replies to existing GitHub threads still go out with the review.

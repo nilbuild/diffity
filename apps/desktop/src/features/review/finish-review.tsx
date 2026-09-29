@@ -168,7 +168,7 @@ function SendToClaude(props: { threads: CommentThread[]; includeGitHub?: boolean
 
   const send = async () => {
     if (claudeProblem) {
-      toast.error(claudeProblem, { action: { label: 'Settings', onClick: () => openSettingsAt('claude') } });
+      toast.error(claudeProblem, { action: { label: 'Claude settings', onClick: () => openSettingsAt('claude') } });
       return;
     }
     if (pendingCount > 0) {

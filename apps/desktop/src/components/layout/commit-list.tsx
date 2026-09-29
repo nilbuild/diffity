@@ -71,7 +71,7 @@ function CommitRow(props: { commit: Commit; onOpen: () => void; onCompareFrom: (
     <ListRow
       icon={<GitCommitIcon size="sm" className="text-text-muted" />}
       title={commit.message}
-      tooltip={`${commit.message}\nReview this commit`}
+      tooltip={`${commit.message}\nView this commit`}
       meta={
         <>
           <AuthorAvatar name={commit.author} />
@@ -85,8 +85,8 @@ function CommitRow(props: { commit: Commit; onOpen: () => void; onCompareFrom: (
       stats={<StatCell additions={commit.additions} deletions={commit.deletions} bar={<DiffStatBar additions={commit.additions} deletions={commit.deletions} />} />}
       onClick={onOpen}
       actions={[
-        { label: 'Review this commit', icon: <GitCommitIcon size="sm" />, onSelect: onOpen },
-        { label: 'Changes since this commit', icon: <GitCompareIcon size="sm" />, onSelect: onCompareFrom },
+        { label: 'View commit', icon: <GitCommitIcon size="sm" />, onSelect: onOpen },
+        { label: 'View changes since this commit', icon: <GitCompareIcon size="sm" />, onSelect: onCompareFrom },
       ]}
     />
   );

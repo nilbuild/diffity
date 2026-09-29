@@ -107,7 +107,7 @@ export async function checkoutPullRequest(repoPath: string, input: string, toDif
   const auth = await tauri.githubAuthStatus().catch(() => null);
   if (!auth?.authenticated) {
     toast.info('Sign in to GitHub to check out pull requests', {
-      action: { label: 'Sign in', onClick: () => openSettingsAt('github') },
+      action: { label: 'Sign in to GitHub', onClick: () => openSettingsAt('github') },
     });
     return;
   }

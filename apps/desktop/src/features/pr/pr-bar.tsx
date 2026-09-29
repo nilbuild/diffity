@@ -209,7 +209,7 @@ function PrDetailsDialog(props: DetailsDialogProps) {
               }}
               className={cn(buttonPrimary, 'self-start')}
             >
-              Review changes
+              View PR diff
             </button>
           </SideSection>
           <SideSection label="Comments on GitHub">

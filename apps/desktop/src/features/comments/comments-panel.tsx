@@ -389,7 +389,7 @@ function CommentsPanelBody() {
                     onClick={() => openView(group.ref)}
                     className="h-6 px-2 -mr-1 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer shrink-0"
                   >
-                    Open view
+                    {group.ref === TREE_REF ? 'Open in Files' : 'Open diff'}
                   </button>
                 )}
               </div>
