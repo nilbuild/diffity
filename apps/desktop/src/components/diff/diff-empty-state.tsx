@@ -4,9 +4,8 @@ import { diffOptions } from '../../queries/diff';
 import { useRepoNav } from '../../hooks/use-repo';
 import { useGitStatus, useRecentCommits, useRepoMeta } from '../../hooks/use-repo-state';
 import { commitRef, parseCommitRef } from '../../lib/api';
-import { EyeIcon } from '../ui/icon';
+import { CheckCircleIcon, ChevronRightIcon, EyeIcon, FilesIcon, GitBranchIcon, GitCommitIcon, HomeIcon, PencilIcon } from '../ui/icon';
 import { buttonOutline } from '../ui/button-styles';
-import { CheckCircleIcon, ChevronRightIcon, FolderOpenIcon, GitBranchIcon, GitCommitIcon, HomeIcon, PencilIcon } from '../ui/icon';
 
 interface DiffEmptyStateProps {
   diffRef: string;
@@ -75,7 +74,7 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
   const { data: recent, isLoading: recentLoading } = useRecentCommits(1);
   const last = recent?.commits[0] ?? null;
   const unfiltered = useQuery({ ...diffOptions(false, diffRef), enabled: hideWhitespace });
-  const browseFiles = { label: 'Browse files', icon: <FolderOpenIcon className="w-3.5 h-3.5" />, onClick: () => nav.toTree() };
+  const browseFiles = { label: 'Browse files', icon: <FilesIcon className="w-3.5 h-3.5" />, onClick: () => nav.toTree() };
   const browseCommits = { label: 'Pick a commit or compare branches', icon: <GitBranchIcon className="w-3.5 h-3.5" />, onClick: nav.toOverview };
 
   if (hideWhitespace && unfiltered.isLoading) {
@@ -143,7 +142,7 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
             </button>
           )}
           <button onClick={() => nav.toTree()} className={buttonOutline}>
-            <FolderOpenIcon size="sm" className="text-text-secondary" />
+            <FilesIcon size="sm" className="text-text-secondary" />
             Browse files
           </button>
         </div>

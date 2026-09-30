@@ -78,7 +78,7 @@ export function SettingsButton(props: SettingsButtonProps) {
       )}
       {...rest}
     >
-      {busy && <Spinner className={cn('h-3 w-3', variant === 'primary' && 'border-white/40')} />}
+      {busy && <Spinner className={cn('h-3 w-3', variant === 'primary' && 'text-white/80')} />}
       {children}
     </button>
   );

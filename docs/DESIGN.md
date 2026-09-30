@@ -16,14 +16,20 @@ not a redesign.
    `text`, `text-secondary`, `text-muted`, `accent`, `added`, `deleted`, `modified`, `diff-*`, `hover`, `active`, `selected`, `fill`, `fill-hover`, `raised`, `control-border`, `control-hover`, `overlay`, `overlay-border`). Dark mode
    is `[data-theme='dark']` on `<html>`, toggled by `hooks/use-theme.ts` (stored in `localStorage['diffity-theme']`).
    Fonts are the macOS system font (UI) and the original diffity mono stack for code (see Type and density).
-3. **Icons: Phosphor, `fill` weight, through `components/ui/icon.tsx` only.** Every glyph is a named export there
-   (`SettingsIcon`, `CommentIcon`, `GitPullRequestIcon`…) built by `glyph()`; nothing else imports `@phosphor-icons/react`
-   and there are no other icon libraries. Solid shapes use `fill`; line-only glyphs (chevrons, arrows, plus, x, check,
-   search, refresh) use `bold` so they carry the same visual weight. Sizes via `size`: `xs` 12, `sm` 14, `md` 16 inline,
-   `lg` 18 toolbar, `xl` 20 rail. Colour = `text-secondary`, active/hover = `text`. File-status letters stay coloured.
-   Almost every glyph is a custom 20px-grid icon in the same file (`customGlyph` / `lineGlyph`): filled rounded
-   shapes and 2.4px round-capped strokes; only naturally solid glyphs use Phosphor `fill`. Only
-   `components/icons/brand-logo.tsx` and `spinner.tsx` live elsewhere. Tree icons are neutral grey; no blue icons.
+3. **Icons: one hand-drawn set, through `components/ui/icon.tsx` only.** Every glyph is a named export there
+   (`SettingsIcon`, `CommentIcon`, `GitPullRequestIcon`…); there is no icon library dependency. The house set is
+   "soft" (`softGlyph` / `softStroke`, 24px grid): solid rounded shapes with ~2px knocked-out details (masks, ids from
+   `useId` so many instances never collide) and 2.5px round-capped strokes for arrows and chevrons. A few older 20px-grid
+   line glyphs are kept by choice (`lineGlyph`: Pull, Push, Code, Expand/Collapse all, List, ChevronUpDown) plus the
+   Sparkle mark for Claude. Sizes via `size`: `xs` 12, `sm` 14, `md` 16 inline, `lg` 18 toolbar, `xl` 20 rail. Filled
+   soft glyphs shrink optically inside their box (96% at 14px, 92% at 16–18px, 90% above) so they sit level with text;
+   stroke-only ones keep the full box. Colour = `text-secondary`, active/hover = `text`. File-status letters stay coloured.
+   One role, one glyph: Files (browse files / Files tab) vs Folder (tree rows) vs FolderOpen (expanded folder, Open
+   folder) vs Reveal (Reveal in Finder); FileText (open file) vs Changes; Terminal vs Code; Clone vs Pull; ExpandUp/Down/Both
+   (hunk context) vs Push/Pull; Merge for merged PRs; Approve / RequestChanges for review verdicts; Key for token entry.
+   Loading is `components/icons/spinner.tsx` (the soft spinner glyph, `animate-spin`, slowed under reduced motion);
+   don't hand-roll border spinners. Only `components/icons/brand-logo.tsx` lives elsewhere. Tree icons are neutral grey;
+   no blue icons.
    Claude-related marks use the `claude` colour token (terracotta), everything else stays neutral.
 4. **Desktop chrome.** Every page's top bar is `components/layout/title-bar.tsx`: the web toolbar plus
    `data-tauri-drag-region` and a 78px left inset for the macOS traffic lights (overlay title bar, lights at 14,13).

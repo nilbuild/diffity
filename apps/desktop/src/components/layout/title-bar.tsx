@@ -4,7 +4,7 @@ import { isMac, isTauri, modKey } from '../../lib/platform';
 import { toggleSidebar, useUi } from '../../lib/ui-store';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
-import { ChevronDownIcon, EditorIcon, FolderSimpleIcon, HomeIcon, SidebarIcon, SwapIcon } from '../ui/icon';
+import { ChevronDownIcon, EditorIcon, HomeIcon, RevealIcon, SidebarIcon, SwapIcon } from '../ui/icon';
 import { MenuItem, MenuSeparator, Popover, useMenu } from '../ui/popover';
 import { errorMessage, openInEditor } from '../../lib/api';
 import { openQuickOpen } from '../../features/palette/quick-open';
@@ -141,7 +141,7 @@ function RepoCrumb(props: { name: string; path?: string }) {
           })}
         />
         <MenuItem
-          icon={<FolderSimpleIcon size="sm" />}
+          icon={<RevealIcon size="sm" />}
           label="Reveal in Finder"
           onSelect={run(() => {
             revealItemInDir(path ?? nav.repoPath).catch(() => undefined);

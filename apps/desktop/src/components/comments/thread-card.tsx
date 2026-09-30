@@ -14,6 +14,7 @@ import { useGitHubPr } from '../../hooks/use-repo-state';
 import { DEFAULT_AUTHOR } from './types';
 import { hasDraft } from './comment-form';
 import { useViewState } from '../../lib/view-state';
+import { Spinner } from '../icons/spinner';
 
 interface ThreadCardProps {
   thread: CommentThreadType;
@@ -217,7 +218,7 @@ export function ThreadCard(props: ThreadCardProps) {
         <div className="flex items-center gap-2 px-3 pb-2 text-xs text-text-muted">
           <span className="flex w-5 justify-center shrink-0">
             {activity === 'working' ? (
-              <span className="inline-block w-3 h-3 border-2 border-claude/25 border-t-claude rounded-full animate-spin" />
+              <Spinner className="text-claude" />
             ) : (
               <SparkleIcon className="w-3 h-3 text-claude" />
             )}

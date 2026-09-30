@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { create } from 'zustand';
 import { useQuery } from '@tanstack/react-query';
 import { buttonClaudeSolid, buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
@@ -31,7 +31,8 @@ import { toast } from 'sonner';
 import { MentionTextarea } from '../../components/comments/mention-textarea';
 import { PostReviewError, triggerClaude, useReviewActions, useReviewState, type ClaudeScope } from './review-state';
 import { useOwnPr } from '../../hooks/use-repo-state';
-import { CheckIcon, ChevronDownIcon, GitHubIcon, GitPullRequestIcon, SendIcon, SparkleIcon } from '../../components/ui/icon';
+import { ApproveIcon, CheckIcon, ChevronDownIcon, CommentIcon, GitHubIcon, GitPullRequestIcon, RequestChangesIcon, SendIcon, SparkleIcon, type GlyphProps } from '../../components/ui/icon';
+import { Spinner } from '../../components/icons/spinner';
 import { Popover } from '../../components/ui/popover';
 
 interface FinishReviewProps {
@@ -40,10 +41,10 @@ interface FinishReviewProps {
   diffRef?: string | null;
 }
 
-const VERDICTS: { value: ReviewVerdict; label: string; description: string }[] = [
-  { value: 'comment', label: 'Comment', description: 'Feedback without a verdict' },
-  { value: 'approve', label: 'Approve', description: 'Ready to merge' },
-  { value: 'requestChanges', label: 'Request changes', description: 'Must be addressed before merging' },
+const VERDICTS: { value: ReviewVerdict; label: string; description: string; icon: ComponentType<GlyphProps>; tone: string }[] = [
+  { value: 'comment', label: 'Comment', description: 'Feedback without a verdict', icon: CommentIcon, tone: 'text-text-secondary' },
+  { value: 'approve', label: 'Approve', description: 'Ready to merge', icon: ApproveIcon, tone: 'text-added' },
+  { value: 'requestChanges', label: 'Request changes', description: 'Must be addressed before merging', icon: RequestChangesIcon, tone: 'text-deleted' },
 ];
 
 function useClaudeProblem(enabled: boolean): string | null {
@@ -699,7 +700,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[] 
                   key={option.value}
                   checked={verdict === option.value}
                   onSelect={() => setVerdict(option.value)}
-                  label={option.label}
+                  label={<span className="inline-flex items-center gap-1.5"><option.icon size="sm" className={option.tone} />{option.label}</span>}
                   detail={option.description}
                   disabled={!postToGitHub}
                 />
@@ -790,7 +791,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[] 
               className={buttonPrimary}
               title={blockedReason ?? undefined}
             >
-              {busy && <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              {busy && <Spinner className="text-white" />}
               {submitLabel()}
             </button>
           </div>

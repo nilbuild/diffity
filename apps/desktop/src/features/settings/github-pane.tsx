@@ -12,7 +12,7 @@ import {
   StatusBadge,
   settingsInputClass,
 } from './preferences';
-import { CheckIcon, GitHubIcon } from '../../components/ui/icon';
+import { CheckIcon, GitHubIcon, KeyIcon } from '../../components/ui/icon';
 import { Skeleton } from '../../components/ui/skeleton';
 
 function useAuthChanged() {
@@ -95,6 +95,7 @@ function SignInRows(props: { onSignedIn: () => void }) {
             className={settingsInputClass}
           />
           <SettingsButton type="submit" busy={busy === 'token'} disabled={busy !== null || !token.trim()}>
+            {busy !== 'token' && <KeyIcon className="h-3 w-3" />}
             Save token
           </SettingsButton>
         </form>

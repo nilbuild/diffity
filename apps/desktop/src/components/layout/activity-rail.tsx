@@ -10,13 +10,14 @@ import { repoInitials } from '../../features/welcome/repo-badge';
 import { useActiveRun } from '../../features/claude/claude-runner';
 import { lastLocationFor } from '../../lib/repo-locations';
 import { beginOpening, useOpening } from '../../lib/opening';
-import { ArrowDownIcon, ArrowUpIcon, CodeIcon, CopyIcon, EditorIcon, ExternalLinkIcon, FolderOpenIcon, FolderSimpleIcon, PlusIcon, SettingsIcon, XIcon } from '../ui/icon';
+import { ArrowDownIcon, ArrowUpIcon, CopyIcon, EditorIcon, ExternalLinkIcon, FolderOpenIcon, PlusIcon, RevealIcon, SettingsIcon, TerminalIcon, XIcon } from '../ui/icon';
 import { ContextMenu, MenuItem, MenuLabel, MenuSeparator } from '../ui/popover';
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
 import * as tauri from '../../lib/tauri';
 import { useEditorName } from '../../hooks/use-editor-name';
 import { useSidebarShortcut } from './title-bar';
 import { openQuickOpen } from '../../features/palette/quick-open';
+import { Spinner } from '../icons/spinner';
 
 const RailContext = createContext(false);
 
@@ -132,7 +133,7 @@ function ProjectTile(props: ProjectTileProps) {
           dragging ? 'cursor-grabbing bg-raised ring-1 ring-control-border opacity-90' : 'cursor-pointer',
         )}
       >
-        {spinning ? <span className="w-3.5 h-3.5 border-2 border-current/25 border-t-current rounded-full animate-spin" aria-label="Opening" /> : repoInitials(name)}
+        {spinning ? <Spinner className="w-3.5 h-3.5 text-current" label="Opening" /> : repoInitials(name)}
         {busy && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-claude ring-2 ring-frame" title="Claude is working here" />}
       </button>
       {!dragging && !menuOpen && (
@@ -491,13 +492,13 @@ function ProjectMenuItems(props: {
       <MenuItem icon={<FolderOpenIcon size="sm" />} label="Open" disabled={current} onSelect={run(() => onOpen(false))} />
       <MenuItem icon={<ExternalLinkIcon size="sm" />} label="Open in new window" hint={`${modKey}-click`} onSelect={run(() => onOpen(true))} />
       <MenuSeparator />
-      <MenuItem icon={<FolderSimpleIcon size="sm" />} label="Reveal in Finder" onSelect={run(() => { revealItemInDir(path).catch(() => undefined); })} />
+      <MenuItem icon={<RevealIcon size="sm" />} label="Reveal in Finder" onSelect={run(() => { revealItemInDir(path).catch(() => undefined); })} />
       <MenuItem
         icon={<EditorIcon size="sm" />}
         label={`Open in ${editor}`}
         onSelect={run(() => { tauri.openInEditor(path, '').catch((error) => toast.error('Could not open the editor', { description: tauri.errorMessage(error) })); })}
       />
-      <MenuItem icon={<CodeIcon size="sm" />} label="Open in Terminal" onSelect={run(() => { openPath(path, 'Terminal').catch(() => undefined); })} />
+      <MenuItem icon={<TerminalIcon size="sm" />} label="Open in Terminal" onSelect={run(() => { openPath(path, 'Terminal').catch(() => undefined); })} />
       <MenuItem icon={<CopyIcon size="sm" />} label="Copy path" onSelect={run(() => { void navigator.clipboard.writeText(path); toast.success('Path copied'); })} />
       <MenuSeparator />
       <MenuItem icon={<ArrowUpIcon size="sm" />} label="Move up" disabled={index <= 0} onSelect={run(() => onMove(-1))} />

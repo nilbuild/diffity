@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import type { PullRequest } from '../../lib/types';
 import { cn } from '../../lib/cn';
-import { CheckIcon, GitPullRequestIcon, XIcon } from '../../components/ui/icon';
+import { CheckIcon, GitMergeIcon, GitPullRequestIcon, XIcon } from '../../components/ui/icon';
 
 dayjs.extend(relativeTime);
 
@@ -35,7 +35,9 @@ export function PrStateIcon(props: { pr: PullRequest; className?: string }) {
     return 'text-added';
   })();
 
-  return <GitPullRequestIcon className={cn('shrink-0', tone, className)} />;
+  const Glyph = pr.state === 'MERGED' ? GitMergeIcon : GitPullRequestIcon;
+
+  return <Glyph className={cn('shrink-0', tone, className)} />;
 }
 
 export function PrStateBadge(props: { pr: PullRequest }) {
@@ -55,7 +57,7 @@ export function PrStateBadge(props: { pr: PullRequest }) {
 
   return (
     <span className={cn('inline-flex h-5 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium', tone)}>
-      <GitPullRequestIcon className="h-3 w-3" />
+      {pr.state === 'MERGED' ? <GitMergeIcon className="h-3 w-3" /> : <GitPullRequestIcon className="h-3 w-3" />}
       {label}
     </span>
   );

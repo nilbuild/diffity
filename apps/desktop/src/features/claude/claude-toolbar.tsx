@@ -9,6 +9,7 @@ import { AskClaudePopover, useAskClaudeRequest } from './ask-claude-review';
 import { cn } from '../../lib/cn';
 import { useReviewState } from '../review/review-state';
 import { SparkleIcon, StopIcon } from '../../components/ui/icon';
+import { Spinner } from '../../components/icons/spinner';
 
 interface ClaudeToolbarProps {
   diffRef: string | null;
@@ -59,7 +60,7 @@ export function ClaudeStatus() {
         className="flex items-center gap-2 pl-2.5 pr-2 text-text whitespace-nowrap min-w-0"
         title={where ? `Working on ${where}` : undefined}
       >
-        <span className="inline-block w-3 h-3 border-[1.5px] border-claude/25 border-t-claude rounded-full animate-spin shrink-0" />
+        <Spinner className="text-claude" />
         <span className="font-medium">{runLabel(run.action)}</span>
         {(run.skipsPrompts || run.editsApproved) && (
           <span

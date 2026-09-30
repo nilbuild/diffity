@@ -31,7 +31,7 @@ import { openSettingsAt } from '../../lib/ui-store';
 import { CommentsButton } from '../../features/comments/comments-button';
 import { cn } from '../../lib/cn';
 import { buttonClaude, buttonIconSmall, buttonOutline, buttonPrimary, inputField } from '../ui/button-styles';
-import { ChangesIcon, ChevronDownIcon, CommentIcon, EditorIcon, FolderSimpleIcon, CheckCircleIcon, GitCompareIcon, GitPullRequestIcon, SearchIcon, SparkleIcon, SwapIcon, XIcon, GitHubIcon } from '../ui/icon';
+import { ChangesIcon, CheckCircleIcon, ChevronDownIcon, CommentIcon, EditorIcon, FilesIcon, GitCompareIcon, GitHubIcon, GitPullRequestIcon, SearchIcon, SparkleIcon, SwapIcon, XIcon } from '../ui/icon';
 import { Popover } from '../ui/popover';
 import { useRestoredScroll, useViewState } from '../../lib/view-state';
 
@@ -515,7 +515,7 @@ export function Dashboard(props: DashboardProps) {
               )}
               <span className="flex-1" />
               <button onClick={() => nav.toTree()} className={cn(buttonOutline, 'h-7')}>
-                <FolderSimpleIcon size="sm" className="text-text-secondary" />
+                <FilesIcon size="sm" className="text-text-secondary" />
                 Browse files
               </button>
               <button

@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
-import { CodeIcon, CopyIcon, EditorIcon, FolderSimpleIcon, GitPullRequestIcon } from '../ui/icon';
+import { CopyIcon, EditorIcon, GitPullRequestIcon, RevealIcon, TerminalIcon } from '../ui/icon';
 import { ContextMenu, MenuItem, MenuSeparator } from '../ui/popover';
 import { useEditorName } from '../../hooks/use-editor-name';
 import { errorMessage, openInEditor } from '../../lib/api';
@@ -74,9 +74,9 @@ function RepoPathButton(props: { label: string; path: string }) {
         <span className="truncate">{label}</span>
       </button>
       <ContextMenu position={menu} onClose={() => setMenu(null)}>
-        <MenuItem icon={<FolderSimpleIcon size="sm" />} label="Reveal in Finder" onSelect={run(reveal)} />
+        <MenuItem icon={<RevealIcon size="sm" />} label="Reveal in Finder" onSelect={run(reveal)} />
         <MenuItem
-          icon={<CodeIcon size="sm" />}
+          icon={<TerminalIcon size="sm" />}
           label="Open in Terminal"
           onSelect={run(() => {
             openPath(path, 'Terminal').catch((error) => toast.error('Could not open Terminal', { description: String(error) }));

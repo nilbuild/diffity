@@ -6,6 +6,7 @@ import { Skeleton } from '../ui/skeleton';
 import { TitleBar, Workspace } from './title-bar';
 import { endOpening } from '../../lib/opening';
 import { HomeSkeletonMain } from './home-skeleton';
+import { Spinner } from '../icons/spinner';
 
 /** Removes the static splash from index.html once React has painted something equivalent. */
 export function hideStaticSplash() {
@@ -33,7 +34,7 @@ export function AppSplash(props: { label?: string }) {
     <div data-tauri-drag-region className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-5 bg-bg font-sans select-none">
       <BrandLogo className="w-14 h-14" />
       <div className="flex items-center gap-2 text-xs text-text-muted">
-        <span className="w-3.5 h-3.5 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+        <Spinner className="w-3.5 h-3.5 text-accent" />
         {label ?? 'Loading…'}
       </div>
       {slow && <p className="text-[11px] text-text-muted">Large repositories can take a few seconds…</p>}
@@ -137,7 +138,7 @@ export function OpeningSkeleton(props: { repoName: string; onCancel?: () => void
           )}
           {status && (
             <div className="absolute left-1/2 top-16 -translate-x-1/2 flex items-center gap-2.5 h-9 pl-3 pr-2 rounded-full border border-overlay-border bg-overlay text-[13px] text-text-secondary animate-fade-in">
-              <span className="w-3.5 h-3.5 border-2 border-text-muted/30 border-t-text-secondary rounded-full animate-spin" />
+              <Spinner className="w-3.5 h-3.5 text-text-secondary" />
               <span>Opening <span className="font-medium text-text">{repoName}</span> · {step}…</span>
               {slow && onCancel ? (
                 <button onClick={onCancel} className="h-6 px-2 rounded-full text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer">Cancel</button>

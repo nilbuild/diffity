@@ -1,7 +1,16 @@
-export function Spinner(props: { className?: string }) {
-  const { className = 'w-3 h-3' } = props;
+import { cn } from '../../lib/cn';
+import { SpinnerIcon } from '../ui/icon';
+
+export function Spinner(props: { className?: string; label?: string }) {
+  const { className, label } = props;
 
   return (
-    <span className={`inline-block border-2 border-text-muted/40 border-t-transparent rounded-full animate-spin ${className}`} />
+    <SpinnerIcon
+      title={label}
+      className={cn(
+        'w-3 h-3 text-text-muted animate-spin motion-reduce:[animation-duration:2.4s]',
+        className,
+      )}
+    />
   );
 }

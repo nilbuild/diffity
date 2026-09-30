@@ -20,7 +20,8 @@ import { hideStaticSplash } from '../components/layout/skeleton';
 import { openSettings } from '../lib/ui-store';
 import { cn } from '../lib/cn';
 import { buttonIcon, buttonPrimary, inputField } from '../components/ui/button-styles';
-import { DownloadIcon, FolderOpenIcon, GitHubIcon, GitPullRequestIcon, MoonIcon, SettingsIcon, SunIcon, XIcon } from '../components/ui/icon';
+import { CloneIcon, FolderOpenIcon, GitHubIcon, GitPullRequestIcon, MoonIcon, SettingsIcon, SunIcon, XIcon } from '../components/ui/icon';
+import { Spinner } from '../components/icons/spinner';
 
 dayjs.extend(relativeTime);
 
@@ -106,7 +107,7 @@ export function WelcomePage() {
               onClick={openQuickOpen}
             />
             <StartCard
-              icon={<DownloadIcon className="w-[18px] h-[18px]" />}
+              icon={<CloneIcon className="w-[18px] h-[18px]" />}
               title="Clone"
               detail="From a GitHub URL"
               active={mode === 'clone'}
@@ -220,7 +221,7 @@ function RecentRow(props: { repo: RecentRepo; onOpen: (path: string, newWindow?:
         </span>
         {opening ? (
           <span className="flex items-center gap-2 text-xs text-text-secondary shrink-0">
-            <span className="w-3 h-3 border-[1.5px] border-text-muted/30 border-t-text-secondary rounded-full animate-spin" />
+            <Spinner className="text-text-secondary" />
             Opening…
           </span>
         ) : (

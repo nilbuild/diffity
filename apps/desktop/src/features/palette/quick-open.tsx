@@ -11,7 +11,7 @@ import { modKey } from '../../lib/platform';
 import { openRepoAt, shortPath, useRecentRepos } from '../welcome/recent-repos';
 import { parsePrUrl, pickFolder, remoteMatches } from '../welcome/open-repo';
 import { Spinner } from '../../components/icons/spinner';
-import { DownloadIcon, FolderOpenIcon, FolderSimpleIcon, GitBranchIcon, GitHubIcon, GitPullRequestIcon, SearchIcon } from '../../components/ui/icon';
+import { CloneIcon, FolderOpenIcon, FolderSimpleIcon, GitBranchIcon, GitHubIcon, GitPullRequestIcon, SearchIcon } from '../../components/ui/icon';
 
 const useQuickOpen = create<{ open: boolean }>(() => ({ open: false }));
 const CLONE_PARENT_KEY = 'diffity-clone-parent';
@@ -217,7 +217,7 @@ function QuickOpenBody() {
     if (clone) {
       list.push({
         key: 'clone-here',
-        icon: <DownloadIcon size="sm" className="text-text-secondary" />,
+        icon: <CloneIcon size="sm" className="text-text-secondary" />,
         title: <>Clone into <span className="font-mono text-xs">{input || '~/'}</span></>,
         detail: <span className="text-[11px] text-text-muted">{clone.url.replace('https://github.com/', '')}</span>,
         run: () => void runClone(input || '~/'),
@@ -237,7 +237,7 @@ function QuickOpenBody() {
     if (cloneUrl) {
       list.push({
         key: 'clone',
-        icon: <DownloadIcon size="sm" className="text-text-secondary" />,
+        icon: <CloneIcon size="sm" className="text-text-secondary" />,
         title: `Clone ${cloneUrl.replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '')}…`,
         detail: <span className="text-[11px] text-text-muted">choose a folder next</span>,
         run: () => {
@@ -318,7 +318,7 @@ function QuickOpenBody() {
     >
       <div role="dialog" aria-label="Open a repository" className="flex flex-col w-[640px] max-w-[calc(100vw-32px)] max-h-[min(520px,70vh)] rounded-xl border border-overlay-border bg-overlay overflow-hidden animate-fade-in">
         <div className="flex items-center gap-2.5 h-12 px-4 border-b border-overlay-border">
-          {clone ? <DownloadIcon size="md" className="text-text-muted" /> : <SearchIcon size="md" className="text-text-muted" />}
+          {clone ? <CloneIcon size="md" className="text-text-muted" /> : <SearchIcon size="md" className="text-text-muted" />}
           <input
             ref={inputRef}
             value={input}

@@ -1,13 +1,13 @@
 import { useRepoNav } from '../../hooks/use-repo';
 import { cn } from '../../lib/cn';
 import { segmentActive, segmentInactive } from '../ui/button-styles';
-import { ChangesIcon, FolderSimpleIcon, type GlyphProps } from '../ui/icon';
+import { ChangesIcon, FilesIcon, type GlyphProps } from '../ui/icon';
 import type { ComponentType } from 'react';
 
 export type RepoView = 'diff' | 'tree' | 'overview';
 
 const TABS: { value: RepoView; label: string; hint: string; icon: ComponentType<GlyphProps> }[] = [
-  { value: 'tree', label: 'Files', hint: 'Browse and comment on any file', icon: FolderSimpleIcon },
+  { value: 'tree', label: 'Files', hint: 'Browse and comment on any file', icon: FilesIcon },
   { value: 'diff', label: 'Changes', hint: 'Review changes', icon: ChangesIcon },
 ];
 

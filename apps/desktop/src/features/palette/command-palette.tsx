@@ -24,8 +24,8 @@ import { usePullRequests } from '../pr/pull-requests-dialog';
 import { checkoutPullRequest } from '../pr/pr-checkout';
 import { prDiffRef } from '../../components/layout/ref-menu';
 import {
-  ChangesIcon, CommentIcon, EditorIcon, FetchIcon, FileIcon, FolderSimpleIcon, GitCommitIcon, GitPullRequestIcon,
-  HomeIcon, KeyboardIcon, MoonIcon, PullIcon, PushIcon, SearchIcon, SettingsIcon, SidebarIcon,
+  ChangesIcon, CommentIcon, EditorIcon, FetchIcon, FileIcon, FilesIcon, GitCommitIcon, GitPullRequestIcon,
+  HomeIcon, KeyboardIcon, MoonIcon, PullIcon, PushIcon, RevealIcon, SearchIcon, SettingsIcon, SidebarIcon,
 } from '../../components/ui/icon';
 import {
   closePalette, fuzzyScore, recentActionIds, recentFiles, rememberAction, rememberFile, usePalette,
@@ -59,7 +59,7 @@ function useGlobalActions(): PaletteAction[] {
   return useMemo(() => [
     { id: 'go-home', title: 'Go to Home', group: 'Go to', hint: shortcutHint('go-home'), icon: <HomeIcon size="sm" />, run: nav.toOverview },
     { id: 'go-changes', title: 'Uncommitted changes', group: 'Go to', icon: <ChangesIcon size="sm" />, run: () => nav.toDiff('work') },
-    { id: 'go-files', title: 'Browse files', group: 'Go to', icon: <FolderSimpleIcon size="sm" />, run: () => nav.toTree() },
+    { id: 'go-files', title: 'Browse files', group: 'Go to', icon: <FilesIcon size="sm" />, run: () => nav.toTree() },
     { id: 'comments', title: 'Show all comments', group: 'Go to', hint: shortcutHint('comments'), icon: <CommentIcon size="sm" />, run: openComments },
     { id: 'toggle-sidebar', title: 'Toggle sidebar', group: 'View', hint: shortcutHint('toggle-sidebar'), icon: <SidebarIcon size="sm" />, run: toggleSidebar },
     { id: 'toggle-theme', title: theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme', group: 'View', keywords: 'theme dark light appearance', icon: <MoonIcon size="sm" />, run: toggleTheme },
@@ -67,7 +67,7 @@ function useGlobalActions(): PaletteAction[] {
     { id: 'pull', title: 'Pull', group: 'Actions', keywords: 'git', icon: <PullIcon size="sm" />, run: () => runGit('Pull', () => tauri.gitPull(nav.repoPath)) },
     { id: 'push', title: 'Push', group: 'Actions', keywords: 'git publish', icon: <PushIcon size="sm" />, run: () => runGit('Push', () => tauri.gitPush(nav.repoPath)) },
     { id: 'open-editor', title: 'Open repository in editor', group: 'Actions', icon: <EditorIcon size="sm" />, run: () => { openInEditor('').catch((error) => toast.error('Could not open the editor', { description: errorMessage(error) })); } },
-    { id: 'reveal', title: 'Reveal in Finder', group: 'Actions', icon: <FolderSimpleIcon size="sm" />, run: () => { revealItemInDir(nav.repoPath).catch(() => undefined); } },
+    { id: 'reveal', title: 'Reveal in Finder', group: 'Actions', icon: <RevealIcon size="sm" />, run: () => { revealItemInDir(nav.repoPath).catch(() => undefined); } },
     { id: 'settings', title: 'Settings', group: 'Actions', hint: shortcutHint('settings'), icon: <SettingsIcon size="sm" />, run: openSettings },
     { id: 'shortcuts', title: 'Keyboard shortcuts', group: 'Actions', hint: shortcutHint('shortcuts'), icon: <KeyboardIcon size="sm" />, run: openShortcuts },
   ], [nav, theme, toggleTheme]);

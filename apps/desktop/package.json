@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@diffity/parser": "workspace:*",
-    "@phosphor-icons/react": "2.1.10",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/react-query": "5.104.0",
     "@tanstack/react-virtual": "3.14.13",
