@@ -15,6 +15,7 @@ import { QuickOpen, useQuickOpenShortcut } from './features/palette/quick-open';
 import { ShortcutsSheet } from './components/layout/shortcuts-sheet';
 import { TopProgress, hideStaticSplash } from './components/layout/skeleton';
 import { closeShortcuts, openSettings, openShortcuts, useUi } from './lib/ui-store';
+import { useUpdateChecks } from './features/updates/use-update-checks';
 
 function isTyping(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -78,6 +79,7 @@ function QuickOpenHost() {
 export function App() {
   useExternalLinks();
   useGlobalShortcuts();
+  useUpdateChecks();
 
   useEffect(() => {
     const timer = setTimeout(hideStaticSplash, 10_000);

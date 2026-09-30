@@ -46,7 +46,8 @@ const INDEX: { label: string; section: SettingsSection; keywords?: string }[] = 
   { label: 'GitHub account', section: 'github', keywords: 'sign in sign out login' },
   { label: 'Import from GitHub CLI', section: 'github', keywords: 'gh token' },
   { label: 'Personal access token', section: 'github', keywords: 'pat token keychain' },
-  { label: 'Version', section: 'about', keywords: 'about update' },
+  { label: 'Version', section: 'about', keywords: 'about' },
+  { label: 'Check for updates', section: 'about', keywords: 'update upgrade release new version' },
 ];
 
 function matches(query: string) {

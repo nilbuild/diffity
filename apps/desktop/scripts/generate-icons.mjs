@@ -35,8 +35,8 @@ const ictool = join(
 const canvasSize = 1024;
 const shapeSize = 824;
 
-// Keep in sync with bundle.macOS.minimumSystemVersion (Tauri's default).
-const minimumSystemVersion = '10.13';
+// Keep in sync with bundle.macOS.minimumSystemVersion in tauri.conf.json.
+const minimumSystemVersion = '13.3';
 
 const workDir = mkdtempSync(join(tmpdir(), 'diffity-icons-'));
 
