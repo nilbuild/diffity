@@ -266,6 +266,28 @@ Keyboard (web app): j/k file, n/p hunk, u/s view, x / shift+x collapse, r viewed
 - `Store::conn()` returns a `MutexGuard<Connection>`; never hold it across `.await`.
 - `AgentManager::on_threads_changed(hook)` is wired in `lib.rs` to emit `threads-changed`.
 
+## App icon
+
+Source of truth: `apps/desktop/src-tauri/icons/diffity-logo.icon` (Icon Composer document; the artwork is
+`Assets/diffity-mark.svg`). Everything else in `icons/` is derived from it by `pnpm -C apps/desktop icons`
+(`scripts/generate-icons.mjs`, needs Xcode 26+); rerun it and commit the output whenever the `.icon` changes.
+
+- `Assets.car`: `xcrun actool diffity-logo.icon --app-icon diffity-logo --platform macosx --target-device mac
+  --minimum-deployment-target 10.13 --include-all-app-icons …`. Holds the Liquid Glass icon for macOS 26 plus flattened
+  renditions for older macOS. It is first in `bundle.icon`, so the Tauri bundler copies it to `Contents/Resources` and
+  sets `CFBundleIconName` (read back via `assetutil`) without running actool. Tauri can compile a listed `.icon` itself,
+  but its actool call crashes (`attempt to insert nil object`, tauri-apps/tauri#15315), hence the committed `.car`
+  (same setup as time.fyi). The `.icon` stays in `bundle.icon` as the documented source; the `.car` wins.
+- `icon.icns`, `icon.png`, `32x32.png`, `64x64.png`, `128x128*.png`, `icon.ico`: Icon Composer's `ictool` renders the macOS
+  `Default` appearance at 824px, centred on a transparent 1024 canvas (macOS icon grid), then `tauri icon` fans it out.
+  `icon.icns` is `CFBundleIconFile` (fallback) and the Dock icon under `tauri dev` (codegen embeds the first `.icns` in
+  `bundle.icon`; unbundled binaries can't use `Assets.car`).
+- No custom `Info.plist` or bundle hooks. Check a build: `Contents/Resources/{Assets.car,icon.icns}`, and
+  `Info.plist` has `CFBundleIconName = diffity-logo`, `CFBundleIconFile = icon.icns`.
+- In-app mark: `components/icons/brand-logo.tsx` (`BrandLogo`, `diffity-mark.svg` inlined, `currentColor`, default `text-text`)
+  on welcome, About and `AppSplash`; the static splash in `index.html` and `public/favicon.svg` / `public/brand.svg` carry
+  the same path.
+
 ## Core API (for agents / github crates)
 
 All functions are synchronous (wrap in `spawn_blocking` from async code) and return `diffity_core::Result<T>`.

@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "tauri": "tauri",
+    "icons": "node scripts/generate-icons.mjs",
     "test": "vitest run"
   },
   "dependencies": {

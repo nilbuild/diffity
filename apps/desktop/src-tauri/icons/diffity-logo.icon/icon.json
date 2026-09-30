@@ -1,0 +1,40 @@
+{
+  "fill" : {
+    "automatic-gradient" : "display-p3:0.06015,0.13501,0.10052,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "fill" : {
+            "solid" : "display-p3:0.60059,0.95703,0.47412,1.00000"
+          },
+          "glass" : false,
+          "image-name" : "diffity-mark.svg",
+          "name" : "diffity-mark",
+          "position" : {
+            "scale" : 0.27999999999999997,
+            "translation-in-points" : [
+              31,
+              -1
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

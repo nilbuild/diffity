@@ -31,6 +31,8 @@
     "active": true,
     "targets": "all",
     "icon": [
+      "icons/Assets.car",
+      "icons/diffity-logo.icon",
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
