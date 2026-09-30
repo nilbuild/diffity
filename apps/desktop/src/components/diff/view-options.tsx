@@ -1,10 +1,12 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import type { ViewMode } from '../../lib/diff-utils';
 import { SegmentedToggle } from '../ui/segmented-toggle';
 import { buttonIconOutline } from '../ui/button-styles';
-import { CollapseAllIcon, EllipsisIcon, EyeOffIcon, ExpandAllIcon, SplitViewIcon, UnifiedViewIcon } from '../ui/icon';
-import { MenuItem, Popover, useMenu } from '../ui/popover';
+import { CollapseAllIcon, CopyIcon, EllipsisIcon, EyeOffIcon, ExpandAllIcon, SplitViewIcon, TrashIcon, UnifiedViewIcon, XIcon } from '../ui/icon';
+import { MenuItem, MenuSeparator, Popover, useMenu } from '../ui/popover';
+import { ConfirmDialog } from '../ui/confirm-dialog';
+import { toast } from 'sonner';
 
 interface DiffBarProps {
   viewMode: ViewMode;
@@ -16,6 +18,8 @@ interface DiffBarProps {
   onExpandAll: () => void;
   onCollapseAll: () => void;
   commentNav?: ReactNode;
+  /** Copy / delete-all for the comments in this view, shown in ⋯ when there are any. */
+  comments?: { count: number; formatForCopy: () => string; onDeleteAll: () => void };
 }
 
 function ViewedProgress(props: { viewed: number; total: number }) {
@@ -35,26 +39,30 @@ function ViewedProgress(props: { viewed: number; total: number }) {
 }
 
 export function DiffBar(props: DiffBarProps) {
-  const { viewMode, onViewModeChange, hideWhitespace, onHideWhitespaceChange, fileCount, viewedCount, onExpandAll, onCollapseAll, commentNav } = props;
+  const { viewMode, onViewModeChange, hideWhitespace, onHideWhitespaceChange, fileCount, viewedCount, onExpandAll, onCollapseAll, commentNav, comments } = props;
   const menu = useMenu();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const run = (action: () => void) => () => {
+    menu.close();
+    action();
+  };
 
   return (
     <div className="flex items-center gap-2 h-10 shrink-0 px-5 border-b border-border-muted bg-bg">
       <ViewedProgress viewed={viewedCount} total={fileCount} />
       {commentNav}
       <span className="flex-1" />
-      <button
-        onClick={() => onHideWhitespaceChange(!hideWhitespace)}
-        aria-pressed={hideWhitespace}
-        title={hideWhitespace ? 'Whitespace changes are hidden. Click to show them' : 'Hide changes that only touch whitespace'}
-        className={cn(
-          'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-[13px] transition-colors cursor-pointer',
-          hideWhitespace ? 'bg-selected text-text font-medium' : 'text-text-secondary hover:text-text hover:bg-hover',
-        )}
-      >
-        <EyeOffIcon size="sm" />
-        Hide whitespace
-      </button>
+      {hideWhitespace && (
+        <button
+          onClick={() => onHideWhitespaceChange(false)}
+          className="inline-flex items-center gap-1.5 h-6 pl-2 pr-1.5 rounded-full bg-selected text-xs text-text cursor-pointer hover:bg-fill-hover transition-colors"
+          title="Whitespace-only changes are hidden. Click to show them"
+        >
+          <EyeOffIcon size="xs" className="text-text-secondary" />
+          Whitespace hidden
+          <XIcon size={10} className="text-text-muted" />
+        </button>
+      )}
       <SegmentedToggle
         value={viewMode}
         onChange={onViewModeChange}
@@ -66,16 +74,44 @@ export function DiffBar(props: DiffBarProps) {
       <button
         ref={menu.anchorRef}
         onClick={menu.toggle}
-        title="More diff options"
+        title="More diff options: whitespace, expand or collapse files, comments"
         aria-label="More diff options"
         className={cn(buttonIconOutline, menu.open && 'bg-control-hover text-text')}
       >
         <EllipsisIcon size="md" />
       </button>
-      <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} align="end" width={220}>
-        <MenuItem icon={<ExpandAllIcon size="sm" />} label="Expand all files" onSelect={() => { onExpandAll(); menu.close(); }} />
-        <MenuItem icon={<CollapseAllIcon size="sm" />} label="Collapse all files" hint="⇧X" onSelect={() => { onCollapseAll(); menu.close(); }} />
+      <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} align="end" width={250}>
+        <MenuItem icon={<EyeOffIcon size="sm" />} label="Hide whitespace changes" checked={hideWhitespace} onSelect={run(() => onHideWhitespaceChange(!hideWhitespace))} />
+        <MenuSeparator />
+        <MenuItem icon={<ExpandAllIcon size="sm" />} label="Expand all files" onSelect={run(onExpandAll)} />
+        <MenuItem icon={<CollapseAllIcon size="sm" />} label="Collapse all files" hint="⇧X" onSelect={run(onCollapseAll)} />
+        {comments && comments.count > 0 && (
+          <>
+            <MenuSeparator />
+            <MenuItem icon={<CopyIcon size="sm" />} label="Copy open comments as Markdown" onSelect={run(() => {
+              const text = comments.formatForCopy();
+              if (!text) {
+                toast.info('No open comments to copy');
+                return;
+              }
+              void navigator.clipboard.writeText(text).then(() => toast.success('Copied open comments'));
+            })} />
+            <MenuItem icon={<TrashIcon size="sm" />} label="Delete all comments…" onSelect={run(() => setConfirmDelete(true))} />
+          </>
+        )}
       </Popover>
+      {confirmDelete && comments && (
+        <ConfirmDialog
+          title="Delete all comments"
+          message="Delete every comment in this view, including resolved ones and drafts? This cannot be undone."
+          confirmLabel="Delete all"
+          onConfirm={() => {
+            comments.onDeleteAll();
+            setConfirmDelete(false);
+          }}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
     </div>
   );
 }

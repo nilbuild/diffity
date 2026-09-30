@@ -26,6 +26,8 @@ interface ThreadCardProps {
   onUnresolve?: () => void;
   headerLeft?: React.ReactNode;
   headerRight?: React.ReactNode;
+  /** Extra ⋯ entries shown first (e.g. Collapse). */
+  menuItems?: { label: string; onSelect: () => void }[];
   className?: string;
   children?: React.ReactNode;
   /** Narrow cards: secondary actions move into the ⋯ menu. */
@@ -107,6 +109,7 @@ export function ThreadCard(props: ThreadCardProps) {
     onUnresolve,
     headerLeft,
     headerRight,
+    menuItems = [],
     className,
     children,
     compact = false,
@@ -194,6 +197,7 @@ export function ThreadCard(props: ThreadCardProps) {
           )}
           <ThreadMenu
             items={[
+              ...menuItems,
               ...(compact && onResolve && onUnresolve && !resolved ? [{ label: 'Mark as addressed', onSelect: onResolve }] : []),
               ...(compact && onUnresolve && resolved ? [{ label: 'Reopen', onSelect: onUnresolve }] : []),
               ...(canAskClaude && (compact || !showAskClaude || canPromote) ? [{ label: 'Ask Claude about it', onSelect: resolveWithClaude }] : []),

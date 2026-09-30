@@ -14,7 +14,8 @@ import { CommentToolbarActions } from '../comments/comment-toolbar-actions';
 import { DiffView, type DiffViewHandle } from './diff-view';
 import { Sidebar } from '../layout/sidebar';
 import { DiffSkeleton, hideStaticSplash } from '../layout/skeleton';
-import { PrBar } from '../../features/pr/pr-bar';
+import { PrSession, openPrDetails, openPrOnGitHub } from '../../features/pr/pr-session';
+import { syncPrCommentsNow } from '../../features/pr/pr-checkout';
 import { StatusBar } from '../layout/status-bar';
 import { DiffEmptyState } from './diff-empty-state';
 import { openShortcuts } from '../../lib/ui-store';
@@ -44,9 +45,7 @@ import { useViewedFiles } from '../../hooks/use-viewed-files';
 import { useGitHubPr, useOwnPr } from '../../hooks/use-repo-state';
 import { prDiffRef } from '../layout/ref-menu';
 import { openCommitDialog } from '../../features/pr/commit-dialog';
-import { ChevronDownIcon, ChevronUpIcon, CollapseAllIcon, CopyIcon, ExpandAllIcon, EyeOffIcon, GitPullRequestIcon, PushIcon, SendIcon, SparkleIcon, SplitViewIcon, UnifiedViewIcon } from '../ui/icon';
-import { buttonPrimary } from '../ui/button-styles';
-import { cn } from '../../lib/cn';
+import { ChevronDownIcon, ChevronUpIcon, CollapseAllIcon, CopyIcon, ExpandAllIcon, EyeOffIcon, GitHubIcon, GitPullRequestIcon, PushIcon, RefreshIcon, SendIcon, SparkleIcon, SplitViewIcon, UnifiedViewIcon } from '../ui/icon';
 import { shortcutHint } from '../../lib/shortcuts';
 
 const NO_THREADS: CommentThread[] = [];
@@ -443,6 +442,14 @@ export function DiffPage(props: DiffPageProps) {
         list.push({ id: 'copy-diff', title: `Copy diff of ${activeFile.split('/').pop()}`, group: 'Actions', icon: <CopyIcon size="sm" />, run: () => copyFileDiff(file) });
       }
     }
+    if (githubDetails && refParam === prDiffRef(githubDetails)) {
+      const pr = githubDetails.pr;
+      list.push(
+        { id: 'pr-details', title: `Pull request #${pr.number} details`, group: 'Actions', keywords: 'pr description checks branches', icon: <GitPullRequestIcon size="sm" />, run: openPrDetails },
+        { id: 'pr-github', title: `Open PR #${pr.number} on GitHub`, group: 'Actions', keywords: 'pull request browser', icon: <GitHubIcon size="sm" />, run: () => openPrOnGitHub(pr) },
+        { id: 'pr-sync', title: 'Sync PR comments now', group: 'Actions', keywords: 'pull github review threads refresh', icon: <RefreshIcon size="sm" />, run: () => void syncPrCommentsNow(getRepoPath(), pr) },
+      );
+    }
     if (ownPr && githubDetails) {
       list.push({ id: 'commit-push', title: `Commit & push to PR #${githubDetails.prNumber}`, group: 'Actions', icon: <PushIcon size="sm" />, run: () => openCommitDialog(githubDetails.prNumber) });
     }
@@ -510,7 +517,7 @@ export function DiffPage(props: DiffPageProps) {
         focusedFile={activeFile}
       />
       <Workspace>
-      <PrBar diffRef={refParam} threads={threads} />
+      <PrSession diffRef={refParam} threads={threads} />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar
           files={diff.files}
@@ -544,18 +551,6 @@ export function DiffPage(props: DiffPageProps) {
           </div>
         ) : (
           <div className="flex flex-1 min-w-0 flex-col">
-            {ownPr && githubDetails && refParam === 'work' && (
-              <div className="flex items-center gap-3 h-10 shrink-0 px-5 border-b border-border-muted bg-claude/6 text-[13px]">
-                <GitPullRequestIcon size="sm" className="text-added" />
-                <span className="min-w-0 truncate text-text-secondary">
-                  These changes are on the branch of your PR <span className="font-medium text-text">#{githubDetails.prNumber}</span>
-                </span>
-                <span className="flex-1" />
-                <button onClick={() => openCommitDialog(githubDetails.prNumber)} className={cn(buttonPrimary, 'h-7')}>
-                  Commit & push
-                </button>
-              </div>
-            )}
             <DiffBar
               viewMode={viewMode}
               onViewModeChange={setViewMode}
@@ -571,8 +566,14 @@ export function DiffPage(props: DiffPageProps) {
                   onScrollToThread={handleScrollToThread}
                   onDeleteAllComments={commentActions.deleteAllThreads}
                   formatForCopy={() => formatThreadsForCopy(threads, diff, refParam)}
+                  extras={false}
                 />
               }
+              comments={{
+                count: threads.length,
+                formatForCopy: () => formatThreadsForCopy(threads, diff, refParam),
+                onDeleteAll: commentActions.deleteAllThreads,
+              }}
             />
             {composerMoved && pendingSelection && (
               <MovedComposer selection={pendingSelection} onSubmit={handleAddThread} onCancel={() => setPendingSelection(null)} />

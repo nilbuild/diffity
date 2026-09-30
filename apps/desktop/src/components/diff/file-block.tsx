@@ -23,7 +23,6 @@ import type { CommentThread } from '../comments/types';
 import { GENERAL_THREAD_FILE_PATH, DEFAULT_AUTHOR } from '../comments/types';
 import { useLineSelection } from '../../hooks/use-line-selection';
 import { useThemeStore } from '../../hooks/use-theme';
-import { useCopy } from '../../hooks/use-copy';
 import { DiffStats } from './diff-stats';
 import { Badge } from '../ui/badge';
 import { IconButton } from '../ui/icon-button';
@@ -35,7 +34,7 @@ import { ThreadBadge } from '../ui/thread-badge';
 import { buildExpansionSyntaxMap, renderExpansionRows } from './render-expansion-rows';
 import { ExpandRow } from './expand-row';
 import { useViewState } from '../../lib/view-state';
-import { CheckIcon, ChevronIcon, CodeIcon, CommentIcon, CopyIcon, EditorIcon, EllipsisIcon, FileIcon, FileTextIcon, GitCompareIcon, UndoIcon } from '../ui/icon';
+import { ChevronIcon, CodeIcon, CommentIcon, CopyIcon, EditorIcon, EllipsisIcon, FileIcon, FileTextIcon, GitCompareIcon, UndoIcon } from '../ui/icon';
 import { MenuItem, MenuSeparator, Popover, useMenu } from '../ui/popover';
 import { contentsLabel, copyAbsolutePath, copyFileContents, copyFileDiff, copyRelativePath } from '../../lib/file-copy';
 import { useEditorName } from '../../hooks/use-editor-name';
@@ -101,8 +100,17 @@ function rememberSyntax(key: string, map: Map<string, SyntaxToken[]>) {
   syntaxCache.set(key, map);
 }
 
-function FileCardMenu(props: { file: DiffFile; path: string; viewRef: string }) {
-  const { file, path, viewRef } = props;
+interface FileCardMenuProps {
+  file: DiffFile;
+  path: string;
+  viewRef: string;
+  editorName: string;
+  onOpenInEditor: (() => void) | null;
+  onRevert: (() => void) | null;
+}
+
+function FileCardMenu(props: FileCardMenuProps) {
+  const { file, path, viewRef, editorName, onOpenInEditor, onRevert } = props;
   const menu = useMenu();
   const deleted = file.status === 'deleted';
   const run = (action: () => void) => () => {
@@ -116,12 +124,19 @@ function FileCardMenu(props: { file: DiffFile; path: string; viewRef: string }) 
         ref={menu.anchorRef}
         onClick={menu.toggle}
         className="w-6 h-6 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
-        title="More file actions"
+        title="More file actions: open in editor, copy, revert"
         aria-label="More file actions"
+        aria-expanded={menu.open}
       >
         <EllipsisIcon size="sm" />
       </button>
       <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} align="end" width={250}>
+        {onOpenInEditor && (
+          <>
+            <MenuItem icon={<EditorIcon size="sm" />} label={`Open in ${editorName}`} onSelect={run(onOpenInEditor)} />
+            <MenuSeparator />
+          </>
+        )}
         <MenuItem icon={<CopyIcon size="sm" />} label="Copy relative path" hint="⌥⌘C" onSelect={run(() => copyRelativePath(path))} />
         <MenuItem icon={<CopyIcon size="sm" />} label="Copy absolute path" onSelect={run(() => copyAbsolutePath(path))} />
         <MenuSeparator />
@@ -133,6 +148,12 @@ function FileCardMenu(props: { file: DiffFile; path: string; viewRef: string }) 
           onSelect={run(() => void copyFileContents(path, viewRef))}
         />
         <MenuItem icon={<GitCompareIcon size="sm" />} label={file.isBinary ? 'Copy diff (binary file)' : 'Copy diff'} disabled={file.isBinary} onSelect={run(() => copyFileDiff(file))} />
+        {onRevert && (
+          <>
+            <MenuSeparator />
+            <MenuItem icon={<UndoIcon size="sm" />} label="Revert file…" onSelect={run(onRevert)} />
+          </>
+        )}
       </Popover>
     </>
   );
@@ -187,7 +208,6 @@ function FileCard(props: FileCardProps) {
   const fileContentPath = file.oldPath || filePath;
   const fileLineCount = file.oldFileLineCount ?? null;
 
-  const { copied: pathCopied, copy: copyPath } = useCopy();
 
   const [confirmRevertChange, setConfirmRevertChange] = useState<{ hunk: DiffHunk; startIndex: number; endIndex: number } | null>(null);
   const [confirmRevertFile, setConfirmRevertFile] = useState(false);
@@ -568,40 +588,18 @@ function FileCard(props: FileCardProps) {
             <PathLabel path={filePath} nameClassName="font-medium" />
           )}
         </button>
-        <button
-          onClick={() => copyPath(filePath)}
-          className="shrink-0 text-text-muted hover:text-text transition-colors cursor-pointer opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-          title="Copy file path"
-        >
-          {pathCopied ? (
-            <CheckIcon className="w-3 h-3 text-added" />
-          ) : (
-            <CopyIcon className="w-3 h-3" />
-          )}
-        </button>
         {file.status !== 'modified' && <StatusBadge status={file.status} />}
         {file.isBinary && <Badge className="bg-bg-tertiary text-text-muted">Binary</Badge>}
         <div className="ml-auto flex items-center gap-2.5 shrink-0">
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-            {file.status !== 'deleted' && (
-              <button
-                onClick={handleOpenInEditor}
-                className="w-6 h-6 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
-                title={`Open in ${editorName}`}
-              >
-                <EditorIcon size="sm" />
-              </button>
-            )}
-            {canRevert && (
-              <button
-                onClick={() => setConfirmRevertFile(true)}
-                className="w-6 h-6 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-deleted hover:bg-hover transition-colors cursor-pointer"
-                title="Revert file"
-              >
-                <UndoIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <FileCardMenu file={file} path={filePath} viewRef={baseRef ?? 'work'} />
+          <div className="flex items-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 has-[[aria-expanded=true]]:opacity-100 transition-opacity">
+            <FileCardMenu
+              file={file}
+              path={filePath}
+              viewRef={baseRef ?? 'work'}
+              editorName={editorName}
+              onOpenInEditor={file.status !== 'deleted' ? handleOpenInEditor : null}
+              onRevert={canRevert ? () => setConfirmRevertFile(true) : null}
+            />
           </div>
           {renderable && (
             <button

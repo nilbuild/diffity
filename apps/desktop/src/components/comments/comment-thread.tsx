@@ -145,14 +145,7 @@ export function CommentThread(props: CommentThreadProps) {
             {isOutdated && <ThreadBadge variant='outdated' />}
           </>
         }
-        headerRight={
-          <button
-            onClick={() => setIsCollapsed(true)}
-            className='text-[11px] text-text-muted hover:text-text-secondary transition-colors cursor-pointer ml-2'
-          >
-            Collapse
-          </button>
-        }
+        menuItems={[{ label: 'Collapse', onSelect: () => setIsCollapsed(true) }]}
       />
     </td>
   );

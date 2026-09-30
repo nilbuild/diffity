@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useGitStatus, useRepoMeta } from '../../hooks/use-repo-state';
+import { useGitHubPr, useGitStatus, useOwnPr, useRepoMeta } from '../../hooks/use-repo-state';
 import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import { getRepoPath } from '../../lib/api';
@@ -36,6 +36,8 @@ export function GitSyncActions() {
   const [running, setRunning] = useState<GitOp | null>(null);
   const { data: status } = useGitStatus();
   const { data: meta } = useRepoMeta();
+  const { details } = useGitHubPr();
+  const ownPr = useOwnPr();
 
   if (!status?.branch || !meta?.remoteUrl) {
     return null;
@@ -74,6 +76,9 @@ export function GitSyncActions() {
   const fetchTitle = `Fetch new commits from the remote without changing your files. ${fetchedAt ? `Last fetched ${dayjs(fetchedAt).fromNow()}` : 'Not fetched since the app opened'}`;
   const nothingToPush = !!upstream && status.ahead === 0;
   const plural = (count: number) => `${count} commit${count === 1 ? '' : 's'}`;
+  const idle = running === null && !!upstream && status.ahead === 0 && status.behind === 0;
+  const hoverOnly = idle ? 'hidden group-hover/status:flex' : undefined;
+  const showPush = !!upstream || !details?.pr || ownPr;
 
   return (
     <div className="flex items-stretch h-6 rounded-md border border-control-border bg-raised overflow-hidden divide-x divide-control-border">
@@ -83,7 +88,7 @@ export function GitSyncActions() {
       </button>
       {upstream && (
         <button
-          className={cn(itemClass, status.behind > 0 && 'bg-pull/10 text-pull hover:bg-pull/15 hover:text-pull')}
+          className={cn(itemClass, status.behind > 0 && 'bg-pull/10 text-pull hover:bg-pull/15 hover:text-pull', hoverOnly)}
           disabled={running !== null}
           onClick={() => run('pull')}
           title={status.behind > 0 ? `Pull ${plural(status.behind)} from ${upstream}` : `Nothing new on ${upstream} since the last fetch. Pull anyway`}
@@ -93,22 +98,24 @@ export function GitSyncActions() {
           {status.behind > 0 && <span className="tabular-nums">{status.behind}</span>}
         </button>
       )}
-      <button
-        className={cn(itemClass, !nothingToPush && 'bg-push/10 text-push hover:bg-push/15 hover:text-push')}
-        disabled={running !== null}
-        aria-disabled={nothingToPush}
-        onClick={() => {
-          if (nothingToPush) {
-            return;
-          }
-          void run('push');
-        }}
-        title={!upstream ? `Publish ${status.branch} to the remote and track it` : status.ahead > 0 ? `Push ${plural(status.ahead)} to ${upstream}` : `Nothing to push: ${upstream} already has your commits`}
-      >
-        {icon('push', <PushIcon size="xs" />)}
-        {upstream ? 'Push' : 'Publish branch'}
-        {!!upstream && status.ahead > 0 && <span className="tabular-nums">{status.ahead}</span>}
-      </button>
+      {showPush && (
+        <button
+          className={cn(itemClass, !nothingToPush && 'bg-push/10 text-push hover:bg-push/15 hover:text-push', hoverOnly)}
+          disabled={running !== null}
+          aria-disabled={nothingToPush}
+          onClick={() => {
+            if (nothingToPush) {
+              return;
+            }
+            void run('push');
+          }}
+          title={!upstream ? `Publish ${status.branch} to the remote and track it` : status.ahead > 0 ? `Push ${plural(status.ahead)} to ${upstream}` : `Nothing to push: ${upstream} already has your commits`}
+        >
+          {icon('push', <PushIcon size="xs" />)}
+          {upstream ? 'Push' : 'Publish branch'}
+          {!!upstream && status.ahead > 0 && <span className="tabular-nums">{status.ahead}</span>}
+        </button>
+      )}
     </div>
   );
 }

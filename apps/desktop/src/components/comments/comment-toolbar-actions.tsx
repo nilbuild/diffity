@@ -11,6 +11,8 @@ interface CommentToolbarActionsProps {
   onScrollToThread: (threadId: string, filePath: string) => void;
   onDeleteAllComments: () => void;
   formatForCopy: () => string;
+  /** false: only the count and prev/next; copy and delete-all live in the surrounding ⋯ menu. */
+  extras?: boolean;
 }
 
 export function CommentToolbarActions(props: CommentToolbarActionsProps) {
@@ -19,6 +21,7 @@ export function CommentToolbarActions(props: CommentToolbarActionsProps) {
     onScrollToThread,
     onDeleteAllComments,
     formatForCopy,
+    extras = true,
   } = props;
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -51,20 +54,24 @@ export function CommentToolbarActions(props: CommentToolbarActionsProps) {
         >
           <ChevronDownIcon size="sm" />
         </button>
-        <button
-          onClick={() => copy(formatForCopy())}
-          className="flex items-center px-1.5 border-l border-control-border text-text-secondary hover:bg-control-hover hover:text-text transition-colors cursor-pointer"
-          title="Copy open comments as Markdown (paste into any AI chat)"
-        >
-          {copied ? <CheckIcon className="w-3.5 h-3.5 text-added" /> : <CopyIcon size="sm" />}
-        </button>
-        <button
-          onClick={() => setShowDeleteConfirm(true)}
-          className="flex items-center px-1.5 text-text-secondary hover:bg-control-hover hover:text-deleted transition-colors cursor-pointer"
-          title="Delete all comments"
-        >
-          <TrashIcon size="sm" />
-        </button>
+        {extras && (
+          <>
+            <button
+              onClick={() => copy(formatForCopy())}
+              className="flex items-center px-1.5 border-l border-control-border text-text-secondary hover:bg-control-hover hover:text-text transition-colors cursor-pointer"
+              title="Copy open comments as Markdown (paste into any AI chat)"
+            >
+              {copied ? <CheckIcon className="w-3.5 h-3.5 text-added" /> : <CopyIcon size="sm" />}
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center px-1.5 text-text-secondary hover:bg-control-hover hover:text-deleted transition-colors cursor-pointer"
+              title="Delete all comments"
+            >
+              <TrashIcon size="sm" />
+            </button>
+          </>
+        )}
       </div>
       {showDeleteConfirm && (
         <ConfirmDialog

@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import * as tauri from '../../lib/tauri';
 import { queryClient } from '../../lib/query-client';
 import { openSettingsAt } from '../../lib/ui-store';
-import type { GitStatus, PullRequest, StashResult } from '../../lib/types';
+import type { GitStatus, PullRequest, PullResult, StashResult } from '../../lib/types';
 
 export interface ReturnPoint {
   branch: string | null;
@@ -86,12 +86,29 @@ function describeStash(stash: StashResult | null): string | null {
   return `Your changes are in git stash (“${stash.message}”).`;
 }
 
-/** Pulls the PR's review threads into its session; returns a short summary, or null when nothing came in. */
-export async function pullPrComments(repoPath: string, pr: Pick<PullRequest, 'number' | 'baseRef'>): Promise<string | null> {
-  const session = await tauri.getSession(repoPath, prRefFor(pr));
-  const result = await tauri.pullReview(repoPath, session.id, pr.number);
-  queryClient.invalidateQueries({ queryKey: ['threads'] });
-  queryClient.invalidateQueries({ queryKey: ['repo-threads'] });
+interface CommentSyncState {
+  syncing: Record<string, boolean>;
+  syncedAt: Record<string, number>;
+  /** Review threads pulled in by an automatic sync that the user has not looked at yet (Comments button dot). */
+  fresh: number;
+}
+
+export const useCommentSync = create<CommentSyncState>(() => ({ syncing: {}, syncedAt: {}, fresh: 0 }));
+
+export const AUTO_SYNC_INTERVAL = 60_000;
+
+export function syncKey(repoPath: string, prNumber: number): string {
+  return `${repoPath}#${prNumber}`;
+}
+
+export function clearFreshComments() {
+  if (useCommentSync.getState().fresh === 0) {
+    return;
+  }
+  useCommentSync.setState({ fresh: 0 });
+}
+
+function summarize(result: PullResult): string | null {
   const total = result.pulled + result.updated;
   if (total === 0 && result.skipped === 0) {
     return null;
@@ -100,6 +117,53 @@ export async function pullPrComments(repoPath: string, pr: Pick<PullRequest, 'nu
     return 'Review comments are up to date';
   }
   return `Pulled ${result.pulled} review thread${result.pulled === 1 ? '' : 's'}${result.updated ? `, updated ${result.updated}` : ''}`;
+}
+
+async function pullReviewThreads(repoPath: string, pr: Pick<PullRequest, 'number' | 'baseRef'>): Promise<PullResult> {
+  const key = syncKey(repoPath, pr.number);
+  useCommentSync.setState((state) => ({ syncing: { ...state.syncing, [key]: true } }));
+  try {
+    const session = await tauri.getSession(repoPath, prRefFor(pr));
+    const result = await tauri.pullReview(repoPath, session.id, pr.number);
+    useCommentSync.setState((state) => ({ syncedAt: { ...state.syncedAt, [key]: Date.now() } }));
+    queryClient.invalidateQueries({ queryKey: ['threads'] });
+    queryClient.invalidateQueries({ queryKey: ['repo-threads'] });
+    return result;
+  } finally {
+    useCommentSync.setState((state) => ({ syncing: { ...state.syncing, [key]: false } }));
+  }
+}
+
+/** Pulls the PR's review threads into its session; returns a short summary, or null when nothing came in. */
+export async function pullPrComments(repoPath: string, pr: Pick<PullRequest, 'number' | 'baseRef'>): Promise<string | null> {
+  return summarize(await pullReviewThreads(repoPath, pr));
+}
+
+/** Manual sync ("Sync comments now"): always runs and reports the outcome in a toast. */
+export async function syncPrCommentsNow(repoPath: string, pr: Pick<PullRequest, 'number' | 'baseRef'>) {
+  if (useCommentSync.getState().syncing[syncKey(repoPath, pr.number)]) {
+    return;
+  }
+  try {
+    const summary = await pullPrComments(repoPath, pr);
+    toast.success(summary ?? 'No review comments on this pull request yet');
+  } catch (error) {
+    toast.error('Could not pull review comments', { description: tauri.errorMessage(error) });
+  }
+}
+
+/** Quiet background sync (opening the PR view, window focus): at most once a minute, new threads light the Comments button. */
+export async function autoSyncPrComments(repoPath: string, pr: Pick<PullRequest, 'number' | 'baseRef'>) {
+  const key = syncKey(repoPath, pr.number);
+  const { syncing, syncedAt } = useCommentSync.getState();
+  if (syncing[key] || Date.now() - (syncedAt[key] ?? 0) < AUTO_SYNC_INTERVAL) {
+    return;
+  }
+  const result = await pullReviewThreads(repoPath, pr).catch(() => null);
+  if (!result || result.pulled === 0) {
+    return;
+  }
+  useCommentSync.setState((state) => ({ fresh: state.fresh + result.pulled }));
 }
 
 export async function checkoutPullRequest(repoPath: string, input: string, toDiff: ToDiff, options?: { stash?: boolean }) {

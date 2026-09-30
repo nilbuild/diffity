@@ -58,7 +58,7 @@ not a redesign.
 
 - **No shadows anywhere** (buttons, chips, popovers, menus, dialogs, toasts). Separation comes from a 1px border plus a
   surface colour.
-- **Few borders.** Structural lines only: title bar bottom, context/PR bar bottom, sidebar edge, status bar top, card
+- **Few borders.** Structural lines only: title bar bottom, diff bar bottom, sidebar edge, status bar top, card
   outlines, diff table internals, popover outline. Lists never get per-row borders or a box: rows use hover
   (`bg-hover`) and selected (`bg-selected` + accent icon/check) fills.
 - Surface levels (lightest → darkest in light mode, tokens in `app.css`):
@@ -104,8 +104,16 @@ not a redesign.
   field (a sha or `a..b` range offers "Open …"), "Uncommitted changes" with All · Staged · Unstaged, the PR or "branch vs
   base", one-line commit rows, and "All commits, ranges and branches…" as a footer.
 - Diff bar (`components/diff/view-options.tsx`, 40px, top of the content column, fixed while the diff scrolls): viewed
-  progress ("1 of 3 files viewed"), open-comment navigation (k/N open, prev/next, copy, delete all) … "Hide whitespace"
-  toggle · Unified | Split segmented control · ⋯ (Expand / Collapse all files). Hidden when the view is empty.
+  progress ("1 of 3 files viewed"), open-comment navigation (k/N open, prev/next; only with open comments) … a
+  "Whitespace hidden ×" pill only while whitespace is hidden · Unified | Split · ⋯ (Hide whitespace changes ✓,
+  Expand / Collapse all files ⇧X, and with comments: Copy open comments as Markdown, Delete all comments…). Hidden
+  when the view is empty.
+- Frequency rule for chrome: only controls used on most visits stay visible; the rest sit in the nearest ⋯ with their
+  shortcut shown. File card header: path, status, comment count, stats, Viewed (+ Preview/Source for Markdown/SVG);
+  its hover ⋯ holds Open in editor, copy path/contents/diff and Revert file…. Thread header: origin badge, Resolve (+
+  Ask Claude / Add to my review); ⋯ holds Collapse, Ask Claude about it, Delete. Status bar: Pull/Push appear only
+  when there is something to move (idle: Fetch alone, the rest on status-bar hover); Publish branch is hidden on
+  someone else's checked-out PR; the PR shortcut hides while that PR is showing.
 - Popovers and menus use `components/ui/popover.tsx` (`Popover`, `useMenu`, `MenuItem`, `MenuLabel`,
   `MenuSeparator`): rendered in a portal, positioned from the anchor, flipped above and shifted inside the viewport,
   max-height with scroll, so nothing clips at a sidebar edge.
@@ -148,11 +156,18 @@ not a redesign.
 - Settings dialog (⌘,), time.fyi style: left rail with search and grouped icon tabs (App: General, Editor, Keyboard shortcuts;
   Connections: Claude Code, GitHub; Diffity: About), pane title + close, grouped label/hint rows with a fixed control column,
   theme swatches, status cards for Claude Code and the GitHub account, inline confirm for sign-out.
-- Pull requests: the branch switcher and the ref-picker entry check one out; a 40px PR bar (bottom border) sits above
-  the diff: state icon · title · #N · checks icon · Reviewing/Your PR chip · Details … Sync comments (badge) · GitHub
-  (· Back to <branch>).
-  Details opens a 920px dialog: description on the left, a tinted sidebar with status, branches, checks, changes,
-  GitHub comments and actions.
+- Pull requests: the branch switcher and the ref-picker entry check one out. There is no PR bar: a PR view has the
+  same chrome as uncommitted changes. The ref chip is a split button (`features/pr/pr-chip.tsx`): state-coloured PR
+  icon · "PR #N · title" · checks dot | chevron (ref picker) | × (Back to <branch> when the PR was checked out from
+  another branch, else uncommitted changes). Hovering the label (450ms) shows a card: title, state · #N · "Reviewing
+  @x's PR" / "Your PR", base ← head, checks, last comment sync. Clicking the label opens the 920px details dialog
+  (`features/pr/pr-session.tsx`): description on the left, a tinted sidebar with status, branches, checks, changes,
+  GitHub comments (last synced · Sync comments now) and actions (Open on GitHub, Back to <branch>, Ask Claude).
+  Comments sync on their own when the PR diff opens and on window focus (at most once a minute); threads pulled that
+  way put a "+N" badge on the Comments button until the drawer is opened. Manual sync, Open on GitHub and details
+  also live in the title-bar ⋯ menu (top section, PR view only), ⌘K and the Submit review popover (sync row).
+  Own PR: one contextual primary button in the title bar, "Commit & push" (uncommitted files) or "Push N commits"
+  (ahead), on the PR diff and on uncommitted changes; reviewer comments are addressed through Send N to Claude.
 - `@claude` autocomplete in comment and reply forms.
 - Shortcuts sheet (`?`), time.fyi style: find field over grouped rows with key caps; the list lives in `lib/shortcuts.ts`
   and also feeds Settings → Keyboard shortcuts and the ⌘K hints.
@@ -161,5 +176,5 @@ not a redesign.
 - Comments across views: toolbar "Comments N" chip (all open threads of the repo, `c`) opens a right-hand drawer grouped
   by view then file; a neutral status-bar pill points at open comments in other views; outdated / committed
   threads show their anchor snippet with an "Outdated" badge and "View in commit abc1234".
-- GitHub: no separate dialog. The PR bar carries sync/post actions; account sign-in lives in Settings → GitHub.
+- GitHub: no separate dialog. Posting lives in Submit review, sync/details in the PR chip, ⋯ and ⌘K; account sign-in lives in Settings → GitHub.
 - File headers: Preview toggle for Markdown/SVG (rich diff), open in editor, revert file.

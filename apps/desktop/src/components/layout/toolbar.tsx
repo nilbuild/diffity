@@ -10,6 +10,7 @@ import { RefMenu } from './ref-menu';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
 import { FinishReview } from '../../features/review/finish-review';
 import { useRepoMeta } from '../../hooks/use-repo-state';
+import { OwnPrAction, PrMenuItems } from '../../features/pr/pr-session';
 import type { GitHubDetails } from '../../lib/api';
 
 interface ToolbarProps {
@@ -125,13 +126,19 @@ export function Toolbar(props: ToolbarProps) {
       <div data-tauri-drag-region className="flex-1 min-w-2 self-stretch" />
       <div className="flex items-center gap-2 shrink-0">
         <CommentsButton />
+        <OwnPrAction diffRef={diffRef ?? null} />
         {(hasChanges || threads.length > 0) && (
           <>
             <ClaudeToolbar diffRef={diffRef ?? null} sessionId={sessionId ?? null} threads={threads} hasChanges={hasChanges} focusedFile={props.focusedFile ?? null} />
             <FinishReview githubDetails={props.githubDetails ?? null} threads={threads} diffRef={diffRef ?? null} />
           </>
         )}
-        <OptionsMenu theme={theme} onToggleTheme={onToggleTheme} onShowHelp={onShowHelp} />
+        <OptionsMenu
+          theme={theme}
+          onToggleTheme={onToggleTheme}
+          onShowHelp={onShowHelp}
+          renderExtraItems={(close) => <PrMenuItems diffRef={diffRef ?? null} close={close} />}
+        />
       </div>
     </TitleBar>
   );

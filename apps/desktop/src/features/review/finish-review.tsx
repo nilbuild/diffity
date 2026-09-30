@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import { MentionTextarea } from '../../components/comments/mention-textarea';
 import { PostReviewError, triggerClaude, useReviewActions, useReviewState, type ClaudeScope } from './review-state';
 import { useOwnPr } from '../../hooks/use-repo-state';
+import { PrSyncRow } from '../pr/pr-session';
 import { ApproveIcon, CheckIcon, ChevronDownIcon, CommentIcon, GitHubIcon, GitPullRequestIcon, RequestChangesIcon, SendIcon, SparkleIcon, type GlyphProps } from '../../components/ui/icon';
 import { Spinner } from '../../components/icons/spinner';
 import { Popover } from '../../components/ui/popover';
@@ -770,6 +771,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[] 
             <div role="alert" className="mx-4 mb-2 px-2.5 py-1.5 rounded-md bg-deleted/10 text-xs text-deleted">{postError.message}</div>
           )}
 
+          <PrSyncRow prNumber={pr.prNumber} className="px-4 pb-2.5" />
           <div className="flex items-center gap-2 px-4 py-3 border-t border-overlay-border">
             {pendingReview && pendingCount > 0 && (
               <button

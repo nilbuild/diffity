@@ -32,7 +32,7 @@ export function OptionsMenu(props: OptionsMenuProps) {
       >
         <EllipsisIcon size="md" />
       </button>
-      <Popover open={showMenu} onClose={close} anchorRef={menuRef} align="end" width={224}>
+      <Popover open={showMenu} onClose={close} anchorRef={menuRef} align="end" width={248}>
         <>
           {renderExtraItems && renderExtraItems(close)}
           <button

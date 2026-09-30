@@ -12,6 +12,8 @@ import { useCommitDetails } from './diff-context-bar';
 import { CheckIcon, ChevronDownIcon, GitBranchIcon, GitCommitIcon, GitCompareIcon, GitPullRequestIcon, HomeIcon, PencilIcon, SearchIcon, XIcon } from '../ui/icon';
 import { Popover } from '../ui/popover';
 import { Skeleton, useElapsed, useRevealClass } from '../ui/skeleton';
+import { PrRefChip } from '../../features/pr/pr-chip';
+import { useCurrentPr } from '../../features/pr/pr-session';
 
 interface RefMenuProps {
   diffRef: string;
@@ -172,41 +174,45 @@ export function RefMenu(props: RefMenuProps) {
   const target = useTargetLabel(diffRef, branch);
   const reveal = useRevealClass(target.pending);
 
+  const currentPr = useCurrentPr(diffRef);
   const isDefault = diffRef === 'work' || diffRef === HOME_REF;
 
   return (
     <div className="relative min-w-0 flex items-center" ref={ref}>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen(!open)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            setOpen(!open);
-          }
-        }}
-        className={cn(buttonOutline, 'max-w-[460px] min-w-0 pl-2.5 gap-1.5', isDefault ? 'pr-2' : 'pr-1', open && 'bg-control-hover')}
-        title="Choose what to review"
-      >
-        <span className="shrink-0 text-text-secondary">{target.icon}</span>
-        {target.label && <span className={cn('truncate font-medium', reveal)}>{target.label}</span>}
-        {target.pending && <Skeleton className={cn('h-3', target.label ? 'w-32' : 'w-44')} />}
-        <ChevronDownIcon size="xs" className="shrink-0 text-text-secondary" />
-        {!isDefault && (
-          <button
-            onClick={(event) => {
-              event.stopPropagation();
-              nav.toDiff('work');
-            }}
-            className="ml-0.5 flex items-center justify-center w-5 h-5 rounded-full text-text-muted hover:text-text hover:bg-fill-hover transition-colors cursor-pointer"
-            title="Back to uncommitted changes"
-            aria-label="Back to uncommitted changes"
-          >
-            <XIcon size={10} />
-          </button>
-        )}
-      </div>
+      {currentPr && <PrRefChip pr={currentPr} pickerOpen={open} onTogglePicker={() => setOpen(!open)} />}
+      {!currentPr && (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setOpen(!open)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              setOpen(!open);
+            }
+          }}
+          className={cn(buttonOutline, 'max-w-[460px] min-w-0 pl-2.5 gap-1.5', isDefault ? 'pr-2' : 'pr-1', open && 'bg-control-hover')}
+          title="Choose what to review"
+        >
+          <span className="shrink-0 text-text-secondary">{target.icon}</span>
+          {target.label && <span className={cn('truncate font-medium', reveal)}>{target.label}</span>}
+          {target.pending && <Skeleton className={cn('h-3', target.label ? 'w-32' : 'w-44')} />}
+          <ChevronDownIcon size="xs" className="shrink-0 text-text-secondary" />
+          {!isDefault && (
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                nav.toDiff('work');
+              }}
+              className="ml-0.5 flex items-center justify-center w-5 h-5 rounded-full text-text-muted hover:text-text hover:bg-fill-hover transition-colors cursor-pointer"
+              title="Back to uncommitted changes"
+              aria-label="Back to uncommitted changes"
+            >
+              <XIcon size={10} />
+            </button>
+          )}
+        </div>
+      )}
       <Popover open={open} onClose={close} anchorRef={ref} width={440} className="p-0 overflow-hidden flex flex-col">
         <RefMenuPanel
           diffRef={diffRef}

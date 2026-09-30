@@ -588,6 +588,52 @@ full webview reload.
   - Verified with screenshots and 10 fps bursts: one frame change, then pixel-identical to before leaving (including
     the 2,206-file scratch diff scrolled deep).
 
+## Round 19 (no PR bar; only frequent controls stay visible)
+
+- **Found:** a PR view stacked a second 40px bar under the title bar (state icon · full title · #430 · checks ·
+  "Reviewing @x's PR" · Details … Sync comments · GitHub · Back), repeating the title the ref chip already showed.
+  Across the chrome, rarely used controls sat next to everyday ones: "Hide whitespace" as a labelled button, copy /
+  delete-all beside comment navigation, open-in-editor / revert / copy-path icons on every file header, "Collapse" on
+  every thread, Pull/Push/Publish in the status bar with nothing to move, and the status-bar PR shortcut while that PR
+  was already showing.
+- **PR bar removed** (`features/pr/pr-bar.tsx` deleted). A PR view now has the same chrome height as uncommitted
+  changes. Its parts moved:
+  - Title / number / state / checks → the ref chip, now a split button: state-coloured icon, "PR #N · title", a checks
+    dot; the label opens the PR details dialog, the chevron the ref picker, × leaves the PR (Back to <branch> with its
+    stash restore when the PR was checked out from another branch; tooltip says so). A hover card shows title, state,
+    "Reviewing @x's PR" / "Your PR", base ← head, checks and the last comment sync.
+  - Details dialog (`features/pr/pr-session.tsx`): unchanged layout plus the role chip, "Synced …" + "Sync comments now"
+    and Back to <branch>.
+  - Comment sync: automatic when the PR diff opens and on window focus, throttled to once a minute (state in
+    `useCommentSync`, `pr-checkout.ts`; a checkout's own pull counts). Threads pulled in the background put a "+N"
+    badge on the Comments button until the drawer is opened. Manual "Sync comments now" in the details dialog, the ⋯
+    menu (with "Nm ago"), ⌘K and a sync row in the Submit review popover.
+  - Open on GitHub: ⋯, details dialog, ⌘K ("Open PR #N on GitHub"; also "Pull request #N details", "Sync PR comments
+    now").
+  - Own PR: one title-bar primary button, "Commit & push" or "Push N commits", on the PR diff and on uncommitted
+    changes (the old "These changes are on the branch of your PR" strip above uncommitted changes is gone too).
+    "Address N reviewer comments" was dropped: Send N to Claude already counts and lists reviewer threads.
+  - The "Changes on … since …" line never shows for a PR, so nothing to fold.
+- **Frequency pass:**
+  - Diff bar: progress, comment navigation (count + prev/next, only with open comments), Unified | Split, ⋯. The ⋯
+    holds Hide whitespace changes (✓), Expand / Collapse all (⇧X), Copy open comments as Markdown, Delete all
+    comments…. While whitespace is hidden a "Whitespace hidden ×" pill shows the state.
+  - File card header: path, status, comments, stats, Viewed, Preview (Markdown/SVG only). Open in editor, copy path /
+    contents / diff and Revert file… are in its hover ⋯ (stays visible while open).
+  - Thread header: Resolve (+ Ask Claude / Add to my review) and ⋯; Collapse moved into ⋯.
+  - Status bar: with nothing to pull or push only Fetch shows (Pull/Push on status-bar hover); Publish branch is hidden
+    on someone else's checked-out PR; the PR shortcut hides while its diff is showing.
+  - Kept as is: title bar (sidebar toggle, breadcrumb, Comments, Ask Claude, the one review / send action, ⋯; Ask Claude
+    already shortens below 1360px; Open in editor / Reveal in Finder stay in the project crumb menu), sidebar header
+    (filter, commented-only chip only with comments, ⋯).
+- **Verified** in the dev app on the cors scratch clone (PR #430, read-only) and the `dirty` scratch repo, light and
+  dark; own-PR mode simulated by overriding the cached GitHub login and git status in the query cache (nothing pushed).
+  Screenshots: `/private/tmp/claude-501/-Users-kamrify-lab-diffity-app/c823e789-a51c-44b1-a035-71acb3372417/scratchpad/prbar/` — before: `shot0.png` (PR, dark, chip already in place), `before-pr-light.png`,
+  `before-work-{light,dark}.png`, and the user's original with the bar; after: `after-pr-{light,dark}.png`,
+  `after-work-{light,dark}.png`, `hover-dark-crop.png`, `details-dark.png`, `menu-title-light-crop.png`,
+  `menu-diff-light-crop.png`, `review-pop-light-crop.png`, `own-pr-dark.png`, `file-menu-crop.png`,
+  `thread-menu-crop.png`.
+
 ## Remaining
 
 - "Post to GitHub now" pushes only new threads; replies to existing GitHub threads still go out with the review.
