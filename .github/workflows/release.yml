@@ -1,0 +1,111 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: Diffity (macOS universal)
+    permissions:
+      contents: write
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - name: The ref has to be a version tag
+        run: |
+          case "$GITHUB_REF" in
+            refs/tags/v*) ;;
+            *) echo "Not a v* tag: $GITHUB_REF" >&2; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: universal
+
+      - run: pnpm install --frozen-lockfile
+
+      # `tauri build` runs this again from beforeBuildCommand (a no-op once
+      # built); doing it here first makes a sidecar failure its own red step.
+      - name: Build the diffity-mcp sidecar for both architectures
+        run: node apps/desktop/scripts/prepare-mcp.mjs --release
+        env:
+          TAURI_ENV_TARGET_TRIPLE: universal-apple-darwin
+
+      - name: Stamp version from tag
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          python3 -c "import json,sys; p='apps/desktop/src-tauri/tauri.conf.json'; d=json.load(open(p)); d['version']=sys.argv[1]; json.dump(d,open(p,'w'),indent=2)" "$VER"
+          echo "Building Diffity $VER"
+
+      - name: Resolve release notes from tag
+        id: notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DEFAULT='Download the universal .dmg (runs on Apple Silicon and Intel). The app updates itself after install.'
+          BODY=""
+          TYPE=$(gh api "repos/${{ github.repository }}/git/refs/tags/${{ github.ref_name }}" -q .object.type 2>/dev/null || true)
+          OBJ=$(gh api "repos/${{ github.repository }}/git/refs/tags/${{ github.ref_name }}" -q .object.sha 2>/dev/null || true)
+          if [ "$TYPE" = "tag" ] && [ -n "$OBJ" ]; then
+            BODY=$(gh api "repos/${{ github.repository }}/git/tags/$OBJ" -q .message 2>/dev/null || true)
+          fi
+          if [ -z "$BODY" ]; then
+            BODY="$DEFAULT"
+          fi
+          {
+            echo 'body<<RELEASE_NOTES_EOF'
+            echo "$BODY"
+            echo 'RELEASE_NOTES_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      # The icon ships compiled (`icons/Assets.car`) because the runner's
+      # actool has crashed on Icon Composer bundles (tauri-apps/tauri#15315).
+      # The bundler copies a listed .car and never runs actool; if the .car is
+      # ever missing, it should at least reach for the newest Xcode here.
+      - name: Point at the newest Xcode, and say which one
+        run: |
+          newest=$(printf '%s\n' /Applications/Xcode*.app | sort -V | tail -1)
+          if [ -d "$newest" ]; then
+            sudo xcode-select -s "$newest"
+          fi
+          xcode-select -p
+          xcodebuild -version
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: Diffity __VERSION__
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: false
+          prerelease: false
+          args: --target universal-apple-darwin --verbose
