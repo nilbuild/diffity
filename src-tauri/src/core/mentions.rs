@@ -1,7 +1,7 @@
 //! Agent mention detection (`@claude`, `@codex`) for review comments.
 
 /// Mention handles, one per agent id. The first mentioned handle decides which agent answers.
-pub const AGENT_HANDLES: [&str; 2] = ["claude", "codex"];
+pub const AGENT_HANDLES: [&str; 3] = ["claude", "codex", "opencode"];
 
 /// True when `body` mentions an agent (case-insensitive, whole word) outside fenced code blocks and inline code spans.
 pub fn mentions_agent(body: &str) -> bool {

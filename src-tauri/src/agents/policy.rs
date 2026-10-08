@@ -90,6 +90,7 @@ impl RunPermissions {
         match (agent, self) {
             (AgentKind::Codex, Self::Bypass) => "agent-full-access",
             (AgentKind::Codex, _) => "read-only",
+            (AgentKind::Opencode, _) => "build",
             (_, Self::Bypass) => "bypassPermissions",
             _ => "default",
         }

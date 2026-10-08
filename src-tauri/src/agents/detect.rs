@@ -16,12 +16,18 @@ pub enum AgentKind {
     Claude,
     Codex,
     Gemini,
+    Opencode,
 }
 
 impl AgentKind {
-    pub const ALL: [AgentKind; 3] = [AgentKind::Claude, AgentKind::Codex, AgentKind::Gemini];
+    pub const ALL: [AgentKind; 4] = [
+        AgentKind::Claude,
+        AgentKind::Codex,
+        AgentKind::Gemini,
+        AgentKind::Opencode,
+    ];
     /// Agents exposed to the app. Gemini launch code is kept intact — add it here to enable it.
-    pub const ENABLED: [AgentKind; 2] = [AgentKind::Claude, AgentKind::Codex];
+    pub const ENABLED: [AgentKind; 3] = [AgentKind::Claude, AgentKind::Codex, AgentKind::Opencode];
 
     pub fn is_enabled(self) -> bool {
         Self::ENABLED.contains(&self)
@@ -42,6 +48,7 @@ impl AgentKind {
             "claude" => Some(Self::Claude),
             "codex" => Some(Self::Codex),
             "gemini" => Some(Self::Gemini),
+            "opencode" => Some(Self::Opencode),
             _ => None,
         }
     }
@@ -51,6 +58,7 @@ impl AgentKind {
             Self::Claude => "claude",
             Self::Codex => "codex",
             Self::Gemini => "gemini",
+            Self::Opencode => "opencode",
         }
     }
 
@@ -59,6 +67,7 @@ impl AgentKind {
             Self::Claude => "Claude Code",
             Self::Codex => "Codex",
             Self::Gemini => "Gemini",
+            Self::Opencode => "opencode",
         }
     }
 
@@ -67,6 +76,7 @@ impl AgentKind {
             Self::Claude => "claude",
             Self::Codex => "codex",
             Self::Gemini => "gemini",
+            Self::Opencode => "opencode",
         }
     }
 
@@ -74,7 +84,7 @@ impl AgentKind {
         match self {
             Self::Claude => Some(("claude-agent-acp", CLAUDE_ACP_PACKAGE)),
             Self::Codex => Some(("codex-acp", CODEX_ACP_PACKAGE)),
-            Self::Gemini => None,
+            Self::Gemini | Self::Opencode => None,
         }
     }
 }
@@ -242,6 +252,11 @@ pub async fn detect_with(kind: AgentKind, custom_path: Option<&str>) -> Detected
             args: vec![gemini_acp_flag(&cli).await.into()],
             env: vec![],
         }),
+        AgentKind::Opencode => Ok(LaunchSpec {
+            command: cli.clone(),
+            args: vec!["acp".into()],
+            env: vec![],
+        }),
         AgentKind::Codex => adapter_launch(kind, find_in_path("npx").as_deref()).map(|mut spec| {
             if std::env::var_os("CODEX_PATH").is_none() {
                 spec.env
@@ -254,6 +269,7 @@ pub async fn detect_with(kind: AgentKind, custom_path: Option<&str>) -> Detected
     info.authenticated = match kind {
         AgentKind::Claude => claude_authenticated(&cli).await,
         AgentKind::Codex => codex_authenticated(&cli).await,
+        AgentKind::Opencode => Some(true),
         AgentKind::Gemini => None,
     };
 
@@ -315,6 +331,11 @@ async fn detect_custom(kind: AgentKind, custom: PathBuf) -> DetectedAgent {
                 args: vec![gemini_acp_flag(&custom).await.into()],
                 env: vec![],
             }),
+            AgentKind::Opencode => Ok(LaunchSpec {
+                command: custom.clone(),
+                args: vec!["acp".into()],
+                env: vec![],
+            }),
             AgentKind::Codex => adapter_launch(kind, find_in_path("npx").as_deref()).map(|mut spec| {
                 spec.env.push(("CODEX_PATH".into(), display.clone()));
                 spec
@@ -331,6 +352,7 @@ async fn detect_custom(kind: AgentKind, custom: PathBuf) -> DetectedAgent {
     info.authenticated = match (kind, auth_cli.as_deref()) {
         (AgentKind::Claude, Some(cli)) => claude_authenticated(cli).await,
         (AgentKind::Codex, Some(cli)) => codex_authenticated(cli).await,
+        (AgentKind::Opencode, _) => Some(true),
         _ => None,
     };
     let launch = match launch {
@@ -398,6 +420,7 @@ mod tests {
     fn claude_and_codex_enabled() {
         assert!(AgentKind::Claude.is_enabled());
         assert!(AgentKind::Codex.is_enabled());
+        assert!(AgentKind::Opencode.is_enabled());
         assert!(!AgentKind::Gemini.is_enabled());
         assert_eq!(AgentKind::Claude.path_setting_key(), "agent.claude.path");
     }

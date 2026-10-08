@@ -1,7 +1,7 @@
 // Mirror of `crate::core::mentions` (src-tauri): `@claude` / `@codex` (case-insensitive, whole word) outside code.
 
 /** Mention handles, one per agent id. */
-export const AGENT_HANDLES = ['claude', 'codex'] as const;
+export const AGENT_HANDLES = ['claude', 'codex', 'opencode'] as const;
 
 function stripCode(body: string): string {
   const out: string[] = [];
