@@ -315,13 +315,13 @@ impl Shared {
 
 /// Diffity's own MCP tools are already gated by mode on the bridge, so they never need a user prompt.
 /// Matched by exact name so a shell command that merely mentions a tool doesn't pass: Claude titles
-/// them `mcp__diffity__add_comment`, Codex `mcp.diffity.add_comment`.
+/// them `mcp__diffity__add_comment`, Codex `mcp.diffity.add_comment`, opencode `tools.diffity.add_comment`.
 fn is_own_tool(title: Option<&str>) -> bool {
     let Some(title) = title else {
         return false;
     };
     let lower = title.trim().to_ascii_lowercase();
-    let Some(rest) = ["mcp__diffity__", "mcp.diffity.", "diffity."]
+    let Some(rest) = ["mcp__diffity__", "mcp.diffity.", "diffity.", "tools.diffity."]
         .iter()
         .find_map(|prefix| lower.strip_prefix(prefix))
     else {

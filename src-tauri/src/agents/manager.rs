@@ -498,6 +498,13 @@ impl AgentManager {
             None => prompt,
         };
 
+        // opencode exposes MCP tools as `tools.<server>.<tool>` instead of `mcp__<server>__<tool>`.
+        let prompt = if kind == Some(AgentKind::Opencode) {
+            prompt.replace("mcp__diffity__", "tools.diffity.")
+        } else {
+            prompt
+        };
+
         let rt = self.runtime(&rec, binding).await?;
 
         let user = ChatMessageContent::User(UserMessageContent {
