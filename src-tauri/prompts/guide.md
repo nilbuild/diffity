@@ -38,6 +38,19 @@ Better: "Video details are stored on the YouTube embed itself, so they get saved
 
 Notes and focus points are optional and sparing; add one only where it saves the reviewer real time, never to say what the code plainly shows. A note shows in the diff next to its line, so pin it to the line it is about whenever the point is about one spot; leave out `line` only for a point about the whole file.
 
+## Show how it runs
+
+Reviewers often want the order things happen in: this is called first, then this, then that. Pick the view by the shape of the code:
+
+- **Call stack** (a chapter's `callstack`): the chapter's logic is a chain of calls that return, branch or return early. Start at the entry point (a route, command, UI event, job) and list the calls in the order they run, a callee right after its caller, one level deeper. Write rows as data flow, `result = fn(inputs)`, with `if …: return …` and `return …` rows where they matter. Mark rows `added`, `removed` or `same`, and give each linked row the `path` and `line` of the call so the reviewer can step through it in the diff. Keep it to about 4-12 rows on the main path; for a deep flow, give the overview in the core chapter and a short stack in the chapter of each changed callee. Skip it for config, tests, renames or a single function.
+- **Diagram** (the overview `diagram`): the change adds or reshapes a flow between parts (modules, services, processes). Mark nodes `:::added`, `:::changed` or `:::removed`, so one picture shows before and after. Link each node that maps to code with `%% ref node:<id> [[path#L12]]`.
+
+Add a view only when it shows the reviewer something prose would not; never just to fill a slot.
+
+## Link to the code
+
+Anywhere in the guide's Markdown, `[[path]]` or `[[path#L12]]` renders as a link that jumps to that file or line in the diff. Use it sparingly, where the reader would otherwise have to hunt for the spot; paths exactly as `get_diff` lists them.
+
 ## Save
 
 Call `set_guide` once with the whole guide. If it returns an error, fix exactly what it names (cut text that is too long, do not just drop it) and call it again. Then reply with one line: the number of chapters and their titles.

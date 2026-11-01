@@ -16,6 +16,7 @@ import { ChapterNav, ChapterStory, chapterViewed, AttentionTag, CriticalTag, Eye
 import { useUi } from '../../lib/ui-store';
 import { GuideNoteCard, GuideNotesContext, notesByFile } from './guide-notes';
 import { OVERVIEW_STEP, type GuideStep } from './use-guide';
+import { diagramRefs, useGuideRefs } from './guide-refs';
 
 type SharedFileProps = Omit<FileBlockProps, 'file' | 'collapsed' | 'reviewed' | 'sinceViewed' | 'highlightCode' | 'highlighted' | 'onHighlightEnd'>;
 
@@ -101,6 +102,13 @@ function OverviewPage(props: OverviewPageProps) {
   const { guide, chapters, reviewedFiles, onStep, start, generalComments } = props;
   const theme = useThemeStore((state) => state.theme);
   const chart = useMemo(() => (guide.diagram ? diagramWithStyles(guide.diagram, theme) : null), [guide.diagram, theme]);
+  const refs = useGuideRefs();
+  const nodeRefs = useMemo(() => {
+    const all = guide.diagram ? diagramRefs(guide.diagram) : new Map();
+    return new Map([...all].filter(([, ref]) => refs?.has(ref.path)));
+  }, [guide.diagram, refs]);
+  const nodeLinks = useMemo(() => new Set(nodeRefs.keys()), [nodeRefs]);
+  const hasRemoved = !!guide.diagram && /:::removed\b/.test(guide.diagram);
   const started = chapters.some((chapter) => chapterViewed(chapter, reviewedFiles) > 0);
 
   return (
@@ -122,8 +130,20 @@ function OverviewPage(props: OverviewPageProps) {
             <span className="font-medium text-text">How it flows</span>
             <Legend className="bg-diff-add-bg border-added/60" label="New" />
             <Legend className="bg-modified/15 border-modified/60" label="Changed" />
+            {hasRemoved && <Legend className="bg-diff-del-bg border-deleted/60 border-dashed" label="Removed" />}
+            {nodeLinks.size > 0 && <span className="ml-auto text-text-muted">Click a box to open its code</span>}
           </div>
-          <MermaidDiagram chart={chart} frameClassName="max-h-[340px]" />
+          <MermaidDiagram
+            chart={chart}
+            frameClassName="max-h-[340px]"
+            nodeLinks={nodeLinks}
+            onNodeClick={(id) => {
+              const ref = nodeRefs.get(id);
+              if (ref) {
+                refs?.open(ref);
+              }
+            }}
+          />
         </section>
       )}
 

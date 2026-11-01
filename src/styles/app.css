@@ -427,6 +427,27 @@ dialog {
   animation: flash-thread 1.5s ease-out;
 }
 
+/* The diff line the guide jumped to. */
+tr.guide-line-focus > td {
+  background-image: linear-gradient(color-mix(in srgb, var(--color-claude) 20%, transparent), color-mix(in srgb, var(--color-claude) 20%, transparent));
+}
+
+tr.guide-line-focus > td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-claude);
+}
+
+/* Diagram nodes that open their code in the diff. */
+.mermaid-links [data-node-link] {
+  cursor: pointer;
+  outline: none;
+}
+
+.mermaid-links [data-node-link]:hover > :first-child,
+.mermaid-links [data-node-link]:focus-visible > :first-child {
+  stroke-width: 2.5px !important;
+  filter: brightness(1.06);
+}
+
 /* GitHub-flavored markdown body */
 .gh-md-body {
   padding: 24px 28px;

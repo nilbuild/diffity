@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { DiffHunk } from '@/lib/diff-parser';
 import type { DiffFile, DiffLine as DiffLineType } from '@/lib/diff-parser';
 import type { SyntaxToken } from '../../lib/syntax-token';
-import type { CodeHighlighter } from '../../hooks/use-highlighter';
+import { getLang, type CodeHighlighter } from '../../hooks/use-highlighter';
+import { highlightInWorker } from '../../lib/highlight-client';
 import type { CommentAuthor, CommentSide, LineSelection, SubmitOptions } from '../comments/types';
 import { type ViewMode, getFilePath, buildChangeGroupPatch, extractLinesFromDiff, extractLinesFromExpandedLines, deferReason, getRowCount, sliceHunk, sliceRowCount, SLICE_ROW_THRESHOLD } from '../../lib/diff-utils';
 import { revertHunk as apiRevertHunk, revertFile as apiRevertFile, openInEditor, errorMessage, fetchFileVersions } from '../../lib/api';
@@ -12,6 +13,7 @@ import { filePatchOptions } from '../../queries/diff';
 import { buildSyntaxMap, HIGHLIGHT_MAX_ROWS, planSyntaxSources, runInSteps, tokenizeSources, type SideTokens } from '../../lib/syntax-lines';
 import { loadHeldBackFile, useHeldBackLoaded } from '../../lib/large-diff';
 import { LazySlice } from './lazy-slice';
+import { useGuideFocusLine } from '../../features/guide/guide-focus';
 import { Spinner } from '../icons/spinner';
 import { buttonOutline } from '../ui/button-styles';
 import { cn } from '../../lib/cn';
@@ -52,6 +54,8 @@ import { useTypography } from '../../lib/typography';
 
 /** Cards that scroll straight past are never highlighted: work starts once a card has stayed mounted this long. */
 const HIGHLIGHT_DELAY_MS = 120;
+/** How often lines the worker finished are handed to the view while it is still going. */
+const HIGHLIGHT_PROGRESS_MS = 400;
 
 export interface FileBlockProps {
   file: DiffFile;
@@ -408,15 +412,41 @@ function FileCard(props: FileCardProps) {
 
     const plan = planSyntaxSources(file.hunks, versions.data ?? null, HIGHLIGHT_MAX_ROWS);
     const tokens: SideTokens = { old: new Map(), new: new Map() };
-    const work = tokenizeSources(plan.sources, highlightCode, tokens);
-    return runInSteps(work, HIGHLIGHT_DELAY_MS, () => {
-      setSyntaxMap(buildSyntaxMap(file.hunks, tokens, plan.fullNew));
-    }, () => {
+    const showProgress = () => setSyntaxMap(buildSyntaxMap(file.hunks, tokens, plan.fullNew));
+    const finish = () => {
       const map = buildSyntaxMap(file.hunks, tokens, plan.fullNew);
       rememberSyntax(cacheKey, map);
       setSyntaxMap(map);
-    });
-  }, [file, highlightCode, cacheKey, rendersLines, versionsSettled, versions.data]);
+    };
+    const highlightInline = (delayMs: number) => runInSteps(tokenizeSources(plan.sources, highlightCode, tokens), delayMs, showProgress, finish);
+    const lang = getLang(filePath);
+    if (!lang) {
+      return highlightInline(HIGHLIGHT_DELAY_MS);
+    }
+    // The worker keeps tokenizing off the main thread, so scrolling never waits on it; inline is the fallback.
+    let cancel = () => {};
+    let lastProgress = 0;
+    const timer = window.setTimeout(() => {
+      const cancelWorker = highlightInWorker(lang, resolvedTheme, plan.sources, tokens, () => {
+        const now = performance.now();
+        if (now - lastProgress > HIGHLIGHT_PROGRESS_MS) {
+          lastProgress = now;
+          showProgress();
+        }
+      }, (ok) => {
+        if (ok) {
+          finish();
+          return;
+        }
+        cancel = highlightInline(0);
+      });
+      cancel = cancelWorker ?? highlightInline(0);
+    }, HIGHLIGHT_DELAY_MS);
+    return () => {
+      window.clearTimeout(timer);
+      cancel();
+    };
+  }, [file, filePath, highlightCode, cacheKey, resolvedTheme, rendersLines, versionsSettled, versions.data]);
 
   const gaps = useMemo(() => {
     if (isNewFile) {
@@ -538,9 +568,11 @@ function FileCard(props: FileCardProps) {
     return set;
   }, [fileThreads, pendingSelection, filePath]);
   const findKey = useCurrentFindKey(filePath);
-  const isPinnedSlice = (hunk: DiffHunk) => (pinnedLines.size > 0 || findKey !== null) && hunk.lines.some((line) =>
+  const guideLine = useGuideFocusLine(filePath);
+  const isPinnedSlice = (hunk: DiffHunk) => (pinnedLines.size > 0 || findKey !== null || guideLine !== null) && hunk.lines.some((line) =>
     (line.oldLineNumber !== null && pinnedLines.has(`old:${line.oldLineNumber}`)) || (line.newLineNumber !== null && pinnedLines.has(`new:${line.newLineNumber}`))
-    || (findKey !== null && diffLineKey(line) === findKey));
+    || (findKey !== null && diffLineKey(line) === findKey)
+    || (guideLine !== null && ((line.oldLineNumber !== null && guideLine === `old:${line.oldLineNumber}`) || (line.newLineNumber !== null && guideLine === `new:${line.newLineNumber}`))));
 
   const total = file.additions + file.deletions;
   const addBlocks = total > 0 ? Math.round((file.additions / total) * Math.min(5, total)) : 0;

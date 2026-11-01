@@ -124,7 +124,7 @@ const FILENAME_MAP: Record<string, BundledLanguage> = {
   vagrantfile: 'ruby',
 };
 
-function getLang(filePath: string): BundledLanguage | null {
+export function getLang(filePath: string): BundledLanguage | null {
   const ext = filePath.split('.').pop()?.toLowerCase() || '';
   const fileName = filePath.split('/').pop()?.toLowerCase() || '';
 

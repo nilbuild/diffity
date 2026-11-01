@@ -1,6 +1,6 @@
 import type { DiffFile } from '@/lib/diff-parser';
 import { getFilePath } from '../../lib/diff-utils';
-import type { Guide, GuideAttention, GuideNote } from '../../lib/types';
+import type { Guide, GuideAttention, GuideCall, GuideNote } from '../../lib/types';
 
 export const NOT_IN_GUIDE_TITLE = 'Not in the guide';
 
@@ -23,6 +23,8 @@ export interface ReadingChapter {
   files: DiffFile[];
   /** Notes on the files still in the diff. */
   notes: GuideNote[];
+  /** Rows pointing at files that left the diff keep their text but lose the link. */
+  callstack: GuideCall[];
   additions: number;
   deletions: number;
   /** Files that changed after the guide was written and are not in any of its chapters. */
@@ -51,7 +53,8 @@ export function readingChapters(guide: Guide, files: DiffFile[]): ReadingChapter
     }
     const kept = new Set(chapterFiles.map((file) => getFilePath(file)));
     const notes = (chapter.notes ?? []).filter((note) => kept.has(note.path));
-    chapters.push({ ...chapter, key: String(index), points: chapter.points ?? [], files: chapterFiles, notes, ...lineCounts(chapterFiles), extra: false });
+    const callstack = (chapter.callstack ?? []).map((row) => (row.path && !byPath.has(row.path) ? { ...row, path: undefined, line: undefined } : row));
+    chapters.push({ ...chapter, key: String(index), points: chapter.points ?? [], files: chapterFiles, notes, callstack, ...lineCounts(chapterFiles), extra: false });
   });
   const rest = files.filter((file) => !placed.has(getFilePath(file)));
   if (rest.length > 0) {
@@ -64,6 +67,7 @@ export function readingChapters(guide: Guide, files: DiffFile[]): ReadingChapter
       attention: 'normal',
       files: rest,
       notes: [],
+      callstack: [],
       ...lineCounts(rest),
       extra: true,
     });
@@ -101,15 +105,15 @@ export function isGuideStale(guide: Guide, fingerprint: string | undefined, chap
   return !!fingerprint && guide.fingerprint !== fingerprint;
 }
 
-/** Mermaid lines that colour the nodes for the current theme: `:::added` and `:::changed` ones the agent marked, the rest neutral. */
+/** Mermaid lines that colour the nodes for the current theme: `:::added`, `:::changed` and `:::removed` ones the agent marked, the rest neutral. */
 export function diagramWithStyles(chart: string, theme: 'light' | 'dark'): string {
   const trimmed = chart.trim().replace(/^```(?:mermaid)?\s*\n?/, '').replace(/\n?```\s*$/, '');
   if (!/^(flowchart|graph)\b/.test(trimmed)) {
     return trimmed;
   }
   const colors = theme === 'dark'
-    ? { plain: 'fill:#1c2128,stroke:#545d68,color:#e6edf3', added: 'fill:#12301f,stroke:#3fb950,color:#e6edf3', changed: 'fill:#2f2711,stroke:#d29922,color:#e6edf3' }
-    : { plain: 'fill:#f6f8fa,stroke:#afb8c1,color:#1f2328', added: 'fill:#e9f7ec,stroke:#2da44e,color:#1f2328', changed: 'fill:#fff5d6,stroke:#bf8700,color:#1f2328' };
+    ? { plain: 'fill:#1c2128,stroke:#545d68,color:#e6edf3', added: 'fill:#12301f,stroke:#3fb950,color:#e6edf3', changed: 'fill:#2f2711,stroke:#d29922,color:#e6edf3', removed: 'fill:#3a1618,stroke:#f85149,stroke-dasharray:4 3,color:#e6edf3' }
+    : { plain: 'fill:#f6f8fa,stroke:#afb8c1,color:#1f2328', added: 'fill:#e9f7ec,stroke:#2da44e,color:#1f2328', changed: 'fill:#fff5d6,stroke:#bf8700,color:#1f2328', removed: 'fill:#ffebe9,stroke:#cf222e,stroke-dasharray:4 3,color:#1f2328' };
   const lines = [trimmed];
   // Unchanged nodes stay neutral so the new and changed ones stand out.
   if (!/classDef\s+default\b/.test(trimmed)) {
@@ -120,6 +124,9 @@ export function diagramWithStyles(chart: string, theme: 'light' | 'dark'): strin
   }
   if (/:::changed\b/.test(trimmed) && !/classDef\s+changed\b/.test(trimmed)) {
     lines.push(`  classDef changed ${colors.changed}`);
+  }
+  if (/:::removed\b/.test(trimmed) && !/classDef\s+removed\b/.test(trimmed)) {
+    lines.push(`  classDef removed ${colors.removed}`);
   }
   return lines.join('\n');
 }

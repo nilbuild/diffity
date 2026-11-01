@@ -268,6 +268,39 @@ pub struct GuideNote {
     pub critical: bool,
 }
 
+/// Whether a call-stack row is new, gone, or unchanged by the diff.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum GuideChange {
+    Added,
+    Removed,
+    #[default]
+    Same,
+}
+
+/// One row of a chapter's call stack: a call, how deep it is nested, and where it is in the diff.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GuideCall {
+    /// 0 for the entry point; a callee is one deeper than its caller.
+    pub depth: u32,
+    /// The call as data flow, e.g. `result = save(record)`.
+    pub call: String,
+    #[serde(default)]
+    pub change: GuideChange,
+    /// A file of the diff; unset for code the diff does not touch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// A line the diff shows; unset to point at the whole file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+    #[serde(default)]
+    pub side: Side,
+    /// Markdown: why this call happens, shown while stepping through.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub why: Option<String>,
+}
+
 /// One idea of a change, with the files that carry it, in reading order.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -287,6 +320,9 @@ pub struct GuideChapter {
     pub files: Vec<String>,
     #[serde(default)]
     pub notes: Vec<GuideNote>,
+    /// The order the chapter's code runs in, from the entry point down.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub callstack: Vec<GuideCall>,
 }
 
 /// What an agent wrote to walk a reviewer through a diff.

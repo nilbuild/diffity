@@ -10,6 +10,8 @@ import { MermaidDiagram } from '../mermaid-diagram';
 import { rehypeMentions } from '../../lib/mentions';
 import { tokensToHtml } from '../../lib/syntax-token';
 import { SuggestionBlock } from '../../features/suggestions/suggestion-block';
+import { GuideRefLink } from '../../features/guide/guide-ref-link';
+import { refFromHref } from '../../features/guide/guide-refs';
 
 interface MarkdownContentProps {
   content: string;
@@ -31,6 +33,10 @@ export const MarkdownContent = memo(function MarkdownContent(props: MarkdownCont
       return <em>{children}</em>;
     },
     a({ href, children }) {
+      const guideRef = refFromHref(href);
+      if (guideRef) {
+        return <GuideRefLink guideRef={guideRef} />;
+      }
       return (
         <a href={href} className="text-text underline decoration-text-muted/50 underline-offset-2 hover:decoration-text" target="_blank" rel="noopener noreferrer">
           {children}

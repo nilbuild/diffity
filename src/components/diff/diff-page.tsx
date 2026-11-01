@@ -60,6 +60,8 @@ import { loadHeldBackFile } from '../../lib/large-diff';
 import { useHotkeys } from 'react-hotkeys-hook';
 import { GuideSidebar, GuideSidebarEmpty } from '../../features/guide/guide-sidebar';
 import { GuideReader } from '../../features/guide/guide-reader';
+import { GuideRefContext, type GuideRef, type GuideRefs } from '../../features/guide/guide-refs';
+import { focusGuideLine } from '../../features/guide/guide-focus';
 import { GuideBarStatus, GuideStart } from '../../features/guide/guide-start';
 import { isGuideStale, readingChapters, stepLabel } from '../../features/guide/guide-model';
 import { deleteGuide, OVERVIEW_STEP, startGuide, useGuide, useGuideRun, type GuideStep } from '../../features/guide/use-guide';
@@ -201,7 +203,7 @@ export function DiffPage(props: DiffPageProps) {
   const rewriteGuide = guideRun ? null : () => startGuide(repoPath, refParam, sessionId, reviewPick, guidePr);
 
   /** Opens the chapter holding `path` and scrolls to the file (opening it when `expand`), or to one of its comments. */
-  const revealInGuide = useCallback((path: string, threadId?: string, expand = false) => {
+  const revealInGuide = useCallback((path: string, threadId?: string, expand = false, line?: Pick<GuideRef, 'line' | 'side'>) => {
     if (path === GENERAL_THREAD_FILE_PATH) {
       setGuideStep(OVERVIEW_STEP);
       if (threadId) {
@@ -229,8 +231,20 @@ export function DiffPage(props: DiffPageProps) {
       focusThreadElement(threadId, 20);
       return;
     }
+    if (line?.line) {
+      focusGuideLine({ path, line: line.line, side: line.side });
+      return;
+    }
     focusFileElement(path);
   }, [chapters, setGuideStep, setActiveFile]);
+
+  const guideRefs = useMemo<GuideRefs>(() => {
+    const paths = new Set(chapters.flatMap((chapter) => chapter.files.map((file) => getFilePath(file))));
+    return {
+      open: (ref) => revealInGuide(ref.path, undefined, true, ref),
+      has: (path) => paths.has(path),
+    };
+  }, [chapters, revealInGuide]);
 
   useEffect(() => {
     if (!guideMode) {
@@ -714,6 +728,7 @@ export function DiffPage(props: DiffPageProps) {
       />
       <Workspace>
       <PrSession diffRef={refParam} threads={allThreads} />
+      <GuideRefContext.Provider value={guideOpen ? guideRefs : null}>
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {guideOpen && guide && !isEmpty ? (
           <GuideSidebar
@@ -875,6 +890,7 @@ export function DiffPage(props: DiffPageProps) {
           </div>
         )}
       </div>
+      </GuideRefContext.Provider>
       </Workspace>
       <StatusBar
         diffRef={refParam}

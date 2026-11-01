@@ -8,6 +8,8 @@ import { buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/b
 import { AlertCircleIcon, ArrowLeftIcon, CheckIcon, ChevronRightIcon } from '../../components/ui/icon';
 import type { ReadingChapter } from './guide-model';
 import { OVERVIEW_STEP, type GuideStep } from './use-guide';
+import { GuideCallStack } from './guide-callstack';
+import { linkRefs } from './guide-refs';
 
 export function chapterViewed(chapter: ReadingChapter, reviewedFiles: Set<string>): number {
   return chapter.files.filter((file) => reviewedFiles.has(getFilePath(file))).length;
@@ -71,7 +73,7 @@ export function Prose(props: { content: string; className?: string }) {
 
   return (
     <div className={cn('text-[14px] leading-6 text-text select-text [&_p]:mb-2.5 [&_p:last-child]:mb-0', className)}>
-      <MarkdownContent content={content} />
+      <MarkdownContent content={linkRefs(content)} />
     </div>
   );
 }
@@ -124,6 +126,7 @@ export function ChapterStory(props: ChapterStoryProps) {
           <Bullets items={chapter.focus} className="mt-1.5" />
         </div>
       )}
+      {chapter.callstack.length > 0 && <GuideCallStack key={chapter.key} rows={chapter.callstack} compact={compact} />}
       <ChapterFiles chapter={chapter} reviewedFiles={reviewedFiles} onFileClick={onFileClick} />
       <div className="mt-4">
         <ChapterNav
@@ -149,7 +152,7 @@ function Bullets(props: { items: string[]; className?: string }) {
       {items.map((item) => (
         <li key={item} className="flex items-start gap-2 text-[13px] leading-5 text-text">
           <span className="mt-[7px] w-1 h-1 rounded-full bg-text-muted shrink-0" />
-          <span className="select-text [&_p]:m-0"><MarkdownContent content={item} /></span>
+          <span className="select-text [&_p]:m-0"><MarkdownContent content={linkRefs(item)} /></span>
         </li>
       ))}
     </ul>

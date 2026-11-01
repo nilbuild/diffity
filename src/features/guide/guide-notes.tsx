@@ -3,6 +3,7 @@ import { cn } from '../../lib/cn';
 import type { GuideNote, Side } from '../../lib/types';
 import { MarkdownContent } from '../../components/layout/markdown-content';
 import { AlertCircleIcon, SparkleIcon } from '../../components/ui/icon';
+import { linkRefs } from './guide-refs';
 
 /** The open chapter's notes by file path; unset outside the guide, so the diff renders no notes. */
 export const GuideNotesContext = createContext<Map<string, GuideNote[]> | null>(null);
@@ -32,7 +33,7 @@ export function GuideNoteCard(props: { note: GuideNote; className?: string }) {
         <SparkleIcon size="sm" className="mt-0.5 text-claude shrink-0" />
       )}
       <div className="min-w-0 flex-1 text-text [&_p]:m-0">
-        <MarkdownContent content={note.text} />
+        <MarkdownContent content={linkRefs(note.text)} />
       </div>
     </div>
   );

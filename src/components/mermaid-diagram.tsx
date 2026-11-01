@@ -34,8 +34,40 @@ function initMermaid(mermaid: Mermaid, theme: 'light' | 'dark') {
 let idCounter = 0;
 let renderCounter = 0;
 
-/** `frameClassName` sizes the inline preview (200px tall unless set); the full diagram opens in a dialog. */
-export function MermaidDiagram(props: { chart: string; frameClassName?: string }) {
+/** A flowchart node's id as written in the chart, read from the element mermaid draws for it. */
+function nodeId(element: Element): string | null {
+  const id = element.getAttribute('data-id') ?? /-flowchart-(.+)-\d+$/.exec(element.id)?.[1];
+  return id ?? null;
+}
+
+/** Marks the nodes that link somewhere, so they look and act clickable. */
+function markLinkedNodes(root: HTMLElement, links: Set<string>) {
+  for (const node of root.querySelectorAll('g.node')) {
+    const id = nodeId(node);
+    if (id && links.has(id)) {
+      node.setAttribute('data-node-link', id);
+      node.setAttribute('role', 'button');
+      node.setAttribute('tabindex', '0');
+    }
+  }
+}
+
+function linkedNodeAt(target: EventTarget | null): string | null {
+  return (target as Element | null)?.closest?.('[data-node-link]')?.getAttribute('data-node-link') ?? null;
+}
+
+interface MermaidDiagramProps {
+  chart: string;
+  /** Sizes the inline preview (200px tall unless set); the full diagram opens in a dialog. */
+  frameClassName?: string;
+  /** Node ids that open something on click. */
+  nodeLinks?: Set<string>;
+  onNodeClick?: (id: string) => void;
+}
+
+export function MermaidDiagram(props: MermaidDiagramProps) {
+  const { nodeLinks, onNodeClick } = props;
+  const linkKey = nodeLinks ? [...nodeLinks].join('\u0000') : '';
   const containerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +97,10 @@ export function MermaidDiagram(props: { chart: string; frameClassName?: string }
           return;
         }
         container.innerHTML = result.svg;
-        setSvgContent(result.svg);
+        if (nodeLinks && nodeLinks.size > 0) {
+          markLinkedNodes(container, nodeLinks);
+        }
+        setSvgContent(container.innerHTML);
         setError(null);
       })
       .catch(() => {
@@ -78,7 +113,31 @@ export function MermaidDiagram(props: { chart: string; frameClassName?: string }
     return () => {
       cancelled = true;
     };
-  }, [props.chart, theme]);
+  }, [props.chart, theme, linkKey]);
+
+  const linked = !!onNodeClick && !!nodeLinks && nodeLinks.size > 0;
+  const handleNodeClick = (event: React.MouseEvent | React.KeyboardEvent, inDialog: boolean) => {
+    if (!linked) {
+      return;
+    }
+    if ('key' in event && event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+    const id = linkedNodeAt(event.target);
+    if (!id) {
+      return;
+    }
+    event.preventDefault();
+    if (inDialog) {
+      dialogRef.current?.close();
+    }
+    onNodeClick(id);
+  };
+  const openDialog = () => {
+    // Focus the dialog, not its close button, so the button does not open with a focus ring.
+    dialogRef.current?.showModal();
+    dialogRef.current?.focus();
+  };
 
   if (error) {
     return (
@@ -93,15 +152,21 @@ export function MermaidDiagram(props: { chart: string; frameClassName?: string }
       <div className="my-3 relative group">
         <div
           ref={containerRef}
-          className={`flex justify-center overflow-hidden [&_svg]:max-w-full ${props.frameClassName ?? 'max-h-[200px]'}`}
+          onClick={(event) => handleNodeClick(event, false)}
+          onKeyDown={(event) => handleNodeClick(event, false)}
+          className={`mermaid-links flex justify-center overflow-hidden [&_svg]:max-w-full ${props.frameClassName ?? 'max-h-[200px]'}`}
         />
-        {svgContent && (
+        {svgContent && linked && (
           <button
-            onClick={() => {
-              // Focus the dialog, not its close button, so the button does not open with a focus ring.
-              dialogRef.current?.showModal();
-              dialogRef.current?.focus();
-            }}
+            onClick={openDialog}
+            className="absolute top-1 right-1 px-2 py-1 text-[11px] font-medium rounded-md bg-bg border border-border text-text-secondary hover:text-text opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer"
+          >
+            View full diagram
+          </button>
+        )}
+        {svgContent && !linked && (
+          <button
+            onClick={openDialog}
             className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-bg/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
           >
             <span className="mb-3 px-3 py-1.5 text-xs font-medium rounded-md bg-bg border border-border text-text">
@@ -133,7 +198,9 @@ export function MermaidDiagram(props: { chart: string; frameClassName?: string }
         <div className="p-6 flex justify-center [&_svg]:!w-full [&_svg]:h-auto [&_svg]:block [&_svg]:mx-auto">
           {svgContent && (
             <div
-              className="w-full"
+              className="mermaid-links w-full"
+              onClick={(event) => handleNodeClick(event, true)}
+              onKeyDown={(event) => handleNodeClick(event, true)}
               dangerouslySetInnerHTML={{ __html: svgContent }}
             />
           )}

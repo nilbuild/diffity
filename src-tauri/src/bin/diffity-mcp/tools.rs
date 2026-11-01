@@ -125,10 +125,10 @@ pub fn all() -> Vec<Tool> {
             json!({
                 "type": "object",
                 "properties": {
-                    "summary": { "type": "string", "description": "Markdown, at most 50 words: the problem this change solves and how it goes about it, said plainly. Why over what." },
+                    "summary": { "type": "string", "description": "Markdown, at most 50 words: the problem this change solves and how it goes about it, said plainly. Why over what. Anywhere in the guide's Markdown, `[[path]]` or `[[path#L12]]` renders as a link that jumps to that file or line in the diff." },
                     "before": { "type": "string", "description": "How things behaved before, at most 30 words a user or caller would recognise. Omit for something brand new." },
                     "after": { "type": "string", "description": "How they behave now, at most 30 words a user or caller would recognise." },
-                    "diagram": { "type": "string", "description": "Only when the change adds or reshapes a flow: a Mermaid flowchart of 4-10 nodes with real names, shown about 700px wide, so `flowchart LR` for up to 5 steps in a row and `flowchart TD` for longer chains. Mark new nodes with :::added and changed ones with :::changed; no classDef, style or init lines. Quote labels with brackets, parentheses or punctuation, e.g. A[\"takeShare()\"]. No markdown fences." },
+                    "diagram": { "type": "string", "description": "Only when the change adds or reshapes a flow: a Mermaid flowchart of 4-10 nodes with real names, shown about 700px wide, so `flowchart LR` for up to 5 steps in a row and `flowchart TD` for longer chains. Mark new nodes with :::added, changed ones with :::changed and removed ones with :::removed (draw edges to removed nodes with -.->); no classDef, style or init lines. Link a node to its code with a line `%% ref node:<id> [[path#L12]]` so clicking it opens that spot in the diff. Quote labels with brackets, parentheses or punctuation, e.g. A[\"takeShare()\"]. No markdown fences." },
                     "chapters": {
                         "type": "array",
                         "minItems": 1,
@@ -155,6 +155,24 @@ pub fn all() -> Vec<Tool> {
                                             "critical": { "type": "boolean", "description": "Only when the reviewer should take extra care: security, data loss, hard to revert, easy to get wrong." }
                                         },
                                         "required": ["path", "text"]
+                                    }
+                                },
+                                "callstack": {
+                                    "type": "array",
+                                    "maxItems": 14,
+                                    "description": "Optional: the order this chapter's code runs in, from its entry point (a route, command, UI event, job) down through the calls that matter, so the reviewer can step through it and jump to each call in the diff. Add one when the chapter's logic is a chain of calls that return, branch or return early; skip it for config, tests, renames or a single function. Keep to about 4-12 rows on the main path; leave out trivial helpers. List rows in the order they run, a callee right after its caller.",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "depth": { "type": "integer", "minimum": 0, "description": "0 for the entry point; a callee is one deeper than its caller. Each row is at most one deeper than the row above." },
+                                            "call": { "type": "string", "description": "The call as data flow, at most 90 characters: `result = fn(inputs)`, `if !valid: return error` or `return result`. Real function names." },
+                                            "change": { "type": "string", "enum": ["added", "removed", "same"], "description": "added: new in this diff. removed: a call the diff takes out. same (default): unchanged code the flow passes through." },
+                                            "path": { "type": "string", "description": "The file of the diff the call is in. Omit for code outside the diff." },
+                                            "line": { "type": "integer", "minimum": 1, "description": "The line of the call or definition, numbered as in the hunk headers, so clicking the row jumps there." },
+                                            "side": { "type": "string", "enum": ["new", "old"], "description": "\"old\" for a removed line; \"new\" (default) otherwise." },
+                                            "why": { "type": "string", "description": "Optional, at most 25 words of Markdown: why this call happens here, shown while stepping. Skip when the call says it." }
+                                        },
+                                        "required": ["depth", "call"]
                                     }
                                 }
                             },

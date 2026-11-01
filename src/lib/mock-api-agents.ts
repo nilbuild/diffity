@@ -43,15 +43,25 @@ function fixtureGuide(sessionId: string, ref: string, fingerprint: string): Guid
     before: 'Every request read the file from disk, and any failure answered `404`.',
     after: 'Repeat requests are answered from memory (up to 500 files), and only a missing file answers `404`; other failures answer `500`.',
     diagram:
-      'flowchart LR\n  req["Request"] --> handle["handle()"]\n  handle --> cached{"getCached()"}:::added\n  cached -- hit --> respond["Respond"]\n  cached -- miss --> disk["readFile()"]\n  disk --> store["setCached()"]:::added\n  store --> respond\n  handle -. error .-> status["404 or 500"]:::changed',
+      'flowchart LR\n  req["Request"] --> handle["handle()"]\n  handle --> cached{"getCached()"}:::added\n  cached -- hit --> respond["Respond"]\n  cached -- miss --> disk["readFile()"]\n  disk --> store["setCached()"]:::added\n  store --> respond\n  handle -. error .-> status["404 or 500"]:::changed\n  handle -.-> notfound["404 on every error"]:::removed\n  %% ref node:handle [[src/server.ts#L42]]\n  %% ref node:cached [[src/server.ts#L45]]\n  %% ref node:store [[src/cache.ts#L8]]',
     chapters: [
       {
         title: 'Cache file reads',
         summary:
           '`src/cache.ts` (renamed from `legacy-cache.ts`) holds up to 500 file bodies and drops the oldest entry when it is full. `handle()` in `src/server.ts` asks the cache first and stores what it reads from disk.',
+        points: ['The cap lives in [[src/cache.ts#L2]]; there is no way to change it at runtime.'],
         focus: ['Eviction removes the oldest entry, not the least recently used'],
         attention: 'high',
         files: ['src/cache.ts', 'src/server.ts'],
+        callstack: [
+          { depth: 0, call: 'handle(req, res, options)', change: 'same', path: 'src/server.ts', line: 42, side: 'new', why: 'Every request for a file comes through here.' },
+          { depth: 1, call: 'cached = getCached(filePath)', change: 'added', path: 'src/server.ts', line: 45, side: 'new', why: 'Asks memory first, and only when `options.cache` is on.' },
+          { depth: 1, call: 'body = cached ?? readFile(filePath)', change: 'added', path: 'src/server.ts', line: 46, side: 'new' },
+          { depth: 1, call: 'body = readFile(filePath)', change: 'removed', path: 'src/server.ts', line: 39, side: 'old' },
+          { depth: 1, call: 'if !cached: setCached(filePath, body)', change: 'added', path: 'src/server.ts', line: 48, side: 'new', why: 'Stores what was read so the next request skips the disk.' },
+          { depth: 2, call: 'if full: cache.delete(oldest)', change: 'added', path: 'src/cache.ts', line: 12, side: 'new', why: 'Drops the oldest *added* entry once [[src/cache.ts#L2]] is reached.' },
+          { depth: 1, call: 'res.end(body)', change: 'same', path: 'src/server.ts', line: 51, side: 'new' },
+        ],
         notes: [
           { path: 'src/cache.ts', line: 9, side: 'new', text: '`Map` keeps insertion order, so the first key is the oldest one *added*, not the least recently read.', critical: false },
           { path: 'src/server.ts', line: 45, side: 'new', text: 'Nothing clears this entry when the file changes on disk, so edits are not served until the server restarts.', critical: true },

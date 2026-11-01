@@ -221,6 +221,23 @@ export interface GuideNote {
   critical: boolean;
 }
 
+export type GuideChange = 'added' | 'removed' | 'same';
+
+/** One row of a chapter's call stack. */
+export interface GuideCall {
+  /** 0 for the entry point; a callee is one deeper than its caller. */
+  depth: number;
+  /** The call as data flow, e.g. `result = save(record)`. */
+  call: string;
+  change: GuideChange;
+  /** Unset for code outside the diff. */
+  path?: string;
+  line?: number;
+  side: Side;
+  /** Markdown: why the call happens, shown while stepping. */
+  why?: string;
+}
+
 export interface GuideChapter {
   title: string;
   /** Markdown. */
@@ -233,6 +250,8 @@ export interface GuideChapter {
   /** Most important first. */
   files: string[];
   notes: GuideNote[];
+  /** The order the chapter's code runs in; missing in older guides. */
+  callstack?: GuideCall[];
 }
 
 /** A reading guide an agent wrote for a review session's diff. */
@@ -247,7 +266,7 @@ export interface Guide {
   summary: string;
   before?: string;
   after?: string;
-  /** Mermaid flowchart; nodes are marked `:::added` or `:::changed`. */
+  /** Mermaid flowchart; nodes are marked `:::added`, `:::changed` or `:::removed`, and may carry `%% ref node:<id> [[path#L12]]` links. */
   diagram?: string;
   chapters: GuideChapter[];
 }

@@ -469,6 +469,15 @@ export const SendIcon = softGlyph((id) => (
 
 export const StopIcon = softGlyph(() => <rect x="4.5" y="4.5" width="15" height="15" rx="4" />);
 
+export const PlayIcon = softGlyph(() => <path d="M7 5.2v13.6a1.2 1.2 0 0 0 1.8 1l11-6.8a1.2 1.2 0 0 0 0-2L8.8 4.2A1.2 1.2 0 0 0 7 5.2z" />);
+
+export const PauseIcon = softGlyph(() => (
+  <>
+    <rect x="5.5" y="4.5" width="4.5" height="15" rx="1.5" />
+    <rect x="14" y="4.5" width="4.5" height="15" rx="1.5" />
+  </>
+));
+
 export const CheckCircleIcon = softGlyph((id) => (
   <>
     <Knockout id={`${id}-m`}>

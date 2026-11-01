@@ -71,3 +71,10 @@ describe('diagramWithStyles', () => {
     expect(diagramWithStyles('sequenceDiagram\n  a->>b: hi', 'light')).toBe('sequenceDiagram\n  a->>b: hi');
   });
 });
+
+describe('diagramWithStyles removed nodes', () => {
+  it('adds a dashed class for removed nodes only when used', () => {
+    expect(diagramWithStyles('flowchart LR\n  A:::removed --> B', 'light')).toMatch(/classDef removed .*stroke-dasharray/);
+    expect(diagramWithStyles('flowchart LR\n  A --> B', 'light')).not.toContain('classDef removed');
+  });
+});

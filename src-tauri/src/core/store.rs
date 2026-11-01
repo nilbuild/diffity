@@ -1646,6 +1646,7 @@ mod tests {
                     attention: GuideAttention::High,
                     files: vec!["src/cache.ts".into()],
                     notes: Vec::new(),
+                    callstack: Vec::new(),
                 }],
             },
         };
