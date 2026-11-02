@@ -50,7 +50,7 @@ interface GuideLineNotesProps {
   splitSide?: Side;
 }
 
-/** Where the reader is in the call stack, pinned under the line they stepped onto. */
+/** Why the call-stack step the reader is on happens, pinned under its line. */
 function GuideStepCard(props: { step: GuideFocusStep }) {
   const { step } = props;
 
@@ -59,13 +59,8 @@ function GuideStepCard(props: { step: GuideFocusStep }) {
       <span className="mt-px shrink-0 px-1.5 rounded bg-claude text-white font-mono text-[11px] leading-[18px] tabular-nums">
         {step.index + 1}/{step.count}
       </span>
-      <div className="min-w-0 flex-1">
-        <code className="font-mono text-[12px] font-semibold text-text">{step.call}</code>
-        {step.why && (
-          <div className="mt-0.5 text-text-secondary [&_p]:m-0">
-            <MarkdownContent content={linkRefs(step.why)} />
-          </div>
-        )}
+      <div className="min-w-0 flex-1 text-text [&_p]:m-0">
+        <MarkdownContent content={linkRefs(step.why)} />
       </div>
     </div>
   );

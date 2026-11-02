@@ -238,33 +238,15 @@ export interface GuideCall {
   why?: string;
 }
 
-/** Code that depends on what a chapter changes and may behave differently now. */
+/** Code outside the diff that depends on what a chapter changes and may behave differently now. */
 export interface GuideImpact {
   /** e.g. `loadSettings()` or `GET /api/session`. */
   site: string;
-  /** In the diff or not. */
+  /** Outside the diff. */
   path: string;
   line?: number;
   /** Markdown. */
   text: string;
-}
-
-export type GuideFieldChange = 'added' | 'removed' | 'changed' | 'same';
-
-export interface GuideShapeField {
-  name: string;
-  change: GuideFieldChange;
-  before?: string;
-  after?: string;
-}
-
-/** A type, table, payload or config a chapter changes, field by field. */
-export interface GuideShape {
-  name: string;
-  path?: string;
-  line?: number;
-  side: Side;
-  fields: GuideShapeField[];
 }
 
 export interface GuideChapter {
@@ -283,11 +265,7 @@ export interface GuideChapter {
   notes: GuideNote[];
   /** The order the chapter's code runs in; missing in older guides. */
   callstack?: GuideCall[];
-  /** Mermaid sequence diagram; missing in older guides. */
-  sequence?: string;
-  /** Mermaid state diagram; missing in older guides. */
-  states?: string;
-  shapes?: GuideShape[];
+  /** Missing in older guides. */
   impact?: GuideImpact[];
 }
 

@@ -6,8 +6,8 @@ use serde_json::{json, Value};
 
 use crate::core::store::now;
 use crate::core::types::{
-    AuthorType, DiffResult, Guide, GuideAttention, GuideCall, GuideChange, GuideChapter, GuideContent, GuideFieldChange, GuideFlowStep, GuideImpact,
-    GuideNote, GuideShape, GuideShapeField, NewThread, Severity, Side,
+    AuthorType, DiffResult, Guide, GuideAttention, GuideCall, GuideChange, GuideChapter, GuideContent, GuideFlowStep, GuideImpact, GuideNote,
+    NewThread, Severity, Side,
     Thread, ThreadStatus, GENERAL_FILE_PATH,
 };
 use crate::core::{AppError, Result};
@@ -118,32 +118,8 @@ struct GuideChapterArgs {
     notes: Vec<GuideNoteArgs>,
     #[serde(default)]
     callstack: Vec<GuideCallArgs>,
-    sequence: Option<String>,
-    states: Option<String>,
-    #[serde(default)]
-    shapes: Vec<GuideShapeArgs>,
     #[serde(default)]
     impact: Vec<GuideImpactArgs>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GuideShapeArgs {
-    name: String,
-    path: Option<String>,
-    line: Option<u32>,
-    side: Option<String>,
-    #[serde(default)]
-    fields: Vec<GuideShapeFieldArgs>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GuideShapeFieldArgs {
-    name: String,
-    change: Option<String>,
-    before: Option<String>,
-    after: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -499,12 +475,8 @@ const CALL_WHY_WORDS: usize = 25;
 const PHASE_WORDS: usize = 4;
 const MAX_FLOW_STEPS: usize = 10;
 const FLOW_WORDS: usize = 25;
-const MAX_SHAPES: usize = 3;
-const MAX_SHAPE_FIELDS: usize = 12;
-const SHAPE_CHARS: usize = 80;
 const MAX_IMPACT: usize = 8;
 const IMPACT_WORDS: usize = 25;
-const MAX_DIAGRAM_LINES: usize = 30;
 
 fn parse_change(raw: Option<&str>) -> Result<GuideChange> {
     match raw.map(|s| s.trim().to_ascii_lowercase()).as_deref() {
@@ -637,10 +609,7 @@ fn build_guide(a: GuideArgs, diff: &DiffResult) -> Result<(GuideContent, Vec<Str
             notes.push(GuideNote { path, line, side, text, critical: note.critical });
         }
         let callstack = build_callstack(chapter.callstack, &title, &resolve, &patches, &mut problems)?;
-        let sequence = chapter_diagram(chapter.sequence, &title, "sequence", &["sequenceDiagram"], &mut problems)?;
-        let states = chapter_diagram(chapter.states, &title, "states", &["stateDiagram-v2", "stateDiagram"], &mut problems)?;
-        let shapes = build_shapes(chapter.shapes, &title, &resolve, &patches, &mut problems)?;
-        let impact = build_impact(chapter.impact, &title, &resolve, &patches, &mut problems);
+        let impact = build_impact(chapter.impact, &title, &resolve, &mut problems);
         let phase = non_empty(chapter.phase);
         if let Some(name) = &phase {
             check_words(&mut problems, &format!("chapter \"{title}\" phase"), name, PHASE_WORDS);
@@ -664,9 +633,6 @@ fn build_guide(a: GuideArgs, diff: &DiffResult) -> Result<(GuideContent, Vec<Str
             files,
             notes,
             callstack,
-            sequence,
-            states,
-            shapes,
             impact,
         });
     }
@@ -704,9 +670,6 @@ fn build_guide(a: GuideArgs, diff: &DiffResult) -> Result<(GuideContent, Vec<Str
             files: leftover.clone(),
             notes: Vec::new(),
             callstack: Vec::new(),
-            sequence: None,
-            states: None,
-            shapes: Vec::new(),
             impact: Vec::new(),
         });
     }
@@ -808,108 +771,18 @@ fn build_callstack(
     Ok(calls)
 }
 
-/// A line the diff shows in `path`, or none so the link falls back to the file.
-fn shown_line(patches: &[patch::FilePatch], path: &str, side: Side, line: Option<u32>) -> Option<u32> {
-    line.filter(|&line| line > 0 && patches.iter().find(|f| f.matches(path)).and_then(|f| f.anchor(side, line, line)).is_some())
-}
-
-/// A chapter's sequence or state diagram: Mermaid of the expected kind, without fences, short enough to read inline.
-fn chapter_diagram(raw: Option<String>, title: &str, field: &str, kinds: &[&str], problems: &mut Vec<String>) -> Result<Option<String>> {
-    let Some(text) = non_empty(raw) else {
-        return Ok(None);
-    };
-    let text = text.trim_start_matches("```mermaid").trim_start_matches("```").trim_end_matches("```").trim().to_string();
-    let first = text.lines().map(str::trim).find(|line| !line.is_empty() && !line.starts_with("%%")).unwrap_or_default();
-    if !kinds.iter().any(|kind| first.split_whitespace().next() == Some(*kind)) {
-        return Err(AppError::invalid(format!(
-            "chapter \"{title}\" {field} must be a Mermaid `{}`; it starts with `{first}`",
-            kinds[0]
-        )));
-    }
-    let lines = text.lines().filter(|line| !line.trim().is_empty()).count();
-    if lines > MAX_DIAGRAM_LINES {
-        problems.push(format!("chapter \"{title}\" {field} has {lines} lines (max {MAX_DIAGRAM_LINES}); keep the main path"));
-    }
-    Ok(Some(text))
-}
-
-/// The shapes a chapter changes. A path outside the diff is dropped, and a line the diff does not show falls back to
-/// the file.
-fn build_shapes(
-    shapes: Vec<GuideShapeArgs>,
-    title: &str,
-    resolve: &dyn Fn(&str) -> Option<String>,
-    patches: &[patch::FilePatch],
-    problems: &mut Vec<String>,
-) -> Result<Vec<GuideShape>> {
-    let shapes: Vec<GuideShapeArgs> = shapes.into_iter().filter(|shape| !shape.name.trim().is_empty()).collect();
-    if shapes.len() > MAX_SHAPES {
-        problems.push(format!("chapter \"{title}\" shapes has {} items (max {MAX_SHAPES}); keep the ones a caller sees", shapes.len()));
-    }
-    let mut out = Vec::new();
-    for shape in shapes {
-        let name = shape.name.trim().to_string();
-        let fields: Vec<GuideShapeFieldArgs> = shape.fields.into_iter().filter(|field| !field.name.trim().is_empty()).collect();
-        if fields.is_empty() {
-            return Err(AppError::invalid(format!("chapter \"{title}\" shape `{name}` needs at least one field")));
-        }
-        if fields.len() > MAX_SHAPE_FIELDS {
-            problems.push(format!("chapter \"{title}\" shape `{name}` has {} fields (max {MAX_SHAPE_FIELDS}); keep the changed ones", fields.len()));
-        }
-        let mut built = Vec::new();
-        for field in fields {
-            let field_name = field.name.trim().to_string();
-            let before = non_empty(field.before);
-            let after = non_empty(field.after);
-            for text in [&field_name, before.as_deref().unwrap_or_default(), after.as_deref().unwrap_or_default()] {
-                if text.chars().count() > SHAPE_CHARS {
-                    problems.push(format!("chapter \"{title}\" shape `{name}` field `{field_name}` is over {SHAPE_CHARS} characters"));
-                    break;
-                }
-            }
-            let change = parse_field_change(field.change.as_deref(), before.is_some(), after.is_some())?;
-            let (before, after) = match change {
-                GuideFieldChange::Added => (None, after.or(before)),
-                GuideFieldChange::Removed => (before.or(after), None),
-                GuideFieldChange::Changed | GuideFieldChange::Same => (before, after),
-            };
-            built.push(GuideShapeField { name: field_name, change, before, after });
-        }
-        let side = parse_side(shape.side.as_deref())?;
-        let path = shape.path.as_deref().and_then(resolve);
-        let line = path.as_deref().and_then(|path| shown_line(patches, path, side, shape.line));
-        out.push(GuideShape { name, path, line, side, fields: built });
-    }
-    Ok(out)
-}
-
-/// `added`, `removed`, `changed` or `same`; when left out, it follows from which of before and after are given.
-fn parse_field_change(raw: Option<&str>, has_before: bool, has_after: bool) -> Result<GuideFieldChange> {
-    match raw.map(|s| s.trim().to_ascii_lowercase()).as_deref() {
-        Some("added") | Some("new") => Ok(GuideFieldChange::Added),
-        Some("removed") | Some("deleted") => Ok(GuideFieldChange::Removed),
-        Some("changed") | Some("modified") => Ok(GuideFieldChange::Changed),
-        Some("same") | Some("unchanged") => Ok(GuideFieldChange::Same),
-        None | Some("") => Ok(match (has_before, has_after) {
-            (false, true) => GuideFieldChange::Added,
-            (true, false) => GuideFieldChange::Removed,
-            _ => GuideFieldChange::Changed,
-        }),
-        Some(other) => Err(AppError::invalid(format!("invalid field change `{other}`; use one of added, removed, changed, same"))),
-    }
-}
-
-/// Code the chapter's change reaches. Paths outside the diff are kept as given, since the point is often code the
-/// diff does not touch; a line in a file of the diff that the diff does not show falls back to the file.
+/// Code the chapter's change reaches outside the diff. Items in files of the diff are dropped: the reviewer reads
+/// those anyway.
 fn build_impact(
     items: Vec<GuideImpactArgs>,
     title: &str,
     resolve: &dyn Fn(&str) -> Option<String>,
-    patches: &[patch::FilePatch],
     problems: &mut Vec<String>,
 ) -> Vec<GuideImpact> {
-    let items: Vec<GuideImpactArgs> =
-        items.into_iter().filter(|item| !item.site.trim().is_empty() && !item.path.trim().is_empty()).collect();
+    let items: Vec<GuideImpactArgs> = items
+        .into_iter()
+        .filter(|item| !item.site.trim().is_empty() && !item.path.trim().is_empty() && resolve(&item.path).is_none())
+        .collect();
     if items.len() > MAX_IMPACT {
         problems.push(format!("chapter \"{title}\" impact has {} items (max {MAX_IMPACT}); keep the ones most likely to break", items.len()));
     }
@@ -919,14 +792,8 @@ fn build_impact(
             let site = item.site.trim().to_string();
             let text = item.text.trim().to_string();
             check_words(problems, &format!("chapter \"{title}\" impact `{site}`"), &text, IMPACT_WORDS);
-            let (path, line) = match resolve(&item.path) {
-                Some(path) => {
-                    let line = shown_line(patches, &path, Side::New, item.line);
-                    (path, line)
-                }
-                None => (item.path.trim().trim_start_matches("./").to_string(), item.line.filter(|&line| line > 0)),
-            };
-            GuideImpact { site, path, line, text }
+            let path = item.path.trim().trim_start_matches("./").to_string();
+            GuideImpact { site, path, line: item.line.filter(|&line| line > 0), text }
         })
         .collect()
 }
@@ -1192,9 +1059,6 @@ mod tests {
             files: files.iter().map(|f| f.to_string()).collect(),
             notes: Vec::new(),
             callstack: Vec::new(),
-            sequence: None,
-            states: None,
-            shapes: Vec::new(),
             impact: Vec::new(),
         }
     }
@@ -1214,58 +1078,27 @@ mod tests {
     }
 
     #[test]
-    fn guide_shapes_and_impact_keep_links_and_infer_changes() {
+    fn guide_impact_keeps_only_code_outside_the_diff() {
         let mut diff = diff_with(&["src/a.ts"]);
         diff.patch = PATCH.into();
         let mut core = chapter("Core", &["src/a.ts"]);
-        core.shapes = vec![GuideShapeArgs {
-            name: "Config".into(),
-            path: Some("src/a.ts".into()),
-            line: Some(40),
-            side: None,
-            fields: vec![
-                GuideShapeFieldArgs { name: "cache".into(), change: None, before: None, after: Some("boolean".into()) },
-                GuideShapeFieldArgs { name: "ttl".into(), change: None, before: Some("number".into()), after: None },
-                GuideShapeFieldArgs { name: "root".into(), change: None, before: Some("string".into()), after: Some("URL".into()) },
-            ],
-        }];
         core.impact = vec![
             GuideImpactArgs { site: "boot()".into(), path: "./src/main.ts".into(), line: Some(12), text: "Reads `ttl`, now gone.".into() },
-            GuideImpactArgs { site: "load()".into(), path: "src/a.ts".into(), line: Some(40), text: "Calls it.".into() },
+            GuideImpactArgs { site: "load()".into(), path: "src/a.ts".into(), line: Some(2), text: "Calls it.".into() },
         ];
         let (guide, _) = build_guide(one_chapter(core), &diff).unwrap();
-        let shape = &guide.chapters[0].shapes[0];
-        assert_eq!(shape.line, None, "a line the diff does not show falls back to the file");
-        let changes: Vec<GuideFieldChange> = shape.fields.iter().map(|f| f.change).collect();
-        assert_eq!(changes, [GuideFieldChange::Added, GuideFieldChange::Removed, GuideFieldChange::Changed]);
         let impact = &guide.chapters[0].impact;
-        assert_eq!((impact[0].path.as_str(), impact[0].line), ("src/main.ts", Some(12)), "code outside the diff keeps its line");
-        assert_eq!(impact[1].line, None);
-    }
-
-    #[test]
-    fn guide_chapter_diagrams_must_be_the_right_kind() {
-        let mut diff = diff_with(&["src/a.ts"]);
-        diff.patch = PATCH.into();
-        let mut core = chapter("Core", &["src/a.ts"]);
-        core.sequence = Some("```mermaid\nsequenceDiagram\n  A->>B: hi\n```".into());
-        core.states = Some("stateDiagram-v2\n  [*] --> Open".into());
-        let (guide, _) = build_guide(one_chapter(core), &diff).unwrap();
-        assert_eq!(guide.chapters[0].sequence.as_deref(), Some("sequenceDiagram\n  A->>B: hi"));
-
-        let mut wrong = chapter("Core", &["src/a.ts"]);
-        wrong.sequence = Some("flowchart LR\n  A --> B".into());
-        let err = build_guide(one_chapter(wrong), &diff).unwrap_err();
-        assert!(err.message.contains("sequenceDiagram"), "{}", err.message);
+        assert_eq!(impact.len(), 1, "code in the diff is read anyway");
+        assert_eq!((impact[0].path.as_str(), impact[0].line), ("src/main.ts", Some(12)));
     }
 
     #[test]
     fn guide_without_new_views_reads_as_before() {
-        let stored = json!({ "summary": "x", "chapters": [{ "title": "Core", "summary": "s", "files": ["src/a.ts"] }] });
+        let stored = json!({ "summary": "x", "chapters": [{ "title": "Core", "summary": "s", "files": ["src/a.ts"], "sequence": "sequenceDiagram", "shapes": [{ "name": "X", "fields": [] }] }] });
         let content: GuideContent = serde_json::from_value(stored.clone()).unwrap();
-        assert!(content.chapters[0].shapes.is_empty() && content.chapters[0].sequence.is_none());
+        assert!(content.chapters[0].impact.is_empty());
         let written = serde_json::to_value(&content).unwrap();
-        assert!(written["chapters"][0].get("shapes").is_none() && written["chapters"][0].get("impact").is_none());
+        assert!(written["chapters"][0].get("impact").is_none());
     }
 
     #[test]

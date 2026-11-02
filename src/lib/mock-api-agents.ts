@@ -76,24 +76,8 @@ function fixtureGuide(sessionId: string, ref: string, fingerprint: string): Guid
           { path: 'src/server.ts', line: 45, side: 'new', text: 'Nothing clears this entry when the file changes on disk, so edits are not served until the server restarts.', critical: true },
           { path: 'src/server.ts', side: 'new', text: 'The cache is on by default (`cache: true` in `DEFAULT_OPTIONS`).', critical: false },
         ],
-        sequence:
-          'sequenceDiagram\n  participant B as Browser\n  participant S as handle()\n  participant C as cache (new)\n  participant D as Disk\n  B->>S: GET /file\n  S->>C: getCached(path) (new)\n  alt hit\n    C-->>S: body\n  else miss\n    S->>D: readFile(path)\n    D-->>S: body\n    S->>C: setCached(path, body) (new)\n  end\n  S-->>B: 200 body',
-        shapes: [
-          {
-            name: 'ServerOptions',
-            path: 'src/server.ts',
-            line: 8,
-            side: 'new',
-            fields: [
-              { name: 'cache', change: 'added', after: 'boolean' },
-              { name: 'root', change: 'changed', before: 'string', after: 'string (resolved)' },
-              { name: 'maxAge', change: 'removed', before: 'number' },
-            ],
-          },
-        ],
         impact: [
           { site: 'startServer()', path: 'src/index.ts', line: 14, text: 'Passes `maxAge`, which is gone; it is now ignored without an error.' },
-          { site: 'formatBytes()', path: 'src/utils/format.ts', line: 26, text: 'Unchanged here, but sizes in the cache log now go through it.' },
         ],
       },
       {
@@ -103,7 +87,6 @@ function fixtureGuide(sessionId: string, ref: string, fingerprint: string): Guid
         focus: ['The 512 MB limit is hard-coded'],
         attention: 'normal',
         files: ['src/health.ts'],
-        states: 'stateDiagram-v2\n  [*] --> Healthy\n  Healthy --> Unhealthy:::added: heap over 512 MB\n  Unhealthy --> Healthy: heap back under\n  Healthy: Healthy (200)\n  Unhealthy: Unhealthy (503)',
         notes: [],
       },
       {

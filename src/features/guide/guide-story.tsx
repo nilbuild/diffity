@@ -9,7 +9,7 @@ import { AlertCircleIcon, ArrowLeftIcon, CheckIcon, ChevronRightIcon } from '../
 import type { ReadingChapter } from './guide-model';
 import { OVERVIEW_STEP, type GuideStep } from './use-guide';
 import { GuideCallStack } from './guide-callstack';
-import { CareCallout, ChapterDiagram, ImpactList, ShapeChanges } from './guide-views';
+import { CareCallout, ImpactList } from './guide-views';
 import { linkRefs } from './guide-refs';
 
 export function chapterViewed(chapter: ReadingChapter, reviewedFiles: Set<string>): number {
@@ -130,10 +130,7 @@ export function ChapterStory(props: ChapterStoryProps) {
         </div>
       )}
       {chapter.callstack.length > 0 && <GuideCallStack key={chapter.key} rows={chapter.callstack} notes={chapter.notes} compact={compact} />}
-      {chapter.sequence && <ChapterDiagram title="Who talks to whom" hint="(new) marks messages this change adds" chart={chapter.sequence} compact={compact} />}
-      {chapter.states && <ChapterDiagram title="States" hint="green is new, yellow changed" chart={chapter.states} compact={compact} />}
-      <ShapeChanges shapes={chapter.shapes} compact={compact} />
-      <ImpactList items={chapter.impact} compact={compact} />
+      <ImpactList items={chapter.impact} />
       <ChapterFiles chapter={chapter} reviewedFiles={reviewedFiles} onFileClick={onFileClick} />
       <div className="mt-4">
         <ChapterNav

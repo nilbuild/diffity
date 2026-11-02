@@ -40,22 +40,22 @@ describe('readingChapters', () => {
     expect(chapters[1].extra).toBe(true);
   });
 
-  it('reads guides written before shapes and impact existed', () => {
-    const chapters = readingChapters(guide([chapter('Core', ['src/a.ts'])]), files);
-    expect(chapters[0].shapes).toEqual([]);
-    expect(chapters[0].impact).toEqual([]);
-    expect(chapters[0].sequence).toBeUndefined();
-  });
-
-  it('unlinks shapes in files that left the diff but keeps impact outside it', () => {
+  it('lists the files a call stack runs through in the order it reaches them', () => {
     const core = {
-      ...chapter('Core', ['src/a.ts']),
-      shapes: [{ name: 'Config', path: 'src/gone.ts', line: 3, side: 'new' as const, fields: [{ name: 'x', change: 'added' as const, after: 'number' }] }],
-      impact: [{ site: 'boot()', path: 'src/main.ts', line: 9, text: 'Reads x.' }],
+      ...chapter('Core', ['package-lock.json', 'src/a.ts', 'src/b.ts']),
+      callstack: [
+        { depth: 0, call: 'main()', change: 'same' as const, path: 'src/b.ts', line: 1, side: 'new' as const },
+        { depth: 1, call: 'load()', change: 'same' as const, path: 'src/a.ts', line: 1, side: 'new' as const },
+        { depth: 1, call: 'run()', change: 'same' as const, path: 'src/b.ts', line: 2, side: 'new' as const },
+      ],
     };
     const [first] = readingChapters(guide([core]), files);
-    expect(first.shapes[0].path).toBeUndefined();
-    expect(first.impact[0]).toMatchObject({ path: 'src/main.ts', line: 9 });
+    expect(first.files.map((f) => f.newPath)).toEqual(['src/b.ts', 'src/a.ts', 'package-lock.json']);
+  });
+
+  it('reads guides written before impact existed', () => {
+    const chapters = readingChapters(guide([chapter('Core', ['src/a.ts'])]), files);
+    expect(chapters[0].impact).toEqual([]);
   });
 });
 
@@ -87,12 +87,6 @@ describe('diagramWithStyles', () => {
     expect(chart).not.toContain('classDef changed');
     expect(chart).toContain('classDef default');
     expect(diagramWithStyles('sequenceDiagram\n  a->>b: hi', 'light')).toBe('sequenceDiagram\n  a->>b: hi');
-  });
-
-  it('marks state diagrams without restyling their other states', () => {
-    const chart = diagramWithStyles('stateDiagram-v2\n  [*] --> Open:::added', 'light');
-    expect(chart).toContain('classDef added');
-    expect(chart).not.toContain('classDef default');
   });
 });
 

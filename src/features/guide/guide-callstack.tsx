@@ -45,9 +45,8 @@ const changeMark: Record<GuideCall['change'], string> = { added: '+', removed: '
 
 /**
  * A chapter's calls in the order they run. A click on a row, or stepping with the arrows, marks the row and opens its
- * line in the diff, where a card says which step it is and why, so the reader follows the code one call at a time.
- * Rows around the marked one fade, the ones not reached yet the most. A call with no line in the diff is explained
- * under the list instead.
+ * line in the diff, with the call's why under that line, so the reader follows the code one call at a time. A call with
+ * no line in the diff is explained under the list instead.
  */
 export function GuideCallStack(props: { rows: GuideCall[]; notes?: GuideNote[]; compact?: boolean }) {
   const { rows, notes = [], compact = false } = props;
@@ -56,7 +55,7 @@ export function GuideCallStack(props: { rows: GuideCall[]; notes?: GuideNote[]; 
   const stepper = useStepper(rows.length, (index) => {
     const row = rows[index];
     if (row.path) {
-      refs?.open({ path: row.path, line: row.line, side: row.side }, { index, count: rows.length, call: row.call, why: row.why });
+      refs?.open({ path: row.path, line: row.line, side: row.side }, row.why ? { index, count: rows.length, why: row.why } : undefined);
     }
   });
 
@@ -97,10 +96,9 @@ export function GuideCallStack(props: { rows: GuideCall[]; notes?: GuideNote[]; 
               onClick={() => stepper.select(index)}
               title={row.path ? `${row.call}\n${row.path}${row.line ? `:${row.line}` : ''}` : row.call}
               className={cn(
-                'flex items-center w-full min-w-max pr-3 text-left font-mono whitespace-pre cursor-pointer transition-[opacity,background-color] outline-none',
+                'flex items-center w-full min-w-max pr-3 text-left font-mono whitespace-pre cursor-pointer transition-colors outline-none',
                 compact ? 'h-[22px] text-[11px]' : 'h-6 text-xs',
-                isActive ? 'bg-claude/20' : 'hover:bg-hover hover:opacity-100 focus-visible:bg-hover focus-visible:opacity-100',
-                !isActive && active !== null && (index < active ? 'opacity-60' : 'opacity-35'),
+                isActive ? 'bg-claude/20' : 'hover:bg-hover focus-visible:bg-hover',
               )}
             >
               <span className={cn('w-4 shrink-0 text-center text-[9px]', isActive ? 'text-claude' : 'text-transparent')}>▶</span>

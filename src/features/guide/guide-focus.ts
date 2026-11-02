@@ -1,12 +1,11 @@
 import { create } from 'zustand';
 import type { GuideRef } from './guide-refs';
 
-/** The call-stack step that sent the reader to a line, shown on that line in the diff. */
+/** The call-stack step that sent the reader to a line, explained under that line in the diff. */
 export interface GuideFocusStep {
   index: number;
   count: number;
-  call: string;
-  why?: string;
+  why: string;
 }
 
 interface GuideFocusState {
