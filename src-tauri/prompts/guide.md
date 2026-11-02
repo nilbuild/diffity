@@ -45,8 +45,15 @@ Reviewers often want the order things happen in: this is called first, then this
 
 - **Call stack** (a chapter's `callstack`): the chapter's logic is a chain of calls that return, branch or return early. Start at the entry point (a route, command, UI event, job) and list the calls in the order they run, a callee right after its caller, one level deeper. Write rows as data flow, `result = fn(inputs)`, with `if …: return …` and `return …` rows where they matter. Mark rows `added`, `removed` or `same`, and give each linked row the `path` and `line` of the call so the reviewer can step through it in the diff. Keep it to about 4-12 rows on the main path; for a deep flow, give the overview in the core chapter and a short stack in the chapter of each changed callee. Skip it for config, tests, renames or a single function.
 - **Diagram** (the overview `diagram`): the change adds or reshapes a flow between parts (modules, services, processes). Mark nodes `:::added`, `:::changed` or `:::removed`, so one picture shows before and after. Link each node that maps to code with `%% ref node:<id> [[path#L12]]`, and an arrow whose call matters with `%% ref edge:<from>-><to> [[path#L12]]`. Then add a `flow`: the nodes in the order a request goes through them, one sentence each, so the reviewer can play the diagram step by step.
+- **Sequence** (a chapter's `sequence`): the chapter crosses parts that talk to each other, such as client and server, app and database, or two processes. A short `sequenceDiagram` shows who asks whom and what comes back. Suffix new messages with ` (new)`.
+- **States** (a chapter's `states`): the chapter adds or reworks states something moves through, like a status or lifecycle. A small `stateDiagram-v2` with the events on the arrows; mark new and changed states.
 
-Add a view only when it shows the reviewer something prose would not; never just to fill a slot.
+## Show what it touches
+
+- **Shapes** (a chapter's `shapes`): the chapter changes a type, table, API payload or config format other code relies on. List its fields with their type before and after, so the reviewer sees what moved at a glance.
+- **Impact** (a chapter's `impact`): search the repository for code that depends on what the chapter changes, above all code the diff does not touch: callers of a changed function, readers of a changed type, consumers of a changed endpoint. List the ones whose behaviour changes or could break, each with what changes for it. This is what a reviewer is most likely to miss.
+
+Add a view only when it shows the reviewer something prose would not; never just to fill a slot. Most chapters need none or one.
 
 ## Link to the code
 

@@ -61,7 +61,7 @@ import { useHotkeys } from 'react-hotkeys-hook';
 import { GuideSidebar, GuideSidebarEmpty } from '../../features/guide/guide-sidebar';
 import { GuideReader } from '../../features/guide/guide-reader';
 import { GuideRefContext, type GuideRef, type GuideRefs } from '../../features/guide/guide-refs';
-import { focusGuideLine } from '../../features/guide/guide-focus';
+import { focusGuideLine, type GuideFocusStep } from '../../features/guide/guide-focus';
 import { GuideBarStatus, GuideStart } from '../../features/guide/guide-start';
 import { isGuideStale, readingChapters, stepLabel } from '../../features/guide/guide-model';
 import { deleteGuide, OVERVIEW_STEP, startGuide, useGuide, useGuideRun, type GuideStep } from '../../features/guide/use-guide';
@@ -203,7 +203,7 @@ export function DiffPage(props: DiffPageProps) {
   const rewriteGuide = guideRun ? null : () => startGuide(repoPath, refParam, sessionId, reviewPick, guidePr);
 
   /** Opens the chapter holding `path` and scrolls to the file (opening it when `expand`), or to one of its comments. */
-  const revealInGuide = useCallback((path: string, threadId?: string, expand = false, line?: Pick<GuideRef, 'line' | 'side'>) => {
+  const revealInGuide = useCallback((path: string, threadId?: string, expand = false, line?: Pick<GuideRef, 'line' | 'side'>, step?: GuideFocusStep) => {
     if (path === GENERAL_THREAD_FILE_PATH) {
       setGuideStep(OVERVIEW_STEP);
       if (threadId) {
@@ -232,7 +232,7 @@ export function DiffPage(props: DiffPageProps) {
       return;
     }
     if (line?.line) {
-      focusGuideLine({ path, line: line.line, side: line.side });
+      focusGuideLine({ path, line: line.line, side: line.side }, step ?? null);
       return;
     }
     focusFileElement(path);
@@ -241,7 +241,7 @@ export function DiffPage(props: DiffPageProps) {
   const guideRefs = useMemo<GuideRefs>(() => {
     const paths = new Set(chapters.flatMap((chapter) => chapter.files.map((file) => getFilePath(file))));
     return {
-      open: (ref) => revealInGuide(ref.path, undefined, true, ref),
+      open: (ref, step) => revealInGuide(ref.path, undefined, true, ref, step),
       has: (path) => paths.has(path),
     };
   }, [chapters, revealInGuide]);

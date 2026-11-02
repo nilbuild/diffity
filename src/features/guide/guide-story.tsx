@@ -9,6 +9,7 @@ import { AlertCircleIcon, ArrowLeftIcon, CheckIcon, ChevronRightIcon } from '../
 import type { ReadingChapter } from './guide-model';
 import { OVERVIEW_STEP, type GuideStep } from './use-guide';
 import { GuideCallStack } from './guide-callstack';
+import { CareCallout, ChapterDiagram, ImpactList, ShapeChanges } from './guide-views';
 import { linkRefs } from './guide-refs';
 
 export function chapterViewed(chapter: ReadingChapter, reviewedFiles: Set<string>): number {
@@ -121,13 +122,18 @@ export function ChapterStory(props: ChapterStoryProps) {
       <h1 className={cn('mt-1.5 font-semibold text-text', compact ? 'text-[15px] leading-[22px]' : 'text-xl leading-7')}>{chapter.title}</h1>
       {chapter.summary && <Prose content={chapter.summary} className={compact ? 'mt-2 text-[13px] leading-[21px]' : 'mt-3'} />}
       {chapter.points.length > 0 && <Bullets items={chapter.points} className="mt-3" />}
+      <CareCallout notes={chapter.notes} />
       {chapter.focus.length > 0 && (
         <div className="mt-4">
           <div className="text-xs font-medium text-text-secondary">While reading, check</div>
           <Bullets items={chapter.focus} className="mt-1.5" />
         </div>
       )}
-      {chapter.callstack.length > 0 && <GuideCallStack key={chapter.key} rows={chapter.callstack} compact={compact} />}
+      {chapter.callstack.length > 0 && <GuideCallStack key={chapter.key} rows={chapter.callstack} notes={chapter.notes} compact={compact} />}
+      {chapter.sequence && <ChapterDiagram title="Who talks to whom" hint="(new) marks messages this change adds" chart={chapter.sequence} compact={compact} />}
+      {chapter.states && <ChapterDiagram title="States" hint="green is new, yellow changed" chart={chapter.states} compact={compact} />}
+      <ShapeChanges shapes={chapter.shapes} compact={compact} />
+      <ImpactList items={chapter.impact} compact={compact} />
       <ChapterFiles chapter={chapter} reviewedFiles={reviewedFiles} onFileClick={onFileClick} />
       <div className="mt-4">
         <ChapterNav

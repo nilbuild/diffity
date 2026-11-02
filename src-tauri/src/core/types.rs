@@ -301,6 +301,63 @@ pub struct GuideCall {
     pub why: Option<String>,
 }
 
+/// Code outside what the chapter changes that depends on it and may behave differently now: a caller, an importer, a
+/// consumer of a changed type or endpoint.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GuideImpact {
+    /// The dependent code, e.g. `loadSettings()` or `GET /api/session`.
+    pub site: String,
+    /// Repository-relative; in the diff or not.
+    pub path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+    /// Markdown, one sentence: what changes for it.
+    pub text: String,
+}
+
+/// How one field of a changed shape moved.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum GuideFieldChange {
+    Added,
+    Removed,
+    Changed,
+    #[default]
+    Same,
+}
+
+/// One field of a changed shape, with its type or value before and after.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GuideShapeField {
+    pub name: String,
+    #[serde(default)]
+    pub change: GuideFieldChange,
+    /// Unset for an added field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub before: Option<String>,
+    /// Unset for a removed field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<String>,
+}
+
+/// A data shape the chapter changes (a type, table, payload or config), field by field.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GuideShape {
+    /// e.g. `Guide`, `guides` table, `POST /api/guide` body.
+    pub name: String,
+    /// A file of the diff; unset when the shape is not in it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+    #[serde(default)]
+    pub side: Side,
+    pub fields: Vec<GuideShapeField>,
+}
+
 /// One idea of a change, with the files that carry it, in reading order.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -326,6 +383,16 @@ pub struct GuideChapter {
     /// The order the chapter's code runs in, from the entry point down.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub callstack: Vec<GuideCall>,
+    /// Mermaid sequence diagram of who talks to whom, for a chapter that crosses processes or services.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sequence: Option<String>,
+    /// Mermaid state diagram, for a chapter that adds or reworks states.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub states: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shapes: Vec<GuideShape>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub impact: Vec<GuideImpact>,
 }
 
 /// One step of the diagram's walkthrough: the node that runs, and what happens there.

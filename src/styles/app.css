@@ -427,13 +427,46 @@ dialog {
   animation: flash-thread 1.5s ease-out;
 }
 
-/* The diff line the guide jumped to. */
+/* The diff line the guide jumped to: tinted, boxed in the guide colour, with a pulse on arrival. */
 tr.guide-line-focus > td {
-  background-image: linear-gradient(color-mix(in srgb, var(--color-claude) 20%, transparent), color-mix(in srgb, var(--color-claude) 20%, transparent));
+  background-image: linear-gradient(color-mix(in srgb, var(--color-claude) 28%, transparent), color-mix(in srgb, var(--color-claude) 28%, transparent));
+  box-shadow: inset 0 1.5px 0 var(--color-claude), inset 0 -1.5px 0 var(--color-claude);
+  animation: guide-line-arrive 0.9s ease-out;
 }
 
 tr.guide-line-focus > td:first-child {
-  box-shadow: inset 3px 0 0 var(--color-claude);
+  box-shadow: inset 4px 0 0 var(--color-claude), inset 0 1.5px 0 var(--color-claude), inset 0 -1.5px 0 var(--color-claude);
+}
+
+tr.guide-line-focus > td:last-child {
+  box-shadow: inset -1.5px 0 0 var(--color-claude), inset 0 1.5px 0 var(--color-claude), inset 0 -1.5px 0 var(--color-claude);
+}
+
+@keyframes guide-line-arrive {
+  0% {
+    background-color: color-mix(in srgb, var(--color-claude) 55%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.guide-step-card {
+  animation: guide-step-in 0.2s ease-out;
+}
+
+@keyframes guide-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  tr.guide-line-focus > td,
+  .guide-step-card {
+    animation: none;
+  }
 }
 
 /* Diagram nodes and arrows that open their code in the diff. */

@@ -187,6 +187,54 @@ pub fn all() -> Vec<Tool> {
                                         },
                                         "required": ["depth", "call"]
                                     }
+                                },
+                                "sequence": { "type": "string", "description": "Optional, only when the chapter's change crosses parts that talk to each other (client and server, app and database, two processes): a Mermaid `sequenceDiagram` of 3-5 participants and at most 12 messages on the main path, with real names. Suffix the labels of messages this diff adds with ` (new)`. Skip it when a callstack already shows the order inside one process. No markdown fences." },
+                                "states": { "type": "string", "description": "Optional, only when the chapter adds or reworks states something moves through (a status, a lifecycle, a mode): a Mermaid `stateDiagram-v2` of at most 8 states with the events on the transitions. Mark new states with :::added, changed ones with :::changed and removed ones with :::removed; no classDef or style lines. No markdown fences." },
+                                "shapes": {
+                                    "type": "array",
+                                    "maxItems": 3,
+                                    "description": "Optional: data shapes the chapter changes that other code or users depend on (a type, a table, an API payload, a config or file format), field by field, so the reviewer sees what moved without hunting through definitions. Skip internal locals and shapes that are entirely new and small enough to read in the diff.",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": { "type": "string", "description": "What the shape is, e.g. `Guide`, `guides` table, `POST /api/guide` body." },
+                                            "path": { "type": "string", "description": "The file of the diff it is defined in." },
+                                            "line": { "type": "integer", "minimum": 1, "description": "Its definition line, numbered as in the hunk headers." },
+                                            "side": { "type": "string", "enum": ["new", "old"], "description": "\"old\" for a removed definition; \"new\" (default) otherwise." },
+                                            "fields": {
+                                                "type": "array",
+                                                "minItems": 1,
+                                                "maxItems": 12,
+                                                "description": "The changed fields, plus an unchanged one only where it explains a change.",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "name": { "type": "string", "description": "The field, column, key or parameter name." },
+                                                        "change": { "type": "string", "enum": ["added", "removed", "changed", "same"], "description": "Inferred from before/after when left out." },
+                                                        "before": { "type": "string", "description": "Its type or value before, at most 80 characters, e.g. `string | null`. Omit for an added field." },
+                                                        "after": { "type": "string", "description": "Its type or value now, at most 80 characters. Omit for a removed field." }
+                                                    },
+                                                    "required": ["name"]
+                                                }
+                                            }
+                                        },
+                                        "required": ["name", "fields"]
+                                    }
+                                },
+                                "impact": {
+                                    "type": "array",
+                                    "maxItems": 8,
+                                    "description": "Optional: code that depends on what this chapter changes and may behave differently now, especially code the diff does NOT touch: callers of a changed function, readers of a changed type, consumers of a changed endpoint or event. Find them by searching the repository. List only the ones whose behaviour changes or could break; skip it when nothing outside the change depends on it.",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "site": { "type": "string", "description": "The dependent code, e.g. `loadSettings()` or `GET /api/session`." },
+                                            "path": { "type": "string", "description": "Repository-relative path of the dependent code; in the diff or not." },
+                                            "line": { "type": "integer", "minimum": 1, "description": "The line of the call or use in that file." },
+                                            "text": { "type": "string", "description": "Markdown, one sentence, at most 25 words: what changes for it, e.g. \"Now gets `null` for a missing user instead of throwing.\"" }
+                                        },
+                                        "required": ["site", "path", "text"]
+                                    }
                                 }
                             },
                             "required": ["title", "summary", "files"]

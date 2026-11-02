@@ -1649,6 +1649,10 @@ mod tests {
                     files: vec!["src/cache.ts".into()],
                     notes: Vec::new(),
                     callstack: Vec::new(),
+                    sequence: None,
+                    states: None,
+                    shapes: Vec::new(),
+                    impact: Vec::new(),
                 }],
             },
         };

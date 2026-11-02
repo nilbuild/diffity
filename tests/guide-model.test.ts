@@ -39,6 +39,24 @@ describe('readingChapters', () => {
     expect(chapters[1].files.map((f) => f.newPath)).toEqual(['src/b.ts', 'package-lock.json']);
     expect(chapters[1].extra).toBe(true);
   });
+
+  it('reads guides written before shapes and impact existed', () => {
+    const chapters = readingChapters(guide([chapter('Core', ['src/a.ts'])]), files);
+    expect(chapters[0].shapes).toEqual([]);
+    expect(chapters[0].impact).toEqual([]);
+    expect(chapters[0].sequence).toBeUndefined();
+  });
+
+  it('unlinks shapes in files that left the diff but keeps impact outside it', () => {
+    const core = {
+      ...chapter('Core', ['src/a.ts']),
+      shapes: [{ name: 'Config', path: 'src/gone.ts', line: 3, side: 'new' as const, fields: [{ name: 'x', change: 'added' as const, after: 'number' }] }],
+      impact: [{ site: 'boot()', path: 'src/main.ts', line: 9, text: 'Reads x.' }],
+    };
+    const [first] = readingChapters(guide([core]), files);
+    expect(first.shapes[0].path).toBeUndefined();
+    expect(first.impact[0]).toMatchObject({ path: 'src/main.ts', line: 9 });
+  });
 });
 
 describe('isGuideStale', () => {
@@ -69,6 +87,12 @@ describe('diagramWithStyles', () => {
     expect(chart).not.toContain('classDef changed');
     expect(chart).toContain('classDef default');
     expect(diagramWithStyles('sequenceDiagram\n  a->>b: hi', 'light')).toBe('sequenceDiagram\n  a->>b: hi');
+  });
+
+  it('marks state diagrams without restyling their other states', () => {
+    const chart = diagramWithStyles('stateDiagram-v2\n  [*] --> Open:::added', 'light');
+    expect(chart).toContain('classDef added');
+    expect(chart).not.toContain('classDef default');
   });
 });
 
