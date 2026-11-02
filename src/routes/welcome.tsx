@@ -8,7 +8,7 @@ import * as tauri from '../lib/tauri';
 import { isTauri, modKey } from '../lib/platform';
 import { setRepoPath } from '../lib/api';
 import type { RecentRepo } from '../lib/types';
-import { findLocalClone, parsePrUrl, pickFolder } from '../features/welcome/open-repo';
+import { findLocalClone, isCloneOf, parsePrUrl, pickFolder } from '../features/welcome/open-repo';
 import { openQuickOpen } from '../features/palette/quick-open';
 import { useOpening } from '../lib/opening';
 import { openRepoAt, parentPath, useRecentRepos } from '../features/welcome/recent-repos';
@@ -22,6 +22,7 @@ import { hideStaticSplash } from '../components/layout/skeleton';
 import { openSettings } from '../lib/ui-store';
 import { cn } from '../lib/cn';
 import { buttonIcon, buttonPrimary, inputField } from '../components/ui/button-styles';
+import { ConfirmDialog } from '../components/ui/confirm-dialog';
 import { CloneIcon, FolderOpenIcon, GitHubIcon, GitPullRequestIcon, MoonIcon, SettingsIcon, SunIcon, XIcon } from '../components/ui/icon';
 import { Spinner } from '../components/icons/spinner';
 
@@ -324,6 +325,7 @@ function PrUrlForm(props: { recent: RecentRepo[]; onOpen: (path: string, newWind
   const { recent, onOpen } = props;
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
+  const [askClone, setAskClone] = useState<{ owner: string; repo: string } | null>(null);
 
   const submit = async () => {
     const pr = parsePrUrl(url);
@@ -338,11 +340,24 @@ function PrUrlForm(props: { recent: RecentRepo[]; onOpen: (path: string, newWind
         await onOpen(local, false, { pr: url.trim() });
         return;
       }
-      toast.info(`Select your local clone of ${pr.owner}/${pr.repo}`);
-      const path = await pickFolder();
-      if (!path) {
-        return;
-      }
+      setAskClone(pr);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chooseClone = async (pr: { owner: string; repo: string }) => {
+    setAskClone(null);
+    const path = await pickFolder(`Select your local clone of ${pr.owner}/${pr.repo}`);
+    if (!path) {
+      return;
+    }
+    if (!(await isCloneOf(path, pr))) {
+      toast.error(`That folder is not a clone of ${pr.owner}/${pr.repo}`, { description: 'None of its git remotes point to that repository.' });
+      return;
+    }
+    setBusy(true);
+    try {
       await onOpen(path, false, { pr: url.trim() });
     } finally {
       setBusy(false);
@@ -374,6 +389,16 @@ function PrUrlForm(props: { recent: RecentRepo[]; onOpen: (path: string, newWind
       <button type="submit" disabled={busy || !url.trim()} className={buttonPrimary}>
         {busy ? 'Opening…' : 'Open'}
       </button>
+      {askClone && (
+        <ConfirmDialog
+          title={`Where is ${askClone.owner}/${askClone.repo} on this Mac?`}
+          message={`None of your recent projects is a clone of ${askClone.owner}/${askClone.repo}. Choose the folder you cloned it into, and the pull request opens there.`}
+          confirmLabel="Choose folder…"
+          tone="primary"
+          onConfirm={() => void chooseClone(askClone)}
+          onCancel={() => setAskClone(null)}
+        />
+      )}
     </form>
   );
 }

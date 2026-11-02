@@ -1,4 +1,4 @@
-import { buttonOutline } from './button-styles';
+import { buttonOutline, buttonPrimary } from './button-styles';
 import { cn } from '../../lib/cn';
 import { useEffect, useRef } from 'react';
 
@@ -6,16 +6,20 @@ interface ConfirmDialogProps {
   title: string;
   message: string;
   confirmLabel?: string;
+  /** `danger` (default) for a destructive confirm, `primary` for a plain next step. */
+  tone?: 'danger' | 'primary';
   onConfirm: () => void;
   onCancel: () => void;
 }
 
 export function ConfirmDialog(props: ConfirmDialogProps) {
-  const { title, message, confirmLabel = 'Undo', onConfirm, onCancel } = props;
+  const { title, message, confirmLabel = 'Undo', tone = 'danger', onConfirm, onCancel } = props;
   const cancelRef = useRef<HTMLButtonElement>(null);
 
+  const confirmRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
-    cancelRef.current?.focus();
+    (tone === 'primary' ? confirmRef : cancelRef).current?.focus();
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopImmediatePropagation();
@@ -24,7 +28,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
     };
     window.addEventListener('keydown', handleKey, true);
     return () => window.removeEventListener('keydown', handleKey, true);
-  }, [onCancel]);
+  }, [onCancel, tone]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onCancel}>
@@ -36,6 +40,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
         <p className="text-[13px] text-text-secondary mb-5 leading-relaxed">{message}</p>
         <div className="flex justify-end gap-2">
           <button
+            type="button"
             ref={cancelRef}
             onClick={onCancel}
             className={buttonOutline}
@@ -43,8 +48,10 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
             Cancel
           </button>
           <button
+            type="button"
+            ref={confirmRef}
             onClick={onConfirm}
-            className={cn(buttonOutline, 'text-deleted border-deleted/35 hover:bg-deleted/8')}
+            className={tone === 'primary' ? buttonPrimary : cn(buttonOutline, 'text-deleted border-deleted/35 hover:bg-deleted/8')}
           >
             {confirmLabel}
           </button>
