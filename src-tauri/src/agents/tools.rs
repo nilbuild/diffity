@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 
 use crate::core::store::now;
 use crate::core::types::{
-    AuthorType, DiffResult, Guide, GuideAttention, GuideCall, GuideChange, GuideChapter, GuideContent, GuideNote, NewThread, Severity, Side,
+    AuthorType, DiffResult, Guide, GuideAttention, GuideCall, GuideChange, GuideChapter, GuideContent, GuideFlowStep, GuideNote, NewThread, Severity, Side,
     Thread, ThreadStatus, GENERAL_FILE_PATH,
 };
 use crate::core::{AppError, Result};
@@ -111,6 +111,7 @@ struct GuideChapterArgs {
     #[serde(default)]
     focus: Vec<String>,
     attention: Option<String>,
+    phase: Option<String>,
     files: Vec<String>,
     #[serde(default)]
     notes: Vec<GuideNoteArgs>,
@@ -221,7 +222,16 @@ struct GuideArgs {
     before: Option<String>,
     after: Option<String>,
     diagram: Option<String>,
+    #[serde(default)]
+    flow: Vec<GuideFlowArgs>,
     chapters: Vec<GuideChapterArgs>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GuideFlowArgs {
+    node: String,
+    text: String,
 }
 
 /// Title of the chapter that collects the diff's files the agent left out of its guide.
@@ -450,6 +460,9 @@ const MAX_CALLS: usize = 14;
 const MAX_CALL_DEPTH: u32 = 6;
 const CALL_CHARS: usize = 90;
 const CALL_WHY_WORDS: usize = 25;
+const PHASE_WORDS: usize = 4;
+const MAX_FLOW_STEPS: usize = 10;
+const FLOW_WORDS: usize = 25;
 
 fn parse_change(raw: Option<&str>) -> Result<GuideChange> {
     match raw.map(|s| s.trim().to_ascii_lowercase()).as_deref() {
@@ -533,6 +546,7 @@ fn build_guide(a: GuideArgs, diff: &DiffResult) -> Result<(GuideContent, Vec<Str
     let mut seen = std::collections::HashSet::new();
     let mut unknown = Vec::new();
     let mut chapters = Vec::new();
+    let mut ended_phases: Vec<String> = Vec::new();
     for chapter in a.chapters {
         let title = chapter.title.trim().to_string();
         if title.is_empty() {
@@ -581,12 +595,26 @@ fn build_guide(a: GuideArgs, diff: &DiffResult) -> Result<(GuideContent, Vec<Str
             notes.push(GuideNote { path, line, side, text, critical: note.critical });
         }
         let callstack = build_callstack(chapter.callstack, &title, &resolve, &patches, &mut problems)?;
+        let phase = non_empty(chapter.phase);
+        if let Some(name) = &phase {
+            check_words(&mut problems, &format!("chapter \"{title}\" phase"), name, PHASE_WORDS);
+        }
+        let current: Option<&GuideChapter> = chapters.last();
+        if let Some(previous) = current.and_then(|c| c.phase.as_ref()).filter(|p| phase.as_ref() != Some(*p)) {
+            ended_phases.push(previous.clone());
+        }
+        if let Some(name) = phase.as_ref().filter(|name| ended_phases.contains(name)) {
+            return Err(AppError::invalid(format!(
+                "the chapters of phase \"{name}\" must be next to each other; move chapter \"{title}\" up to the others"
+            )));
+        }
         chapters.push(GuideChapter {
             title,
             summary,
             points,
             focus,
             attention: parse_attention(chapter.attention.as_deref())?,
+            phase,
             files,
             notes,
             callstack,
@@ -622,21 +650,60 @@ fn build_guide(a: GuideArgs, diff: &DiffResult) -> Result<(GuideContent, Vec<Str
             points: Vec::new(),
             focus: Vec::new(),
             attention: GuideAttention::Low,
+            phase: None,
             files: leftover.clone(),
             notes: Vec::new(),
             callstack: Vec::new(),
         });
+    }
+    let diagram = non_empty(a.diagram);
+    let flow = build_flow(a.flow, diagram.as_deref(), &mut problems)?;
+    if !problems.is_empty() {
+        return Err(AppError::invalid(format!(
+            "too long for a reviewer to skim. Cut these, keeping the why, and call set_guide again with the whole guide: {}",
+            problems.join("; ")
+        )));
     }
     Ok((
         GuideContent {
             summary,
             before,
             after,
-            diagram: non_empty(a.diagram),
+            diagram,
+            flow,
             chapters,
         },
         leftover,
     ))
+}
+
+/// The diagram's walkthrough: every step names a node the diagram draws.
+fn build_flow(steps: Vec<GuideFlowArgs>, diagram: Option<&str>, problems: &mut Vec<String>) -> Result<Vec<GuideFlowStep>> {
+    let steps: Vec<GuideFlowArgs> = steps.into_iter().filter(|step| !step.node.trim().is_empty()).collect();
+    if steps.is_empty() {
+        return Ok(Vec::new());
+    }
+    let Some(diagram) = diagram else {
+        return Err(AppError::invalid("flow steps through the diagram, so add a diagram or leave flow out"));
+    };
+    if steps.len() > MAX_FLOW_STEPS {
+        problems.push(format!("flow has {} steps (max {MAX_FLOW_STEPS}); keep the main path", steps.len()));
+    }
+    let tokens: std::collections::HashSet<&str> =
+        diagram.split(|c: char| !(c.is_alphanumeric() || c == '_' || c == '-')).filter(|t| !t.is_empty()).collect();
+    let mut flow = Vec::new();
+    for step in steps {
+        let node = step.node.trim().to_string();
+        if !tokens.contains(node.as_str()) {
+            return Err(AppError::invalid(format!(
+                "flow step `{node}` is not a node of the diagram; use the node ids as written in it, e.g. `A` for `A[Load]`"
+            )));
+        }
+        let text = step.text.trim().to_string();
+        check_words(problems, &format!("flow step `{node}` text"), &text, FLOW_WORDS);
+        flow.push(GuideFlowStep { node, text });
+    }
+    Ok(flow)
 }
 
 /// A chapter's call stack: depths must nest one level at a time from 0. A path outside the diff is dropped (the row
@@ -944,6 +1011,7 @@ mod tests {
             points: Vec::new(),
             focus: vec![" ".into(), "Check x".into()],
             attention: None,
+            phase: None,
             files: files.iter().map(|f| f.to_string()).collect(),
             notes: Vec::new(),
             callstack: Vec::new(),
@@ -971,7 +1039,7 @@ mod tests {
             stack_row(1, "parse(text)", Some("src/elsewhere.ts"), Some(3)),
         ];
         let (guide, _) = build_guide(
-            GuideArgs { summary: "x".into(), before: None, after: None, diagram: None, chapters: vec![core] },
+            GuideArgs { summary: "x".into(), before: None, after: None, diagram: None, flow: Vec::new(), chapters: vec![core] },
             &diff,
         )
         .unwrap();
@@ -985,11 +1053,58 @@ mod tests {
         let mut deep = chapter("Core", &["src/a.ts"]);
         deep.callstack = vec![stack_row(0, "a()", None, None), stack_row(2, "b()", None, None)];
         let err = build_guide(
-            GuideArgs { summary: "x".into(), before: None, after: None, diagram: None, chapters: vec![deep] },
+            GuideArgs { summary: "x".into(), before: None, after: None, diagram: None, flow: Vec::new(), chapters: vec![deep] },
             &diff,
         )
         .unwrap_err();
         assert!(err.message.contains("depth 2"), "{}", err.message);
+    }
+
+    #[test]
+    fn guide_phases_must_be_contiguous() {
+        let diff = diff_with(&["src/a.ts", "src/b.ts", "src/c.ts"]);
+        let phased = |title: &str, file: &str, phase: Option<&str>| {
+            let mut c = chapter(title, &[file]);
+            c.phase = phase.map(String::from);
+            c
+        };
+        let guide = |chapters| GuideArgs { summary: "x".into(), before: None, after: None, diagram: None, flow: Vec::new(), chapters };
+        let (ok, _) = build_guide(
+            guide(vec![phased("A", "src/a.ts", Some("Data")), phased("B", "src/b.ts", Some(" Data ")), phased("C", "src/c.ts", Some("UI"))]),
+            &diff,
+        )
+        .unwrap();
+        assert_eq!(ok.chapters[1].phase.as_deref(), Some("Data"));
+
+        let err = build_guide(
+            guide(vec![phased("A", "src/a.ts", Some("Data")), phased("B", "src/b.ts", Some("UI")), phased("C", "src/c.ts", Some("Data"))]),
+            &diff,
+        )
+        .unwrap_err();
+        assert!(err.message.contains("next to each other"), "{}", err.message);
+    }
+
+    #[test]
+    fn guide_flow_steps_name_diagram_nodes() {
+        let diff = diff_with(&["src/a.ts"]);
+        let step = |node: &str| GuideFlowArgs { node: node.into(), text: format!("{node} runs") };
+        let args = |diagram: Option<&str>, flow| GuideArgs {
+            summary: "x".into(),
+            before: None,
+            after: None,
+            diagram: diagram.map(String::from),
+            flow,
+            chapters: vec![chapter("Core", &["src/a.ts"])],
+        };
+        let chart = "flowchart LR\n  ui[Click] --> load_file(Load):::added\n  load_file --> db[(DB)]";
+        let (guide, _) = build_guide(args(Some(chart), vec![step("ui"), step("load_file"), step(" ")]), &diff).unwrap();
+        let nodes: Vec<&str> = guide.flow.iter().map(|s| s.node.as_str()).collect();
+        assert_eq!(nodes, vec!["ui", "load_file"]);
+
+        let err = build_guide(args(Some(chart), vec![step("cache")]), &diff).unwrap_err();
+        assert!(err.message.contains("`cache`"), "{}", err.message);
+        let err = build_guide(args(None, vec![step("ui")]), &diff).unwrap_err();
+        assert!(err.message.contains("add a diagram"), "{}", err.message);
     }
 
     #[test]
@@ -999,7 +1114,7 @@ mod tests {
         let mut core = chapter("Core", &["src/a.ts"]);
         core.notes = vec![note("src/a.ts", Some(2)), note("src/a.ts", Some(40)), note("src/a.ts", None)];
         let (guide, _) = build_guide(
-            GuideArgs { summary: "x".into(), before: None, after: None, diagram: None, chapters: vec![core] },
+            GuideArgs { summary: "x".into(), before: None, after: None, diagram: None, flow: Vec::new(), chapters: vec![core] },
             &diff,
         )
         .unwrap();
@@ -1010,7 +1125,7 @@ mod tests {
         let mut wrong = chapter("Core", &["src/a.ts"]);
         wrong.notes = vec![note("src/b.ts", None)];
         let err = build_guide(
-            GuideArgs { summary: "x".into(), before: None, after: None, diagram: None, chapters: vec![wrong] },
+            GuideArgs { summary: "x".into(), before: None, after: None, diagram: None, flow: Vec::new(), chapters: vec![wrong] },
             &diff,
         )
         .unwrap_err();
@@ -1047,6 +1162,7 @@ mod tests {
                 before: Some("  ".into()),
                 after: Some("After".into()),
                 diagram: None,
+                flow: Vec::new(),
                 chapters: vec![chapter("Core", &["./src/b.ts", "src/a.ts"]), chapter("Again", &["src/a.ts"])],
             },
             &diff,
@@ -1071,6 +1187,7 @@ mod tests {
                 before: None,
                 after: None,
                 diagram: None,
+                flow: Vec::new(),
                 chapters: vec![chapter("Core", &["src/a.ts", "src/nope.ts"])],
             },
             &diff,
@@ -1086,7 +1203,7 @@ mod tests {
         core.summary = "word ".repeat(CHAPTER_SUMMARY_WORDS + 1);
         core.points = vec!["a".into(), "b".into(), "c".into(), "d".into()];
         let err = build_guide(
-            GuideArgs { summary: "word ".repeat(SUMMARY_WORDS + 1), before: None, after: None, diagram: None, chapters: vec![core] },
+            GuideArgs { summary: "word ".repeat(SUMMARY_WORDS + 1), before: None, after: None, diagram: None, flow: Vec::new(), chapters: vec![core] },
             &diff,
         )
         .unwrap_err();

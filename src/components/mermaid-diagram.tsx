@@ -40,34 +40,102 @@ function nodeId(element: Element): string | null {
   return id ?? null;
 }
 
-/** Marks the nodes that link somewhere, so they look and act clickable. */
-function markLinkedNodes(root: HTMLElement, links: Set<string>) {
+/** An arrow's `from->to`, read from mermaid's `L_<from>_<to>_<n>` id; node ids may hold underscores, so it is matched against them. */
+function edgeKeyOf(element: Element, nodes: Set<string>): string | null {
+  const inner = /^L_(.+)_\d+$/.exec(element.getAttribute('data-id') ?? '')?.[1];
+  if (!inner) {
+    return null;
+  }
+  for (let at = inner.indexOf('_'); at > 0; at = inner.indexOf('_', at + 1)) {
+    const from = inner.slice(0, at);
+    const to = inner.slice(at + 1);
+    if (nodes.has(from) && nodes.has(to)) {
+      return `${from}->${to}`;
+    }
+  }
+  return null;
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * Tags every node with `data-node` and every arrow with `data-edge-key`, so steps can be lit up, and marks the ones that
+ * link somewhere so they look and act clickable. A thin arrow gets a wide invisible twin to click.
+ */
+function annotate(root: HTMLElement, links: Set<string>) {
+  const nodes = new Set<string>();
   for (const node of root.querySelectorAll('g.node')) {
     const id = nodeId(node);
-    if (id && links.has(id)) {
-      node.setAttribute('data-node-link', id);
-      node.setAttribute('role', 'button');
-      node.setAttribute('tabindex', '0');
+    if (!id) {
+      continue;
     }
+    nodes.add(id);
+    node.setAttribute('data-node', id);
+    if (links.has(id)) {
+      markLink(node, id);
+    }
+  }
+  for (const path of root.querySelectorAll('path[data-edge]')) {
+    const key = edgeKeyOf(path, nodes);
+    if (!key) {
+      continue;
+    }
+    path.setAttribute('data-edge-key', key);
+    if (!links.has(key)) {
+      continue;
+    }
+    const hit = document.createElementNS(SVG_NS, 'path');
+    hit.setAttribute('d', path.getAttribute('d') ?? '');
+    hit.setAttribute('class', 'edge-hit');
+    hit.setAttribute('aria-label', key.replace('->', ' to '));
+    markLink(hit, key);
+    path.after(hit);
   }
 }
 
-function linkedNodeAt(target: EventTarget | null): string | null {
-  return (target as Element | null)?.closest?.('[data-node-link]')?.getAttribute('data-node-link') ?? null;
+function markLink(element: Element, key: string) {
+  element.setAttribute('data-link', key);
+  element.setAttribute('role', 'button');
+  element.setAttribute('tabindex', '0');
+}
+
+function linkAt(target: EventTarget | null): string | null {
+  return (target as Element | null)?.closest?.('[data-link]')?.getAttribute('data-link') ?? null;
+}
+
+/** The step of a walkthrough to light up: the node that runs now, the arrows to light with it, and the nodes already passed. */
+export interface DiagramFocus {
+  node: string;
+  edges: Set<string>;
+  visited: Set<string>;
+}
+
+function applyFocus(root: HTMLElement, focus: DiagramFocus | null) {
+  root.classList.toggle('flow-playing', !!focus);
+  for (const node of root.querySelectorAll('[data-node]')) {
+    const id = node.getAttribute('data-node')!;
+    node.classList.toggle('flow-active', focus?.node === id);
+    node.classList.toggle('flow-visited', !!focus?.visited.has(id));
+  }
+  for (const path of root.querySelectorAll('[data-edge-key]')) {
+    path.classList.toggle('flow-edge-active', !!focus?.edges.has(path.getAttribute('data-edge-key')!));
+  }
 }
 
 interface MermaidDiagramProps {
   chart: string;
   /** Sizes the inline preview (200px tall unless set); the full diagram opens in a dialog. */
   frameClassName?: string;
-  /** Node ids that open something on click. */
-  nodeLinks?: Set<string>;
-  onNodeClick?: (id: string) => void;
+  /** Node ids and `from->to` arrow keys that open something on click. */
+  links?: Set<string>;
+  onLinkClick?: (key: string) => void;
+  /** Lights up one step of a walkthrough and dims the rest. */
+  focus?: DiagramFocus | null;
 }
 
 export function MermaidDiagram(props: MermaidDiagramProps) {
-  const { nodeLinks, onNodeClick } = props;
-  const linkKey = nodeLinks ? [...nodeLinks].join('\u0000') : '';
+  const { links, onLinkClick, focus = null } = props;
+  const linkKey = links ? [...links].join('\u0000') : '';
   const containerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -97,9 +165,7 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
           return;
         }
         container.innerHTML = result.svg;
-        if (nodeLinks && nodeLinks.size > 0) {
-          markLinkedNodes(container, nodeLinks);
-        }
+        annotate(container, links ?? new Set());
         setSvgContent(container.innerHTML);
         setError(null);
       })
@@ -115,7 +181,13 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
     };
   }, [props.chart, theme, linkKey]);
 
-  const linked = !!onNodeClick && !!nodeLinks && nodeLinks.size > 0;
+  useEffect(() => {
+    if (containerRef.current && svgContent) {
+      applyFocus(containerRef.current, focus);
+    }
+  }, [svgContent, focus]);
+
+  const linked = !!onLinkClick && !!links && links.size > 0;
   const handleNodeClick = (event: React.MouseEvent | React.KeyboardEvent, inDialog: boolean) => {
     if (!linked) {
       return;
@@ -123,7 +195,7 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
     if ('key' in event && event.key !== 'Enter' && event.key !== ' ') {
       return;
     }
-    const id = linkedNodeAt(event.target);
+    const id = linkAt(event.target);
     if (!id) {
       return;
     }
@@ -131,7 +203,7 @@ export function MermaidDiagram(props: MermaidDiagramProps) {
     if (inDialog) {
       dialogRef.current?.close();
     }
-    onNodeClick(id);
+    onLinkClick(id);
   };
   const openDialog = () => {
     // Focus the dialog, not its close button, so the button does not open with a focus ring.

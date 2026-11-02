@@ -128,7 +128,19 @@ pub fn all() -> Vec<Tool> {
                     "summary": { "type": "string", "description": "Markdown, at most 50 words: the problem this change solves and how it goes about it, said plainly. Why over what. Anywhere in the guide's Markdown, `[[path]]` or `[[path#L12]]` renders as a link that jumps to that file or line in the diff." },
                     "before": { "type": "string", "description": "How things behaved before, at most 30 words a user or caller would recognise. Omit for something brand new." },
                     "after": { "type": "string", "description": "How they behave now, at most 30 words a user or caller would recognise." },
-                    "diagram": { "type": "string", "description": "Only when the change adds or reshapes a flow: a Mermaid flowchart of 4-10 nodes with real names, shown about 700px wide, so `flowchart LR` for up to 5 steps in a row and `flowchart TD` for longer chains. Mark new nodes with :::added, changed ones with :::changed and removed ones with :::removed (draw edges to removed nodes with -.->); no classDef, style or init lines. Link a node to its code with a line `%% ref node:<id> [[path#L12]]` so clicking it opens that spot in the diff. Quote labels with brackets, parentheses or punctuation, e.g. A[\"takeShare()\"]. No markdown fences." },
+                    "diagram": { "type": "string", "description": "Only when the change adds or reshapes a flow: a Mermaid flowchart of 4-10 nodes with real names, shown about 700px wide, so `flowchart LR` for up to 5 steps in a row and `flowchart TD` for longer chains. Mark new nodes with :::added, changed ones with :::changed and removed ones with :::removed (draw edges to removed nodes with -.->); no classDef, style or init lines. Link a node to its code with a line `%% ref node:<id> [[path#L12]]` so clicking it opens that spot in the diff, and an arrow with `%% ref edge:<from>-><to> [[path#L12]]`. Quote labels with brackets, parentheses or punctuation, e.g. A[\"takeShare()\"]. No markdown fences." },
+                    "flow": {
+                        "type": "array",
+                        "description": "Only with a diagram: its nodes in the order a request or event goes through them, 3-10 steps, so the reviewer can play through it. A node may appear more than once (e.g. a return).",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "node": { "type": "string", "description": "A node id as written in the diagram, e.g. `A` for `A[Load]`." },
+                                "text": { "type": "string", "description": "Markdown, one sentence, at most 25 words: what happens at this step and why." }
+                            },
+                            "required": ["node", "text"]
+                        }
+                    },
                     "chapters": {
                         "type": "array",
                         "minItems": 1,
@@ -141,6 +153,7 @@ pub fn all() -> Vec<Tool> {
                                 "points": { "type": "array", "items": { "type": "string" }, "description": "0-3 short facts, at most 20 words each, that make the files easier to read: how it builds on an earlier chapter, a non-obvious thing the code relies on, an odd choice and its reason. Empty when the summary is enough." },
                                 "focus": { "type": "array", "items": { "type": "string" }, "description": "0-3 short things worth checking across the chapter, at most 20 words each, e.g. \"An empty list returns early\". Pointers for attention, not review findings. Empty when nothing stands out." },
                                 "attention": { "type": "string", "enum": ["high", "normal", "low"], "description": "high: the core logic, read every line. normal: supporting code. low: tests, generated files, lockfiles, renames, config to skim." },
+                                "phase": { "type": "string", "description": "Only for guides of 5+ chapters: the stage this chapter belongs to, 1-4 words, e.g. \"Data layer\" or \"UI\". Chapters of one phase must be next to each other; use 2-4 phases." },
                                 "files": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Paths exactly as get_diff lists them, most important first." },
                                 "notes": {
                                     "type": "array",

@@ -114,6 +114,7 @@ export function ChapterStory(props: ChapterStoryProps) {
     <div>
       <Eyebrow>
         <span className="font-mono">{chapter.extra ? 'Not in the guide' : `${String(index + 1).padStart(2, '0')} / ${String(numbered).padStart(2, '0')}`}</span>
+        {chapter.phase && <span className="text-text-secondary">{chapter.phase}</span>}
         <AttentionTag attention={chapter.attention} />
         <CriticalTag chapter={chapter} />
       </Eyebrow>

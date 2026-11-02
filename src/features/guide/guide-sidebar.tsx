@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { cn } from '../../lib/cn';
 import type { Guide } from '../../lib/types';
 import { SidebarFrame } from '../../components/layout/sidebar-frame';
@@ -44,27 +45,30 @@ export function GuideSidebar(props: GuideSidebarProps) {
           >
             0
           </button>
-          {chapters.map((item) => {
+          {chapters.map((item, itemIndex) => {
+            const newPhase = itemIndex > 0 && !!item.phase && item.phase !== chapters[itemIndex - 1].phase;
             const label = item.extra ? '+' : String(++number);
             const complete = chapterViewed(item, reviewedFiles) === item.files.length;
             const active = item.key === step;
             const critical = item.notes.some((note) => note.critical);
-            const hint = [item.extra ? item.title : `${number}. ${item.title}`, critical ? 'needs extra care in places' : null, complete ? 'viewed' : null].filter(Boolean).join(' · ');
+            const hint = [item.extra ? item.title : `${number}. ${item.title}`, item.phase ?? null, critical ? 'needs extra care in places' : null, complete ? 'viewed' : null].filter(Boolean).join(' · ');
             return (
-              <button
-                key={item.key}
-                onClick={() => onStep(item.key)}
-                aria-current={active ? 'step' : undefined}
-                title={hint}
-                aria-label={hint}
-                className={cn(
-                  stepButton,
-                  active ? 'bg-active text-text' : complete ? 'text-added hover:bg-hover' : item.attention === 'low' ? 'text-text-muted hover:text-text hover:bg-hover' : 'text-text-secondary hover:text-text hover:bg-hover',
-                )}
-              >
-                {label}
-                {critical && <span className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-modified" />}
-              </button>
+              <Fragment key={item.key}>
+                {newPhase && <span className="w-px h-4 mx-0.5 self-center bg-border" aria-hidden />}
+                <button
+                  onClick={() => onStep(item.key)}
+                  aria-current={active ? 'step' : undefined}
+                  title={hint}
+                  aria-label={hint}
+                  className={cn(
+                    stepButton,
+                    active ? 'bg-active text-text' : complete ? 'text-added hover:bg-hover' : item.attention === 'low' ? 'text-text-muted hover:text-text hover:bg-hover' : 'text-text-secondary hover:text-text hover:bg-hover',
+                  )}
+                >
+                  {label}
+                  {critical && <span className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-modified" />}
+                </button>
+              </Fragment>
             );
           })}
         </nav>

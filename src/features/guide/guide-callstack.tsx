@@ -1,11 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { cn } from '../../lib/cn';
 import type { GuideCall } from '../../lib/types';
 import { MarkdownContent } from '../../components/layout/markdown-content';
-import { ChevronLeftIcon, ChevronRightIcon, PauseIcon, PlayIcon } from '../../components/ui/icon';
 import { linkRefs, refLabel, useGuideRefs } from './guide-refs';
-
-const PLAY_INTERVAL_MS = 2400;
+import { StepControls, useStepper } from './guide-stepper';
 
 /** Another row at `depth` comes before the stack climbs above it, so the branch at that depth continues. */
 function continues(rows: GuideCall[], from: number, depth: number): boolean {
@@ -42,44 +40,14 @@ const changeMark: Record<GuideCall['change'], string> = { added: '+', removed: '
 export function GuideCallStack(props: { rows: GuideCall[]; compact?: boolean }) {
   const { rows, compact = false } = props;
   const refs = useGuideRefs();
-  const [active, setActive] = useState<number | null>(null);
-  const [playing, setPlaying] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
-
-  const goTo = (index: number) => {
+  const stepper = useStepper(rows.length, (index) => {
     const row = rows[index];
-    if (!row) {
-      return;
-    }
-    setActive(index);
     if (row.path) {
       refs?.open({ path: row.path, line: row.line, side: row.side });
     }
-  };
-  const goToRef = useRef(goTo);
-  goToRef.current = goTo;
-
-  const step = (offset: number) => {
-    setPlaying(false);
-    goTo(Math.max(0, Math.min(rows.length - 1, (active ?? -1) + offset)));
-  };
-
-  const activeRef = useRef(active);
-  activeRef.current = active;
-  useEffect(() => {
-    if (!playing) {
-      return;
-    }
-    const timer = setInterval(() => {
-      const next = (activeRef.current ?? -1) + 1;
-      if (next >= rows.length) {
-        setPlaying(false);
-        return;
-      }
-      goToRef.current(next);
-    }, PLAY_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [playing, rows.length]);
+  });
+  const { active } = stepper;
 
   useEffect(() => {
     if (active === null) {
@@ -88,55 +56,19 @@ export function GuideCallStack(props: { rows: GuideCall[]; compact?: boolean }) 
     listRef.current?.querySelector(`[data-call-index="${active}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [active]);
 
-  const togglePlay = () => {
-    if (playing) {
-      setPlaying(false);
-      return;
-    }
-    if (active === null || active >= rows.length - 1) {
-      goTo(0);
-    }
-    setPlaying(true);
-  };
-
   const why = active !== null ? rows[active]?.why : undefined;
-  const controlButton = 'inline-flex items-center justify-center w-6 h-6 rounded-md text-text-secondary hover:text-text hover:bg-hover disabled:opacity-40 disabled:pointer-events-none cursor-pointer';
 
   return (
     <section
       tabIndex={0}
       aria-label="Call order"
-      onKeyDown={(event) => {
-        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-          event.preventDefault();
-          step(1);
-          return;
-        }
-        if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-          event.preventDefault();
-          step(-1);
-          return;
-        }
-        if (event.key === ' ') {
-          event.preventDefault();
-          togglePlay();
-        }
-      }}
+      onKeyDown={stepper.onKeyDown}
       className="mt-4 rounded-lg border border-border bg-bg outline-none focus-visible:ring-1 focus-visible:ring-accent"
     >
       <div className="flex items-center gap-1 pl-3 pr-1.5 h-8 border-b border-border-muted">
         <span className="text-xs font-medium text-text-secondary">How it runs</span>
         <span className="flex-1" />
-        <span className="mr-1 text-[11px] text-text-muted tabular-nums">{active !== null ? `${active + 1} / ${rows.length}` : `${rows.length} calls`}</span>
-        <button onClick={() => step(-1)} disabled={active === null || active === 0} className={controlButton} title="Previous call (←)" aria-label="Previous call">
-          <ChevronLeftIcon size="xs" />
-        </button>
-        <button onClick={togglePlay} className={controlButton} title={playing ? 'Pause (space)' : 'Step through each call (space)'} aria-label={playing ? 'Pause' : 'Play'}>
-          {playing ? <PauseIcon size="xs" /> : <PlayIcon size="xs" />}
-        </button>
-        <button onClick={() => step(1)} disabled={active === rows.length - 1} className={controlButton} title="Next call (→)" aria-label="Next call">
-          <ChevronRightIcon size="xs" />
-        </button>
+        <StepControls stepper={stepper} count={rows.length} idleLabel={`${rows.length} calls`} noun="call" />
       </div>
       <div ref={listRef} className="py-1 overflow-x-auto">
         {rows.map((row, index) => (
@@ -144,10 +76,7 @@ export function GuideCallStack(props: { rows: GuideCall[]; compact?: boolean }) 
             key={index}
             type="button"
             data-call-index={index}
-            onClick={() => {
-              setPlaying(false);
-              goTo(index);
-            }}
+            onClick={() => stepper.select(index)}
             title={row.path ? `${row.call}\n${row.path}${row.line ? `:${row.line}` : ''}` : row.call}
             className={cn(
               'flex items-center w-full min-w-max pr-3 text-left font-mono whitespace-pre cursor-pointer transition-colors outline-none border-l-2',

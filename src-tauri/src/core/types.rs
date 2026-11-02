@@ -316,6 +316,9 @@ pub struct GuideChapter {
     pub focus: Vec<String>,
     #[serde(default)]
     pub attention: GuideAttention,
+    /// The stage of the change this chapter belongs to, e.g. "Data layer"; neighbouring chapters share it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase: Option<String>,
     /// Repository-relative paths, most important first.
     pub files: Vec<String>,
     #[serde(default)]
@@ -323,6 +326,16 @@ pub struct GuideChapter {
     /// The order the chapter's code runs in, from the entry point down.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub callstack: Vec<GuideCall>,
+}
+
+/// One step of the diagram's walkthrough: the node that runs, and what happens there.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GuideFlowStep {
+    /// A node id of the diagram.
+    pub node: String,
+    /// Markdown, one sentence.
+    pub text: String,
 }
 
 /// What an agent wrote to walk a reviewer through a diff.
@@ -340,6 +353,9 @@ pub struct GuideContent {
     /// Mermaid flowchart of the changed flow.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diagram: Option<String>,
+    /// The diagram's nodes in the order a request goes through them, for stepping through it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub flow: Vec<GuideFlowStep>,
     pub chapters: Vec<GuideChapter>,
 }
 

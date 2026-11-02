@@ -23,6 +23,7 @@ The reviewer can read *what* the code does in the diff. Tell them *why*: the pro
 - A chapter over about 15 files is too long to read in one go: split it by sub-area, unless it is one mechanical edit repeated (a rename, an import change), which stays together as one `low` chapter.
 - Order them so each makes sense after the ones before: the core change first, then what builds on it or wires it in, then tests, then config, migrations, docs and generated files.
 - Every file of the diff goes in a chapter.
+- With 5 or more chapters, group them into 2-4 `phase`s, the stages a reviewer would name (e.g. "Data layer", "API", "UI"), so the list reads as a short outline. Chapters of one phase sit next to each other.
 
 ## Write it
 
@@ -43,7 +44,7 @@ Notes and focus points are optional and sparing; add one only where it saves the
 Reviewers often want the order things happen in: this is called first, then this, then that. Pick the view by the shape of the code:
 
 - **Call stack** (a chapter's `callstack`): the chapter's logic is a chain of calls that return, branch or return early. Start at the entry point (a route, command, UI event, job) and list the calls in the order they run, a callee right after its caller, one level deeper. Write rows as data flow, `result = fn(inputs)`, with `if …: return …` and `return …` rows where they matter. Mark rows `added`, `removed` or `same`, and give each linked row the `path` and `line` of the call so the reviewer can step through it in the diff. Keep it to about 4-12 rows on the main path; for a deep flow, give the overview in the core chapter and a short stack in the chapter of each changed callee. Skip it for config, tests, renames or a single function.
-- **Diagram** (the overview `diagram`): the change adds or reshapes a flow between parts (modules, services, processes). Mark nodes `:::added`, `:::changed` or `:::removed`, so one picture shows before and after. Link each node that maps to code with `%% ref node:<id> [[path#L12]]`.
+- **Diagram** (the overview `diagram`): the change adds or reshapes a flow between parts (modules, services, processes). Mark nodes `:::added`, `:::changed` or `:::removed`, so one picture shows before and after. Link each node that maps to code with `%% ref node:<id> [[path#L12]]`, and an arrow whose call matters with `%% ref edge:<from>-><to> [[path#L12]]`. Then add a `flow`: the nodes in the order a request goes through them, one sentence each, so the reviewer can play the diagram step by step.
 
 Add a view only when it shows the reviewer something prose would not; never just to fill a slot.
 

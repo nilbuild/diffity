@@ -1,6 +1,8 @@
 import type { DiffFile } from '@/lib/diff-parser';
 import { getFilePath } from '../../lib/diff-utils';
 import type { Guide, GuideAttention, GuideCall, GuideNote } from '../../lib/types';
+import type { DiagramFocus } from '../../components/mermaid-diagram';
+import { edgeKey } from './guide-refs';
 
 export const NOT_IN_GUIDE_TITLE = 'Not in the guide';
 
@@ -20,6 +22,7 @@ export interface ReadingChapter {
   points: string[];
   focus: string[];
   attention: GuideAttention;
+  phase?: string;
   files: DiffFile[];
   /** Notes on the files still in the diff. */
   notes: GuideNote[];
@@ -85,6 +88,26 @@ function lineCounts(files: DiffFile[]) {
   return { additions, deletions };
 }
 
+export interface ChapterGroup {
+  phase: string | null;
+  chapters: ReadingChapter[];
+}
+
+/** Neighbouring chapters of the same phase, in order; chapters without one stand alone with no heading. */
+export function phaseGroups(chapters: ReadingChapter[]): ChapterGroup[] {
+  const groups: ChapterGroup[] = [];
+  for (const chapter of chapters) {
+    const phase = chapter.phase?.trim() || null;
+    const last = groups[groups.length - 1];
+    if (last && phase && last.phase === phase) {
+      last.chapters.push(chapter);
+      continue;
+    }
+    groups.push({ phase, chapters: [chapter] });
+  }
+  return groups;
+}
+
 /** Where the reader is: "Overview", "Chapter 2 of 8" or "Not in the guide". */
 export function stepLabel(chapters: ReadingChapter[], step: string): string {
   const index = chapters.findIndex((chapter) => chapter.key === step);
@@ -129,4 +152,15 @@ export function diagramWithStyles(chart: string, theme: 'light' | 'dark'): strin
     lines.push(`  classDef removed ${colors.removed}`);
   }
   return lines.join('\n');
+}
+
+/** The step's node lit, the arrow from the step before (either way round, for a return) and the nodes already passed. */
+export function flowFocus(nodes: string[], active: number | null): DiagramFocus | null {
+  if (active === null || !nodes[active]) {
+    return null;
+  }
+  const node = nodes[active];
+  const previous = active > 0 ? nodes[active - 1] : null;
+  const edges = new Set<string>(previous && previous !== node ? [edgeKey(previous, node), edgeKey(node, previous)] : []);
+  return { node, edges, visited: new Set(nodes.slice(0, active)) };
 }

@@ -43,10 +43,19 @@ function fixtureGuide(sessionId: string, ref: string, fingerprint: string): Guid
     before: 'Every request read the file from disk, and any failure answered `404`.',
     after: 'Repeat requests are answered from memory (up to 500 files), and only a missing file answers `404`; other failures answer `500`.',
     diagram:
-      'flowchart LR\n  req["Request"] --> handle["handle()"]\n  handle --> cached{"getCached()"}:::added\n  cached -- hit --> respond["Respond"]\n  cached -- miss --> disk["readFile()"]\n  disk --> store["setCached()"]:::added\n  store --> respond\n  handle -. error .-> status["404 or 500"]:::changed\n  handle -.-> notfound["404 on every error"]:::removed\n  %% ref node:handle [[src/server.ts#L42]]\n  %% ref node:cached [[src/server.ts#L45]]\n  %% ref node:store [[src/cache.ts#L8]]',
+      'flowchart LR\n  req["Request"] --> handle["handle()"]\n  handle --> cached{"getCached()"}:::added\n  cached -- hit --> respond["Respond"]\n  cached -- miss --> disk["readFile()"]\n  disk --> store["setCached()"]:::added\n  store --> respond\n  handle -. error .-> status["404 or 500"]:::changed\n  handle -.-> notfound["404 on every error"]:::removed\n  %% ref node:handle [[src/server.ts#L42]]\n  %% ref node:cached [[src/server.ts#L45]]\n  %% ref node:store [[src/cache.ts#L8]]\n  %% ref edge:cached->disk [[src/server.ts#L47]]',
+    flow: [
+      { node: 'req', text: 'A browser asks for a file.' },
+      { node: 'handle', text: '`handle()` resolves the path and checks it stays inside the root.' },
+      { node: 'cached', text: 'It looks in the new in-memory cache first.' },
+      { node: 'disk', text: 'On a miss it reads the file from disk, as before.' },
+      { node: 'store', text: 'The bytes go into the cache so the next request skips the disk.' },
+      { node: 'respond', text: 'The response is sent with the right MIME type.' },
+    ],
     chapters: [
       {
         title: 'Cache file reads',
+        phase: 'Server',
         summary:
           '`src/cache.ts` (renamed from `legacy-cache.ts`) holds up to 500 file bodies and drops the oldest entry when it is full. `handle()` in `src/server.ts` asks the cache first and stores what it reads from disk.',
         points: ['The cap lives in [[src/cache.ts#L2]]; there is no way to change it at runtime.'],
@@ -70,6 +79,7 @@ function fixtureGuide(sessionId: string, ref: string, fingerprint: string): Guid
       },
       {
         title: 'Report server health',
+        phase: 'Server',
         summary: 'A new `healthReport()` reads heap use and uptime, and `handleHealth()` answers `200` or `503` with the report as JSON. Nothing calls it yet.',
         focus: ['The 512 MB limit is hard-coded'],
         attention: 'normal',
@@ -78,6 +88,7 @@ function fixtureGuide(sessionId: string, ref: string, fingerprint: string): Guid
       },
       {
         title: 'Format sizes and plurals',
+        phase: 'Utilities',
         summary: '`formatBytes()` now rounds exact kilobytes up a unit and prints whole bytes, and `pluralize()` returns the count with the word.',
         focus: [],
         attention: 'normal',
@@ -86,6 +97,7 @@ function fixtureGuide(sessionId: string, ref: string, fingerprint: string): Guid
       },
       {
         title: 'Docs, config and assets',
+        phase: 'Utilities',
         summary: 'The README documents `--no-cache` and the cache flow, the old `config.json` is removed and a logo is added.',
         focus: [],
         attention: 'low',

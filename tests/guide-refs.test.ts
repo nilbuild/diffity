@@ -15,6 +15,12 @@ describe('guide refs', () => {
     expect(refFromHref('https://example.com')).toBeNull();
   });
 
+  it('reads node and arrow links from the diagram', () => {
+    const refs = diagramRefs('flowchart LR\n  a --> b\n  %% ref node:a [[src/a.ts#L3]]\n  %% ref edge:a->b [[src/b.ts#L9]]');
+    expect(refs.get('a')?.line).toBe(3);
+    expect(refs.get('a->b')).toEqual({ path: 'src/b.ts', line: 9, side: 'new' });
+  });
+
   it('links references in prose but leaves code spans alone', () => {
     const out = linkRefs('See [[src/a.ts#L4]] and `[[src/b.ts]]`.');
     expect(out).toContain(`[a.ts:4](${refHref({ path: 'src/a.ts', line: 4, side: 'new' })})`);

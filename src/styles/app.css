@@ -436,16 +436,78 @@ tr.guide-line-focus > td:first-child {
   box-shadow: inset 3px 0 0 var(--color-claude);
 }
 
-/* Diagram nodes that open their code in the diff. */
-.mermaid-links [data-node-link] {
+/* Diagram nodes and arrows that open their code in the diff. */
+.mermaid-links [data-link] {
   cursor: pointer;
   outline: none;
 }
 
-.mermaid-links [data-node-link]:hover > :first-child,
-.mermaid-links [data-node-link]:focus-visible > :first-child {
+.mermaid-links g[data-link]:hover > :first-child,
+.mermaid-links g[data-link]:focus-visible > :first-child {
   stroke-width: 2.5px !important;
   filter: brightness(1.06);
+}
+
+.mermaid-links path.edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14px;
+  pointer-events: stroke;
+}
+
+.mermaid-links path.edge-hit:hover,
+.mermaid-links path.edge-hit:focus-visible {
+  stroke: color-mix(in srgb, var(--color-claude) 25%, transparent);
+}
+
+/* A diagram walkthrough: the step that runs is lit, the ones passed stay readable, the rest fade. */
+.flow-playing g.node,
+.flow-playing .edgePaths path[data-edge],
+.flow-playing .edgeLabels > g {
+  transition: opacity 250ms ease;
+}
+
+.flow-playing g.node {
+  opacity: 0.35;
+}
+
+.flow-playing g.node.flow-visited {
+  opacity: 0.75;
+}
+
+.flow-playing g.node.flow-active {
+  opacity: 1;
+}
+
+.flow-playing g.node.flow-active > :first-child {
+  stroke: var(--color-claude) !important;
+  stroke-width: 2.5px !important;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--color-claude) 45%, transparent));
+}
+
+.flow-playing .edgePaths path[data-edge],
+.flow-playing .edgeLabels > g {
+  opacity: 0.25;
+}
+
+.flow-playing .edgePaths path.flow-edge-active {
+  opacity: 1;
+  stroke: var(--color-claude) !important;
+  stroke-width: 2.5px !important;
+  stroke-dasharray: 6 4;
+  animation: flow-dash 0.8s linear infinite;
+}
+
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -10;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-playing .edgePaths path.flow-edge-active {
+    animation: none;
+  }
 }
 
 /* GitHub-flavored markdown body */

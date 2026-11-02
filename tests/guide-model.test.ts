@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseDiff } from '../src/lib/diff-parser';
-import { diagramWithStyles, isGuideStale, isGuideWorthy, NOT_IN_GUIDE_TITLE, readingChapters } from '../src/features/guide/guide-model';
+import { diagramWithStyles, flowFocus, isGuideStale, isGuideWorthy, NOT_IN_GUIDE_TITLE, phaseGroups, readingChapters, type ReadingChapter } from '../src/features/guide/guide-model';
 import type { Guide } from '../src/lib/types';
 
 const file = (path: string, added: number) => `diff --git a/${path} b/${path}
@@ -76,5 +76,30 @@ describe('diagramWithStyles removed nodes', () => {
   it('adds a dashed class for removed nodes only when used', () => {
     expect(diagramWithStyles('flowchart LR\n  A:::removed --> B', 'light')).toMatch(/classDef removed .*stroke-dasharray/);
     expect(diagramWithStyles('flowchart LR\n  A --> B', 'light')).not.toContain('classDef removed');
+  });
+});
+
+describe('phaseGroups', () => {
+  const chapter = (key: string, phase?: string) => ({ key, phase }) as ReadingChapter;
+
+  it('groups neighbouring chapters of a phase and leaves the rest alone', () => {
+    const groups = phaseGroups([chapter('0', 'Data'), chapter('1', 'Data'), chapter('2', 'UI'), chapter('3'), chapter('4')]);
+    expect(groups.map((group) => [group.phase, group.chapters.map((c) => c.key)])).toEqual([
+      ['Data', ['0', '1']],
+      ['UI', ['2']],
+      [null, ['3']],
+      [null, ['4']],
+    ]);
+  });
+});
+
+describe('flowFocus', () => {
+  it('lights the step, the arrow from the step before either way, and the nodes passed', () => {
+    expect(flowFocus(['a', 'b', 'c'], null)).toBeNull();
+    const focus = flowFocus(['a', 'b', 'c'], 2)!;
+    expect(focus.node).toBe('c');
+    expect([...focus.edges]).toEqual(['b->c', 'c->b']);
+    expect([...focus.visited]).toEqual(['a', 'b']);
+    expect([...flowFocus(['a', 'b', 'c'], 0)!.edges]).toEqual([]);
   });
 });

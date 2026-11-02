@@ -7,16 +7,15 @@ import { useThemeStore } from '../../hooks/use-theme';
 import { FileBlock, type FileBlockProps } from '../../components/diff/file-block';
 import type { SinceViewedInfo } from '../../components/diff/since-viewed';
 import { DiffStats } from '../../components/diff/diff-stats';
-import { MermaidDiagram } from '../../components/mermaid-diagram';
 import { GeneralComments } from '../../components/comments/general-comments';
 import { buttonPrimary } from '../../components/ui/button-styles';
 import { CheckIcon, ChevronRightIcon } from '../../components/ui/icon';
-import { diagramWithStyles, type ReadingChapter } from './guide-model';
+import { phaseGroups, type ReadingChapter } from './guide-model';
 import { ChapterNav, ChapterStory, chapterViewed, AttentionTag, CriticalTag, Eyebrow, Prose, stepNav } from './guide-story';
 import { useUi } from '../../lib/ui-store';
 import { GuideNoteCard, GuideNotesContext, notesByFile } from './guide-notes';
 import { OVERVIEW_STEP, type GuideStep } from './use-guide';
-import { diagramRefs, useGuideRefs } from './guide-refs';
+import { GuideDiagram } from './guide-diagram';
 
 type SharedFileProps = Omit<FileBlockProps, 'file' | 'collapsed' | 'reviewed' | 'sinceViewed' | 'highlightCode' | 'highlighted' | 'onHighlightEnd'>;
 
@@ -100,16 +99,8 @@ interface OverviewPageProps {
 
 function OverviewPage(props: OverviewPageProps) {
   const { guide, chapters, reviewedFiles, onStep, start, generalComments } = props;
-  const theme = useThemeStore((state) => state.theme);
-  const chart = useMemo(() => (guide.diagram ? diagramWithStyles(guide.diagram, theme) : null), [guide.diagram, theme]);
-  const refs = useGuideRefs();
-  const nodeRefs = useMemo(() => {
-    const all = guide.diagram ? diagramRefs(guide.diagram) : new Map();
-    return new Map([...all].filter(([, ref]) => refs?.has(ref.path)));
-  }, [guide.diagram, refs]);
-  const nodeLinks = useMemo(() => new Set(nodeRefs.keys()), [nodeRefs]);
-  const hasRemoved = !!guide.diagram && /:::removed\b/.test(guide.diagram);
   const started = chapters.some((chapter) => chapterViewed(chapter, reviewedFiles) > 0);
+  const groups = phaseGroups(chapters);
 
   return (
     <article className="max-w-[760px] mx-auto px-8 pt-8">
@@ -124,65 +115,52 @@ function OverviewPage(props: OverviewPageProps) {
         </div>
       )}
 
-      {chart && (
-        <section className="mt-6 rounded-lg border border-border bg-bg px-4 pt-3 pb-1">
-          <div className="flex items-center gap-3 text-xs text-text-secondary">
-            <span className="font-medium text-text">How it flows</span>
-            <Legend className="bg-diff-add-bg border-added/60" label="New" />
-            <Legend className="bg-modified/15 border-modified/60" label="Changed" />
-            {hasRemoved && <Legend className="bg-diff-del-bg border-deleted/60 border-dashed" label="Removed" />}
-            {nodeLinks.size > 0 && <span className="ml-auto text-text-muted">Click a box to open its code</span>}
-          </div>
-          <MermaidDiagram
-            chart={chart}
-            frameClassName="max-h-[340px]"
-            nodeLinks={nodeLinks}
-            onNodeClick={(id) => {
-              const ref = nodeRefs.get(id);
-              if (ref) {
-                refs?.open(ref);
-              }
-            }}
-          />
-        </section>
-      )}
+      {guide.diagram && <GuideDiagram guide={guide} />}
 
       <section className="mt-8">
         <div className="flex items-baseline gap-2">
           <h2 className="text-[15px] font-semibold text-text">Read it in {chapters.length} chapter{chapters.length === 1 ? '' : 's'}</h2>
           <span className="text-xs text-text-muted">the core change first, what to skim last</span>
         </div>
-        <ol className="mt-3 flex flex-col gap-2">
-          {chapters.map((chapter, index) => {
-            const viewed = chapterViewed(chapter, reviewedFiles);
-            const complete = viewed === chapter.files.length;
-            return (
-              <li key={chapter.key}>
-                <button
-                  onClick={() => onStep(chapter.key)}
-                  className="group flex items-start gap-3 w-full px-3.5 py-3 rounded-lg border border-border bg-bg text-left hover:bg-bg-secondary hover:border-control-border transition-colors cursor-pointer"
-                >
-                  <span className={cn('mt-0.5 flex items-center justify-center w-6 h-6 rounded-full shrink-0 font-mono text-[11px] tabular-nums', complete ? 'bg-added/15 text-added' : 'bg-fill text-text-secondary')}>
-                    {complete ? <CheckIcon size={11} /> : chapter.extra ? '+' : index + 1}
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <span className="flex items-center gap-2">
-                      <span className="text-[14px] font-medium text-text truncate">{chapter.title}</span>
-                      <AttentionTag attention={chapter.attention} />
-                      <CriticalTag chapter={chapter} />
-                    </span>
-                    <span className="mt-0.5 block text-[13px] leading-5 text-text-secondary line-clamp-2">{plainText(chapter.summary)}</span>
-                  </span>
-                  <span className="flex flex-col items-end gap-0.5 shrink-0 text-xs text-text-muted tabular-nums">
-                    <DiffStats additions={chapter.additions} deletions={chapter.deletions} />
-                    <span>{viewed > 0 && !complete ? `${viewed} of ${chapter.files.length}` : chapter.files.length} file{chapter.files.length === 1 ? '' : 's'}</span>
-                  </span>
-                  <ChevronRightIcon size="xs" className="mt-1.5 text-text-muted opacity-0 group-hover:opacity-100 shrink-0" />
-                </button>
-              </li>
-            );
-          })}
-        </ol>
+        <div className={cn('mt-3 flex flex-col', groups.some((group) => group.phase) ? 'gap-5' : 'gap-2')}>
+          {groups.map((group) => (
+            <div key={group.chapters[0].key}>
+              {group.phase && <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-muted">{group.phase}</h3>}
+              <ol className="flex flex-col gap-2">
+                {group.chapters.map((chapter) => {
+                  const index = chapters.indexOf(chapter);
+                  const viewed = chapterViewed(chapter, reviewedFiles);
+                  const complete = viewed === chapter.files.length;
+                  return (
+                    <li key={chapter.key}>
+                      <button
+                        onClick={() => onStep(chapter.key)}
+                        className="group flex items-start gap-3 w-full px-3.5 py-3 rounded-lg border border-border bg-bg text-left hover:bg-bg-secondary hover:border-control-border transition-colors cursor-pointer"
+                      >
+                        <span className={cn('mt-0.5 flex items-center justify-center w-6 h-6 rounded-full shrink-0 font-mono text-[11px] tabular-nums', complete ? 'bg-added/15 text-added' : 'bg-fill text-text-secondary')}>
+                          {complete ? <CheckIcon size={11} /> : chapter.extra ? '+' : index + 1}
+                        </span>
+                        <span className="flex-1 min-w-0">
+                          <span className="flex items-center gap-2">
+                            <span className="text-[14px] font-medium text-text truncate">{chapter.title}</span>
+                            <AttentionTag attention={chapter.attention} />
+                            <CriticalTag chapter={chapter} />
+                          </span>
+                          <span className="mt-0.5 block text-[13px] leading-5 text-text-secondary line-clamp-2">{plainText(chapter.summary)}</span>
+                        </span>
+                        <span className="flex flex-col items-end gap-0.5 shrink-0 text-xs text-text-muted tabular-nums">
+                          <DiffStats additions={chapter.additions} deletions={chapter.deletions} />
+                          <span>{viewed > 0 && !complete ? `${viewed} of ${chapter.files.length}` : chapter.files.length} file{chapter.files.length === 1 ? '' : 's'}</span>
+                        </span>
+                        <ChevronRightIcon size="xs" className="mt-1.5 text-text-muted opacity-0 group-hover:opacity-100 shrink-0" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          ))}
+        </div>
         {start && (
           <div className="mt-4 flex items-center gap-3">
             <button onClick={() => onStep(start.key)} className={buttonPrimary}>
@@ -209,17 +187,6 @@ function BeforeAfter(props: { label: string; text: string; after?: boolean }) {
       <div className={cn('text-[11px] font-semibold uppercase tracking-wide', after ? 'text-added' : 'text-text-muted')}>{label}</div>
       <Prose content={text} className="mt-1 text-[13px] leading-5" />
     </div>
-  );
-}
-
-function Legend(props: { className: string; label: string }) {
-  const { className, label } = props;
-
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cn('w-2.5 h-2.5 rounded-sm border', className)} />
-      {label}
-    </span>
   );
 }
 

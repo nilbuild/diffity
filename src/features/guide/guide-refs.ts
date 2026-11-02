@@ -73,10 +73,15 @@ export function linkRefs(markdown: string): string {
     .join('');
 }
 
-/** The diagram's `%% ref node:<id> [[path#L12]]` lines, by node id. */
+/** The key of an arrow from one node to another, as `diagramRefs` and the diagram use it. */
+export function edgeKey(from: string, to: string): string {
+  return `${from}->${to}`;
+}
+
+/** The diagram's `%% ref node:<id> [[path#L12]]` and `%% ref edge:<a>-><b> [[…]]` lines, by node id or `edgeKey`. */
 export function diagramRefs(chart: string): Map<string, GuideRef> {
   const refs = new Map<string, GuideRef>();
-  for (const match of chart.matchAll(/^\s*%%\s*ref\s+node:(\S+)\s+\[\[([^\]]+)\]\]/gm)) {
+  for (const match of chart.matchAll(/^\s*%%\s*ref\s+(?:node:|edge:)(\S+)\s+\[\[([^\]]+)\]\]/gm)) {
     const ref = parseRef(match[2]);
     if (ref && !refs.has(match[1])) {
       refs.set(match[1], ref);

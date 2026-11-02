@@ -247,11 +247,21 @@ export interface GuideChapter {
   /** What to check while reading. */
   focus: string[];
   attention: GuideAttention;
+  /** The stage of the change the chapter belongs to; neighbouring chapters share it. */
+  phase?: string;
   /** Most important first. */
   files: string[];
   notes: GuideNote[];
   /** The order the chapter's code runs in; missing in older guides. */
   callstack?: GuideCall[];
+}
+
+/** One step of the diagram's walkthrough. */
+export interface GuideFlowStep {
+  /** A node id of the diagram. */
+  node: string;
+  /** Markdown. */
+  text: string;
 }
 
 /** A reading guide an agent wrote for a review session's diff. */
@@ -266,8 +276,10 @@ export interface Guide {
   summary: string;
   before?: string;
   after?: string;
-  /** Mermaid flowchart; nodes are marked `:::added`, `:::changed` or `:::removed`, and may carry `%% ref node:<id> [[path#L12]]` links. */
+  /** Mermaid flowchart; nodes are marked `:::added`, `:::changed` or `:::removed`, and may carry `%% ref node:<id> [[path#L12]]` / `%% ref edge:<a>-><b> [[…]]` links. */
   diagram?: string;
+  /** The diagram's nodes in the order they run, for stepping through it. */
+  flow?: GuideFlowStep[];
   chapters: GuideChapter[];
 }
 
