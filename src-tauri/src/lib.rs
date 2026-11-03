@@ -53,6 +53,12 @@ fn init_state(app: &tauri::App) -> anyhow::Result<AppState> {
         let _ = handle.emit("threads-changed", serde_json::json!({ "sessionId": session_id }));
     }));
     let github = Arc::new(GithubService::new(store.clone()));
+    let bridge_agents = agents.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = bridge_agents.start_bridge().await {
+            tracing::warn!("could not start the MCP socket: {}", e.message);
+        }
+    });
     Ok(AppState { store, agents, github })
 }
 
@@ -138,7 +144,7 @@ pub fn run() {
             }
             #[cfg(target_os = "macos")]
             if event.id() == INSTALL_CLI_MENU_ID {
-                cli_install::install_with_feedback(app);
+                emit_to_focused(app, "open-terminal-settings");
                 return;
             }
             if event.id() != REPORT_ISSUE_MENU_ID {
@@ -182,6 +188,12 @@ pub fn run() {
             let _ = webview;
         })
         .invoke_handler(tauri::generate_handler![
+            commands::terminal::terminal_status,
+            commands::terminal::terminal_set_allowed,
+            commands::terminal::terminal_connect,
+            commands::terminal::terminal_disconnect,
+            commands::terminal::terminal_install_cli,
+            commands::terminal::terminal_uninstall_cli,
             commands::repo::open_repo,
             commands::repo::quick_open_roots,
             commands::repo::list_dir_suggestions,

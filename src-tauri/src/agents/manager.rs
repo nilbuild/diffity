@@ -77,6 +77,32 @@ impl AgentManager {
         }
     }
 
+    /// Starts the MCP socket at launch, so terminal agents can reach the app before any in-app run, and applies
+    /// Allow terminal agents.
+    pub async fn start_bridge(&self) -> Result<()> {
+        let allowed = self.store.get_setting(crate::agents::terminal::TERMINAL_SETTING)?.as_deref() == Some("1");
+        self.bridge.set_terminal_allowed(allowed);
+        self.bridge.ensure_started().await
+    }
+
+    pub fn set_terminal_allowed(&self, allowed: bool) -> Result<()> {
+        self.store.set_setting(crate::agents::terminal::TERMINAL_SETTING, if allowed { "1" } else { "0" })?;
+        self.bridge.set_terminal_allowed(allowed);
+        Ok(())
+    }
+
+    pub fn terminal_allowed(&self) -> bool {
+        self.store.get_setting(crate::agents::terminal::TERMINAL_SETTING).ok().flatten().as_deref() == Some("1")
+    }
+
+    pub fn socket_path(&self) -> &std::path::Path {
+        self.bridge.socket_path()
+    }
+
+    pub fn mcp_binary(&self) -> &std::path::Path {
+        &self.mcp_binary
+    }
+
     /// Desktop registers a hook that emits `threads-changed { sessionId }` when MCP tool calls mutate threads.
     pub fn on_threads_changed(&self, hook: ThreadsChangedHook) {
         self.bridge.set_hook(hook);

@@ -27,6 +27,8 @@ pub trait ReviewBackend: Send + Sync + 'static {
         session_id: &str,
         status: Option<ThreadStatus>,
     ) -> BoxFut<'_, Vec<Thread>>;
+    /// Every thread in every review session of a repo, with its session, most recently updated first.
+    fn repo_threads(&self, repo_path: &str) -> BoxFut<'_, Vec<(ReviewSession, Thread)>>;
     fn find_thread(&self, session_id: &str, id_or_prefix: &str) -> BoxFut<'_, Thread>;
     /// Thread by full id in any session (includes pending drafts; callers filter).
     fn get_thread(&self, thread_id: &str) -> BoxFut<'_, Thread>;

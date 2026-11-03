@@ -215,6 +215,44 @@ pub fn all() -> Vec<Tool> {
     ]
 }
 
+/// The tools for an agent the user runs in a terminal: every tool, each taking the repository and view it
+/// works on, plus `open_in_diffity`.
+pub fn terminal() -> Vec<Tool> {
+    let mut tools: Vec<Tool> = all()
+        .into_iter()
+        .map(|mut tool| {
+            let mut input = (*tool.input_schema).clone();
+            let properties = input.entry("properties").or_insert_with(|| json!({}));
+            if let Value::Object(props) = properties {
+                props.insert("path".into(), json!({ "type": "string", "description": PATH_ARG }));
+                props.insert("ref".into(), json!({ "type": "string", "description": REF_ARG }));
+            }
+            tool.input_schema = Arc::new(input);
+            tool
+        })
+        .collect();
+    tools.push(tool(
+        OPEN_TOOL,
+        "Open the repository's changes in the Diffity app so the user can review them, e.g. when you have finished a \
+         change. Brings Diffity to the front.",
+        json!({
+            "type": "object",
+            "properties": {
+                "path": { "type": "string", "description": PATH_ARG },
+                "ref": { "type": "string", "description": "The view to open, e.g. \"main...HEAD\" for the branch. Omit to let Diffity pick." }
+            }
+        }),
+        true,
+    ));
+    tools
+}
+
+pub const OPEN_TOOL: &str = "open_in_diffity";
+
+const PATH_ARG: &str = "The repository or worktree to use, when it is not your working directory.";
+const REF_ARG: &str = "The Diffity view: \"work\" for uncommitted changes, \"main...HEAD\" for the branch, and so on. \
+                       Omit it to use the view the user last commented in; every answer names the view it used.";
+
 #[cfg(test)]
 mod tests {
     #[test]

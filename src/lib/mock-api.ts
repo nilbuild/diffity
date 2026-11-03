@@ -1,6 +1,7 @@
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 import { emit } from '@tauri-apps/api/event';
 import type {
+  TerminalStatus,
   AgentEvent,
   Branch,
   Comment,
@@ -366,6 +367,17 @@ function mockRefLabel(ref: string): string {
   return ref.includes('..') ? ref : `Changes since ${ref}`;
 }
 
+const terminalMock: TerminalStatus = {
+  allowed: false,
+  serverName: 'diffity',
+  command: ['/Applications/Diffity.app/Contents/MacOS/diffity-mcp', '--terminal', '--socket', '/Users/demo/Library/Application Support/com.diffity.app/mcp.sock'],
+  agents: [
+    { agent: 'claude', found: true, connected: false },
+    { agent: 'codex', found: false, connected: false },
+  ],
+  cli: { name: 'diffity', path: '/usr/local/bin/diffity', installed: false, broken: false },
+};
+
 const handlers: Record<string, (args: Args) => unknown> = {
   open_repo: (args) => ({
     path: args.path,
@@ -405,6 +417,28 @@ const handlers: Record<string, (args: Args) => unknown> = {
   revert_file: () => null,
   revert_hunk: () => null,
   open_in_editor: () => null,
+  terminal_status: () => ({ ...terminalMock, agents: terminalMock.agents.map((agent) => ({ ...agent })), cli: { ...terminalMock.cli } }),
+  terminal_set_allowed: (args: Args) => {
+    terminalMock.allowed = !!args.allowed;
+    return null;
+  },
+  terminal_connect: (args: Args) => {
+    terminalMock.agents = terminalMock.agents.map((agent) => (agent.agent === args.agent ? { ...agent, connected: true } : agent));
+    terminalMock.allowed = true;
+    return null;
+  },
+  terminal_disconnect: (args: Args) => {
+    terminalMock.agents = terminalMock.agents.map((agent) => (agent.agent === args.agent ? { ...agent, connected: false } : agent));
+    return null;
+  },
+  terminal_install_cli: () => {
+    terminalMock.cli = { ...terminalMock.cli, installed: true, broken: false };
+    return 'installed';
+  },
+  terminal_uninstall_cli: () => {
+    terminalMock.cli = { ...terminalMock.cli, installed: false };
+    return null;
+  },
   list_tree: () => buildTree(),
   read_file: (args) => {
     const path = String(args.path);

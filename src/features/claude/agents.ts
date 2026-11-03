@@ -56,7 +56,8 @@ export function agentMeta(id: string | null | undefined): AgentMeta {
 
 /** The agent that wrote a comment, from its author name ("Codex"). */
 export function agentByName(name: string | null | undefined): AgentMeta | undefined {
-  return AGENTS.find((agent) => agent.name === name || agent.short === name);
+  const base = name?.replace(/ \(terminal\)$/, '');
+  return AGENTS.find((agent) => agent.name === base || agent.short === base);
 }
 
 export function isReady(agent: AgentInfo | undefined): boolean {

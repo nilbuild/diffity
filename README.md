@@ -93,7 +93,7 @@ macOS 13.3 or later, Apple Silicon and Intel. The AI features need [Claude Code]
 
 > Run `diffity` in any repository to open it in the app, or pass a pull request URL to review it.
 
-Install the command once from the app menu: **Diffity → Install ‘diffity’ Command…**. It links the command into `/usr/local/bin` and asks for your password if that folder needs it.
+Install the command once from **Settings → Terminal** (or **Diffity → Install ‘diffity’ Command…**, which opens it). It links the command into `/usr/local/bin` and asks for your password if that folder needs it.
 
 <img src="./.github/screenshots/install-command.png" width="320" alt="The Diffity menu with Install ‘diffity’ Command…" />
 
@@ -108,6 +108,20 @@ diffity -n                                     # in a new window
 ```
 
 `--ref` takes anything the ref picker does: `work`, `staged`, `unstaged`, a branch or commit, `<a>..<b>` or `<a>...<b>`. A pull request opens in the current repository if it is a clone of that repo, else in a clone Diffity already knows; with neither, Diffity offers to clone it. Run `diffity --help` for everything.
+
+### Hand comments to your terminal agent
+
+> The agent that wrote the change is the one with the context to fix your comments. Let it read and answer them.
+
+In **Settings → Terminal**, click **Connect** next to Claude Code or Codex. That registers Diffity with the agent for every project and allows terminal agents; for OpenCode, Cursor or any other MCP client, copy the setup from the same place.
+
+Then, after you review and comment, tell the agent in its session:
+
+```
+address my Diffity review
+```
+
+It reads the open comments for the repository or worktree it is in, makes the changes, replies to each thread and resolves the fixed ones. The threads update live in Diffity, labelled with the agent's name. It can also open its changes in Diffity for you (“open it in Diffity when you're done”). Draft comments stay private until you submit them. **Allow terminal agents** turns access off for every agent at once.
 
 Coding agents can run it too, so you can ask Claude Code to “open your changes in Diffity” before it opens a PR.
 

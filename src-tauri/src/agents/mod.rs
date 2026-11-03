@@ -11,6 +11,7 @@ pub mod patch;
 pub mod policy;
 pub mod prompts;
 pub mod session;
+pub mod terminal;
 pub mod tools;
 pub mod types;
 

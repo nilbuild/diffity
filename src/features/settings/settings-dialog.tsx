@@ -8,7 +8,8 @@ import { EditorPane } from './editor-pane';
 import { ShortcutsPane } from './shortcuts-pane';
 import { AboutPane } from './about-pane';
 import { DataPane } from './data-pane';
-import { CodeIcon, GitHubIcon, InfoIcon, KeyboardIcon, SearchIcon, SettingsIcon, SparkleIcon, TrashIcon, XIcon } from '../../components/ui/icon';
+import { TerminalPane } from './terminal-pane';
+import { CodeIcon, GitHubIcon, InfoIcon, KeyboardIcon, SearchIcon, SettingsIcon, SparkleIcon, TerminalIcon, TrashIcon, XIcon } from '../../components/ui/icon';
 
 const LABELS: Record<SettingsSection, string> = {
   general: 'General',
@@ -16,6 +17,7 @@ const LABELS: Record<SettingsSection, string> = {
   shortcuts: 'Keyboard shortcuts',
   agents: 'Agents',
   github: 'GitHub',
+  terminal: 'Terminal',
   data: 'Data',
   about: 'About',
 };
@@ -26,13 +28,14 @@ const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
   shortcuts: KeyboardIcon,
   agents: SparkleIcon,
   github: GitHubIcon,
+  terminal: TerminalIcon,
   data: TrashIcon,
   about: InfoIcon,
 };
 
 const GROUPS: { label: string; sections: SettingsSection[] }[] = [
   { label: 'App', sections: ['general', 'editor', 'shortcuts'] },
-  { label: 'Connections', sections: ['agents', 'github'] },
+  { label: 'Connections', sections: ['agents', 'github', 'terminal'] },
   { label: 'Diffity', sections: ['data', 'about'] },
 ];
 
@@ -57,6 +60,9 @@ const INDEX: { label: string; section: SettingsSection; keywords?: string }[] = 
   { label: 'Import from GitHub CLI', section: 'github', keywords: 'gh token' },
   { label: 'Personal access token', section: 'github', keywords: 'pat token keychain' },
   { label: 'Agent models', section: 'agents', keywords: 'claude codex opencode model opus sonnet gpt effort thinking' },
+  { label: 'Terminal agents', section: 'terminal', keywords: 'claude code codex opencode cursor mcp cli terminal connect outside' },
+  { label: 'Allow terminal agents', section: 'terminal', keywords: 'mcp access outside agents' },
+  { label: 'diffity command', section: 'terminal', keywords: 'install cli shell path command line' },
   { label: 'Clear a project', section: 'data', keywords: 'delete comments chats purge remove storage' },
   { label: 'Reset Diffity', section: 'data', keywords: 'delete everything purge wipe reset storage data' },
   { label: 'Version', section: 'about', keywords: 'about' },
@@ -78,6 +84,9 @@ function Pane(props: { section: SettingsSection }) {
   }
   if (section === 'github') {
     return <GitHubPane />;
+  }
+  if (section === 'terminal') {
+    return <TerminalPane />;
   }
   if (section === 'editor') {
     return <EditorPane />;

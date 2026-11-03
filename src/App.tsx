@@ -1,3 +1,4 @@
+import { useTerminalSettingsMenu } from './features/settings/terminal-pane';
 import { useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter, Navigate, Route, Routes } from 'react-router';
@@ -92,6 +93,7 @@ export function App() {
   useUpdateChecks();
   useCheckForUpdatesMenu();
   useWhatsNew();
+  useTerminalSettingsMenu();
 
   useEffect(() => {
     const timer = setTimeout(hideStaticSplash, 10_000);

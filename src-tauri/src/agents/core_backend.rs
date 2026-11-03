@@ -76,6 +76,11 @@ impl ReviewBackend for CoreBackend {
         Box::pin(blocking(move || store.list_threads(&id, status)))
     }
 
+    fn repo_threads(&self, repo_path: &str) -> BoxFut<'_, Vec<(ReviewSession, Thread)>> {
+        let (store, repo) = (self.store.clone(), repo_path.to_string());
+        Box::pin(blocking(move || store.list_repo_threads(&repo)))
+    }
+
     fn find_thread(&self, session_id: &str, id_or_prefix: &str) -> BoxFut<'_, Thread> {
         let (store, sid, prefix) = (
             self.store.clone(),

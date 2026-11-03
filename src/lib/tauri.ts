@@ -1,6 +1,8 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
+  TerminalAgent,
+  TerminalStatus,
   AgentAction,
   AgentEvent,
   AgentInfo,
@@ -183,6 +185,12 @@ export const githubDeviceStart = () => invoke<DeviceCode>('github_device_start')
 export const githubDevicePoll = (deviceCode: string) =>
   invoke<GithubAuthStatus>('github_device_poll', { deviceCode });
 export const githubLogout = () => invoke<void>('github_logout');
+export const terminalStatus = () => invoke<TerminalStatus>('terminal_status');
+export const terminalSetAllowed = (allowed: boolean) => invoke<void>('terminal_set_allowed', { allowed });
+export const terminalConnect = (agent: TerminalAgent) => invoke<void>('terminal_connect', { agent });
+export const terminalDisconnect = (agent: TerminalAgent) => invoke<void>('terminal_disconnect', { agent });
+export const terminalInstallCli = () => invoke<string>('terminal_install_cli');
+export const terminalUninstallCli = () => invoke<void>('terminal_uninstall_cli');
 export const gitFetch = (repoPath: string) => invoke<GitOpResult>('git_fetch', { repoPath });
 export const gitPull = (repoPath: string) => invoke<GitOpResult>('git_pull', { repoPath });
 export const gitPush = (repoPath: string) => invoke<GitOpResult>('git_push', { repoPath });

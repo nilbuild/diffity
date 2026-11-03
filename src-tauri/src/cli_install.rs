@@ -1,11 +1,9 @@
-//! Diffity → Install 'diffity' Command: links the bundled `diffity-cli` into /usr/local/bin, asking for an
+//! Settings → Terminal → diffity command: links the bundled `diffity-cli` into /usr/local/bin, asking for an
 //! administrator password when that folder is not writable. The dev build installs `diffity-dev` instead.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use tauri::{AppHandle, Runtime};
-use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 const BIN_DIR: &str = "/usr/local/bin";
 
@@ -81,7 +79,7 @@ fn shadowing(link: &Path) -> Option<PathBuf> {
     (first != link).then_some(first)
 }
 
-fn install() -> Result<String, String> {
+pub fn install() -> Result<String, String> {
     let cli = bundled_cli()?;
     let name = command_name();
     let link_path = Path::new(BIN_DIR).join(name);
@@ -106,15 +104,43 @@ fn install() -> Result<String, String> {
     Ok(message)
 }
 
-pub fn install_with_feedback<R: Runtime>(app: &AppHandle<R>) {
-    let app = app.clone();
-    std::thread::spawn(move || {
-        let (title, message, kind) = match install() {
-            Ok(message) => (format!("The {} command is installed", command_name()), message, MessageDialogKind::Info),
-            Err(message) => (format!("Could not install the {} command", command_name()), message, MessageDialogKind::Error),
-        };
-        app.dialog().message(message).title(title).kind(kind).show(|_| {});
-    });
+/// Where the command is linked, and whether that link is Diffity's and still points at an existing app.
+pub struct CliStatus {
+    pub name: &'static str,
+    pub path: PathBuf,
+    pub installed: bool,
+    pub broken: bool,
+}
+
+pub fn status() -> CliStatus {
+    let path = Path::new(BIN_DIR).join(command_name());
+    let ours = std::fs::read_link(&path).ok().filter(|target| target.file_name().is_some_and(|name| name == "diffity-cli"));
+    CliStatus { name: command_name(), installed: ours.is_some(), broken: ours.is_some_and(|target| !target.exists()), path }
+}
+
+/// Removes the command when it is Diffity's link, asking for an administrator password when needed.
+pub fn uninstall() -> Result<(), String> {
+    let link = Path::new(BIN_DIR).join(command_name());
+    if !status().installed {
+        return Ok(());
+    }
+    match std::fs::remove_file(&link) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+            let script = format!(
+                "do shell script \"rm -f \" & quoted form of {link} with prompt \"Diffity wants to remove the {name} command.\" with administrator privileges",
+                link = applescript_string(&link.to_string_lossy()),
+                name = command_name(),
+            );
+            let out = Command::new("osascript").args(["-e", &script]).output().map_err(|e| e.to_string())?;
+            if out.status.success() {
+                return Ok(());
+            }
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            Err(if stderr.contains("-128") { "Cancelled.".into() } else { stderr.trim().to_string() })
+        }
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 #[cfg(test)]

@@ -3,7 +3,7 @@ import { create } from 'zustand';
 const SIDEBAR_KEY = 'diffity-sidebar-collapsed';
 const FLAT_KEY = 'diffity-sidebar-flat';
 
-export type SettingsSection = 'general' | 'agents' | 'github' | 'editor' | 'shortcuts' | 'data' | 'about';
+export type SettingsSection = 'general' | 'agents' | 'github' | 'terminal' | 'editor' | 'shortcuts' | 'data' | 'about';
 
 interface UiState {
   settingsOpen: boolean;

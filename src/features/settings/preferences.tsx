@@ -57,7 +57,7 @@ export function PreferencesRow(props: RowProps) {
   );
 }
 
-type ButtonVariant = 'primary' | 'danger' | 'default';
+type ButtonVariant = 'primary' | 'danger' | 'destructive' | 'default';
 
 interface SettingsButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -75,6 +75,7 @@ export function SettingsButton(props: SettingsButtonProps) {
         variant === 'primary' && buttonPrimary,
         variant === 'danger' && cn(buttonGhost, 'text-deleted hover:bg-deleted/10 hover:text-deleted'),
         variant === 'default' && buttonOutline,
+        variant === 'destructive' && cn(buttonOutline, 'text-deleted border-deleted/35 hover:bg-deleted/10'),
         className,
       )}
       {...rest}
@@ -119,6 +120,27 @@ export function SegmentedControl<T extends string>(props: {
         );
       })}
     </div>
+  );
+}
+
+export function Switch(props: { checked: boolean; label: string; disabled?: boolean; onChange: (checked: boolean) => void }) {
+  const { checked, label, disabled, onChange } = props;
+
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'relative h-[18px] w-[30px] flex-none cursor-pointer rounded-full transition-colors disabled:cursor-default disabled:opacity-50',
+        checked ? 'bg-accent' : 'bg-bg-tertiary ring-1 ring-inset ring-border',
+      )}
+    >
+      <span className={cn('absolute top-[3px] left-[3px] size-3 rounded-full transition-transform', checked ? 'translate-x-3 bg-white' : 'bg-text-muted')} />
+    </button>
   );
 }
 

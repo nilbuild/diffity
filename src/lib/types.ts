@@ -592,3 +592,15 @@ export interface OpenRequest {
   pr: string | null;
   newWindow: boolean;
 }
+
+export type TerminalAgent = 'claude' | 'codex';
+
+export interface TerminalStatus {
+  allowed: boolean;
+  /** `diffity`, or `diffity-dev` for the dev build. */
+  serverName: string;
+  /** The command a terminal agent runs, then its arguments. */
+  command: string[];
+  agents: { agent: TerminalAgent; found: boolean; connected: boolean }[];
+  cli: { name: string; path: string; installed: boolean; broken: boolean };
+}
