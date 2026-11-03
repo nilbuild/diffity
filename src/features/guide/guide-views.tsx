@@ -2,8 +2,9 @@ import { toast } from 'sonner';
 import { errorMessage, openInEditor } from '../../lib/api';
 import type { GuideImpact, GuideNote } from '../../lib/types';
 import { useEditorName } from '../../hooks/use-editor-name';
+import { useRepoNav } from '../../hooks/use-repo';
 import { MarkdownContent } from '../../components/layout/markdown-content';
-import { AlertCircleIcon } from '../../components/ui/icon';
+import { AlertCircleIcon, EditorIcon } from '../../components/ui/icon';
 import { linkRefs, refLabel } from './guide-refs';
 import { GuideRefLink } from './guide-ref-link';
 
@@ -35,10 +36,12 @@ export function CareCallout(props: { notes: GuideNote[] }) {
   );
 }
 
-/** Code the diff does not touch that the chapter's change may break; a click opens it in the editor. */
+/** Code the diff does not touch that the chapter's change may break. Its location opens in the Files tab, at the line;
+ * the editor icon opens it in the editor instead. */
 export function ImpactList(props: { items: GuideImpact[] }) {
   const { items } = props;
   const editorName = useEditorName();
+  const nav = useRepoNav();
 
   if (items.length === 0) {
     return null;
@@ -46,29 +49,41 @@ export function ImpactList(props: { items: GuideImpact[] }) {
   return (
     <div className="mt-4">
       <div className="text-xs font-medium text-text-secondary">May break outside this diff</div>
-      <ul className="mt-1.5 flex flex-col gap-2">
-        {items.map((item, index) => (
-          <li key={index} className="text-[13px] leading-5">
-            <div className="flex items-center gap-2 min-w-0">
-              <code className="font-mono text-[12px] font-medium text-text truncate">{item.site}</code>
-              <button
-                type="button"
-                onClick={() => {
-                  openInEditor(item.path, item.line).catch((error) => {
-                    toast.error('Could not open the editor', { description: errorMessage(error) });
-                  });
-                }}
-                title={`Open ${item.path}${item.line ? `:${item.line}` : ''} in ${editorName}`}
-                className="px-1 py-0.5 rounded bg-bg-tertiary font-mono text-[11px] text-text-secondary hover:text-accent hover:underline underline-offset-2 cursor-pointer shrink-0"
-              >
-                {refLabel({ path: item.path, line: item.line, side: 'new' })}
-              </button>
-            </div>
-            <div className="text-text-secondary select-text [&_p]:m-0">
-              <MarkdownContent content={linkRefs(item.text)} />
-            </div>
-          </li>
-        ))}
+      <ul className="mt-1.5 flex flex-col gap-2.5">
+        {items.map((item, index) => {
+          const where = `${item.path}${item.line ? `:${item.line}` : ''}`;
+          return (
+            <li key={index} className="text-[13px] leading-5">
+              <code className="block font-mono text-[12px] font-medium text-text break-words">{item.site}</code>
+              <div className="text-text-secondary select-text [&_p]:m-0">
+                <MarkdownContent content={linkRefs(item.text)} />
+              </div>
+              <div className="mt-0.5 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => nav.toTree(item.path, 'file', item.line)}
+                  title={`Show ${where} in Files`}
+                  className="min-w-0 truncate font-mono text-[11px] text-accent hover:underline underline-offset-2 cursor-pointer"
+                >
+                  {refLabel({ path: item.path, line: item.line, side: 'new' })}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    openInEditor(item.path, item.line).catch((error) => {
+                      toast.error('Could not open the editor', { description: errorMessage(error) });
+                    });
+                  }}
+                  title={`Open in ${editorName}`}
+                  aria-label={`Open ${where} in ${editorName}`}
+                  className="inline-flex size-5 shrink-0 items-center justify-center rounded text-text-muted hover:bg-hover hover:text-text cursor-pointer"
+                >
+                  <EditorIcon size={11} />
+                </button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

@@ -27,6 +27,8 @@ interface FileViewerProps {
 export interface FileViewerHandle {
   /** Scrolls the thread's line into view; false when the thread is not on this file. */
   revealThread: (threadId: string) => boolean;
+  /** Scrolls a line to the middle and marks it; false until the file's content is loaded. */
+  revealLine: (line: number) => boolean;
 }
 
 const CURRENT_AUTHOR: CommentAuthor = { name: 'You', type: 'user' };
@@ -159,7 +161,28 @@ export const FileViewer = forwardRef<FileViewerHandle, FileViewerProps>(function
       revealLine(thread.endLine);
       return true;
     },
-  }), [fileThreads, revealLine]);
+    revealLine: (line: number) => {
+      if (content.length === 0) {
+        return false;
+      }
+      revealLine(line);
+      document.querySelectorAll('tr.guide-line-focus').forEach((row) => row.classList.remove('guide-line-focus'));
+      // The row mounts once the virtualiser has scrolled there.
+      let frames = 20;
+      const mark = () => {
+        const row = tableRef.current?.querySelector(`[data-find-line="${line}"]`)?.closest('tr');
+        if (row) {
+          row.classList.add('guide-line-focus');
+          return;
+        }
+        if (frames-- > 0) {
+          requestAnimationFrame(mark);
+        }
+      };
+      requestAnimationFrame(mark);
+      return true;
+    },
+  }), [fileThreads, revealLine, content.length]);
 
   const findSource = useMemo<FindSource>(() => ({
     label: 'file',

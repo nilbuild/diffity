@@ -271,6 +271,28 @@ export function TreePage() {
     [navPath, navType, queryClient, paths, scrollToThreadElement, setNav],
   );
 
+  const targetLine = Number(searchParams.get('line')) || null;
+
+  // A link to a line (the guide's "may break" list): scroll to it once the file's rows exist, then drop the param.
+  useEffect(() => {
+    if (!targetLine || navType !== 'file') {
+      return;
+    }
+    let left = 30;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tryReveal = () => {
+      if (fileViewerRef.current?.revealLine(targetLine) || left-- <= 0) {
+        const next = new URLSearchParams(searchParams);
+        next.delete('line');
+        setSearchParams(next, { replace: true });
+        return;
+      }
+      timer = setTimeout(tryReveal, 100);
+    };
+    tryReveal();
+    return () => clearTimeout(timer);
+  }, [targetLine, navType, navPath, searchParams, setSearchParams]);
+
   const targetThreadId = searchParams.get('thread');
   const handledTarget = useRef<string | null>(null);
 

@@ -29,8 +29,8 @@ export function useRepoNav() {
     navigate(view ? `${location}${location.includes('?') ? '&' : '?'}view=${view}` : location);
   }, [navigate, repoPath, base]);
 
-  /** Without a path, Files opens where you left it. */
-  const toTree = useCallback((path?: string, type?: 'file' | 'dir') => {
+  /** Without a path, Files opens where you left it; `line` scrolls a file to that line and marks it. */
+  const toTree = useCallback((path?: string, type?: 'file' | 'dir', line?: number) => {
     if (path === undefined) {
       const last = lastViewLocationFor(repoPath, 'tree');
       if (last) {
@@ -44,6 +44,9 @@ export function useRepoNav() {
     }
     if (type === 'file') {
       params.set('type', 'file');
+    }
+    if (type === 'file' && line) {
+      params.set('line', String(line));
     }
     const query = params.toString();
     navigate(`${base}/tree${query ? `?${query}` : ''}`);
