@@ -50,7 +50,7 @@ interface GuideLineNotesProps {
   splitSide?: Side;
 }
 
-/** Why the call-stack step the reader is on happens, pinned under its line. */
+/** The call-stack step the reader is on, pinned under the block it highlights: what it does, then why. */
 function GuideStepCard(props: { step: GuideFocusStep }) {
   const { step } = props;
 
@@ -59,8 +59,13 @@ function GuideStepCard(props: { step: GuideFocusStep }) {
       <span className="mt-px shrink-0 px-1.5 rounded bg-claude text-white font-mono text-[11px] leading-[18px] tabular-nums">
         {step.index + 1}/{step.count}
       </span>
-      <div className="min-w-0 flex-1 text-text [&_p]:m-0">
-        <MarkdownContent content={linkRefs(step.why)} />
+      <div className="min-w-0 flex-1 [&_p]:m-0">
+        {step.what && <div className="font-medium text-text">{step.what}</div>}
+        {step.why && (
+          <div className={step.what ? 'text-text-secondary' : 'text-text'}>
+            <MarkdownContent content={linkRefs(step.why)} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -70,7 +75,8 @@ function GuideStepCard(props: { step: GuideFocusStep }) {
 export function GuideLineNotes(props: GuideLineNotesProps) {
   const { filePath, side, line, colSpan, splitSide } = props;
   const byFile = useContext(GuideNotesContext);
-  const step = useGuideStepAt(filePath, side, line);
+  const stepAt = useGuideStepAt(filePath, side, line);
+  const step = stepAt && (stepAt.what || stepAt.why) ? stepAt : null;
   const notes = filePath ? byFile?.get(filePath)?.filter((note) => note.line === line && note.side === side) ?? [] : [];
 
   if (!step && notes.length === 0) {

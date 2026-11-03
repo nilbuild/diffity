@@ -205,7 +205,7 @@ export function DiffPage(props: DiffPageProps) {
   const rewriteGuide = guideRun ? null : () => startGuide(repoPath, refParam, sessionId, reviewPick, guidePr);
 
   /** Opens the chapter holding `path` and scrolls to the file (opening it when `expand`), or to one of its comments. */
-  const revealInGuide = useCallback((path: string, threadId?: string, expand = false, line?: Pick<GuideRef, 'line' | 'side'>, step?: GuideFocusStep) => {
+  const revealInGuide = useCallback((path: string, threadId?: string, expand = false, line?: Pick<GuideRef, 'line' | 'endLine' | 'side'>, step?: GuideFocusStep) => {
     if (path === GENERAL_THREAD_FILE_PATH) {
       setGuideStep(OVERVIEW_STEP);
       if (threadId) {
@@ -234,7 +234,7 @@ export function DiffPage(props: DiffPageProps) {
       return;
     }
     if (line?.line) {
-      focusGuideLine({ path, line: line.line, side: line.side }, step ?? null);
+      focusGuideLine({ path, line: line.line, endLine: line.endLine, side: line.side }, step ?? null);
       return;
     }
     focusFileElement(path);

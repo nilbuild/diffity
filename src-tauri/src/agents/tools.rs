@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 
 use crate::core::store::now;
 use crate::core::types::{
-    AuthorType, DiffResult, Guide, GuideAttention, GuideCall, GuideChange, GuideChapter, GuideContent, GuideFlowStep, GuideImpact, GuideNote,
+    AuthorType, DiffResult, Guide, GuideAttention, GuideCall, GuideCallKind, GuideChange, GuideChapter, GuideContent, GuideFlowStep, GuideImpact, GuideNote,
     NewThread, Severity, Side,
     Thread, ThreadStatus, GENERAL_FILE_PATH,
 };
@@ -137,9 +137,12 @@ struct GuideCallArgs {
     #[serde(default)]
     depth: u32,
     call: String,
+    what: Option<String>,
+    kind: Option<String>,
     change: Option<String>,
     path: Option<String>,
     line: Option<u32>,
+    end_line: Option<u32>,
     side: Option<String>,
     why: Option<String>,
 }
@@ -470,7 +473,10 @@ const MAX_BULLETS: usize = 3;
 const NOTE_WORDS: usize = 40;
 const MAX_CALLS: usize = 14;
 const MAX_CALL_DEPTH: u32 = 6;
-const CALL_CHARS: usize = 90;
+/// Longest block a call-stack step may highlight.
+const MAX_CALL_LINES: u32 = 40;
+const CALL_CHARS: usize = 60;
+const CALL_WHAT_WORDS: usize = 10;
 const CALL_WHY_WORDS: usize = 25;
 const PHASE_WORDS: usize = 4;
 const MAX_FLOW_STEPS: usize = 10;
@@ -485,6 +491,25 @@ fn parse_change(raw: Option<&str>) -> Result<GuideChange> {
         Some("removed") => Ok(GuideChange::Removed),
         Some(other) => Err(AppError::invalid(format!("invalid change `{other}`; use added, removed or same"))),
     }
+}
+
+fn parse_call_kind(raw: Option<&str>) -> Result<GuideCallKind> {
+    match raw.map(|s| s.trim().to_ascii_lowercase()).as_deref() {
+        None | Some("") | Some("call") => Ok(GuideCallKind::Call),
+        Some("exit") | Some("return") | Some("throw") => Ok(GuideCallKind::Exit),
+        Some(other) => Err(AppError::invalid(format!("invalid callstack kind `{other}`; use call or exit"))),
+    }
+}
+
+/// A call row written as pseudo-code (`if x: throw y`, `return …`) instead of a call the code makes.
+fn reads_like_pseudo_code(call: &str) -> bool {
+    let lower = call.trim_start().to_ascii_lowercase();
+    lower.starts_with("if ") || lower.starts_with("return ") || lower.starts_with("throw ") || lower == "return"
+}
+
+/// A call row holding an expression (`x = f(a)`) where only the name belongs; the code is on the right.
+fn is_expression(call: &str) -> bool {
+    call.contains('(') || call.contains(" = ")
 }
 
 fn check_words(problems: &mut Vec<String>, what: &str, text: &str, max: usize) {
@@ -754,19 +779,55 @@ fn build_callstack(
         if call.chars().count() > CALL_CHARS {
             problems.push(format!("chapter \"{title}\" callstack row `{call}` is over {CALL_CHARS} characters"));
         }
+        let kind = parse_call_kind(row.kind.as_deref())?;
+        let what = non_empty(row.what);
+        if kind == GuideCallKind::Call {
+            if reads_like_pseudo_code(&call) {
+                problems.push(format!(
+                    "chapter \"{title}\" callstack row `{call}` reads like code but isn't a call; make it an exit row in plain words (kind \"exit\", e.g. \"409 if the email is taken\") or drop it"
+                ));
+            } else if is_expression(&call) {
+                problems.push(format!(
+                    "chapter \"{title}\" callstack row `{call}` should be just the name the code uses (e.g. `requirePublicationMember`); say what it does in `what`"
+                ));
+            }
+            match &what {
+                Some(text) => check_words(problems, &format!("chapter \"{title}\" callstack row `{call}` what"), text, CALL_WHAT_WORDS),
+                None => problems.push(format!("chapter \"{title}\" callstack row `{call}` needs `what`: a few plain words on what it does")),
+            }
+        }
         let why = non_empty(row.why);
         if let Some(text) = &why {
             check_words(problems, &format!("chapter \"{title}\" callstack row `{call}` why"), text, CALL_WHY_WORDS);
         }
         let side = parse_side(row.side.as_deref())?;
         let path = row.path.as_deref().and_then(resolve);
+        let shows = |path: &str, start: u32, end: u32| {
+            patches.iter().find(|f| f.matches(path)).and_then(|f| f.anchor(side, start, end)).is_some()
+        };
         let line = match &path {
-            Some(path) => row.line.filter(|&line| {
-                line > 0 && patches.iter().find(|f| f.matches(path)).and_then(|f| f.anchor(side, line, line)).is_some()
-            }),
+            Some(path) => row.line.filter(|&line| line > 0 && shows(path, line, line)),
             None => None,
         };
-        calls.push(GuideCall { depth: row.depth, call, change: parse_change(row.change.as_deref())?, path, line, side, why });
+        // A block the diff doesn't show in one hunk, or one that is too long, falls back to its first line.
+        let end_line = match (&path, line) {
+            (Some(path), Some(start)) => row
+                .end_line
+                .filter(|&end| end > start && end - start < MAX_CALL_LINES && shows(path, start, end)),
+            _ => None,
+        };
+        calls.push(GuideCall {
+            depth: row.depth,
+            call,
+            what: if kind == GuideCallKind::Call { what } else { None },
+            kind,
+            change: parse_change(row.change.as_deref())?,
+            path,
+            line,
+            end_line,
+            side,
+            why,
+        });
     }
     Ok(calls)
 }
@@ -1064,7 +1125,7 @@ mod tests {
     }
 
     fn stack_row(depth: u32, text: &str, path: Option<&str>, line: Option<u32>) -> GuideCallArgs {
-        GuideCallArgs { depth, call: text.into(), change: Some("added".into()), path: path.map(String::from), line, side: None, why: None }
+        GuideCallArgs { depth, call: text.into(), what: Some(format!("runs {text}")), kind: None, change: Some("added".into()), path: path.map(String::from), line, end_line: None, side: None, why: None }
     }
 
     fn note(path: &str, line: Option<u32>) -> GuideNoteArgs {
@@ -1102,14 +1163,61 @@ mod tests {
     }
 
     #[test]
+    fn guide_callstack_wants_exit_rows_instead_of_pseudo_code() {
+        let diff = diff_with(&["src/a.ts"]);
+        let mut core = chapter("Core", &["src/a.ts"]);
+        core.callstack = vec![stack_row(0, "load", None, None), stack_row(1, "if !user: throw 403", None, None)];
+        let err = build_guide(one_chapter(core), &diff).unwrap_err();
+        assert!(err.message.contains("exit row"), "{}", err.message);
+
+        let mut fixed = chapter("Core", &["src/a.ts"]);
+        let mut exit = stack_row(1, "403 if there is no user", None, None);
+        exit.kind = Some("exit".into());
+        exit.what = None;
+        fixed.callstack = vec![stack_row(0, "load", None, None), exit];
+        let (guide, _) = build_guide(one_chapter(fixed), &diff).unwrap();
+        assert_eq!(guide.chapters[0].callstack[1].kind, GuideCallKind::Exit);
+        assert_eq!(guide.chapters[0].callstack[0].kind, GuideCallKind::Call);
+        assert_eq!(guide.chapters[0].callstack[0].what.as_deref(), Some("runs load"));
+
+        let mut expression = chapter("Core", &["src/a.ts"]);
+        expression.callstack = vec![stack_row(0, "user = load(id)", None, None)];
+        let err = build_guide(one_chapter(expression), &diff).unwrap_err();
+        assert!(err.message.contains("just the name"), "{}", err.message);
+
+        let mut bare = chapter("Core", &["src/a.ts"]);
+        let mut row = stack_row(0, "load", None, None);
+        row.what = None;
+        bare.callstack = vec![row];
+        let err = build_guide(one_chapter(bare), &diff).unwrap_err();
+        assert!(err.message.contains("needs `what`"), "{}", err.message);
+    }
+
+    #[test]
+    fn guide_callstack_keeps_ranges_the_diff_shows() {
+        let mut diff = diff_with(&["src/a.ts"]);
+        diff.patch = PATCH.into();
+        let mut core = chapter("Core", &["src/a.ts"]);
+        let mut block = stack_row(0, "load", Some("src/a.ts"), Some(1));
+        block.end_line = Some(3);
+        let mut beyond = stack_row(1, "read", Some("src/a.ts"), Some(2));
+        beyond.end_line = Some(9);
+        core.callstack = vec![block, beyond];
+        let (guide, _) = build_guide(one_chapter(core), &diff).unwrap();
+        let rows = &guide.chapters[0].callstack;
+        assert_eq!((rows[0].line, rows[0].end_line), (Some(1), Some(3)));
+        assert_eq!((rows[1].line, rows[1].end_line), (Some(2), None), "a block past the hunk keeps its first line");
+    }
+
+    #[test]
     fn guide_callstack_keeps_shown_lines_and_rejects_bad_nesting() {
         let mut diff = diff_with(&["src/a.ts"]);
         diff.patch = PATCH.into();
         let mut core = chapter("Core", &["src/a.ts"]);
         core.callstack = vec![
-            stack_row(0, "load()", Some("src/a.ts"), Some(2)),
-            stack_row(1, "read(path)", Some("src/a.ts"), Some(40)),
-            stack_row(1, "parse(text)", Some("src/elsewhere.ts"), Some(3)),
+            stack_row(0, "load", Some("src/a.ts"), Some(2)),
+            stack_row(1, "read", Some("src/a.ts"), Some(40)),
+            stack_row(1, "parse", Some("src/elsewhere.ts"), Some(3)),
         ];
         let (guide, _) = build_guide(
             GuideArgs { summary: "x".into(), before: None, after: None, diagram: None, flow: Vec::new(), chapters: vec![core] },
@@ -1118,13 +1226,14 @@ mod tests {
         .unwrap();
         let rows = &guide.chapters[0].callstack;
         assert_eq!(rows[0].line, Some(2));
+        assert_eq!(rows[0].end_line, None);
         assert_eq!(rows[0].change, GuideChange::Added);
         assert_eq!(rows[1].path.as_deref(), Some("src/a.ts"));
         assert_eq!(rows[1].line, None, "a line the diff does not show falls back to the file");
         assert_eq!(rows[2].path, None, "a file outside the diff stays as plain code");
 
         let mut deep = chapter("Core", &["src/a.ts"]);
-        deep.callstack = vec![stack_row(0, "a()", None, None), stack_row(2, "b()", None, None)];
+        deep.callstack = vec![stack_row(0, "a", None, None), stack_row(2, "b", None, None)];
         let err = build_guide(
             GuideArgs { summary: "x".into(), before: None, after: None, diagram: None, flow: Vec::new(), chapters: vec![deep] },
             &diff,

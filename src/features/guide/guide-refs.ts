@@ -6,6 +6,8 @@ import type { GuideFocusStep } from './guide-focus';
 export interface GuideRef {
   path: string;
   line?: number;
+  /** The last line of a block starting at `line`, on the same side. */
+  endLine?: number;
   side: Side;
 }
 

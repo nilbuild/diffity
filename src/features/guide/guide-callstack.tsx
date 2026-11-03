@@ -41,6 +41,12 @@ function isRisky(row: GuideCall, notes: GuideNote[]): boolean {
   return notes.some((note) => note.critical && note.path === row.path && note.line === row.line && note.side === row.side);
 }
 
+/** A call split where its arguments start, so the name reads first and the arguments stay quiet. */
+export function callParts(call: string): [string, string] {
+  const at = call.search(/[({]/);
+  return at > 0 ? [call.slice(0, at), call.slice(at)] : [call, ''];
+}
+
 const changeMark: Record<GuideCall['change'], string> = { added: '+', removed: '−', same: ' ' };
 
 /**
@@ -55,7 +61,7 @@ export function GuideCallStack(props: { rows: GuideCall[]; notes?: GuideNote[]; 
   const stepper = useStepper(rows.length, (index) => {
     const row = rows[index];
     if (row.path) {
-      refs?.open({ path: row.path, line: row.line, side: row.side }, row.why ? { index, count: rows.length, why: row.why } : undefined);
+      refs?.open({ path: row.path, line: row.line, endLine: row.endLine, side: row.side }, { index, count: rows.length, what: row.what, why: row.why });
     }
   });
 
@@ -94,17 +100,18 @@ export function GuideCallStack(props: { rows: GuideCall[]; notes?: GuideNote[]; 
               type="button"
               data-call-index={index}
               onClick={() => stepper.select(index)}
-              title={row.path ? `${row.call}\n${row.path}${row.line ? `:${row.line}` : ''}` : row.call}
+              title={[row.what ? `${row.call} · ${row.what}` : row.call, row.path ? `${row.path}${row.line ? `:${row.line}` : ''}` : null].filter(Boolean).join('\n')}
               className={cn(
                 'flex items-center w-full min-w-max pr-3 text-left font-mono whitespace-pre cursor-pointer transition-colors outline-none',
                 compact ? 'h-[22px] text-[11px]' : 'h-6 text-xs',
                 isActive ? 'bg-claude/20' : 'hover:bg-hover focus-visible:bg-hover',
+                row.depth === 0 && index > 0 && 'mt-2',
               )}
             >
               <span className={cn('w-4 shrink-0 text-center text-[9px]', isActive ? 'text-claude' : 'text-transparent')}>▶</span>
               <span className={cn('w-3 shrink-0 text-center', row.change === 'added' ? 'text-added' : row.change === 'removed' ? 'text-deleted' : 'text-text-muted')}>{changeMark[row.change]}</span>
               <span className="text-text-muted">{treePrefix(rows, index)}</span>
-              <span className={cn(row.change === 'removed' ? 'text-text-muted line-through decoration-deleted/60' : 'text-text', isActive && 'font-semibold')}>{row.call}</span>
+              <CallText row={row} active={isActive} />
               {risky && <AlertCircleIcon size={11} className="ml-1.5 text-modified shrink-0" title="Needs care: see the note on this line" />}
               {row.path && !compact && <span className="ml-2 text-[10px] text-text-muted">{refLabel({ path: row.path, line: row.line, side: row.side })}</span>}
             </button>
@@ -116,10 +123,32 @@ export function GuideCallStack(props: { rows: GuideCall[]; notes?: GuideNote[]; 
           <span className="mt-px font-mono text-[11px] text-claude tabular-nums shrink-0">{String((active ?? 0) + 1).padStart(2, '0')}</span>
           <div className="flex-1 min-w-0 text-[12px] leading-[18px] text-text select-text [&_p]:m-0">
             <div className="font-mono text-[11px] font-semibold text-text">{shownHere.call}</div>
+            {shownHere.what && <div className="text-text-secondary">{shownHere.what}</div>}
             {shownHere.why && <MarkdownContent content={linkRefs(shownHere.why)} />}
           </div>
         </div>
       )}
     </section>
+  );
+}
+
+function CallText(props: { row: GuideCall; active: boolean }) {
+  const { row, active } = props;
+  const removed = row.change === 'removed' && 'line-through decoration-deleted/60';
+
+  if (row.kind === 'exit') {
+    return <span className={cn('font-sans italic text-text-secondary', removed, active && 'text-text')}>{row.call}</span>;
+  }
+  // The explanation is on the step's card in the diff; the row is just the name to find there.
+  if (row.what) {
+    return <span className={cn(removed, row.change === 'removed' ? 'text-text-muted' : 'text-text', active && 'font-semibold')}>{row.call}</span>;
+  }
+  // Older guides hold the whole call: keep the name readable and the arguments quiet.
+  const [name, args] = callParts(row.call);
+  return (
+    <span className={cn(removed, active && 'font-semibold')}>
+      <span className={row.change === 'removed' ? 'text-text-muted' : 'text-text'}>{name}</span>
+      <span className="text-text-muted">{args}</span>
+    </span>
   );
 }

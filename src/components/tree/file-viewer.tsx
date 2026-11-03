@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { markBlock } from '../../features/guide/guide-focus';
 import { canHighlight, useHighlighter } from '../../hooks/use-highlighter';
 import { useLineSelection } from '../../hooks/use-line-selection';
 import type { CommentThread as CommentThreadType, CommentAuthor, LineSelection, SubmitOptions } from '../comments/types';
@@ -166,13 +167,12 @@ export const FileViewer = forwardRef<FileViewerHandle, FileViewerProps>(function
         return false;
       }
       revealLine(line);
-      document.querySelectorAll('tr.guide-line-focus').forEach((row) => row.classList.remove('guide-line-focus'));
       // The row mounts once the virtualiser has scrolled there.
       let frames = 20;
       const mark = () => {
         const row = tableRef.current?.querySelector(`[data-find-line="${line}"]`)?.closest('tr');
         if (row) {
-          row.classList.add('guide-line-focus');
+          markBlock([row]);
           return;
         }
         if (frames-- > 0) {

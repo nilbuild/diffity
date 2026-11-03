@@ -427,19 +427,48 @@ dialog {
   animation: flash-thread 1.5s ease-out;
 }
 
-/* The diff line the guide jumped to: tinted, boxed in the guide colour, with a pulse on arrival. */
+/* The block the guide jumped to: tinted, with a bar on the left and a box drawn from its first row to its last. */
 tr.guide-line-focus > td {
-  background-image: linear-gradient(color-mix(in srgb, var(--color-claude) 28%, transparent), color-mix(in srgb, var(--color-claude) 28%, transparent));
-  box-shadow: inset 0 1.5px 0 var(--color-claude), inset 0 -1.5px 0 var(--color-claude);
+  background-image: linear-gradient(color-mix(in srgb, var(--color-claude) 24%, transparent), color-mix(in srgb, var(--color-claude) 24%, transparent));
   animation: guide-line-arrive 0.9s ease-out;
 }
 
 tr.guide-line-focus > td:first-child {
+  box-shadow: inset 4px 0 0 var(--color-claude);
+}
+
+tr.guide-line-focus.guide-range-top > td {
+  box-shadow: inset 0 1.5px 0 var(--color-claude);
+}
+
+tr.guide-line-focus.guide-range-bottom > td {
+  box-shadow: inset 0 -1.5px 0 var(--color-claude);
+}
+
+tr.guide-line-focus.guide-range-top.guide-range-bottom > td {
+  box-shadow: inset 0 1.5px 0 var(--color-claude), inset 0 -1.5px 0 var(--color-claude);
+}
+
+tr.guide-line-focus.guide-range-top > td:first-child {
+  box-shadow: inset 4px 0 0 var(--color-claude), inset 0 1.5px 0 var(--color-claude);
+}
+
+tr.guide-line-focus.guide-range-bottom > td:first-child {
+  box-shadow: inset 4px 0 0 var(--color-claude), inset 0 -1.5px 0 var(--color-claude);
+}
+
+tr.guide-line-focus.guide-range-top.guide-range-bottom > td:first-child {
   box-shadow: inset 4px 0 0 var(--color-claude), inset 0 1.5px 0 var(--color-claude), inset 0 -1.5px 0 var(--color-claude);
 }
 
-tr.guide-line-focus > td:last-child {
-  box-shadow: inset -1.5px 0 0 var(--color-claude), inset 0 1.5px 0 var(--color-claude), inset 0 -1.5px 0 var(--color-claude);
+/* Stepping through a call stack: the diff outside the step's block fades back until the reader clicks elsewhere. */
+.guide-spotlight [data-find-scope] tr:not(.guide-line-focus):not(:has(.guide-step-card)) {
+  opacity: 0.28;
+  transition: opacity 0.2s ease-out;
+}
+
+[data-find-scope] tr {
+  transition: opacity 0.2s ease-out;
 }
 
 @keyframes guide-line-arrive {
