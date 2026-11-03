@@ -32,7 +32,12 @@ function updateHint(status: UpdateStatus) {
     return `Diffity ${status.version} is available.`;
   }
   if (status.kind === 'installing') {
-    return `Updating to Diffity ${status.version}…`;
+    return status.progress !== null && status.progress < 1
+      ? `Downloading Diffity ${status.version}… ${Math.round(status.progress * 100)}%`
+      : `Installing Diffity ${status.version}… it restarts on its own.`;
+  }
+  if (status.kind === 'installFailed') {
+    return `Could not install Diffity ${status.version}: ${status.message}`;
   }
   if (status.kind === 'failed') {
     return `Could not check for updates: ${status.message}`;
@@ -43,10 +48,10 @@ function updateHint(status: UpdateStatus) {
 function UpdateControl(props: { status: UpdateStatus }) {
   const { status } = props;
 
-  if (status.kind === 'available' || status.kind === 'installing') {
+  if (status.kind === 'available' || status.kind === 'installing' || status.kind === 'installFailed') {
     return (
       <SettingsButton variant="primary" busy={status.kind === 'installing'} onClick={() => void installUpdate()}>
-        Restart to update
+        {status.kind === 'installFailed' ? 'Try again' : 'Restart to update'}
       </SettingsButton>
     );
   }

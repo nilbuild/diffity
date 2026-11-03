@@ -1,3 +1,4 @@
+import { createElement } from 'react';
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { check, type Update } from '@tauri-apps/plugin-updater';
@@ -5,13 +6,16 @@ import { relaunch } from '@tauri-apps/plugin-process';
 import { isDevBuild, isTauri } from '../../lib/platform';
 import { errorMessage } from '../../lib/tauri';
 import { updatesSupported, worthOffering } from './update-policy';
+import { UpdateToast } from './update-toast';
 
 export type UpdateStatus =
   | { kind: 'idle' }
   | { kind: 'checking' }
   | { kind: 'upToDate' }
   | { kind: 'available'; version: string }
-  | { kind: 'installing'; version: string }
+  /** `progress` runs 0–1 while downloading; null until the size is known. */
+  | { kind: 'installing'; version: string; progress: number | null }
+  | { kind: 'installFailed'; version: string; message: string }
   | { kind: 'failed'; message: string };
 
 interface UpdateState {
@@ -37,20 +41,19 @@ function setStatus(status: UpdateStatus) {
   useUpdates.setState({ status });
 }
 
+/** The update prompt; it follows the update's status, so the same toast shows progress and failures. */
 function offer(update: Update) {
-  toast(`Diffity ${update.version} is available`, {
-    id: TOAST_ID,
-    duration: Infinity,
-    action: {
-      label: 'Restart to update',
-      onClick: (event) => {
-        event.preventDefault();
-        void installUpdate();
-      },
-    },
-    cancel: { label: 'Later', onClick: () => declineUpdate(update.version) },
-    onDismiss: () => declineUpdate(update.version),
-  });
+  toast.custom(
+    () =>
+      createElement(UpdateToast, {
+        onInstall: () => void installUpdate(),
+        onLater: () => {
+          declineUpdate(update.version);
+          toast.dismiss(TOAST_ID);
+        },
+      }),
+    { id: TOAST_ID, duration: Infinity, onDismiss: () => declineUpdate(update.version) },
+  );
 }
 
 function declineUpdate(version: string) {
@@ -126,31 +129,30 @@ export function checkForUpdates(options: { asked: boolean }) {
 
 export async function installUpdate() {
   const update = pending;
-  if (!update) {
+  if (!update || useUpdates.getState().status.kind === 'installing') {
     return;
   }
-  setStatus({ kind: 'installing', version: update.version });
-  toast.loading(`Updating to Diffity ${update.version}…`, {
-    id: TOAST_ID,
-    duration: Infinity,
-    description: 'Diffity will restart when it’s ready',
-    action: undefined,
-    cancel: undefined,
-    onDismiss: undefined,
-    dismissible: false,
-  });
+  const base = { version: update.version };
+  setStatus({ kind: 'installing', ...base, progress: null });
+  // From Settings the prompt may not be on screen; it carries the progress either way.
+  offer(update);
+  let total = 0;
+  let received = 0;
   try {
-    await update.downloadAndInstall();
+    await update.downloadAndInstall((event) => {
+      if (event.event === 'Started') {
+        total = event.data.contentLength ?? 0;
+        return;
+      }
+      if (event.event === 'Progress') {
+        received += event.data.chunkLength;
+        setStatus({ kind: 'installing', ...base, progress: total > 0 ? Math.min(received / total, 0.99) : null });
+        return;
+      }
+      setStatus({ kind: 'installing', ...base, progress: 1 });
+    });
     await relaunch();
   } catch (error) {
-    setStatus({ kind: 'available', version: update.version });
-    toast.error('Could not install the update', {
-      id: TOAST_ID,
-      description: errorMessage(error),
-      duration: 10_000,
-      dismissible: true,
-      action: { label: 'Try again', onClick: () => void installUpdate() },
-      cancel: undefined,
-    });
+    setStatus({ kind: 'installFailed', ...base, message: errorMessage(error) });
   }
 }
