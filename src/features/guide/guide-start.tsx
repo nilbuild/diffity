@@ -3,6 +3,7 @@ import { buttonClaudeSolid } from '../../components/ui/button-styles';
 import { BookIcon, SparkleIcon } from '../../components/ui/icon';
 import { Spinner } from '../../components/icons/spinner';
 import { getRepoPath } from '../../lib/api';
+import { useUi } from '../../lib/ui-store';
 import { cn } from '../../lib/cn';
 import { agentMeta } from '../claude/agents';
 import { cancelQueuedRun, stopClaude, useActiveRun } from '../claude/claude-runner';
@@ -114,9 +115,11 @@ export function GuideProgress(props: { diffRef: string; className?: string }) {
 export function GuideBarStatus(props: { diffRef: string; stale: boolean; onRewrite: (() => void) | null }) {
   const { diffRef, stale, onRewrite } = props;
   const run = useGuideRun(getRepoPath(), diffRef);
+  const sidebarCollapsed = useUi((state) => state.sidebarCollapsed);
 
+  // With the sidebar open, its "Rewriting the guide" banner says this already.
   if (run) {
-    return <GuideProgress diffRef={diffRef} className="text-xs min-w-0" />;
+    return sidebarCollapsed ? <GuideProgress diffRef={diffRef} className="text-xs min-w-0" /> : null;
   }
   if (!stale) {
     return null;

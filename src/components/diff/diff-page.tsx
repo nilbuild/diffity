@@ -742,6 +742,7 @@ export function DiffPage(props: DiffPageProps) {
             onReviewedChange={handleReviewedChange}
             onFileClick={(path) => revealInGuide(path, undefined, true)}
             onRewrite={rewriteGuide}
+            diffRef={refParam}
             onDelete={() => {
               if (sessionId) {
                 setMode('files');

@@ -7,7 +7,9 @@ import { formatRelativeTime } from '../../components/comments/comment-bubble';
 import { CheckIcon, EllipsisVerticalIcon, RefreshIcon, TrashIcon } from '../../components/ui/icon';
 import type { ReadingChapter } from './guide-model';
 import { ChapterStory, chapterViewed, stepNav } from './guide-story';
-import { OVERVIEW_STEP, type GuideStep } from './use-guide';
+import { OVERVIEW_STEP, useGuideRun, type GuideStep } from './use-guide';
+import { GuideProgress } from './guide-start';
+import { getRepoPath } from '../../lib/api';
 
 interface GuideSidebarProps {
   guide: Guide;
@@ -21,13 +23,16 @@ interface GuideSidebarProps {
   /** Unset while a guide run is already queued or going. */
   onRewrite: (() => void) | null;
   onDelete: () => void;
+  /** The view on screen, whose guide run (a rewrite) shows above the chapters. */
+  diffRef: string;
 }
 
 const stepButton = 'relative inline-flex items-center justify-center h-6 min-w-6 px-1.5 rounded-md font-mono text-[11px] tabular-nums transition-colors cursor-pointer';
 
 /** The sidebar while reading the guide: the steps as small buttons on top, and the open step's story below. */
 export function GuideSidebar(props: GuideSidebarProps) {
-  const { guide, chapters, step, onStep, reviewedFiles, onReviewedChange, onFileClick, onRewrite, onDelete } = props;
+  const { guide, chapters, step, onStep, reviewedFiles, onReviewedChange, onFileClick, onRewrite, onDelete, diffRef } = props;
+  const rewriting = !!useGuideRun(getRepoPath(), diffRef);
   const { index, chapter } = stepNav(chapters, step, onStep);
   const menu = useMenu();
   let number = 0;
@@ -86,7 +91,7 @@ export function GuideSidebar(props: GuideSidebarProps) {
           <div className="px-2.5 pt-1.5 pb-1 text-[11px] text-text-muted">Written by {guide.agentName} · {formatRelativeTime(guide.createdAt)}</div>
           <MenuItem
             icon={<RefreshIcon size="sm" />}
-            label="Write a new guide"
+            label="Rewrite guide"
             disabled={!onRewrite}
             onSelect={() => {
               menu.close();
@@ -104,6 +109,13 @@ export function GuideSidebar(props: GuideSidebarProps) {
         </Popover>
       </div>
       <div className="h-px mx-3 bg-border-muted shrink-0" />
+      {rewriting && (
+        <div className="mx-3 mt-3 rounded-lg border border-claude/30 bg-claude/8 px-3 py-2 shrink-0" role="status">
+          <div className="text-xs font-medium text-text">Rewriting the guide</div>
+          <GuideProgress diffRef={diffRef} className="mt-1 text-xs" />
+          <div className="mt-1 text-[11px] text-text-muted">You can keep reading this one; it’s replaced when the new one is saved.</div>
+        </div>
+      )}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-6">
         {chapter ? (
           <ChapterStory
