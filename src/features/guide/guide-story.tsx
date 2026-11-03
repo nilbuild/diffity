@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { getFilePath } from '../../lib/diff-utils';
 import { DiffStats } from '../../components/diff/diff-stats';
@@ -129,9 +129,9 @@ export function ChapterStory(props: ChapterStoryProps) {
           <Bullets items={chapter.focus} className="mt-1.5" />
         </div>
       )}
-      {chapter.callstack.length > 0 && <GuideCallStack key={chapter.key} rows={chapter.callstack} notes={chapter.notes} compact={compact} />}
+      {chapter.callstack.length > 0 && <GuideCallStack key={`stack:${chapter.key}`} rows={chapter.callstack} notes={chapter.notes} compact={compact} />}
       <ImpactList items={chapter.impact} />
-      <ChapterFiles chapter={chapter} reviewedFiles={reviewedFiles} onFileClick={onFileClick} />
+      <ChapterFiles key={`files:${chapter.key}`} chapter={chapter} reviewedFiles={reviewedFiles} onFileClick={onFileClick} />
       <div className="mt-4">
         <ChapterNav
           index={index}
@@ -163,34 +163,56 @@ function Bullets(props: { items: string[]; className?: string }) {
   );
 }
 
+/** Above this many files the list starts folded into one line; the diff shows them anyway. */
+const FOLD_FILES_OVER = 6;
+
 /** The chapter's files with their viewed state; a click scrolls to the file and opens it. */
 function ChapterFiles(props: { chapter: ReadingChapter; reviewedFiles: Set<string>; onFileClick: (path: string) => void }) {
   const { chapter, reviewedFiles, onFileClick } = props;
+  const foldable = chapter.files.length > FOLD_FILES_OVER;
+  const [open, setOpen] = useState(!foldable);
 
   return (
-    <ul className="mt-4 flex flex-col gap-0.5">
-      {chapter.files.map((file) => {
-        const path = getFilePath(file);
-        const { dir, name } = splitPath(path);
-        const viewed = reviewedFiles.has(path);
-        const critical = chapter.notes.some((note) => note.path === path && note.critical);
-        return (
-          <li key={path}>
-            <button
-              onClick={() => onFileClick(path)}
-              title={path}
-              className="flex items-center gap-2 w-full h-7 px-2 -mx-2 rounded-md text-left text-xs hover:bg-hover transition-colors cursor-pointer"
-            >
-              <span className={cn('truncate shrink-0 max-w-[60%]', viewed ? 'text-text-muted' : 'text-text')}>{name}</span>
-              {critical && <span className="w-1.5 h-1.5 rounded-full bg-modified shrink-0" title="A spot here needs extra care" />}
-              <span className="truncate text-text-muted min-w-0 flex-1">{dir.replace(/\/$/, '')}</span>
-              <DiffStats additions={file.additions} deletions={file.deletions} className="text-[11px]" />
-              {viewed ? <CheckIcon size={11} className="text-added shrink-0" /> : <span className="w-[11px] shrink-0" />}
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+    <div className="mt-4">
+      {foldable && (
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          className="flex items-center gap-1.5 h-7 px-2 -mx-2 rounded-md text-xs text-text-secondary hover:bg-hover hover:text-text transition-colors cursor-pointer"
+        >
+          <ChevronRightIcon size="xs" className={cn('transition-transform', open && 'rotate-90')} />
+          <span>{chapter.files.length} files</span>
+          <DiffStats additions={chapter.additions} deletions={chapter.deletions} className="text-[11px]" />
+        </button>
+      )}
+      {open && (
+        <ul className="flex flex-col gap-0.5">
+          {chapter.files.map((file) => {
+            const path = getFilePath(file);
+            const { dir, name } = splitPath(path);
+            const viewed = reviewedFiles.has(path);
+            const critical = chapter.notes.some((note) => note.path === path && note.critical);
+            const moved = file.status === 'renamed' && file.additions + file.deletions === 0;
+            return (
+              <li key={path}>
+                <button
+                  onClick={() => onFileClick(path)}
+                  title={path}
+                  className="flex items-center gap-2 w-full h-7 px-2 -mx-2 rounded-md text-left text-xs hover:bg-hover transition-colors cursor-pointer"
+                >
+                  <span className={cn('truncate shrink-0 max-w-[60%]', viewed ? 'text-text-muted' : 'text-text')}>{name}</span>
+                  {critical && <span className="w-1.5 h-1.5 rounded-full bg-modified shrink-0" title="A spot here needs extra care" />}
+                  <span className="truncate text-text-muted min-w-0 flex-1">{dir.replace(/\/$/, '')}</span>
+                  {moved ? <span className="text-[11px] text-text-muted">moved</span> : <DiffStats additions={file.additions} deletions={file.deletions} className="text-[11px]" />}
+                  {viewed ? <CheckIcon size={11} className="text-added shrink-0" /> : <span className="w-[11px] shrink-0" />}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
