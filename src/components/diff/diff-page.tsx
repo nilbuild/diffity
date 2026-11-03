@@ -16,7 +16,8 @@ import { DiffView, type DiffViewHandle } from './diff-view';
 import { Sidebar } from '../layout/sidebar';
 import { DiffSkeleton, hideStaticSplash } from '../layout/skeleton';
 import { PrSession, openPrDetails, openPrOnGitHub } from '../../features/pr/pr-session';
-import { syncPrCommentsNow } from '../../features/pr/pr-checkout';
+import { syncPrCommentsNow, useCheckoutState } from '../../features/pr/pr-checkout';
+import { Spinner } from '../icons/spinner';
 import { StatusBar } from '../layout/status-bar';
 import { DiffEmptyState } from './diff-empty-state';
 import { openShortcuts } from '../../lib/ui-store';
@@ -185,6 +186,7 @@ export function DiffPage(props: DiffPageProps) {
   const changedSeenRef = useRef<Set<string>>(new Set());
 
   const repoPath = getRepoPath();
+  const checkout = useCheckoutState((state) => (state.progress?.repoPath === repoPath ? state.progress : null));
   const [mode, setMode] = useViewState<'files' | 'guide'>(`diff:${refParam}:mode`, 'files');
   const [guideStep, setGuideStep] = useViewState<GuideStep>(`diff:${refParam}:guideStep`, OVERVIEW_STEP);
   const { data: guide } = useGuide(reviewsEnabled ? sessionId : null);
@@ -760,9 +762,18 @@ export function DiffPage(props: DiffPageProps) {
           onCommentedFileClick={handleSidebarCommentedFileClick}
           stats={isEmpty ? undefined : diff.stats}
           stateKey={`diff:${refParam}:sidebar`}
+          pending={!!checkout}
         />
         )}
-        {isEmpty ? (
+        {checkout ? (
+          <div className="flex flex-1 min-w-0 flex-col items-center justify-center gap-3 pb-24" role="status" aria-live="polite">
+            <Spinner className="w-5 h-5" />
+            <div className="flex flex-col items-center gap-1">
+              <h2 className="text-[15px] font-semibold text-text">{checkout.title}</h2>
+              <p className="text-[13px] text-text-muted">{checkout.step}</p>
+            </div>
+          </div>
+        ) : isEmpty ? (
           <div className="flex flex-1 min-w-0 flex-col overflow-y-auto">
             <DiffEmptyState
               diffRef={refParam}

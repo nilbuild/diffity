@@ -21,12 +21,20 @@ export type CheckoutGuard =
   | { kind: 'back'; repoPath: string; point: ReturnPoint; status: GitStatus }
   | { kind: 'branch'; repoPath: string; branch: string; status: GitStatus };
 
+/** What opening a pull request is doing, shown in place of the diff of the repository it runs in. */
+export interface CheckoutProgress {
+  repoPath: string;
+  title: string;
+  step: string;
+}
+
 interface CheckoutState {
   guard: CheckoutGuard | null;
   busy: string | null;
+  progress: CheckoutProgress | null;
 }
 
-export const useCheckoutState = create<CheckoutState>(() => ({ guard: null, busy: null }));
+export const useCheckoutState = create<CheckoutState>(() => ({ guard: null, busy: null, progress: null }));
 
 export function dismissGuard() {
   useCheckoutState.setState({ guard: null });
@@ -177,7 +185,8 @@ export async function checkoutPullRequest(repoPath: string, input: string, nav: 
     });
     return;
   }
-  useCheckoutState.setState({ guard: null, busy: label });
+  const title = `Opening pull request ${label}`;
+  useCheckoutState.setState({ guard: null, busy: label, progress: { repoPath, title, step: 'Checking out its branch…' } });
   const id = toast.loading(`Checking out pull request ${label}…`);
   let stash: StashResult | null = null;
   try {
@@ -196,6 +205,7 @@ export async function checkoutPullRequest(repoPath: string, input: string, nav: 
     await saveReturnPoint(repoPath, point);
     queryClient.invalidateQueries();
     toast.loading(`Pulling review comments for #${pr.number}…`, { id });
+    useCheckoutState.setState({ progress: { repoPath, title: `Opening pull request #${pr.number}`, step: 'Pulling review comments…' } });
     const pulled = await pullPrComments(repoPath, pr).catch((error) => `Could not pull review comments: ${tauri.errorMessage(error)}`);
     nav.toDiff(prRefFor(pr));
     const details = [pulled ? `${pulled}.` : null, describeStash(stash)].filter(Boolean).join(' ');
@@ -221,7 +231,7 @@ export async function checkoutPullRequest(repoPath: string, input: string, nav: 
     }
     toast.error(`Could not check out ${label}`, { id, description: `${tauri.errorMessage(error)}${restored}` });
   } finally {
-    useCheckoutState.setState({ busy: null });
+    useCheckoutState.setState({ busy: null, progress: null });
   }
 }
 
@@ -282,7 +292,7 @@ export async function returnFromPullRequest(repoPath: string, toDiff: ToDiff, op
     }
     toast.error(`Could not switch back to ${label}`, { id, description: `${tauri.errorMessage(error)}${restored}` });
   } finally {
-    useCheckoutState.setState({ busy: null });
+    useCheckoutState.setState({ busy: null, progress: null });
   }
 }
 
@@ -331,6 +341,6 @@ export async function switchBranch(repoPath: string, branch: string, toDiff: ToD
     }
     toast.error(`Could not switch to ${branch}`, { id, description: `${tauri.errorMessage(error)}${restored}` });
   } finally {
-    useCheckoutState.setState({ busy: null });
+    useCheckoutState.setState({ busy: null, progress: null });
   }
 }

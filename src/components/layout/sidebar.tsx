@@ -20,6 +20,8 @@ interface SidebarProps {
   stats?: ParsedDiff['stats'];
   /** Remembers the filter, folders and scroll per view. */
   stateKey: string;
+  /** The files are about to change (a pull request is opening): an empty list says nothing yet. */
+  pending?: boolean;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -33,6 +35,7 @@ export function Sidebar(props: SidebarProps) {
     onCommentedFileClick,
     stats,
     stateKey,
+    pending = false,
   } = props;
   const fileTreeRef = useRef<FileTreeHandle>(null);
   const [search, setSearch] = useViewState(`${stateKey}:filter`, '');
@@ -69,7 +72,7 @@ export function Sidebar(props: SidebarProps) {
   return (
     <SidebarFrame view="diff">
       {files.length === 0 ? (
-        <div className="px-4 pt-6 text-center text-xs text-text-muted">Nothing changed here</div>
+        <div className="px-4 pt-6 text-center text-xs text-text-muted">{pending ? '' : 'Nothing changed here'}</div>
       ) : (
       <>
       <SidebarFilter
