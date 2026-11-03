@@ -1,6 +1,6 @@
 import type { DiffFile } from '@/lib/diff-parser';
 import { getFilePath } from '../../lib/diff-utils';
-import type { Guide, GuideAttention, GuideCall, GuideImpact, GuideNote } from '../../lib/types';
+import type { Guide, GuideAttention, GuideImpact, GuideNote } from '../../lib/types';
 import type { DiagramFocus } from '../../components/mermaid-diagram';
 import { edgeKey } from './guide-refs';
 
@@ -26,8 +26,6 @@ export interface ReadingChapter {
   files: DiffFile[];
   /** Notes on the files still in the diff. */
   notes: GuideNote[];
-  /** Rows pointing at files that left the diff keep their text but lose the link. */
-  callstack: GuideCall[];
   impact: GuideImpact[];
   additions: number;
   deletions: number;
@@ -55,17 +53,14 @@ export function readingChapters(guide: Guide, files: DiffFile[]): ReadingChapter
     if (chapterFiles.length === 0) {
       return;
     }
-    orderByCallstack(chapterFiles, chapter.callstack ?? []);
     const kept = new Set(chapterFiles.map((file) => getFilePath(file)));
     const notes = (chapter.notes ?? []).filter((note) => kept.has(note.path));
-    const callstack = (chapter.callstack ?? []).map((row) => (row.path && !byPath.has(row.path) ? { ...row, path: undefined, line: undefined } : row));
     chapters.push({
       ...chapter,
       key: String(index),
       points: chapter.points ?? [],
       files: chapterFiles,
       notes,
-      callstack,
       impact: chapter.impact ?? [],
       ...lineCounts(chapterFiles),
       extra: false,
@@ -82,31 +77,12 @@ export function readingChapters(guide: Guide, files: DiffFile[]): ReadingChapter
       attention: 'normal',
       files: rest,
       notes: [],
-      callstack: [],
       impact: [],
       ...lineCounts(rest),
       extra: true,
     });
   }
   return chapters;
-}
-
-/**
- * Puts the files a call stack runs through first, in the order it first reaches them, so stepping through it mostly
- * moves down the page. Files it never reaches keep the guide's order after them.
- */
-function orderByCallstack(files: DiffFile[], callstack: GuideCall[]) {
-  const reached = new Map<string, number>();
-  for (const row of callstack) {
-    if (row.path && !reached.has(row.path)) {
-      reached.set(row.path, reached.size);
-    }
-  }
-  if (reached.size === 0) {
-    return;
-  }
-  const rank = (file: DiffFile) => reached.get(getFilePath(file)) ?? reached.size;
-  files.sort((a, b) => rank(a) - rank(b));
 }
 
 function lineCounts(files: DiffFile[]) {

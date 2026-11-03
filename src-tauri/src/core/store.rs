@@ -1648,7 +1648,6 @@ mod tests {
                     phase: None,
                     files: vec!["src/cache.ts".into()],
                     notes: Vec::new(),
-                    callstack: Vec::new(),
                     impact: Vec::new(),
                 }],
             },

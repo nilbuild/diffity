@@ -1,6 +1,5 @@
 import { createContext, useContext } from 'react';
 import type { Side } from '../../lib/types';
-import type { GuideFocusStep } from './guide-focus';
 
 /** A spot in the diff the guide points at: a file, or one line of it. */
 export interface GuideRef {
@@ -12,8 +11,7 @@ export interface GuideRef {
 }
 
 export interface GuideRefs {
-  /** `step` marks the line in the diff as a call-stack step. */
-  open: (ref: GuideRef, step?: GuideFocusStep) => void;
+  open: (ref: GuideRef) => void;
   /** The file is in the diff, so a link to it can go somewhere. */
   has: (path: string) => boolean;
 }

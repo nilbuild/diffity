@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { diagramRefs, linkRefs, parseRef, refFromHref, refHref } from '../src/features/guide/guide-refs';
-import { treePrefix } from '../src/features/guide/guide-callstack';
-import type { GuideCall } from '../src/lib/types';
 
 describe('guide refs', () => {
   it('parses files, lines and ranges', () => {
@@ -31,14 +29,5 @@ describe('guide refs', () => {
     const refs = diagramRefs('flowchart LR\n  A --> B\n  %% ref node:A [[src/a.ts#L2]]\n  %% ref node:B [[src/b.ts]]');
     expect(refs.get('A')).toEqual({ path: 'src/a.ts', line: 2, side: 'new' });
     expect(refs.get('B')?.line).toBeUndefined();
-  });
-});
-
-describe('treePrefix', () => {
-  const row = (depth: number): GuideCall => ({ depth, call: 'x', change: 'same', side: 'new' });
-
-  it('draws branches that continue and branches that end', () => {
-    const rows = [row(0), row(1), row(2), row(1), row(2)];
-    expect(rows.map((_, i) => treePrefix(rows, i))).toEqual(['', '├─ ', '│  └─ ', '└─ ', '   └─ ']);
   });
 });

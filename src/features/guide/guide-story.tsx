@@ -8,7 +8,6 @@ import { buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/b
 import { AlertCircleIcon, ArrowLeftIcon, CheckIcon, ChevronRightIcon } from '../../components/ui/icon';
 import type { ReadingChapter } from './guide-model';
 import { OVERVIEW_STEP, type GuideStep } from './use-guide';
-import { GuideCallStack } from './guide-callstack';
 import { CareCallout, ImpactList } from './guide-views';
 import { linkRefs } from './guide-refs';
 
@@ -129,7 +128,6 @@ export function ChapterStory(props: ChapterStoryProps) {
           <Bullets items={chapter.focus} className="mt-1.5" />
         </div>
       )}
-      {chapter.callstack.length > 0 && <GuideCallStack key={`stack:${chapter.key}`} rows={chapter.callstack} notes={chapter.notes} compact={compact} />}
       <ImpactList items={chapter.impact} />
       <ChapterFiles key={`files:${chapter.key}`} chapter={chapter} reviewedFiles={reviewedFiles} onFileClick={onFileClick} />
       <div className="mt-4">

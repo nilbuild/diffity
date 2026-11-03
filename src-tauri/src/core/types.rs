@@ -268,64 +268,6 @@ pub struct GuideNote {
     pub critical: bool,
 }
 
-/// Whether a call-stack row is new, gone, or unchanged by the diff.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
-#[serde(rename_all = "camelCase")]
-pub enum GuideChange {
-    Added,
-    Removed,
-    #[default]
-    Same,
-}
-
-/// What a call-stack row is: a call as the code spells it, or a way out of the caller (a return or throw).
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
-#[serde(rename_all = "camelCase")]
-pub enum GuideCallKind {
-    #[default]
-    Call,
-    Exit,
-}
-
-impl GuideCallKind {
-    fn is_call(&self) -> bool {
-        *self == Self::Call
-    }
-}
-
-/// One row of a chapter's call stack: a call, how deep it is nested, and where it is in the diff.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct GuideCall {
-    /// 0 for the entry point; a callee is one deeper than its caller.
-    pub depth: u32,
-    /// The name the code uses, e.g. `requirePublicationMember` or `POST /invites/:id`; for an exit, plain words
-    /// like `409 if taken`. Older guides hold the whole call here, e.g. `record = save(input)`.
-    pub call: String,
-    /// What the step does, in a few plain words; missing in older guides and on exits.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub what: Option<String>,
-    /// Missing in older guides, which read as calls.
-    #[serde(default, skip_serializing_if = "GuideCallKind::is_call")]
-    pub kind: GuideCallKind,
-    #[serde(default)]
-    pub change: GuideChange,
-    /// A file of the diff; unset for code the diff does not touch.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub path: Option<String>,
-    /// A line the diff shows; unset to point at the whole file.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub line: Option<u32>,
-    /// The last line of the block the step is about, on the same side; unset for one line.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub end_line: Option<u32>,
-    #[serde(default)]
-    pub side: Side,
-    /// Markdown: why this call happens, shown while stepping through.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub why: Option<String>,
-}
-
 /// Code the diff does not touch that depends on the chapter's change and may behave differently now: a caller, an
 /// importer, a consumer of a changed type or endpoint.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -363,9 +305,6 @@ pub struct GuideChapter {
     pub files: Vec<String>,
     #[serde(default)]
     pub notes: Vec<GuideNote>,
-    /// The order the chapter's code runs in, from the entry point down.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub callstack: Vec<GuideCall>,
     /// Code outside the diff that depends on the chapter's change.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub impact: Vec<GuideImpact>,

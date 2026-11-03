@@ -62,16 +62,6 @@ function fixtureGuide(sessionId: string, ref: string, fingerprint: string): Guid
         focus: ['Eviction removes the oldest entry, not the least recently used'],
         attention: 'high',
         files: ['src/cache.ts', 'src/server.ts'],
-        callstack: [
-          { depth: 0, call: 'handle', what: 'answers a request for a file', change: 'same', path: 'src/server.ts', line: 42, side: 'new', why: 'Every request for a file comes through here.' },
-          { depth: 1, call: 'getCached', what: 'looks for the file in memory', change: 'added', path: 'src/server.ts', line: 45, side: 'new', why: 'Asks memory first, and only when `options.cache` is on.' },
-          { depth: 1, call: 'readFile', what: 'reads it from disk on a miss', change: 'added', path: 'src/server.ts', line: 46, side: 'new' },
-          { depth: 1, call: 'readFile', what: 'read it from disk every time', change: 'removed', path: 'src/server.ts', line: 39, side: 'old' },
-          { depth: 1, call: 'setCached', what: 'keeps what was read for next time', change: 'added', path: 'src/server.ts', line: 47, endLine: 49, side: 'new', why: 'Only on a miss: stores what was read so the next request skips the disk.' },
-          { depth: 2, call: 'returns early while under 500 entries', kind: 'exit', change: 'added', path: 'src/cache.ts', line: 11, side: 'new' },
-          { depth: 2, call: 'cache.delete', what: 'drops the oldest entry', change: 'added', path: 'src/cache.ts', line: 12, side: 'new', why: 'Drops the oldest *added* entry once [[src/cache.ts#L2]] is reached.' },
-          { depth: 1, call: 'res.end', what: 'sends the body', change: 'same', path: 'src/server.ts', line: 51, side: 'new' },
-        ],
         notes: [
           { path: 'src/cache.ts', line: 9, side: 'new', text: '`Map` keeps insertion order, so the first key is the oldest one *added*, not the least recently read.', critical: false },
           { path: 'src/server.ts', line: 45, side: 'new', text: 'Nothing clears this entry when the file changes on disk, so edits are not served until the server restarts.', critical: true },

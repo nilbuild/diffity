@@ -154,7 +154,7 @@ pub fn all() -> Vec<Tool> {
                                 "focus": { "type": "array", "items": { "type": "string" }, "description": "0-3 short things worth checking across the chapter, at most 20 words each, e.g. \"An empty list returns early\". Pointers for attention, not review findings. Empty when nothing stands out." },
                                 "attention": { "type": "string", "enum": ["high", "normal", "low"], "description": "high: the core logic, read every line. normal: supporting code. low: tests, generated files, lockfiles, renames, config to skim." },
                                 "phase": { "type": "string", "description": "Only for guides of 5+ chapters: the stage this chapter belongs to, 1-4 words, e.g. \"Data layer\" or \"UI\". Chapters of one phase must be next to each other; use 2-4 phases." },
-                                "files": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Paths exactly as get_diff lists them, most important first; with a callstack, in the order the stack first reaches them." },
+                                "files": { "type": "array", "items": { "type": "string" }, "minItems": 1, "description": "Paths exactly as get_diff lists them, most important first." },
                                 "notes": {
                                     "type": "array",
                                     "description": "Optional and sparing (a whole guide usually has 0-8): explanations shown in the diff right where the code is. Only where they save the reviewer time: why something non-obvious is done, a subtle behaviour change, a risk. Never what the code plainly says, and never what focus already says.",
@@ -168,27 +168,6 @@ pub fn all() -> Vec<Tool> {
                                             "critical": { "type": "boolean", "description": "Only when the reviewer should take extra care: security, data loss, hard to revert, easy to get wrong." }
                                         },
                                         "required": ["path", "text"]
-                                    }
-                                },
-                                "callstack": {
-                                    "type": "array",
-                                    "maxItems": 14,
-                                    "description": "Optional: the order this chapter's code runs in, from its entry point (a route, command, UI event, job) down through the calls that matter, so the reviewer can step through it and jump to each call in the diff. Each entry point is a depth-0 row; a chapter with several (e.g. two endpoints) lists each with its calls under it. Add one when the chapter's logic is a chain of calls that return, branch or return early; skip it for config, tests, renames or a single function. Keep to about 4-12 rows on the main path; leave out trivial helpers. List rows in the order they run, a callee right after its caller.",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "depth": { "type": "integer", "minimum": 0, "description": "0 for the entry point; a callee is one deeper than its caller. Each row is at most one deeper than the row above." },
-                                            "call": { "type": "string", "description": "For a call: just the name the code uses, at most 60 characters, so the reviewer can find it in the diff, e.g. `requirePublicationMember`, `memberModel.findOne` or `POST /invites/:id/respond`. No arguments, assignments or pseudo-code: the code is next to the guide. For an exit: plain words, e.g. `403 if the user isn't a joined member`." },
-                                            "what": { "type": "string", "description": "Calls only: what this step does, in plain words, at most 10, e.g. \"loads the member row\" or \"saves the invite and emails it\"." },
-                                            "kind": { "type": "string", "enum": ["call", "exit"], "description": "call (default): a function, method or request the code makes. exit: an early return or throw out of the row above, in plain words." },
-                                            "change": { "type": "string", "enum": ["added", "removed", "same"], "description": "added: new in this diff. removed: a call the diff takes out. same (default): unchanged code the flow passes through." },
-                                            "path": { "type": "string", "description": "The file of the diff the call is in. Omit for code outside the diff." },
-                                            "line": { "type": "integer", "minimum": 1, "description": "The first line of the code this step is about, numbered as in the hunk headers, so clicking the row jumps there." },
-                                            "endLine": { "type": "integer", "minimum": 1, "description": "The last line of that code when it is a block, e.g. the closing brace of an if or the end of a short function, so the whole block is highlighted (at most 40 lines, inside one hunk). Omit for a single line." },
-                                            "side": { "type": "string", "enum": ["new", "old"], "description": "\"old\" for a removed line; \"new\" (default) otherwise." },
-                                            "why": { "type": "string", "description": "Optional, at most 25 words of Markdown: why this call happens here, shown while stepping. Skip when the call says it." }
-                                        },
-                                        "required": ["depth", "call"]
                                     }
                                 },
                                 "impact": {

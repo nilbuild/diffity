@@ -461,16 +461,6 @@ tr.guide-line-focus.guide-range-top.guide-range-bottom > td:first-child {
   box-shadow: inset 4px 0 0 var(--color-claude), inset 0 1.5px 0 var(--color-claude), inset 0 -1.5px 0 var(--color-claude);
 }
 
-/* Stepping through a call stack: the diff outside the step's block fades back until the reader clicks elsewhere. */
-.guide-spotlight [data-find-scope] tr:not(.guide-line-focus):not(:has(.guide-step-card)) {
-  opacity: 0.28;
-  transition: opacity 0.2s ease-out;
-}
-
-[data-find-scope] tr {
-  transition: opacity 0.2s ease-out;
-}
-
 @keyframes guide-line-arrive {
   0% {
     background-color: color-mix(in srgb, var(--color-claude) 55%, transparent);
@@ -480,20 +470,8 @@ tr.guide-line-focus.guide-range-top.guide-range-bottom > td:first-child {
   }
 }
 
-.guide-step-card {
-  animation: guide-step-in 0.2s ease-out;
-}
-
-@keyframes guide-step-in {
-  from {
-    opacity: 0;
-    transform: translateY(-3px);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  tr.guide-line-focus > td,
-  .guide-step-card {
+  tr.guide-line-focus > td {
     animation: none;
   }
 }

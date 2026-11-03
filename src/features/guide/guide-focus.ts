@@ -1,75 +1,21 @@
 import { create } from 'zustand';
 import type { GuideRef } from './guide-refs';
 
-/** The call-stack step that sent the reader to a block, explained under it in the diff. */
-export interface GuideFocusStep {
-  index: number;
-  count: number;
-  what?: string;
-  why?: string;
-}
-
 interface GuideFocusState {
   target: GuideRef | null;
-  step: GuideFocusStep | null;
 }
 
 /** The block the guide last jumped to; its file keeps that block's rows mounted so the jump can reach it. */
-const useGuideFocus = create<GuideFocusState>(() => ({ target: null, step: null }));
+const useGuideFocus = create<GuideFocusState>(() => ({ target: null }));
 
 /** `side:line` of the guide's focused line when it is in this file, for pinning its slice. */
 export function useGuideFocusLine(path: string): string | null {
   return useGuideFocus((state) => (state.target?.path === path && state.target.line ? `${state.target.side}:${state.target.line}` : null));
 }
 
-/** The step to show under this line of the diff: the last line of the block the reader stepped onto. */
-export function useGuideStepAt(path: string | undefined, side: GuideRef['side'], line: number): GuideFocusStep | null {
-  return useGuideFocus((state) => {
-    const { target, step } = state;
-    if (!step || !target || target.path !== path || target.side !== side || (target.endLine ?? target.line) !== line) {
-      return null;
-    }
-    return step;
-  });
-}
-
 const FOCUS_CLASS = 'guide-line-focus';
 const TOP_CLASS = 'guide-range-top';
 const BOTTOM_CLASS = 'guide-range-bottom';
-/** On the document while a step is spotlit: the diff outside the step's block fades back. */
-const SPOTLIGHT_CLASS = 'guide-spotlight';
-
-/** Ends the spotlight, leaving the block marked: the reader clicked elsewhere or pressed Escape. */
-export function endGuideSpotlight(): void {
-  document.documentElement.classList.remove(SPOTLIGHT_CLASS);
-  document.removeEventListener('pointerdown', onPointerDown, { capture: true });
-  document.removeEventListener('keydown', onKeyDown);
-}
-
-/** Drops the step card and the spotlight, e.g. when the call stack they came from leaves the screen. */
-export function clearGuideStep(): void {
-  useGuideFocus.setState({ step: null });
-  endGuideSpotlight();
-}
-
-function onPointerDown(event: PointerEvent) {
-  if ((event.target as Element | null)?.closest?.('[aria-label="Call order"]')) {
-    return;
-  }
-  endGuideSpotlight();
-}
-
-function onKeyDown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
-    endGuideSpotlight();
-  }
-}
-
-function startSpotlight() {
-  document.documentElement.classList.add(SPOTLIGHT_CLASS);
-  document.addEventListener('pointerdown', onPointerDown, { capture: true });
-  document.addEventListener('keydown', onKeyDown);
-}
 
 function lineKeys(side: GuideRef['side'], line: number): string[] {
   return side === 'old' ? [`delete-${line}`] : [`add-${line}`, `context-${line}`, `delete-${line}`];
@@ -127,17 +73,12 @@ let cancelPrevious: (() => void) | null = null;
 /**
  * Scrolls a line or block of the diff into the middle of the view and outlines it, waiting (up to ~2s) for its file
  * and rows to mount. Until it shows, the file is brought on screen; a line the diff does not show leaves the file
- * there. With a `step`, the rest of the diff fades back until the reader clicks elsewhere.
+ * there.
  */
-export function focusGuideLine(ref: GuideRef, step: GuideFocusStep | null = null): void {
+export function focusGuideLine(ref: GuideRef): void {
   cancelPrevious?.();
-  useGuideFocus.setState({ target: ref, step });
+  useGuideFocus.setState({ target: ref });
   markBlock([]);
-  if (step) {
-    startSpotlight();
-  } else {
-    endGuideSpotlight();
-  }
   let disposed = false;
   let frame = 0;
   let fileShown = false;

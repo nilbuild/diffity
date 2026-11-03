@@ -40,19 +40,6 @@ describe('readingChapters', () => {
     expect(chapters[1].extra).toBe(true);
   });
 
-  it('lists the files a call stack runs through in the order it reaches them', () => {
-    const core = {
-      ...chapter('Core', ['package-lock.json', 'src/a.ts', 'src/b.ts']),
-      callstack: [
-        { depth: 0, call: 'main()', change: 'same' as const, path: 'src/b.ts', line: 1, side: 'new' as const },
-        { depth: 1, call: 'load()', change: 'same' as const, path: 'src/a.ts', line: 1, side: 'new' as const },
-        { depth: 1, call: 'run()', change: 'same' as const, path: 'src/b.ts', line: 2, side: 'new' as const },
-      ],
-    };
-    const [first] = readingChapters(guide([core]), files);
-    expect(first.files.map((f) => f.newPath)).toEqual(['src/b.ts', 'src/a.ts', 'package-lock.json']);
-  });
-
   it('reads guides written before impact existed', () => {
     const chapters = readingChapters(guide([chapter('Core', ['src/a.ts'])]), files);
     expect(chapters[0].impact).toEqual([]);

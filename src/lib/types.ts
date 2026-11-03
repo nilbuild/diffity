@@ -221,29 +221,6 @@ export interface GuideNote {
   critical: boolean;
 }
 
-export type GuideChange = 'added' | 'removed' | 'same';
-
-/** One row of a chapter's call stack. */
-export interface GuideCall {
-  /** 0 for the entry point; a callee is one deeper than its caller. */
-  depth: number;
-  /** The name the code uses (`requirePublicationMember`); for an exit, plain words like `409 if taken`. Older guides hold the whole call. */
-  call: string;
-  /** What the step does, in a few plain words; missing in older guides and on exits. */
-  what?: string;
-  /** Missing in older guides, whose rows are all calls. */
-  kind?: 'call' | 'exit';
-  change: GuideChange;
-  /** Unset for code outside the diff. */
-  path?: string;
-  line?: number;
-  /** The last line of the block the step is about; missing for one line and in older guides. */
-  endLine?: number;
-  side: Side;
-  /** Markdown: why the call happens, shown while stepping. */
-  why?: string;
-}
-
 /** Code outside the diff that depends on what a chapter changes and may behave differently now. */
 export interface GuideImpact {
   /** e.g. `loadSettings()` or `GET /api/session`. */
@@ -269,8 +246,6 @@ export interface GuideChapter {
   /** Most important first. */
   files: string[];
   notes: GuideNote[];
-  /** The order the chapter's code runs in; missing in older guides. */
-  callstack?: GuideCall[];
   /** Missing in older guides. */
   impact?: GuideImpact[];
 }
