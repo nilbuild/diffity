@@ -8,12 +8,14 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   /** `danger` (default) for a destructive confirm, `primary` for a plain next step. */
   tone?: 'danger' | 'primary';
+  /** A second way forward, shown between Cancel and the confirm button. */
+  secondary?: { label: string; onClick: () => void };
   onConfirm: () => void;
   onCancel: () => void;
 }
 
 export function ConfirmDialog(props: ConfirmDialogProps) {
-  const { title, message, confirmLabel = 'Undo', tone = 'danger', onConfirm, onCancel } = props;
+  const { title, message, confirmLabel = 'Undo', tone = 'danger', secondary, onConfirm, onCancel } = props;
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   const confirmRef = useRef<HTMLButtonElement>(null);
@@ -47,6 +49,11 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           >
             Cancel
           </button>
+          {secondary && (
+            <button type="button" onClick={secondary.onClick} className={buttonOutline}>
+              {secondary.label}
+            </button>
+          )}
           <button
             type="button"
             ref={confirmRef}

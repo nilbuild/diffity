@@ -325,7 +325,7 @@ function PrUrlForm(props: { recent: RecentRepo[]; onOpen: (path: string, newWind
   const { recent, onOpen } = props;
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
-  const [askClone, setAskClone] = useState<{ owner: string; repo: string } | null>(null);
+  const [askClone, setAskClone] = useState<{ owner: string; repo: string; number: number } | null>(null);
 
   const submit = async () => {
     const pr = parsePrUrl(url);
@@ -341,6 +341,25 @@ function PrUrlForm(props: { recent: RecentRepo[]; onOpen: (path: string, newWind
         return;
       }
       setAskClone(pr);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cloneAndOpen = async (pr: { owner: string; repo: string }) => {
+    setAskClone(null);
+    const parent = await pickFolder(`Choose where to clone ${pr.owner}/${pr.repo}`);
+    if (!parent) {
+      return;
+    }
+    setBusy(true);
+    const id = toast.loading(`Cloning ${pr.owner}/${pr.repo}…`);
+    try {
+      const path = await tauri.gitClone(parent, `https://github.com/${pr.owner}/${pr.repo}`);
+      toast.success('Cloned', { id, description: path });
+      await onOpen(path, false, { pr: url.trim() });
+    } catch (error) {
+      toast.error('Could not clone', { id, description: tauri.errorMessage(error) });
     } finally {
       setBusy(false);
     }
@@ -391,11 +410,12 @@ function PrUrlForm(props: { recent: RecentRepo[]; onOpen: (path: string, newWind
       </button>
       {askClone && (
         <ConfirmDialog
-          title={`Where is ${askClone.owner}/${askClone.repo} on this Mac?`}
-          message={`None of your recent projects is a clone of ${askClone.owner}/${askClone.repo}. Choose the folder you cloned it into, and the pull request opens there.`}
-          confirmLabel="Choose folder…"
+          title={`Open ${askClone.owner}/${askClone.repo} #${askClone.number}`}
+          message="No clone in your recent projects."
+          secondary={{ label: 'Choose folder…', onClick: () => void chooseClone(askClone) }}
+          confirmLabel="Clone…"
           tone="primary"
-          onConfirm={() => void chooseClone(askClone)}
+          onConfirm={() => void cloneAndOpen(askClone)}
           onCancel={() => setAskClone(null)}
         />
       )}
