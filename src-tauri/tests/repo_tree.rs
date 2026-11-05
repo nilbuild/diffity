@@ -239,8 +239,12 @@ fn watcher_skips_ignored_changes() {
         let _ = tx.lock().unwrap().send(());
     });
     registry.watch(&key, cb).unwrap();
-    std::thread::sleep(Duration::from_millis(300));
-    while rx.try_recv().is_ok() {}
+    // FSEvents on a busy runner can deliver the setup's own writes (the commit, .gitignore) late, after any fixed
+    // sleep, so wait until the watcher has been quiet for a full second before writing ignored files.
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    while rx.recv_timeout(Duration::from_secs(1)).is_ok() {
+        assert!(std::time::Instant::now() < deadline, "watcher never went quiet after setup");
+    }
     for i in 0..50 {
         repo.write(&format!("node_modules/pkg/f{i}.js"), "b\n");
     }
