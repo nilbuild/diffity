@@ -81,12 +81,15 @@ export function Popover(props: PopoverProps) {
     if (!open) {
       return;
     }
+    // The path is fixed at dispatch, so a click whose target React removed before this listener ran
+    // (a suggestion that filters itself out on mousedown) still counts as inside.
     const handlePointer = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (panelRef.current?.contains(target) || anchorRef.current?.contains(target)) {
+      const path = event.composedPath();
+      const inside = (element: Element | null) => !!element && path.includes(element);
+      if (inside(panelRef.current) || inside(anchorRef.current)) {
         return;
       }
-      if ([...nested].some((panel) => panel.contains(target))) {
+      if ([...nested].some(inside)) {
         return;
       }
       onClose();
