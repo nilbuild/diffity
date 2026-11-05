@@ -41,10 +41,8 @@ export function AskClaudeThreadButton(props: { threadId: string; sessionId: stri
         <ChevronDownIcon size="xs" />
       </button>
       <Popover open={open} onClose={close} anchorRef={anchorRef} align="end" width={260}>
-        <div className="max-h-[60vh] overflow-y-auto">
-          <MenuLabel>This run only</MenuLabel>
-          <ModelMenu value={pick} onChange={setPicked} />
-        </div>
+        <MenuLabel>This run only</MenuLabel>
+        <ModelMenu value={pick} onChange={setPicked} />
         <MenuSeparator />
         <MenuItem icon={<SparkleIcon size="sm" className="text-claude" />} label={`Ask ${agent.short}`} onSelect={ask} />
       </Popover>

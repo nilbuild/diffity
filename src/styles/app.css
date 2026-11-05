@@ -65,6 +65,8 @@
   --color-overlay-border: #d2d6dc;
   --color-fill: #eceef1;
   --color-fill-hover: #e3e6ea;
+  --color-segment: #f1f2f4;
+  --color-segment-on: #ffffff;
   --color-hover: rgba(16, 24, 40, 0.05);
   --color-active: rgba(16, 24, 40, 0.085);
   --color-selected: rgba(16, 24, 40, 0.075);
@@ -128,6 +130,8 @@
   --color-overlay-border: #3a3a41;
   --color-fill: #26262a;
   --color-fill-hover: #2e2e33;
+  --color-segment: #19191c;
+  --color-segment-on: #3d3d44;
   --color-hover: rgba(255, 255, 255, 0.055);
   --color-active: rgba(255, 255, 255, 0.1);
   --color-selected: rgba(255, 255, 255, 0.085);
@@ -274,6 +278,26 @@ dialog {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-muted);
+}
+
+/* Lists inside popovers: a slim thumb that still shows against the overlay. */
+.scrollbar-overlay {
+  scrollbar-color: var(--color-overlay-border) transparent;
+}
+.scrollbar-overlay::-webkit-scrollbar {
+  width: 10px;
+}
+.scrollbar-overlay::-webkit-scrollbar-track {
+  margin: 4px 0;
+}
+.scrollbar-overlay::-webkit-scrollbar-thumb {
+  min-height: 28px;
+  background: var(--color-overlay-border);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+.scrollbar-overlay::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-muted);
 }
 
 .scrollbar-none {

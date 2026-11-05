@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '../../lib/cn';
 import * as tauri from '../../lib/tauri';
-import type { ModelCatalog } from '../../lib/types';
-import { MenuItem, MenuLabel, MenuSeparator, Popover, useMenu } from '../../components/ui/popover';
-import { ChevronDownIcon } from '../../components/ui/icon';
+import type { ModelCatalog, ModelChoice } from '../../lib/types';
+import { Popover, useMenu } from '../../components/ui/popover';
+import { CheckIcon, ChevronDownIcon, RefreshIcon, SearchIcon } from '../../components/ui/icon';
 import { Spinner } from '../../components/icons/spinner';
 import { findModel, hasManyProviders, modelName, modelProvider, refreshModelCatalog, runModelLabel, useModelCatalog, useModelCatalogs, withModel, type RunPick } from './model-setting';
 import { agentMeta, useInstalledAgents, type AgentMeta } from './agents';
@@ -13,81 +13,101 @@ interface ModelMenuProps {
   onChange: (value: RunPick) => void;
 }
 
-interface GroupProps {
+/** Catalogs longer than this open with the rest folded under "Show more". */
+const FOLD_AFTER = 4;
+
+/** One pickable line: the agent's own setting (`model` unset) or one of its models. */
+interface Row {
+  key: string;
   agent: AgentMeta;
-  catalog: ModelCatalog | null | undefined;
+  model: string | undefined;
+  label: string;
+  hint?: string;
+}
+
+interface Section {
+  agent: AgentMeta;
+  rows: Row[];
+  /** Models left out until "Show more"; zero while searching. */
+  folded: number;
   loading: boolean;
   error: string | null;
-  value: RunPick;
-  onChange: (value: RunPick) => void;
-  onRetry: () => void;
 }
 
-function AgentModels(props: GroupProps) {
-  const { agent, catalog, loading, error, value, onChange, onRetry } = props;
-  const current = value.agent === agent.id;
+/** Claude Code lists its own default ("Default (recommended)") as a model; the agent's setting row stands for it. */
+function isDefaultEntry(model: ModelChoice): boolean {
+  return model.value.toLowerCase() === 'default' || /^default\b/i.test(model.name);
+}
 
-  if (loading) {
-    return (
-      <div className="flex items-center gap-2 px-2.5 py-2 text-xs text-text-muted">
-        <Spinner />
-        Reading models from {agent.name}…
-      </div>
-    );
-  }
-
+function buildSection(agent: AgentMeta, query: { data?: ModelCatalog | null; isLoading: boolean; error: unknown }, value: RunPick, needle: string, expanded: boolean): Section {
+  const catalog = query.data;
+  const empty = { agent, rows: [], folded: 0, loading: query.isLoading, error: query.error ? tauri.errorMessage(query.error) : null };
   if (!catalog) {
-    return (
-      <div className="flex flex-col gap-1.5 px-2.5 py-2 text-xs">
-        <span className="text-text-secondary">{error ?? `${agent.name} did not list any models.`}</span>
-        <button type="button" onClick={onRetry} className="self-start text-text-muted hover:text-text cursor-pointer">
-          Try again
-        </button>
-      </div>
-    );
+    return empty;
+  }
+  const showProvider = hasManyProviders(catalog);
+  const models = catalog.models.filter((model) => !isDefaultEntry(model));
+  const toRow = (model: ModelChoice): Row => ({
+    key: `${agent.id}:${model.value}`,
+    agent,
+    model: model.value,
+    label: modelName(model),
+    hint: showProvider ? modelProvider(model) ?? undefined : undefined,
+  });
+
+  if (needle) {
+    const hits = models.filter((model) => model.name.toLowerCase().includes(needle));
+    return { ...empty, rows: hits.map(toRow) };
   }
 
-  const pick = (model: string | undefined) => {
-    if (current) {
-      onChange({ agent: agent.id, ...withModel(catalog, value, model) });
-      return;
-    }
-    onChange({ agent: agent.id, model });
+  const current = findModel(catalog, catalog.currentModel);
+  const defaultRow: Row = {
+    key: `${agent.id}:`,
+    agent,
+    model: undefined,
+    label: 'Default',
+    hint: current && !isDefaultEntry(current) ? modelName(current) : 'Recommended',
   };
-
-  const agentModel = findModel(catalog, catalog.currentModel);
-  const showProvider = hasManyProviders(catalog);
-
-  return (
-    <>
-      <MenuItem
-        label={`${agent.name} setting`}
-        hint={agentModel && modelName(agentModel)}
-        checked={current && !value.model}
-        onSelect={() => pick(undefined)}
-      />
-      {catalog.models.map((model) => (
-        <MenuItem
-          key={model.value}
-          label={modelName(model)}
-          hint={showProvider ? modelProvider(model) ?? undefined : undefined}
-          checked={current && value.model === model.value}
-          onSelect={() => pick(model.value)}
-        />
-      ))}
-    </>
-  );
+  const pickedIndex = value.agent === agent.id && value.model ? models.findIndex((model) => model.value === value.model) : -1;
+  const fold = !expanded && models.length > FOLD_AFTER + 2 && pickedIndex < FOLD_AFTER;
+  const shown = fold ? models.slice(0, FOLD_AFTER) : models;
+  return { ...empty, rows: [defaultRow, ...shown.map(toRow)], folded: models.length - shown.length };
 }
 
-/** Every installed agent's models, grouped by agent, plus the picked model's effort levels. Picking a model picks its agent. */
+/** Every installed agent's models with a search on top, grouped by agent, and the picked model's effort levels
+ * below the list so they never scroll away. Picking a model picks its agent. */
 export function ModelMenu(props: ModelMenuProps) {
   const { value, onChange } = props;
   const installed = useInstalledAgents();
   const agents = installed.length > 0 ? installed : [agentMeta(value.agent)];
   const queries = useModelCatalogs(agents.map((agent) => agent.id));
   const grouped = agents.length > 1;
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [active, setActive] = useState(-1);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const needle = search.trim().toLowerCase();
+
+  const sections = agents.map((agent, index) => {
+    const query = queries[index];
+    const state = { data: query?.data, isLoading: !!query?.isLoading || (refreshing && !query?.data), error: query?.error ?? null };
+    return buildSection(agent, state, value, needle, expanded.has(agent.id));
+  });
+  const visible = needle ? sections.filter((section) => section.rows.length > 0) : sections;
+  const rows = visible.flatMap((section) => section.rows);
+
+  const selectedCatalog = queries[agents.findIndex((agent) => agent.id === value.agent)]?.data;
+  const effective = findModel(selectedCatalog, value.model) ?? findModel(selectedCatalog, selectedCatalog?.currentModel);
+  const efforts = effective?.efforts ?? [];
+
+  useEffect(() => {
+    if (active < 0) {
+      return;
+    }
+    listRef.current?.querySelector(`[data-row="${active}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
 
   const refresh = async (ids: string[]) => {
     setRefreshing(true);
@@ -101,47 +121,150 @@ export function ModelMenu(props: ModelMenuProps) {
     }
   };
 
-  const selected = queries[agents.findIndex((agent) => agent.id === value.agent)]?.data;
-  const effective = findModel(selected, value.model) ?? findModel(selected, selected?.currentModel);
-  const efforts = effective?.efforts ?? [];
-  const source = grouped ? 'From your installed agents' : `From your ${agents[0].name} install`;
+  const pick = (row: Row) => {
+    if (row.agent.id !== value.agent) {
+      onChange({ agent: row.agent.id, model: row.model });
+      return;
+    }
+    const catalog = queries[agents.indexOf(row.agent)]?.data;
+    onChange({ agent: row.agent.id, ...withModel(catalog, value, row.model) });
+  };
+
+  const isPicked = (row: Row) => row.agent.id === value.agent && row.model === value.model;
+
+  const move = (step: number) => {
+    if (rows.length === 0) {
+      return;
+    }
+    if (active < 0) {
+      const picked = rows.findIndex(isPicked);
+      setActive(picked >= 0 ? picked : 0);
+      return;
+    }
+    setActive(Math.max(0, Math.min(rows.length - 1, active + step)));
+  };
+
+  let rowIndex = 0;
 
   return (
-    <>
-      {agents.map((agent, index) => {
-        const query = queries[index];
-        return (
-          <div key={agent.id}>
-            {index > 0 && <MenuSeparator />}
-            {grouped && <MenuLabel>{agent.name}</MenuLabel>}
-            <AgentModels
-              agent={agent}
-              catalog={query?.data}
-              loading={!!query?.isLoading || (refreshing && !query?.data)}
-              error={query?.error ? tauri.errorMessage(query.error) : null}
-              value={value}
-              onChange={onChange}
-              onRetry={() => void refresh([agent.id])}
-            />
+    <div className="flex flex-col">
+      <div className="flex items-center gap-1.5 h-8 pl-2 pr-1 -mx-1 -mt-1 mb-1 border-b border-overlay-border">
+        <SearchIcon size="sm" className="shrink-0 text-text-muted" />
+        <input
+          autoFocus
+          type="text"
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setActive(event.target.value.trim() ? 0 : -1);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              move(event.key === 'ArrowDown' ? 1 : -1);
+              return;
+            }
+            if (event.key === 'Enter') {
+              const row = rows[Math.max(0, active)];
+              if (row) {
+                event.preventDefault();
+                pick(row);
+              }
+            }
+          }}
+          placeholder="Search models"
+          spellCheck={false}
+          autoComplete="off"
+          aria-label="Search models"
+          className="flex-1 min-w-0 h-full bg-transparent text-[13px] text-text placeholder:text-text-muted outline-none"
+        />
+        <button
+          type="button"
+          onClick={() => void refresh(agents.map((agent) => agent.id))}
+          disabled={refreshing}
+          title="Refresh models"
+          aria-label="Refresh models"
+          className="inline-flex items-center justify-center size-6 shrink-0 rounded-md text-text-muted hover:text-text hover:bg-hover cursor-pointer disabled:cursor-default"
+        >
+          {refreshing ? <Spinner /> : <RefreshIcon size="sm" />}
+        </button>
+      </div>
+
+      <div ref={listRef} role="listbox" aria-label="Models" className="max-h-[264px] overflow-y-auto scrollbar-overlay" onMouseLeave={() => setActive(-1)}>
+        {visible.length === 0 && <div className="px-2.5 py-3 text-xs text-text-muted">No model matches “{search.trim()}”.</div>}
+        {visible.map((section) => (
+          <div key={section.agent.id}>
+            {grouped && (
+              <div className="sticky top-0 z-[1] bg-overlay px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-text-muted">{section.agent.name}</div>
+            )}
+            {section.loading && (
+              <div className="flex items-center gap-2 px-2.5 py-2 text-xs text-text-muted">
+                <Spinner />
+                Reading models from {section.agent.name}…
+              </div>
+            )}
+            {!section.loading && section.rows.length === 0 && !needle && (
+              <div className="flex flex-col gap-1.5 px-2.5 py-2 text-xs">
+                <span className="text-text-secondary">{section.error ?? `${section.agent.name} did not list any models.`}</span>
+                <button type="button" onClick={() => void refresh([section.agent.id])} className="self-start text-text-muted hover:text-text cursor-pointer">
+                  Try again
+                </button>
+              </div>
+            )}
+            {section.rows.map((row) => {
+              const index = rowIndex++;
+              const picked = isPicked(row);
+              return (
+                <button
+                  key={row.key}
+                  type="button"
+                  role="option"
+                  aria-selected={picked}
+                  data-row={index}
+                  onClick={() => pick(row)}
+                  onMouseMove={() => {
+                    if (active !== index) {
+                      setActive(index);
+                    }
+                  }}
+                  className={cn('flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left text-[13px] cursor-pointer', index === active && 'bg-hover')}
+                >
+                  <span className={cn('flex-1 min-w-0 truncate', row.model ? 'text-text' : 'text-text-secondary')}>{row.label}</span>
+                  {row.hint && <span className="shrink-0 truncate max-w-[45%] text-xs text-text-muted">{row.hint}</span>}
+                  <CheckIcon size="sm" className={cn('shrink-0 text-text', !picked && 'invisible')} />
+                </button>
+              );
+            })}
+            {section.folded > 0 && (
+              <button
+                type="button"
+                onClick={() => setExpanded((current) => new Set(current).add(section.agent.id))}
+                className="h-7 px-2.5 text-xs text-text-muted hover:text-text cursor-pointer"
+              >
+                Show {section.folded} more
+              </button>
+            )}
           </div>
-        );
-      })}
+        ))}
+      </div>
+
+      {refreshError && <div className="px-2.5 pt-1 text-[11px] text-deleted truncate" title={refreshError}>{refreshError}</div>}
+
       {efforts.length > 0 && (
-        <>
-          <MenuSeparator />
-          <MenuLabel>Effort</MenuLabel>
-          <div className="flex flex-wrap gap-0.5 px-1.5 pb-1">
+        <div className="flex flex-col gap-1.5 -mx-1 -mb-1 mt-1 px-2.5 pt-2 pb-2.5 border-t border-overlay-border">
+          <span className="text-[11px] text-text-muted">Effort</span>
+          <div className="flex gap-0.5 p-0.5 rounded-[7px] border border-overlay-border bg-segment">
             {efforts.map((effort) => {
-              const active = value.effort === effort.value;
+              const on = value.effort === effort.value;
               return (
                 <button
                   key={effort.value}
                   type="button"
-                  aria-pressed={active}
-                  onClick={() => onChange({ ...value, effort: active ? undefined : effort.value })}
+                  aria-pressed={on}
+                  onClick={() => onChange({ ...value, effort: on ? undefined : effort.value })}
                   className={cn(
-                    'h-6 px-2 rounded-md text-xs transition-colors cursor-pointer',
-                    active ? 'bg-selected text-text font-medium' : 'text-text-muted hover:text-text hover:bg-hover',
+                    'flex-1 min-w-0 h-[22px] px-1 rounded-[5px] text-[11.5px] truncate transition-colors cursor-pointer',
+                    on ? 'bg-segment-on text-text font-medium shadow-sm' : 'text-text-muted hover:text-text',
                   )}
                 >
                   {effort.name}
@@ -149,22 +272,9 @@ export function ModelMenu(props: ModelMenuProps) {
               );
             })}
           </div>
-        </>
+        </div>
       )}
-      <MenuSeparator />
-      <div className="flex items-center justify-between gap-2 px-2.5 pt-0.5 pb-1 text-[11px] text-text-muted">
-        <span className="truncate">{refreshError ?? source}</span>
-        <button
-          type="button"
-          onClick={() => void refresh(agents.map((agent) => agent.id))}
-          disabled={refreshing}
-          className="inline-flex items-center gap-1 shrink-0 hover:text-text cursor-pointer disabled:cursor-default"
-        >
-          {refreshing && <Spinner />}
-          {refreshing ? 'Refreshing' : 'Refresh'}
-        </button>
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -203,9 +313,7 @@ export function ModelPicker(props: ModelPickerProps) {
         <ChevronDownIcon size="xs" className="shrink-0" />
       </button>
       <Popover open={open} onClose={close} anchorRef={anchorRef} align={align} width={260}>
-        <div className="max-h-[60vh] overflow-y-auto">
-          <ModelMenu value={value} onChange={onChange} />
-        </div>
+        <ModelMenu value={value} onChange={onChange} />
       </Popover>
     </>
   );
