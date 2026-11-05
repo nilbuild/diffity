@@ -355,13 +355,30 @@ impl AgentManager {
         Ok(kept)
     }
 
-    /// A guide run on a small enough diff gets it in the prompt; on failure it falls back to reading it with `get_diff`.
-    async fn guide_inline_diff(&self, repo_path: &str, session_ref: &str, action: &AgentAction) -> Option<String> {
+    /// A guide run gets the diff in the prompt when it is small enough (on failure the agent reads it with `get_diff`),
+    /// and the files outside the diff that import changed ones.
+    async fn guide_extras(&self, repo_path: &str, session_ref: &str, action: &AgentAction) -> Option<String> {
         if !matches!(action, AgentAction::Guide { .. }) {
             return None;
         }
         let diff = self.backend.diff(repo_path, session_ref).await.ok()?;
-        crate::agents::tools::guide_inline_diff(&diff)
+        let changed: Vec<String> = diff
+            .files
+            .iter()
+            .flat_map(|f| std::iter::once(f.path.clone()).chain(f.old_path.clone()))
+            .collect();
+        let repo = repo_path.to_string();
+        let importers = blocking(move || crate::core::scan::outside_importers(Path::new(&repo), &changed))
+            .await
+            .unwrap_or_default();
+        let sections: Vec<String> = [crate::agents::tools::guide_inline_diff(&diff), crate::agents::tools::guide_importers(&importers)]
+            .into_iter()
+            .flatten()
+            .collect();
+        if sections.is_empty() {
+            return None;
+        }
+        Some(sections.concat())
     }
 
     async fn review_brief(&self, action: &AgentAction) -> Result<Option<prompts::ReviewBrief>> {
@@ -490,7 +507,7 @@ impl AgentManager {
         }
         let (session_id, session_ref) = self.binding_session(&rec, &action).await?;
         let review = self.review_brief(&action).await?;
-        let inline_diff = self.guide_inline_diff(&rec.chat.repo_path, &session_ref, &action).await;
+        let extras = self.guide_extras(&rec.chat.repo_path, &session_ref, &action).await;
         let paths = self.review_paths(&rec.chat.repo_path, &session_ref, &action).await?;
         let binding = Binding {
             repo_path: rec.chat.repo_path.clone(),
@@ -519,7 +536,7 @@ impl AgentManager {
         if prompt.trim().is_empty() {
             return Err(AppError::invalid("prompt is empty"));
         }
-        let prompt = match inline_diff {
+        let prompt = match extras {
             Some(section) => format!("{prompt}\n{section}"),
             None => prompt,
         };

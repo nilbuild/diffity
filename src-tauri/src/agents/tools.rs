@@ -4,6 +4,7 @@ use std::sync::Arc;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use crate::core::scan::Importer;
 use crate::core::store::now;
 use crate::core::types::{
     AuthorType, DiffResult, Guide, GuideAttention, GuideChapter, GuideContent, GuideFlowStep, GuideImpact, GuideNote,
@@ -501,6 +502,30 @@ pub fn guide_inline_diff(diff: &DiffResult) -> Option<String> {
     ))
 }
 
+const GUIDE_IMPORTERS_LIMIT: usize = 60;
+
+/// Files outside the diff that import changed files, as a prompt section that gives the impact search a start.
+pub fn guide_importers(importers: &[Importer]) -> Option<String> {
+    if importers.is_empty() {
+        return None;
+    }
+    let mut lines: Vec<String> = importers
+        .iter()
+        .take(GUIDE_IMPORTERS_LIMIT)
+        .map(|i| format!("- `{}` imports {}", i.path, i.imports.iter().map(|p| format!("`{p}`")).collect::<Vec<_>>().join(", ")))
+        .collect();
+    if importers.len() > GUIDE_IMPORTERS_LIMIT {
+        lines.push(format!("- and {} more", importers.len() - GUIDE_IMPORTERS_LIMIT));
+    }
+    Some(format!(
+        "\n## Code outside the diff that imports changed files\n\n\
+         A scan of the repository's JS/TS imports found these. Start the impact search here and check what the change \
+         does to each one; most will be unaffected. The scan follows imports only, so callers in other languages and \
+         consumers of changed endpoints still need a search.\n\n{}\n",
+        lines.join("\n")
+    ))
+}
+
 /// Checks a guide against the diff: every listed file must be in it, each file is kept in its first chapter only,
 /// and files the agent left out go to a last, low-attention chapter. Returns the guide and the files added there.
 fn build_guide(a: GuideArgs, diff: &DiffResult) -> Result<(GuideContent, Vec<String>)> {
@@ -991,6 +1016,15 @@ mod tests {
 
     fn one_chapter(chapter: GuideChapterArgs) -> GuideArgs {
         GuideArgs { summary: "x".into(), before: None, after: None, diagram: None, flow: Vec::new(), chapters: vec![chapter] }
+    }
+
+    #[test]
+    fn guide_importers_lists_each_file_and_caps_the_list() {
+        assert_eq!(guide_importers(&[]), None);
+        let one = vec![Importer { path: "src/a.ts".into(), imports: vec!["src/b.ts".into(), "src/c.ts".into()] }];
+        assert!(guide_importers(&one).unwrap().contains("- `src/a.ts` imports `src/b.ts`, `src/c.ts`"));
+        let many: Vec<Importer> = (0..65).map(|i| Importer { path: format!("src/f{i}.ts"), imports: vec!["src/b.ts".into()] }).collect();
+        assert!(guide_importers(&many).unwrap().ends_with("- and 5 more\n"));
     }
 
     #[test]
