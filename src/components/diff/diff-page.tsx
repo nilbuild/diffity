@@ -22,7 +22,8 @@ import { StatusBar } from '../layout/status-bar';
 import { DiffEmptyState } from './diff-empty-state';
 import { openShortcuts } from '../../lib/ui-store';
 import { useDiffStaleness } from '../../hooks/use-diff-staleness';
-import { type ViewMode, getFilePath, getAutoCollapsedPaths, deferReason } from '../../lib/diff-utils';
+import { type ViewMode, getFilePath, deferReason } from '../../lib/diff-utils';
+import { collapseAdded, collapsedFromToggles, expandAdded, togglesFromCollapsed } from '../../lib/collapse-state';
 import { buildFirstOpenThreadByFile, buildThreadCountsByFile } from '../../lib/comment-navigation';
 import { focusFileElement, focusThreadElement } from '../../lib/dom-utils';
 import { setFocusThread, useUi } from '../../lib/ui-store';
@@ -76,52 +77,6 @@ function patchData(results: { data?: DiffFile }[]) {
   return results.map((result) => result.data);
 }
 
-/** Collapsed unless toggled: generated, lock and very large files, except those with comments. */
-function defaultCollapsed(files: DiffFile[], commented: Set<string>) {
-  const paths = getAutoCollapsedPaths(files);
-  for (const path of commented) {
-    paths.delete(path);
-  }
-  return paths;
-}
-
-function collapsedFromToggles(files: DiffFile[], commented: Set<string>, toggled: Set<string>) {
-  const collapsed = defaultCollapsed(files, commented);
-  for (const path of toggled) {
-    if (collapsed.has(path)) {
-      collapsed.delete(path);
-    } else {
-      collapsed.add(path);
-    }
-  }
-  return collapsed;
-}
-
-/** Expands the paths in `current` that are not in `seen`. */
-function expandAdded(collapsed: Set<string>, seen: Set<string>, current: Set<string>) {
-  const added = [...current].filter((path) => !seen.has(path) && collapsed.has(path));
-  if (added.length === 0) {
-    return collapsed;
-  }
-  const next = new Set(collapsed);
-  for (const path of added) {
-    next.delete(path);
-  }
-  return next;
-}
-
-function togglesFromCollapsed(files: DiffFile[], commented: Set<string>, collapsed: Set<string>) {
-  const byDefault = defaultCollapsed(files, commented);
-  const toggled = new Set<string>();
-  for (const file of files) {
-    const path = getFilePath(file);
-    if (byDefault.has(path) !== collapsed.has(path)) {
-      toggled.add(path);
-    }
-  }
-  return toggled;
-}
-
 interface DiffPageProps {
   diffRef: string;
 }
@@ -162,8 +117,11 @@ export function DiffPage(props: DiffPageProps) {
   );
   const commentCountsByFile = useMemo(() => buildThreadCountsByFile(threads), [threads]);
   const filesWithComments = useMemo(() => new Set(commentCountsByFile.keys()), [commentCountsByFile]);
-  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => collapsedFromToggles(diff?.files ?? [], filesWithComments, manuallyToggledRef.current));
-  const initializedDiffRef = useRef<typeof diff>(diff);
+  const { reviewedFiles, changedFiles, hashes, setReviewed, loading: viewedLoading } = useViewedFiles(sessionId, diff, refParam);
+  const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(() => collapsedFromToggles(diff?.files ?? [], filesWithComments, reviewedFiles, manuallyToggledRef.current));
+  // Viewed marks load after the diff; the collapse state is rebuilt once they arrive so viewed files start collapsed.
+  const initializedRef = useRef({ diff, viewedLoaded: !viewedLoading });
+  const reviewedSeenRef = useRef(reviewedFiles);
   const commentedSeenRef = useRef(filesWithComments);
   const canRevert = !!info?.capabilities?.revert;
   const canEdit = !!info?.capabilities?.edit;
@@ -171,7 +129,6 @@ export function DiffPage(props: DiffPageProps) {
   const { isStale, resetStaleness } = useDiffStaleness(rawDiff?.fingerprint, refParam, showIgnored, !!info?.capabilities?.staleness);
   const { details: githubDetails } = useGitHubPr();
   const ownPr = useOwnPr();
-  const { reviewedFiles, changedFiles, hashes, setReviewed, loading: viewedLoading } = useViewedFiles(sessionId, diff, refParam);
   const sinceViewedFiles = useMemo(() => {
     const map = new Map<string, SinceViewedInfo>();
     if (!sessionId) {
@@ -296,12 +253,21 @@ export function DiffPage(props: DiffPageProps) {
   }, [commentActions]);
 
   useLayoutEffect(() => {
-    if (!diff || diff === initializedDiffRef.current) {
+    const viewedLoaded = !viewedLoading;
+    const done = initializedRef.current;
+    if (!diff || (diff === done.diff && viewedLoaded === done.viewedLoaded)) {
       return;
     }
-    initializedDiffRef.current = diff;
-    setCollapsedFiles(collapsedFromToggles(diff.files, filesWithComments, manuallyToggledRef.current));
-  }, [diff]);
+    initializedRef.current = { diff, viewedLoaded };
+    reviewedSeenRef.current = reviewedFiles;
+    setCollapsedFiles(collapsedFromToggles(diff.files, filesWithComments, reviewedFiles, manuallyToggledRef.current));
+  }, [diff, viewedLoading]);
+
+  useLayoutEffect(() => {
+    const seen = reviewedSeenRef.current;
+    reviewedSeenRef.current = reviewedFiles;
+    setCollapsedFiles((prev) => collapseAdded(prev, seen, reviewedFiles));
+  }, [reviewedFiles]);
 
   useLayoutEffect(() => {
     const seen = commentedSeenRef.current;
@@ -316,10 +282,10 @@ export function DiffPage(props: DiffPageProps) {
   }, [changedSinceViewed]);
 
   useEffect(() => {
-    if (!diff) {
+    if (!diff || viewedLoading) {
       return;
     }
-    const toggled = togglesFromCollapsed(diff.files, commentedSeenRef.current, collapsedFiles);
+    const toggled = togglesFromCollapsed(diff.files, commentedSeenRef.current, reviewedFiles, collapsedFiles);
     manuallyToggledRef.current = toggled;
     writeViewMemory(refParam, 'toggled', toggled.size > 0 ? [...toggled] : null);
   }, [collapsedFiles]);
