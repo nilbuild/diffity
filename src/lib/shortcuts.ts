@@ -76,6 +76,7 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       { id: 'guide', label: 'Switch between the diff and the guide', keys: ['G'] },
       { label: 'Next or previous chapter', keys: [']', '['] },
       { label: 'Next or previous file, in reading order', keys: ['J', 'K'] },
+      { label: 'Next or previous open comment', keys: ['⇧]', '⇧['] },
     ],
   },
   {
@@ -91,10 +92,15 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
     shortcuts: [
       { id: 'comments', label: 'All comments in every view', keys: ['C'] },
       { label: 'Next or previous open comment', keys: [']', '['] },
+      { label: 'Next or previous open comment, also in the guide', keys: ['⇧]', '⇧['] },
       { label: 'Comment on a line, drag for a range', keys: ['Click'] },
       { label: 'Submit the comment', keys: [chord('↵')] },
       { label: 'Cancel the comment', keys: ['Esc'] },
-      { label: 'Ask Claude Code in a comment', keys: ['@claude'] },
+      { label: 'Reply to the current comment', keys: ['⇧R'] },
+      { label: 'Resolve the current comment', keys: ['E'] },
+      { label: 'Ask {agent} about the current comment', keys: ['A'] },
+      { label: 'Ask {agent} in a comment', keys: ['@{handle}'] },
+      { label: 'Submit your review, or send comments to {agent}', keys: [chord('↵', { shift: true })] },
     ],
   },
   {
@@ -114,6 +120,15 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
     ],
   },
 ];
+
+/** Fills in `{agent}` and `{handle}` with the agent picked for fixes, so the rows name the one that will answer. */
+export function withAgent(sections: ShortcutSection[], agent: { short: string; handle: string }): ShortcutSection[] {
+  const fill = (text: string) => text.replaceAll('{agent}', agent.short).replaceAll('{handle}', agent.handle);
+  return sections.map((section) => ({
+    ...section,
+    shortcuts: section.shortcuts.map((shortcut) => ({ ...shortcut, label: fill(shortcut.label), keys: shortcut.keys.map(fill) })),
+  }));
+}
 
 function fold(text: string): string {
   return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');

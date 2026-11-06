@@ -11,10 +11,11 @@ import { MentionTextarea } from '../../components/comments/mention-textarea';
 import { GENERAL_THREAD_FILE_PATH, type CommentThread } from '../../components/comments/types';
 import { useReviewActions, useReviewState } from '../review/review-state';
 import { plural } from '../review/review-candidates';
-import { enqueueClaude, useBusyThreadIds } from './claude-runner';
+import { enqueueClaude, useActiveRun, useBusyThreadIds } from './claude-runner';
 import { ModelPicker } from './model-picker';
 import { useRunPick, writeRepoPick, type RunPick } from './model-setting';
 import { agentMeta, type AgentMeta } from './agents';
+import { clearDraft, draftKey, useDraft } from './agent-drafts';
 
 export function useAgentProblem(meta: AgentMeta, enabled: boolean): string | null {
   const { data: agents } = useQuery({ queryKey: ['agents'], queryFn: () => tauri.listAgents(), enabled, staleTime: 30_000 });
@@ -123,16 +124,20 @@ function ThreadGroup(props: { file: string; threads: CommentThread[]; isChecked:
 
 interface SendCommentsPanelProps {
   candidates: SendCandidates;
+  /** The view the comments are in; the note is kept per view until it is sent. */
+  diffRef: string | null;
   onClose: () => void;
 }
 
 /** Pick open comments and send them to an agent, which edits your code to address them and replies on each thread. */
 export function SendCommentsPanel(props: SendCommentsPanelProps) {
-  const { candidates, onClose } = props;
+  const { candidates, diffRef, onClose } = props;
+  const queued = !!useActiveRun(getRepoPath());
   const { local, remote, fromClaude, pendingCount } = candidates;
   const { sessionId, pendingReview } = useReviewState();
   const { submit } = useReviewActions(sessionId);
-  const [note, setNote] = useState('');
+  const noteKey = draftKey('note', getRepoPath(), diffRef);
+  const [note, setNote] = useDraft(noteKey);
   const fallbackPick = useRunPick('fix', getRepoPath());
   const [picked, setPicked] = useState<RunPick | null>(null);
   const pick = picked ?? fallbackPick;
@@ -171,6 +176,10 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
       },
       { repoPath: getRepoPath(), sessionId, pick, postRepliesToGitHub: postReplies ? remoteSelected.map((thread) => thread.id) : undefined },
     );
+    clearDraft(noteKey);
+    if (queued) {
+      toast(`Queued for ${agent.short}`, { description: 'It starts when the current run finishes.' });
+    }
     if (picked) {
       writeRepoPick('fix', getRepoPath(), picked);
     }
@@ -273,9 +282,14 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
         <div className="mt-2.5 flex items-center gap-2">
           <ModelPicker value={pick} onChange={setPicked} className="-ml-1.5 mr-auto" />
           <button type="button" onClick={onClose} className={buttonGhost}>Cancel</button>
-          <button type="submit" disabled={sendCount === 0 || submit.isPending} className={buttonClaudeSolid} title="⌘↵">
+          <button
+            type="submit"
+            disabled={sendCount === 0 || submit.isPending}
+            className={buttonClaudeSolid}
+            title={queued ? 'Runs after the current one (⌘↵)' : '⌘↵'}
+          >
             <SendIcon size="sm" />
-            Send {sendCount} to {agent.short}
+            {queued ? `Queue ${sendCount} for ${agent.short}` : `Send ${sendCount} to ${agent.short}`}
           </button>
         </div>
       </div>

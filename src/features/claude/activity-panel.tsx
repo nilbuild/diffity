@@ -22,6 +22,7 @@ import {
   FileTextIcon,
   HistoryIcon,
   PencilIcon,
+  RefreshIcon,
   SearchIcon,
   SparkleIcon,
   StopIcon,
@@ -31,7 +32,8 @@ import {
 import type { AgentMode, Chat } from '../../lib/types';
 import { agentMeta } from './agents';
 import { runModelLabel, useModelCatalog } from './model-setting';
-import { openRunResult, runViewLabel } from './claude-runner';
+import { canRunAgain, openRunResult, runAgain, runViewLabel } from './claude-runner';
+import { showApprovals, useWaitingApprovals } from './claude-approval-modal';
 import {
   closeActivity,
   currentFile,
@@ -572,6 +574,7 @@ function LiveRun(props: { shown: ShownRun; repoPath: string }) {
   const now = useNow(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [follow, setFollow] = useState(true);
+  const waiting = useWaitingApprovals(repoPath);
 
   useLayoutEffect(() => {
     if (follow && scrollRef.current) {
@@ -598,6 +601,15 @@ function LiveRun(props: { shown: ShownRun; repoPath: string }) {
         )}
         <Timeline items={activity.items} running startedAt={activity.startedAt} now={now} repoPath={repoPath} runRef={activity.ref} />
       </div>
+      {waiting > 0 && (
+        <div className="flex items-center gap-2 h-10 shrink-0 px-3.5 border-t border-border bg-claude/8">
+          <span className="w-1.5 h-1.5 rounded-full bg-claude" />
+          <span className="flex-1 min-w-0 truncate text-text">{agentMeta(activity.agentId).short} is waiting for your approval</span>
+          <button type="button" onClick={() => showApprovals(repoPath)} className={cn(buttonOutline, 'h-6 px-2 text-xs')}>
+            Review
+          </button>
+        </div>
+      )}
       <div className="flex items-center gap-2 h-10 shrink-0 px-3.5 border-t border-border text-text-secondary">
         {follow ? (
           <span className="flex items-center gap-1.5">
@@ -669,6 +681,7 @@ function FinishedRun(props: { shown: ShownRun; repoPath: string }) {
   const [copied, setCopied] = useState(false);
   const tools = toolCount(activity);
   const files = filesRead(activity, repoPath).length;
+  const again = !!live && (activity.outcome === 'failed' || activity.outcome === 'stopped') && canRunAgain(live.runId) ? live.runId : null;
 
   const facts = [
     activity.endedAt ? `Took ${formatDuration(activity.endedAt - activity.startedAt)}` : null,
@@ -693,6 +706,12 @@ function FinishedRun(props: { shown: ShownRun; repoPath: string }) {
           <div className="text-text-muted leading-4">{facts.join(' · ')}</div>
           {shown.title && <div className="truncate text-text-muted leading-4" title={shown.title}>{shown.title} · {ago(activity.endedAt ?? activity.startedAt)}</div>}
         </div>
+        {again && (
+          <button type="button" onClick={() => void runAgain(again)} className={cn(buttonOutline, 'h-6 px-2 text-xs')} title="Same request, comments and model">
+            <RefreshIcon size="xs" />
+            Run again
+          </button>
+        )}
         <button type="button" onClick={copy} className={buttonIcon} aria-label="Copy as Markdown" title={copied ? 'Copied' : 'Copy as Markdown'}>
           {copied ? <CheckIcon size="sm" className="text-added" /> : <CopyIcon size="sm" />}
         </button>
@@ -752,6 +771,7 @@ const MODE_ICONS: Record<AgentMode, typeof EyeIcon> = {
   review: EyeIcon,
   resolve: CheckCircleIcon,
   edit: PencilIcon,
+  task: PencilIcon,
   ask: CommentIcon,
 };
 

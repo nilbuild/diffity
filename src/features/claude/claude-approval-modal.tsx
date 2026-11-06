@@ -1,13 +1,34 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
+import { create } from 'zustand';
 import { cn } from '../../lib/cn';
-import { buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
+import { buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 import { collapseContext, diffLines } from '../../lib/line-diff';
 import { answerClaudePermission, useClaude } from './claude-runner';
 import { useRepoPath } from '../../hooks/use-repo';
 import type { PermissionOption } from '../../lib/types';
 import { SparkleIcon } from '../../components/ui/icon';
-import { savePermissionSetting } from './permission-setting';
 import { agentMeta } from './agents';
+import { taskForPath, useAllTasks } from '../tasks/tasks';
+import { openSettingsAt } from '../../lib/ui-store';
+
+/** Requests put aside with Esc or "Later"; they stay pending until answered from the status pill or the activity panel. */
+const useLaterApprovals = create<{ ids: string[] }>(() => ({ ids: [] }));
+
+export function hideApproval(requestId: string) {
+  useLaterApprovals.setState((state) => ({ ids: [...state.ids, requestId] }));
+}
+
+/** Brings back the approvals put aside in a project. */
+export function showApprovals(repoPath: string) {
+  const asked = new Set(useClaude.getState().permissions.filter((item) => item.repoPath === repoPath).map((item) => item.requestId));
+  useLaterApprovals.setState((state) => ({ ids: state.ids.filter((id) => !asked.has(id)) }));
+}
+
+/** How many of a project's requests wait behind "Later". */
+export function useWaitingApprovals(repoPath: string): number {
+  const later = useLaterApprovals((state) => state.ids);
+  return useClaude((state) => state.permissions.filter((item) => item.repoPath === repoPath && later.includes(item.requestId)).length);
+}
 
 function isReject(option: PermissionOption) {
   return option.kind.startsWith('reject') || option.kind === 'deny';
@@ -55,8 +76,12 @@ function DiffPreview(props: { oldText: string | null; newText: string }) {
 
 export function ClaudeApprovalModal() {
   const repoPath = useRepoPath();
-  const permission = useClaude((state) => state.permissions.find((item) => item.repoPath === repoPath) ?? state.permissions[0] ?? null);
-  const [dontAsk, setDontAsk] = useState(false);
+  const tasks = useAllTasks();
+  const later = useLaterApprovals((state) => state.ids);
+  const permission = useClaude((state) => {
+    const shown = state.permissions.filter((item) => !later.includes(item.requestId));
+    return shown.find((item) => item.repoPath === repoPath) ?? shown[0] ?? null;
+  });
   const agentId = useClaude((state) => state.runs.find((run) => run.id === permission?.runId)?.agentId ?? null);
   const name = agentId ? agentMeta(agentId).short : 'The agent';
 
@@ -75,28 +100,25 @@ export function ClaudeApprovalModal() {
     if (!permission || !allowOnce) {
       return;
     }
-    if (dontAsk) {
-      void savePermissionSetting('skip');
-    }
-    void answerClaudePermission(permission.requestId, allowOnce.id, forRun || dontAsk, dontAsk);
+    void answerClaudePermission(permission.requestId, allowOnce.id, forRun);
   };
 
+  const requestId = permission?.requestId ?? null;
   useEffect(() => {
-    setDontAsk(false);
-  }, [permission?.requestId]);
-
-  useEffect(() => {
-    if (!permission) {
+    if (!requestId) {
       return;
     }
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        void answerClaudePermission(permission.requestId, permission.options.find(isReject)?.id ?? null);
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return;
       }
+      event.preventDefault();
+      event.stopPropagation();
+      hideApproval(requestId);
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [permission]);
+    window.addEventListener('keydown', handleKey, true);
+    return () => window.removeEventListener('keydown', handleKey, true);
+  }, [requestId]);
 
   if (!permission) {
     return null;
@@ -105,7 +127,8 @@ export function ClaudeApprovalModal() {
   const diff = permission.diff;
   const verb = diff ? (diff.oldText === null ? 'create' : 'edit') : 'run';
   const target = diff ? relativePath(diff.path, permission.repoPath) : permission.title;
-  const otherProject = permission.repoPath !== repoPath ? permission.repoPath.split('/').filter(Boolean).pop() : null;
+  const askingTask = taskForPath(tasks, permission.repoPath);
+  const otherProject = permission.repoPath !== repoPath ? askingTask?.title ?? permission.repoPath.split('/').filter(Boolean).pop() : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -119,16 +142,24 @@ export function ClaudeApprovalModal() {
         </div>
         {diff && <DiffPreview oldText={diff.oldText} newText={diff.newText} />}
         <div className="flex items-center gap-2 px-4 py-3">
-          <label className="mr-auto flex items-center gap-2 text-xs text-text-secondary cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={dontAsk}
-              onChange={(event) => setDontAsk(event.target.checked)}
-              className="accent-primary"
-            />
-            Don’t ask again
-            <span className="text-text-muted">(skip permission prompts)</span>
-          </label>
+          <button
+            type="button"
+            onClick={() => {
+              hideApproval(permission.requestId);
+              openSettingsAt('agents');
+            }}
+            className="mr-auto text-xs text-text-secondary hover:text-text underline decoration-text-muted/50 underline-offset-2 cursor-pointer"
+            title="Choose when agents ask before editing files, in Settings → Agents"
+          >
+            Ask less often…
+          </button>
+          <button
+            onClick={() => hideApproval(permission.requestId)}
+            className={buttonGhost}
+            title={`Esc. ${name} keeps waiting; answer from its status in the title bar.`}
+          >
+            Later
+          </button>
           <button onClick={deny} className={buttonOutline}>
             Deny
           </button>

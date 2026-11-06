@@ -1,11 +1,13 @@
 import { KeyCaps } from '../../components/ui/key-caps';
-import { SHORTCUT_SECTIONS } from '../../lib/shortcuts';
+import { useShortcutSections } from '../../components/layout/shortcuts-sheet';
 import { PreferencesGroup, PreferencesPane } from './preferences';
 
 export function ShortcutsPane() {
+  const sections = useShortcutSections();
+
   return (
     <PreferencesPane>
-      {SHORTCUT_SECTIONS.map((section) => (
+      {sections.map((section) => (
         <PreferencesGroup key={section.title} label={section.title}>
           <div className="flex flex-col">
             {section.shortcuts.map((shortcut) => (

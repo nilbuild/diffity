@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyCaps } from '../ui/key-caps';
-import { SHORTCUT_SECTIONS, matchShortcuts } from '../../lib/shortcuts';
+import { SHORTCUT_SECTIONS, matchShortcuts, withAgent, type ShortcutSection } from '../../lib/shortcuts';
+import { getRepoPathOrNull } from '../../lib/api';
+import { useRunPick } from '../../features/claude/model-setting';
+import { agentMeta } from '../../features/claude/agents';
+
+/** The shortcut list with agent rows naming the agent picked for fixes in this project. */
+export function useShortcutSections(): ShortcutSection[] {
+  const agent = agentMeta(useRunPick('fix', getRepoPathOrNull() ?? '').agent);
+  return useMemo(() => withAgent(SHORTCUT_SECTIONS, agent), [agent]);
+}
 
 interface ShortcutsSheetProps {
   onClose: () => void;
@@ -16,7 +25,8 @@ export function ShortcutsSheet(props: ShortcutsSheetProps) {
   const { onClose } = props;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [query, setQuery] = useState('');
-  const sections = useMemo(() => matchShortcuts(SHORTCUT_SECTIONS, query), [query]);
+  const all = useShortcutSections();
+  const sections = useMemo(() => matchShortcuts(all, query), [all, query]);
 
   useEffect(() => {
     const dialog = dialogRef.current;

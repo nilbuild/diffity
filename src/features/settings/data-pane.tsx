@@ -207,7 +207,7 @@ export function DataPane() {
     <PreferencesPane>
       <PreferencesGroup label="Projects">
         <p className="pt-1.5 pb-1 text-[11.5px] leading-snug text-text-muted">
-          Diffity keeps comments, reviews and Claude chats on this Mac, per project. Clearing a project deletes them here only.
+          Diffity keeps comments, reviews and agent chats on this Mac, per project. Clearing a project deletes them here only.
         </p>
         {isLoading && <div className="py-2.5 text-xs text-text-muted">Loading…</div>}
         {!isLoading && withData.length === 0 && <div className="py-2.5 text-xs text-text-muted">No comments or chats stored yet.</div>}

@@ -10,7 +10,7 @@ import { modKey } from '../../lib/platform';
 import { Popover } from '../../components/ui/popover';
 import { buttonClaudeSolid, buttonGhost, inputField } from '../../components/ui/button-styles';
 import { SparkleIcon } from '../../components/ui/icon';
-import { enqueueClaude, useCanEditRef } from './claude-runner';
+import { enqueueClaude, useActiveRun, useCanEditRef } from './claude-runner';
 import { SegmentedToggle } from '../../components/ui/segmented-toggle';
 import { ModelPicker } from './model-picker';
 import { useRunPick, writeRepoPick, type RunPick } from './model-setting';
@@ -22,6 +22,8 @@ import { useCommitDetails } from '../../components/layout/diff-context-bar';
 import { viewLabel } from '../../lib/thread-location';
 import { FocusChips } from './review-focus-chips';
 import { focusesForRepo, reviewRequest, useCustomFocuses } from './review-focuses';
+import { clearDraft, draftKey, useDraft } from './agent-drafts';
+import { toast } from 'sonner';
 
 export { REVIEW_FOCUSES } from './review-focuses';
 
@@ -150,7 +152,9 @@ interface AskClaudePanelProps {
 export function AskClaudePanel(props: AskClaudePanelProps) {
   const { diffRef, sessionId, focusedFile, onStarted, onClose, task: hostTask, onTaskChange } = props;
   const repoPath = getRepoPath();
-  const [text, setText] = useState('');
+  const queued = !!useActiveRun(repoPath);
+  const textKey = draftKey('instructions', repoPath, diffRef);
+  const [text, setText] = useDraft(textKey);
   const canChange = useCanEditRef(repoPath, diffRef);
   const [ownTask, setOwnTask] = useState<Task>('review');
   const task = hostTask ?? ownTask;
@@ -201,10 +205,17 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
       writeRepoPick(changing ? 'fix' : 'review', repoPath, picked);
     }
     const session = sessionId ?? (await tauri.getSession(repoPath, diffRef).catch(() => null))?.id ?? null;
-    if (changing) {
-      enqueueClaude({ kind: 'chat' }, { repoPath, sessionId: session, ref: diffRef, pick, text: changeRequest(text, paths, diffRef, focusedFile) });
+    const started = () => {
+      clearDraft(textKey);
       onClose();
       onStarted?.();
+      if (queued) {
+        toast(`Queued for ${agent.short}`, { description: 'It starts when the current run finishes.' });
+      }
+    };
+    if (changing) {
+      enqueueClaude({ kind: 'chat' }, { repoPath, sessionId: session, ref: diffRef, pick, text: changeRequest(text, paths, diffRef, focusedFile) });
+      started();
       return;
     }
     writeFocus(repoPath, focus);
@@ -219,8 +230,7 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
       },
       { repoPath, sessionId: session, pick },
     );
-    onClose();
-    onStarted?.();
+    started();
   };
 
   const scopeOption = (value: Scope, label: ReactNode, disabled = false) => (
@@ -333,10 +343,10 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
           type="submit"
           disabled={blocked}
           className={buttonClaudeSolid}
-          title={blocked ? (changing && !text.trim() ? 'Say what to change' : 'No files match the pattern') : `Start (${modKey}↵)`}
+          title={blocked ? (changing && !text.trim() ? 'Say what to change' : 'No files match the pattern') : queued ? `Runs after the current one (${modKey}↵)` : `Start (${modKey}↵)`}
         >
           <SparkleIcon size="sm" />
-          {changing ? 'Make changes' : 'Start review'}
+          {changing ? (queued ? 'Queue changes' : 'Make changes') : (queued ? 'Queue review' : 'Start review')}
           <kbd className="ml-1 font-sans text-[11px] opacity-75">{modKey}↵</kbd>
         </button>
       </div>

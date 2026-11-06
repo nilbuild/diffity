@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { TREE_REF } from '../../lib/types';
 import { runLabel, runViewLabel, stopClaude, useActiveRun, useCanEditRef, useQueuedCount } from './claude-runner';
 import { useCurrentViewRef } from '../../hooks/use-current-view';
@@ -13,13 +13,14 @@ import type { CommentThread } from '../../components/comments/types';
 import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
 import { useReviewState } from '../review/review-state';
-import { ChevronDownIcon, CopyIcon, SparkleIcon, StopIcon } from '../../components/ui/icon';
+import { ChevronDownIcon, CopyIcon, PlusIcon, SparkleIcon, StopIcon } from '../../components/ui/icon';
 import { Popover } from '../../components/ui/popover';
 import { Spinner } from '../../components/icons/spinner';
 import { useRunPick } from './model-setting';
 import { ActivityPeek, formatElapsed, useNow } from './activity-panel';
 import { toggleActivity, useRunActivity } from './run-activity';
 import { agentMeta } from './agents';
+import { showApprovals, useWaitingApprovals } from './claude-approval-modal';
 
 interface ClaudeToolbarProps {
   diffRef: string | null;
@@ -30,8 +31,17 @@ interface ClaudeToolbarProps {
   formatForCopy?: () => string;
 }
 
-export function ClaudeStatus() {
+interface QueueButton {
+  open: boolean;
+  onToggle: () => void;
+  anchorRef: RefObject<HTMLButtonElement | null>;
+}
+
+/** While a run goes: what it does, Stop, a way back to an approval put aside, and (with `queue`) a menu to queue more. */
+export function ClaudeStatus(props: { queue?: QueueButton }) {
+  const { queue } = props;
   const repoPath = useRepoPath();
+  const waiting = useWaitingApprovals(repoPath);
   const run = useActiveRun(repoPath);
   const queued = useQueuedCount(repoPath);
   const now = useNow(run !== null);
@@ -78,13 +88,38 @@ export function ClaudeStatus() {
         title={where && elsewhere ? `Working on ${where} · click to see what ${name} is doing` : `See what ${name} is doing`}
       >
         <Spinner className="text-claude" />
-        <span className="font-medium truncate @max-3xl/titlebar:hidden">{runLabel(run.action, name)}</span>
+        <span className="font-medium truncate @max-4xl/titlebar:hidden">{runLabel(run.action, name)}</span>
         {elsewhere && where && (
           <span className="text-text-secondary truncate max-w-[180px] @max-4xl/titlebar:hidden">on {where}</span>
         )}
         {run.startedAt && <span className="text-text-muted tabular-nums">{formatElapsed(now - run.startedAt)}</span>}
         {queued > 0 && <span className="text-text-muted @max-3xl/titlebar:hidden">+{queued} queued</span>}
       </button>
+      {waiting > 0 && (
+        <button
+          onClick={() => showApprovals(repoPath)}
+          className="flex items-center gap-1.5 px-2 shrink-0 border-l border-control-border bg-claude/12 text-claude font-medium hover:bg-claude/16 transition-colors cursor-pointer"
+          title={`${name} is waiting for your approval`}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-claude" />
+          Approve
+        </button>
+      )}
+      {queue && (
+        <button
+          ref={queue.anchorRef}
+          onClick={queue.onToggle}
+          aria-expanded={queue.open}
+          className={cn(
+            'flex items-center gap-1 px-2 shrink-0 border-l border-control-border text-text-secondary hover:text-text hover:bg-control-hover transition-colors cursor-pointer',
+            queue.open && 'bg-control-hover text-text',
+          )}
+          title="Queue another job for after this one"
+        >
+          <PlusIcon size="xs" />
+          <span className="@max-3xl/titlebar:hidden">Queue</span>
+        </button>
+      )}
       <button
         onClick={() => void stopClaude(repoPath)}
         className="flex items-center gap-1 px-2 shrink-0 border-l border-control-border text-text-secondary hover:text-text hover:bg-control-hover transition-colors cursor-pointer"
@@ -146,6 +181,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>('review');
   const anchorRef = useRef<HTMLButtonElement>(null);
+  const queueRef = useRef<HTMLButtonElement>(null);
   const close = useCallback(() => setOpen(false), []);
   const repoPath = useRepoPath();
   const run = useActiveRun(repoPath);
@@ -164,13 +200,9 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
   const agent = agentMeta(useRunPick(defaultTab === 'fix' ? 'fix' : 'review', repoPath).agent);
 
   const openAt = useCallback((next: Tab) => {
-    if (run) {
-      toast.info(`${run.agentId ? agentMeta(run.agentId).short : 'The agent'} is already working. Wait for it to finish or stop it first.`);
-      return;
-    }
     setTab(next);
     setOpen(true);
-  }, [run]);
+  }, []);
 
   useEffect(() => {
     if (!requested || requested !== reviewRef) {
@@ -191,11 +223,9 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
     openAt('fix');
   }, [sendRequest, commentsEnabled, openAt]);
 
-  if (run) {
-    return <ClaudeStatus />;
-  }
-  if (tabs.length === 0 || (!reviewRef && count === 0)) {
-    return null;
+  const usable = tabs.length > 0 && (!!reviewRef || count > 0);
+  if (!usable) {
+    return run ? <ClaudeStatus /> : null;
   }
 
   const copyComments = formatForCopy && count > 0
@@ -218,7 +248,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
       if (count === 0) {
         return <NoComments agent={agent.short} onReview={toReview} />;
       }
-      return <SendCommentsPanel candidates={candidates} onClose={close} />;
+      return <SendCommentsPanel candidates={candidates} diffRef={diffRef} onClose={close} />;
     }
     if (!reviewRef) {
       return null;
@@ -234,6 +264,38 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
     : prMode
       ? `${agent.short} reviews this pull request and leaves its comments in Diffity only (marked ${agent.short}). Use “Add to my review” on any you want to post to GitHub.`
       : `Ask ${agent.short} to review these changes or to make a change for you.`;
+
+  const popover = (
+    <Popover open={open} onClose={close} anchorRef={run ? queueRef : anchorRef} align="end" width={420} className="p-0 overflow-visible">
+      <div className="flex items-center gap-2 px-4 pt-3.5">
+        <SparkleIcon size="md" className="text-claude" />
+        <h3 className="text-[13px] font-semibold text-text">{run ? 'Queue' : agent.short}</h3>
+        <span className="flex-1" />
+        {tabs.length > 1 && (
+          <SegmentedToggle<Tab>
+            value={tab}
+            onChange={setTab}
+            options={tabs.map((value) => ({ value, label: TAB_LABELS[value] }))}
+          />
+        )}
+      </div>
+      {run && (
+        <p className="px-4 pt-1.5 text-xs text-text-secondary">
+          {runLabel(run.action, run.agentId ? agentMeta(run.agentId).short : 'The agent')}. This starts when it finishes.
+        </p>
+      )}
+      {body()}
+    </Popover>
+  );
+
+  if (run) {
+    return (
+      <>
+        <ClaudeStatus queue={{ open, onToggle: () => (open ? close() : openAt(defaultTab)), anchorRef: queueRef }} />
+        {popover}
+      </>
+    );
+  }
 
   return (
     <>
@@ -251,21 +313,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
         )}
         <ChevronDownIcon size="xs" className="opacity-70 @max-3xl/titlebar:hidden" />
       </button>
-      <Popover open={open} onClose={close} anchorRef={anchorRef} align="end" width={420} className="p-0 overflow-visible">
-        <div className="flex items-center gap-2 px-4 pt-3.5">
-          <SparkleIcon size="md" className="text-claude" />
-          <h3 className="text-[13px] font-semibold text-text">{agent.short}</h3>
-          <span className="flex-1" />
-          {tabs.length > 1 && (
-            <SegmentedToggle<Tab>
-              value={tab}
-              onChange={setTab}
-              options={tabs.map((value) => ({ value, label: TAB_LABELS[value] }))}
-            />
-          )}
-        </div>
-        {body()}
-      </Popover>
+      {popover}
     </>
   );
 }
