@@ -1,3 +1,5 @@
+use std::path::{Component, Path, PathBuf};
+
 use crate::agents::detect::AgentKind;
 use crate::agents::types::{AgentAction, AgentMode};
 
@@ -18,7 +20,7 @@ pub enum PermissionDecision {
 }
 
 pub fn can_write_files(mode: AgentMode) -> bool {
-    matches!(mode, AgentMode::Resolve | AgentMode::Edit)
+    matches!(mode, AgentMode::Resolve | AgentMode::Edit | AgentMode::Task)
 }
 
 /// `kind` is the ACP `ToolKind` in snake_case (`read`, `edit`, `delete`, `move`, `execute`, ...).
@@ -71,6 +73,9 @@ pub enum RunPermissions {
     AskOnce,
     /// Ask for every edit and command.
     AskEach,
+    /// A task run: edits inside the task's worktree go through without asking; anything else (shell
+    /// commands, edits outside the folder) asks.
+    Worktree,
 }
 
 impl RunPermissions {
@@ -128,6 +133,9 @@ pub fn run_permissions(
     if !action_edits(action) {
         return RunPermissions::AskEach;
     }
+    if mode == AgentMode::Task && setting != PermissionSetting::Skip {
+        return RunPermissions::Worktree;
+    }
     match setting {
         PermissionSetting::Skip => RunPermissions::Bypass,
         PermissionSetting::AskOnce => RunPermissions::AskOnce,
@@ -151,8 +159,64 @@ pub fn auto_allow(run: RunPermissions, kind: &str, is_edit: bool, run_approved: 
         RunPermissions::Bypass => true,
         RunPermissions::ReadOnly => false,
         RunPermissions::ReadOnlyQuiet => !is_edit && is_read_kind(kind),
-        RunPermissions::AskOnce | RunPermissions::AskEach => is_edit && run_approved,
+        RunPermissions::AskOnce | RunPermissions::AskEach | RunPermissions::Worktree => is_edit && run_approved,
     }
+}
+
+/// `a/./b/../c` → `a/c`, without touching the disk (the file may not exist yet).
+fn normalize(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for part in path.components() {
+        match part {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+            }
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// Where `path` really points: its deepest part that exists has its symlinks resolved, the rest (files not written
+/// yet) is appended as is. None when a part that exists can't be resolved, such as a dangling symlink.
+fn resolved(path: &Path) -> Option<PathBuf> {
+    let mut existing = normalize(path);
+    let mut rest = Vec::new();
+    while existing.symlink_metadata().is_err() {
+        rest.push(existing.file_name()?.to_owned());
+        if !existing.pop() {
+            return None;
+        }
+    }
+    let mut out = existing.canonicalize().ok()?;
+    for part in rest.into_iter().rev() {
+        out.push(part);
+    }
+    Some(out)
+}
+
+/// Parts of a folder that change what git runs or where it writes: edits there always ask.
+const GUARDED: &[&str] = &[".git", ".husky", ".githooks"];
+
+/// A task run's edit goes through without asking when every path it writes is really inside the task's folder,
+/// after following symlinks, and not in its git or hook files.
+pub fn worktree_allows(run: RunPermissions, is_edit: bool, paths: &[PathBuf], root: &Path) -> bool {
+    if run != RunPermissions::Worktree || !is_edit || paths.is_empty() {
+        return false;
+    }
+    let Some(root) = resolved(root) else {
+        return false;
+    };
+    paths.iter().all(|path| {
+        let Some(real) = resolved(path) else {
+            return false;
+        };
+        let Ok(inside) = real.strip_prefix(&root) else {
+            return false;
+        };
+        !inside.components().any(|part| GUARDED.iter().any(|guarded| part.as_os_str() == *guarded))
+    })
 }
 
 /// Whether allowing this request approves the remaining edits of the run.
@@ -321,6 +385,20 @@ mod tests {
     }
 
     #[test]
+    fn worktree_edits_stay_inside_after_symlinks() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("task");
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::create_dir_all(tmp.path().join("other")).unwrap();
+        std::os::unix::fs::symlink(tmp.path().join("other"), root.join("shared")).unwrap();
+        let run = RunPermissions::Worktree;
+        assert!(worktree_allows(run, true, &[root.join("src/new.ts")], &root), "new files inside are fine");
+        assert!(!worktree_allows(run, true, &[root.join("shared/x.ts")], &root), "a symlink out of the folder asks");
+        assert!(!worktree_allows(run, true, &[root.join(".git")], &root), "the worktree's git link asks");
+        assert!(!worktree_allows(run, true, &[root.join(".husky/pre-commit")], &root), "hooks ask");
+    }
+
+    #[test]
     fn run_approval_rules() {
         assert!(approves_run(RunPermissions::AskOnce, true, false));
         assert!(!approves_run(RunPermissions::AskEach, true, false));
@@ -339,5 +417,22 @@ mod tests {
         assert!(tool_allowed(AgentMode::Resolve, "resolve"));
         assert!(tool_allowed(AgentMode::Edit, "dismiss"));
         assert!(!tool_allowed(AgentMode::Review, "rm_rf"));
+    }
+
+    #[test]
+    fn task_runs_allow_edits_only_inside_the_worktree() {
+        let chat = AgentAction::Chat;
+        assert_eq!(run_permissions(AgentMode::Task, &chat, PermissionSetting::AskEach), RunPermissions::Worktree);
+        assert_eq!(run_permissions(AgentMode::Task, &chat, PermissionSetting::AskOnce), RunPermissions::Worktree);
+        assert_eq!(run_permissions(AgentMode::Task, &chat, PermissionSetting::Skip), RunPermissions::Bypass);
+        let root = Path::new("/w/demo/task");
+        let run = RunPermissions::Worktree;
+        assert!(worktree_allows(run, true, &[PathBuf::from("/w/demo/task/src/a.ts")], root));
+        assert!(!worktree_allows(run, true, &[PathBuf::from("/w/demo/task/../other/a.ts")], root));
+        assert!(!worktree_allows(run, true, &[PathBuf::from("/etc/hosts")], root));
+        assert!(!worktree_allows(run, false, &[PathBuf::from("/w/demo/task/a")], root), "commands still ask");
+        assert!(!worktree_allows(run, true, &[], root), "an edit with no known path asks");
+        assert!(!worktree_allows(RunPermissions::AskEach, true, &[PathBuf::from("/w/demo/task/a")], root));
+        assert_eq!(run.skipping_prompts_if(true), RunPermissions::Bypass);
     }
 }
