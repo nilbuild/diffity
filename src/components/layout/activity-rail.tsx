@@ -2,12 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { cn } from '../../lib/cn';
-import { useRepoNav } from '../../hooks/use-repo';
+import { repoBase, useRepoNav } from '../../hooks/use-repo';
 import { openSettings } from '../../lib/ui-store';
 import { modKey } from '../../lib/platform';
 import { openRepoAt, shortPath, useRecentRepos } from '../../features/welcome/recent-repos';
 import { repoInitials } from '../../features/welcome/repo-badge';
-import { useBusyRepoPaths } from '../../features/claude/claude-runner';
+import { useBusyRepoPaths, useClaude } from '../../features/claude/claude-runner';
+import { parentPathOf, useAllTasks } from '../../features/tasks/tasks';
 import { lastLocationFor } from '../../lib/repo-locations';
 import { beginOpening, useOpening } from '../../lib/opening';
 import { ArrowDownIcon, ArrowUpIcon, CopyIcon, EditorIcon, ExternalLinkIcon, FolderOpenIcon, PlusIcon, RevealIcon, SettingsIcon, TerminalIcon, XIcon } from '../ui/icon';
@@ -89,6 +90,8 @@ interface ProjectTileProps {
   index: number;
   current: boolean;
   busy: boolean;
+  /** An agent here (or in one of its tasks) is waiting for an approval. */
+  waiting: boolean;
   offset: number;
   dragging: boolean;
   animate: boolean;
@@ -99,7 +102,7 @@ interface ProjectTileProps {
 }
 
 function ProjectTile(props: ProjectTileProps) {
-  const { path, index, current, busy, offset, dragging, animate, onPointerDown, onOpen, onMenu, loading, menuOpen } = props;
+  const { path, index, current, busy, waiting, offset, dragging, animate, onPointerDown, onOpen, onMenu, loading, menuOpen } = props;
   const spinning = useDelayedFlag(loading, 150);
   const name = repoName(path);
   const shortcut = index < 9 ? `${modKey}${index + 1}` : null;
@@ -134,7 +137,8 @@ function ProjectTile(props: ProjectTileProps) {
         )}
       >
         {spinning ? <Spinner className="w-3.5 h-3.5 text-current" label="Opening" /> : repoInitials(name)}
-        {busy && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-claude ring-2 ring-frame" title="Claude is working here" />}
+        {waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-modified ring-2 ring-frame" title="Waiting for your approval" />}
+        {busy && !waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-claude ring-2 ring-frame" title="Claude is working here" />}
       </button>
       {!dragging && !menuOpen && (
         <RailTooltip
@@ -154,7 +158,8 @@ function useProjectOrder(currentPath: string, openingPath: string | null) {
   const projects = useMemo(() => {
     const known = new Set(recent.repos.map((repo) => repo.path));
     known.add(currentPath);
-    const ordered = order.filter((path) => known.has(path));
+    // Until the recent list (and what is hidden from it) has loaded, the stored order is the best answer.
+    const ordered = recent.loading ? [...order] : order.filter((path) => known.has(path));
     const missing = recent.repos
       .filter((repo) => !ordered.includes(repo.path))
       .sort((left, right) => left.lastOpenedAt.localeCompare(right.lastOpenedAt))
@@ -169,7 +174,7 @@ function useProjectOrder(currentPath: string, openingPath: string | null) {
       ordered.push(openingPath);
     }
     return ordered;
-  }, [order, recent.repos, currentPath, openingPath]);
+  }, [order, recent.repos, recent.loading, currentPath, openingPath]);
 
   useEffect(() => {
     if (recent.loading) {
@@ -238,9 +243,14 @@ export function RailFrame(props: { children: ReactNode }) {
 function ActivityRail() {
   const nav = useRepoNav();
   const navigate = useNavigate();
-  const busyRepos = useBusyRepoPaths();
-  const openingPath = useOpening((state) => state.target?.path ?? null);
-  const { projects, move, remove } = useProjectOrder(nav.repoPath, openingPath);
+  const tasks = useAllTasks();
+  const currentPath = parentPathOf(tasks, nav.repoPath);
+  const busyRepos = new Set([...useBusyRepoPaths()].map((path) => parentPathOf(tasks, path)));
+  const permissions = useClaude((state) => state.permissions);
+  const waitingRepos = new Set(permissions.map((permission) => parentPathOf(tasks, permission.repoPath)));
+  const rawOpeningPath = useOpening((state) => state.target?.path ?? null);
+  const openingPath = rawOpeningPath ? parentPathOf(tasks, rawOpeningPath) : null;
+  const { projects, move, remove } = useProjectOrder(currentPath, openingPath);
   const [drag, setDrag] = useState<{ from: number; startY: number; dy: number; active: boolean } | null>(null);
   const suppressClick = useRef(false);
   const [settling, setSettling] = useState(false);
@@ -248,7 +258,7 @@ function ActivityRail() {
   const editor = useEditorName();
 
   const removeProject = (path: string) => {
-    const wasCurrent = path === nav.repoPath;
+    const wasCurrent = path === currentPath;
     const index = projects.indexOf(path);
     const others = projects.filter((item) => item !== path);
     const undo = remove(path);
@@ -276,8 +286,8 @@ function ActivityRail() {
   };
 
   const openProject = useCallback((path: string, newWindow = false) => {
-    if (path === nav.repoPath && !newWindow) {
-      nav.toOverview();
+    if (path === currentPath && !newWindow) {
+      navigate(`${repoBase(path)}/overview`);
       return;
     }
     if (newWindow) {
@@ -291,7 +301,7 @@ function ActivityRail() {
       return;
     }
     void openRepoAt(path, navigate);
-  }, [nav, navigate]);
+  }, [currentPath, navigate]);
 
 
   useEffect(() => {
@@ -309,7 +319,7 @@ function ActivityRail() {
         return;
       }
       if (event.shiftKey && ['[', ']', '{', '}'].includes(event.key)) {
-        const index = projects.indexOf(nav.repoPath);
+        const index = projects.indexOf(currentPath);
         const step = event.key === '[' || event.key === '{' ? -1 : 1;
         const target = projects[(index + step + projects.length) % projects.length];
         if (!target) {
@@ -321,7 +331,7 @@ function ActivityRail() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [projects, nav.repoPath, openProject]);
+  }, [projects, currentPath, openProject]);
 
   const targetIndex = drag?.active ? Math.max(0, Math.min(projects.length - 1, drag.from + Math.round(drag.dy / SLOT))) : null;
 
@@ -416,9 +426,10 @@ function ActivityRail() {
             key={path}
             path={path}
             index={index}
-            current={openingPath ? path === openingPath : path === nav.repoPath}
+            current={openingPath ? path === openingPath : path === currentPath}
             loading={path === openingPath}
             busy={busyRepos.has(path)}
+            waiting={waitingRepos.has(path)}
             offset={offsetFor(index)}
             dragging={drag?.active === true && drag.from === index}
             animate={drag?.active === true && !settling}

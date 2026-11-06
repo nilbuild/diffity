@@ -10,6 +10,13 @@ import type {
   AuthorType,
   Branch,
   Worktree,
+  Task,
+  TaskState,
+  TaskConfig,
+  TaskBaseStatus,
+  TaskStorage,
+  TaskRound,
+  NewTask,
   Chat,
   ChatMessage,
   Commit,
@@ -46,6 +53,7 @@ import type {
   ReviewVerdict,
   StartChat,
   Thread,
+  ThreadSnapshot,
   ThreadStatus,
   ThreadsChangedPayload,
   TreeEntry,
@@ -78,6 +86,32 @@ export const listCommits = (repoPath: string, count: number, skip: number, searc
   invoke<Commit[]>('list_commits', { repoPath, count, skip, search: search ?? null });
 export const listBranches = (repoPath: string) => invoke<Branch[]>('list_branches', { repoPath });
 export const listWorktrees = (repoPath: string) => invoke<Worktree[]>('list_worktrees', { repoPath });
+export const listTasks = (repoPath?: string | null) => invoke<Task[]>('list_tasks', { repoPath: repoPath ?? null });
+export const mainCheckout = (path: string) => invoke<string>('main_checkout', { path });
+export const createTask = (input: NewTask) => invoke<Task>('create_task', { input });
+export const setTaskState = (taskId: string, taskState: TaskState) => invoke<Task>('set_task_state', { taskId, taskState });
+export const renameTask = (taskId: string, title: string) => invoke<Task>('rename_task', { taskId, title });
+export const finishTaskRun = (taskId: string, failed: boolean) => invoke<TaskRound | null>('finish_task_run', { taskId, failed });
+export const archiveTask = (taskId: string) => invoke<Task>('archive_task', { taskId });
+export const notifyTask = (title: string, body: string) => invoke<void>('notify_task', { title, body });
+export const setTaskBadge = (count: number) => invoke<void>('set_task_badge', { count });
+export const markTaskReviewed = (taskId: string) => invoke<void>('mark_task_reviewed', { taskId });
+export const taskConfig = (repoPath: string) => invoke<TaskConfig>('task_config', { repoPath });
+export const runTaskSetup = (taskId: string, command: string, onLine: (line: string) => void) => {
+  const channel = new Channel<string>();
+  channel.onmessage = onLine;
+  return invoke<void>('run_task_setup', { taskId, command, onOutput: channel });
+};
+export const taskBaseStatus = (taskId: string) => invoke<TaskBaseStatus>('task_base_status', { taskId });
+export const updateTaskFromBase = (taskId: string) => invoke<{ conflicts: string[] }>('update_task_from_base', { taskId });
+export const shipTaskPr = (taskId: string, title: string, body: string, draft: boolean) =>
+  invoke<{ number: number; url: string }>('ship_task_pr', { taskId, title, body, draft });
+export const mergeTaskLocally = (taskId: string, message: string) => invoke<Task>('merge_task_locally', { taskId, message });
+export const restoreTask = (taskId: string) => invoke<Task>('restore_task', { taskId });
+export const listArchivedTasks = (repoPath: string) => invoke<Task[]>('list_archived_tasks', { repoPath });
+export const taskStorage = (repoPath?: string | null) => invoke<TaskStorage>('task_storage', { repoPath: repoPath ?? null });
+export const adoptWorktree = (path: string, baseRef: string) => invoke<Task>('adopt_worktree', { path, baseRef });
+export const refreshTaskPrs = (repoPath: string) => invoke<Task[]>('refresh_task_prs', { repoPath });
 export const gitStatus = (repoPath: string) => invoke<GitStatus>('git_status', { repoPath });
 export const repoOverview = (repoPath: string) => invoke<OverviewFile[]>('repo_overview', { repoPath });
 export const openInEditor = (repoPath: string, path: string, line?: number | null, editor?: string | null) =>
@@ -134,7 +168,8 @@ export const addReply = (
   });
 export const editComment = (commentId: string, body: string) => invoke<void>('edit_comment', { commentId, body });
 export const deleteComment = (commentId: string) => invoke<void>('delete_comment', { commentId });
-export const deleteThread = (threadId: string) => invoke<void>('delete_thread', { threadId });
+export const deleteThread = (threadId: string) => invoke<ThreadSnapshot>('delete_thread', { threadId });
+export const restoreThread = (snapshot: ThreadSnapshot) => invoke<Thread>('restore_thread', { snapshot });
 export const keepThreadOnBranch = (threadId: string) => invoke<void>('keep_thread_on_branch', { threadId });
 export const deleteAllThreads = (sessionId: string) => invoke<void>('delete_all_threads', { sessionId });
 export const setThreadStatus = (threadId: string, status: ThreadStatus, summary?: string | null) =>
@@ -247,6 +282,8 @@ export const onRepoChanged = (handler: (payload: RepoChangedPayload) => void): P
   listen<RepoChangedPayload>('repo-changed', (event) => handler(event.payload));
 export const onThreadsChanged = (handler: (payload: ThreadsChangedPayload) => void): Promise<UnlistenFn> =>
   listen<ThreadsChangedPayload>('threads-changed', (event) => handler(event.payload));
+export const onTasksChanged = (handler: (payload: { repoPath: string }) => void): Promise<UnlistenFn> =>
+  listen<{ repoPath: string }>('tasks-changed', (event) => handler(event.payload));
 export const gitClone = (parent: string, url: string) => invoke<string>('git_clone', { parent, url });
 
 export interface DirSuggestion {

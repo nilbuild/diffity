@@ -17,6 +17,7 @@ import type {
   ThreadStatus,
   TreeEntry,
 } from './types';
+import { createTaskMockHandlers } from './mock-api-tasks';
 import { FIXTURE_CONTENTS, FIXTURE_FILES, FIXTURE_PATCH, FIXTURE_VERSIONS } from './mock-fixtures';
 import { createAgentMockHandlers } from './mock-api-agents';
 import { mentionsAgent } from './mentions';
@@ -527,11 +528,17 @@ const handlers: Record<string, (args: Args) => unknown> = {
   },
   delete_thread: (args) => {
     const thread = threads.get(String(args.threadId));
-    if (thread) {
-      threads.delete(thread.id);
-      touch(thread);
+    if (!thread) {
+      throw { code: 'not_found', message: 'thread not found' };
     }
-    return null;
+    threads.delete(thread.id);
+    touch(thread);
+    return { thread: structuredClone(thread), githubCommentId: null };
+  },
+  restore_thread: (args) => {
+    const thread = structuredClone((args.snapshot as { thread: Thread }).thread);
+    threads.set(thread.id, thread);
+    return touch(thread);
   },
   delete_all_threads: (args) => {
     for (const thread of [...threads.values()]) {
@@ -548,6 +555,7 @@ const handlers: Record<string, (args: Args) => unknown> = {
       throw { code: 'not_found', message: 'thread not found' };
     }
     thread.status = args.status as ThreadStatus;
+    thread.addressedBy = null;
     if (typeof args.summary === 'string' && args.summary) {
       thread.comments.push(makeComment(thread.id, args.summary, 'agent', 'Claude Code'));
     }
@@ -682,6 +690,7 @@ export function installMockApi() {
     guides,
     fingerprintFor: (ref) => diffFor(ref).fingerprint,
   }));
+  Object.assign(handlers, createTaskMockHandlers(REPO_PATH, now, newId));
   mockWindows('main');
   mockIPC(
     (cmd, payload) => {

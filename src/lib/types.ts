@@ -97,6 +97,73 @@ export interface Worktree {
   isCurrent: boolean;
 }
 
+export type TaskState = 'settingUp' | 'working' | 'ready' | 'idle' | 'failed';
+
+/** An agent working on its own branch in a worktree Diffity created; each run ends in a commit (a round). */
+export interface Task {
+  id: string;
+  /** The repository's main checkout. */
+  repoPath: string;
+  /** The task's worktree folder. */
+  path: string;
+  branch: string;
+  baseRef: string;
+  baseSha: string;
+  title: string;
+  prompt: string;
+  agentId: string;
+  state: TaskState;
+  owned: boolean;
+  prNumber: number | null;
+  prUrl: string | null;
+  /** Merged locally or its pull request was merged. */
+  mergedAt: string | null;
+  rounds: number;
+  lastRoundSha: string | null;
+  /** The newest round reviewed before the agent started again; "since last review" diffs from its commit. */
+  reviewedRound: number;
+  reviewedSha: string | null;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+  /** The folder was deleted outside Diffity; restoring recreates it from the branch. */
+  missing: boolean;
+}
+
+export interface NewTask {
+  repoPath: string;
+  title: string;
+  prompt: string;
+  agentId: string;
+  baseRef: string;
+  branch?: string | null;
+}
+
+export interface TaskConfig {
+  copy: string[];
+  setup: string | null;
+  archive: string | null;
+  suggestedSetup: string | null;
+  fromFile: boolean;
+}
+
+export interface TaskBaseStatus {
+  ahead: number;
+  behind: number;
+  dirty: boolean;
+  merging: boolean;
+}
+
+export interface TaskStorage {
+  root: string;
+  tasks: { taskId: string; bytes: number }[];
+}
+
+export interface TaskRound {
+  round: number;
+  commitSha: string;
+}
+
 export interface GitStatus {
   branch: string | null;
   upstream: string | null;
@@ -164,6 +231,14 @@ export interface Thread {
   /** The view the thread was left in (`main`, `main...HEAD`, …); its line numbers belong to that view's diff. */
   viewRef: string | null;
   promotedFrom?: string | null;
+  /** The agent that addressed this reviewer's thread; it stays open until the reviewer resolves it. */
+  addressedBy?: string | null;
+}
+
+/** A deleted thread as it was, for Undo. */
+export interface ThreadSnapshot {
+  thread: Thread;
+  githubCommentId: number | null;
 }
 
 export interface NewThread {
@@ -284,7 +359,7 @@ export interface ViewedFile {
   blobId?: string | null;
 }
 
-export type AgentMode = 'ask' | 'review' | 'resolve' | 'edit';
+export type AgentMode = 'ask' | 'review' | 'resolve' | 'edit' | 'task';
 
 export interface AgentInfo {
   id: string;
@@ -554,6 +629,7 @@ export interface RepoThread {
   pending: boolean;
   anchor: ThreadAnchor;
   movedTo: CommitPointer | null;
+  addressedBy?: string | null;
   /** Branch a PR or branch view's thread was left on, when another branch is checked out now. */
   otherBranch?: string;
   /** Left on uncommitted changes before those were kept per branch, so which branch it belongs to is unknown. */

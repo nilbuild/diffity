@@ -43,6 +43,17 @@ export function rememberLocation(repoPath: string, location: string) {
   rememberViewLocation(repoPath, location);
 }
 
+/** Inside a task folder: switching back to its repository (rail, ⌘1–9) returns to the task. */
+export function rememberTaskLocation(parentPath: string, location: string) {
+  try {
+    const all = readLocations();
+    all[parentPath] = withoutParams(location, ['pr']);
+    localStorage.setItem(LOCATIONS_KEY, JSON.stringify(all));
+  } catch {
+    return;
+  }
+}
+
 export function lastLocationFor(repoPath: string): string | null {
   return readLocations()[repoPath] ?? null;
 }
@@ -91,7 +102,7 @@ export function lastViewLocationFor(repoPath: string, view: RememberedView): str
 let cacheOwner: string | null = null;
 
 /** Queries that are not about one repository; they survive switching (the rail and palettes read them). */
-const GLOBAL_KEYS = new Set(['recent-repos', 'setting', 'github-auth', 'agents', 'quick-open-roots', 'dir-suggestions', 'pr-inbox', 'recent-remotes']);
+const GLOBAL_KEYS = new Set(['recent-repos', 'tasks', 'archived-tasks', 'task-storage', 'task-config', 'task-base', 'setting', 'github-auth', 'agents', 'quick-open-roots', 'dir-suggestions', 'pr-inbox', 'recent-remotes']);
 
 /**
  * Query keys are not repository-scoped, so the cache belongs to one repository at a time. Switching parks the

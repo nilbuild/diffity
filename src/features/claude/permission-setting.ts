@@ -56,7 +56,7 @@ export async function savePermissionSetting(value: PermissionSetting) {
 
 /** Mirrors `policy::run_permissions` in src-tauri/src/agents: only editing runs in a writable chat skip prompts. */
 export function runSkipsPrompts(mode: AgentMode, action: AgentAction, setting: PermissionSetting): boolean {
-  if (setting !== 'skip' || (mode !== 'resolve' && mode !== 'edit')) {
+  if (setting !== 'skip' || (mode !== 'resolve' && mode !== 'edit' && mode !== 'task')) {
     return false;
   }
   return action.kind === 'chat' || action.kind === 'resolve' || action.kind === 'thread' || action.kind === 'reviewFeedback';

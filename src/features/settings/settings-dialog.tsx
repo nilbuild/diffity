@@ -9,13 +9,15 @@ import { ShortcutsPane } from './shortcuts-pane';
 import { AboutPane } from './about-pane';
 import { DataPane } from './data-pane';
 import { TerminalPane } from './terminal-pane';
-import { CodeIcon, GitHubIcon, InfoIcon, KeyboardIcon, SearchIcon, SettingsIcon, SparkleIcon, TerminalIcon, TrashIcon, XIcon } from '../../components/ui/icon';
+import { TasksPane } from './tasks-pane';
+import { CodeIcon, GitBranchIcon, GitHubIcon, InfoIcon, KeyboardIcon, SearchIcon, SettingsIcon, SparkleIcon, TerminalIcon, TrashIcon, XIcon } from '../../components/ui/icon';
 
 const LABELS: Record<SettingsSection, string> = {
   general: 'General',
   editor: 'Editor',
   shortcuts: 'Keyboard shortcuts',
   agents: 'Agents',
+  tasks: 'Tasks',
   github: 'GitHub',
   terminal: 'Terminal',
   data: 'Data',
@@ -27,6 +29,7 @@ const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
   editor: CodeIcon,
   shortcuts: KeyboardIcon,
   agents: SparkleIcon,
+  tasks: GitBranchIcon,
   github: GitHubIcon,
   terminal: TerminalIcon,
   data: TrashIcon,
@@ -35,7 +38,7 @@ const ICONS: Record<SettingsSection, ComponentType<{ className?: string }>> = {
 
 const GROUPS: { label: string; sections: SettingsSection[] }[] = [
   { label: 'App', sections: ['general', 'editor', 'shortcuts'] },
-  { label: 'Connections', sections: ['agents', 'github', 'terminal'] },
+  { label: 'Connections', sections: ['agents', 'tasks', 'github', 'terminal'] },
   { label: 'Diffity', sections: ['data', 'about'] },
 ];
 
@@ -59,6 +62,9 @@ const INDEX: { label: string; section: SettingsSection; keywords?: string }[] = 
   { label: 'GitHub account', section: 'github', keywords: 'sign in sign out login' },
   { label: 'Import from GitHub CLI', section: 'github', keywords: 'gh token' },
   { label: 'Personal access token', section: 'github', keywords: 'pat token keychain' },
+  { label: 'Agents at once', section: 'tasks', keywords: 'parallel limit queue concurrent tasks worktrees' },
+  { label: 'Task notifications', section: 'tasks', keywords: 'notify alert dock badge ready approval' },
+  { label: 'Task folders', section: 'tasks', keywords: 'worktrees storage disk space clean up merged archive' },
   { label: 'Agent models', section: 'agents', keywords: 'claude codex opencode model opus sonnet gpt effort thinking' },
   { label: 'Terminal agents', section: 'terminal', keywords: 'claude code codex opencode cursor mcp cli terminal connect outside' },
   { label: 'Allow terminal agents', section: 'terminal', keywords: 'mcp access outside agents' },
@@ -84,6 +90,9 @@ function Pane(props: { section: SettingsSection }) {
   }
   if (section === 'github') {
     return <GitHubPane />;
+  }
+  if (section === 'tasks') {
+    return <TasksPane />;
   }
   if (section === 'terminal') {
     return <TerminalPane />;

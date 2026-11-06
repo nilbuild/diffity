@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { getRepoPathOrNull, setRepoPath } from '../lib/api';
 import * as tauri from '../lib/tauri';
 import { isTauri } from '../lib/platform';
-import { OpeningSkeleton } from '../components/layout/skeleton';
+import { NavigationProgress, OpeningSkeleton, openingViewFor } from '../components/layout/skeleton';
 import { endOpening } from '../lib/opening';
 import { openQuickOpen } from '../features/palette/quick-open';
 import { useRepoChange, useRepoEvents, useRepoNav, useRepoPath } from '../hooks/use-repo';
@@ -15,6 +15,9 @@ import { ClaudeApprovalModal } from '../features/claude/claude-approval-modal';
 import { RouteErrorBoundary } from './route-error-boundary';
 import { CommentsPanel } from '../features/comments/comments-panel';
 import { ActivityPanel } from '../features/claude/activity-panel';
+import { NewTaskDialog } from '../features/tasks/new-task-dialog';
+import { markTaskSeen, setTaskOpener, useTaskForPath } from '../features/tasks/tasks';
+import { taskLocation } from '../features/tasks/task-menu';
 import { toggleComments } from '../lib/ui-store';
 import { PullRequestsDialog } from '../features/pr/pull-requests-dialog';
 import { CheckoutGuardDialog } from '../features/pr/checkout-guard-dialog';
@@ -23,8 +26,9 @@ import { CommandPalette } from '../features/palette/command-palette';
 import { openPalette } from '../features/palette/palette-store';
 import { checkoutPullRequest } from '../features/pr/pr-checkout';
 import { RailFrame } from '../components/layout/activity-rail';
-import { activateRepoCache, rememberLocation } from '../lib/repo-locations';
-import { useBranches, useGitHubPr, useGitStatus } from '../hooks/use-repo-state';
+import { activateRepoCache, rememberLocation, rememberTaskLocation } from '../lib/repo-locations';
+import { useBranches, useGitHubPr, useGitStatus, useRememberBranchPr } from '../hooks/use-repo-state';
+import { useUncommittedPaths } from '../components/layout/diff-context-bar';
 import { useRepoThreads } from '../hooks/use-repo-threads';
 
 function repoName(repoPath: string) {
@@ -129,14 +133,17 @@ function useCommentsShortcut() {
 }
 
 /**
- * Starts the queries every view reads (git status, branches, comments, the checked-out PR) while the route itself
- * is still suspended, so the page can decide what to show from complete data instead of filling in piece by piece.
+ * Starts the queries every view reads (git status, branches, comments, the checked-out PR, uncommitted paths) while
+ * the route itself is still suspended, so the page can decide what to show from complete data instead of filling in
+ * piece by piece.
  */
 function RepoPrefetch() {
   useGitStatus();
   useBranches();
   useRepoThreads();
   useGitHubPr();
+  useUncommittedPaths();
+  useRememberBranchPr();
   return null;
 }
 
@@ -167,6 +174,36 @@ export function RepoLayout() {
     tauri.openRepo(repoPath).catch(() => undefined);
   }, [repoPath]);
 
+  const task = useTaskForPath(repoPath);
+  useEffect(() => {
+    if (!task || task.state !== 'ready') {
+      return;
+    }
+    // Only once you can actually see it: a round that lands while Diffity is in the background stays in "Needs you".
+    const seen = () => document.hasFocus() && document.visibilityState === 'visible';
+    if (seen()) {
+      markTaskSeen(task);
+      return;
+    }
+    const onFocus = () => {
+      if (seen()) {
+        markTaskSeen(task);
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [task]);
+  const navigateTo = nav.navigate;
+  useEffect(() => {
+    setTaskOpener((target) => navigateTo(taskLocation(target)));
+  }, [navigateTo]);
+  const taskParent = task?.repoPath ?? null;
+  useEffect(() => {
+    if (taskParent) {
+      rememberTaskLocation(taskParent, location.pathname + location.search);
+    }
+  }, [taskParent, location.pathname, location.search]);
+
   return (
     <>
       <RepoPrefetch />
@@ -192,7 +229,8 @@ export function RepoLayout() {
             fallback={
               <OpeningSkeleton
                 repoName={repoName(repoPath)}
-                home={location.pathname.endsWith('/overview')}
+                view={openingViewFor(location.pathname)}
+                diffRef={new URLSearchParams(location.search).get('ref') || 'work'}
                 onCancel={() => {
                   endOpening();
                   const idx = (window.history.state as { idx?: number } | null)?.idx ?? 0;
@@ -208,6 +246,7 @@ export function RepoLayout() {
             <Outlet />
           </Suspense>
         </RouteErrorBoundary>
+        <NavigationProgress />
         </div>
         <ActivityPanel />
         </div>
@@ -218,6 +257,7 @@ export function RepoLayout() {
       <CheckoutGuardDialog />
       <CommitDialog />
       <CommandPalette />
+      <NewTaskDialog />
     </>
   );
 }

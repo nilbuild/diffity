@@ -21,6 +21,7 @@ import { FindHost } from './features/find/find-bar';
 import { WhatsNewDialog } from './features/whats-new/whats-new-dialog';
 import { useWhatsNew } from './features/whats-new/use-whats-new';
 import { useOpenLinks } from './features/open-links/use-open-links';
+import { useTaskEvents } from './features/tasks/tasks';
 
 function isTyping(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -89,6 +90,7 @@ function QuickOpenHost() {
 
 export function App() {
   useExternalLinks();
+  useTaskEvents();
   useGlobalShortcuts();
   useUpdateChecks();
   useCheckForUpdatesMenu();
