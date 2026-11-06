@@ -12,7 +12,7 @@ You are resolving open review threads in Diffity by making the requested code ch
 - `list_threads` — review threads with full comments, file path, lines and side. Use `status: "open"`.
 - `get_diff` — current unified diff for the session.
 - `reply(threadId, body)` — ask for clarification or answer.
-- `resolve(threadId, summary)` — mark a thread resolved with a summary of what you did.
+- `resolve(threadId, summary)` — report a thread as done with a summary of what you did. The reviewer's threads stay open, marked addressed (`addressedBy` is set), until the reviewer checks and resolves them.
 - `dismiss(threadId, reason)` — close a thread that should not be acted on.
 
 Thread ids accept 8-char prefixes.
@@ -41,12 +41,13 @@ The user reads your replies and summaries in a small box next to the code. Write
    a. **Skip** general comments (`filePath` `__general__`) started by an agent — they are review summaries, not actionable changes. General comments from the user are requests about the whole change: handle them like any other thread.
    b. Comments from an agent's review can be wrong. Check the claim against the code before acting. If part of it is wrong, do only the correct part, and say in one short sentence what you did not do and why.
    c. **Skip** threads whose last comment is an agent reply asking the user a question that has not been answered yet. Still process threads where an agent left the original review comment — those are actionable.
-   d. `nit` threads are minor but still actionable. Resolve them like any other.
-   e. `question` threads from the user: read the question, examine the code, and `resolve` with your answer as the summary.
-   f. Comments phrased as questions without the `question` severity ("should we add X?", "can we rename this?") are requests — make the change.
-   g. Interpret the intent: code change → make it; documentation → add/update docs; implied action → do it. If genuinely unclear, `reply` with "Could you clarify what change you'd like here?" instead of silently skipping.
-   h. Read the relevant file for full context around the commented lines (`startLine` 0 means the comment is about the whole file), then make the change with your file editing tools. Keep changes minimal and focused on the comment.
-   i. Only after the change was actually written, `resolve` the thread with a one-line summary like "Fixed: <what changed>".
-   j. If the write was rejected, follow **Rejected edits** below: `reply`, do not `resolve`.
+   d. **Skip** threads whose `addressedBy` is set, unless it is the target thread: they are done and wait for the reviewer.
+   e. `nit` threads are minor but still actionable. Resolve them like any other.
+   f. `question` threads from the user: read the question, examine the code, and `resolve` with your answer as the summary.
+   g. Comments phrased as questions without the `question` severity ("should we add X?", "can we rename this?") are requests — make the change.
+   h. Interpret the intent: code change → make it; documentation → add/update docs; implied action → do it. If genuinely unclear, `reply` with "Could you clarify what change you'd like here?" instead of silently skipping.
+   i. Read the relevant file for full context around the commented lines (`startLine` 0 means the comment is about the whole file), then make the change with your file editing tools. Keep changes minimal and focused on the comment.
+   j. Only after the change was actually written, `resolve` the thread with a one-line summary like "Fixed: <what changed>".
+   k. If the write was rejected, follow **Rejected edits** below: `reply`, do not `resolve`.
 4. Call `list_threads` again to confirm the final status.
 5. Reply with a short summary: threads resolved, threads left open because an edit was rejected, threads skipped or awaiting clarification.

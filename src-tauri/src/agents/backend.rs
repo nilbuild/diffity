@@ -50,4 +50,6 @@ pub trait ReviewBackend: Send + Sync + 'static {
         summary: Option<&str>,
         author_name: &str,
     ) -> BoxFut<'_, Thread>;
+    /// A reviewer's thread the agent handled: stays open for the reviewer to check and resolve.
+    fn mark_addressed(&self, thread_id: &str, summary: Option<&str>, author_name: &str) -> BoxFut<'_, Thread>;
 }

@@ -92,7 +92,7 @@ pub fn all() -> Vec<Tool> {
         ),
         tool(
             "resolve",
-            "Mark a review thread as resolved, optionally with a summary of what was changed or the answer to a question.",
+            "Report a review thread as done, optionally with a summary of what was changed or the answer to a question. A reviewer's thread stays open, marked addressed (`addressedBy`), until the reviewer checks and resolves it.",
             json!({
                 "type": "object",
                 "properties": {

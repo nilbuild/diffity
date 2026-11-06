@@ -1,7 +1,8 @@
 use std::path::Path;
 
 use crate::core::types::{
-    AuthorType, Guide, NewThread, RepoThread, Review, ReviewSession, ReviewVerdict, Thread, ThreadStatus, ViewedFile, TREE_REF,
+    AuthorType, Guide, NewThread, RepoThread, Review, ReviewSession, ReviewVerdict, Thread, ThreadSnapshot, ThreadStatus, ViewedFile,
+    TREE_REF,
 };
 use crate::core::{diff, repo_threads};
 use crate::core::AppError;
@@ -83,11 +84,19 @@ pub async fn delete_comment(app: AppHandle, state: State<'_, AppState>, comment_
     Ok(())
 }
 
+/// Deletes a thread and returns it as it was, for Undo (`restore_thread`).
 #[tauri::command]
-pub async fn delete_thread(app: AppHandle, state: State<'_, AppState>, thread_id: String) -> Result<(), AppError> {
-    let session_id = state.store.delete_thread(&thread_id)?;
-    emit_threads_changed(&app, &session_id);
-    Ok(())
+pub async fn delete_thread(app: AppHandle, state: State<'_, AppState>, thread_id: String) -> Result<ThreadSnapshot, AppError> {
+    let snapshot = state.store.delete_thread(&thread_id)?;
+    emit_threads_changed(&app, &snapshot.thread.session_id);
+    Ok(snapshot)
+}
+
+#[tauri::command]
+pub async fn restore_thread(app: AppHandle, state: State<'_, AppState>, snapshot: ThreadSnapshot) -> Result<Thread, AppError> {
+    let thread = state.store.restore_thread(&snapshot)?;
+    emit_threads_changed(&app, &thread.session_id);
+    Ok(thread)
 }
 
 #[tauri::command]
@@ -117,6 +126,22 @@ pub async fn set_thread_status(
     status: ThreadStatus,
     summary: Option<String>,
 ) -> Result<Thread, AppError> {
+    let current = state.store.get_thread(&thread_id)?;
+    // A thread synced with GitHub is resolved or reopened there first, or the next sync would undo it here.
+    let resolve = match status {
+        ThreadStatus::Resolved => Some(true),
+        ThreadStatus::Open => Some(false),
+        ThreadStatus::Dismissed => None,
+    };
+    if let (Some(github_thread_id), Some(resolved)) = (current.github_thread_id.as_deref(), resolve) {
+        if current.status != status {
+            state
+                .github
+                .push_resolved(github_thread_id, resolved)
+                .await
+                .map_err(|e| AppError::new("github_sync", e.message))?;
+        }
+    }
     let thread = state.store.set_thread_status(&thread_id, status, summary.as_deref())?;
     emit_threads_changed(&app, &thread.session_id);
     Ok(thread)

@@ -403,6 +403,19 @@ pub struct Thread {
     /// The agent's comment this draft was made from ("Add to my review").
     #[serde(default)]
     pub promoted_from: Option<String>,
+    /// The agent that addressed this reviewer's thread; it stays open until the reviewer resolves it.
+    #[serde(default)]
+    pub addressed_by: Option<String>,
+}
+
+/// A deleted thread as it was, so Undo can put it back with the same ids.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadSnapshot {
+    pub thread: Thread,
+    /// Root GitHub review comment id of a synced thread.
+    #[serde(default)]
+    pub github_comment_id: Option<i64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -531,6 +544,7 @@ pub struct RepoThread {
     pub pending: bool,
     pub anchor: ThreadAnchor,
     pub moved_to: Option<CommitPointer>,
+    pub addressed_by: Option<String>,
     /// The branch a HEAD-relative view's thread was left on, when that isn't the checked-out branch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub other_branch: Option<String>,

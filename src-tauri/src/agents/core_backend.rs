@@ -148,4 +148,14 @@ impl ReviewBackend for CoreBackend {
             )
         }))
     }
+
+    fn mark_addressed(&self, thread_id: &str, summary: Option<&str>, author_name: &str) -> BoxFut<'_, Thread> {
+        let (store, id, summary, name) = (
+            self.store.clone(),
+            thread_id.to_string(),
+            summary.map(String::from),
+            author_name.to_string(),
+        );
+        Box::pin(blocking(move || store.mark_addressed(&id, summary.as_deref(), &name)))
+    }
 }

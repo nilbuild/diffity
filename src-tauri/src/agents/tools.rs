@@ -288,6 +288,7 @@ fn thread_json(t: &Thread) -> Value {
         "startLine": t.start_line,
         "endLine": t.end_line,
         "status": t.status,
+        "addressedBy": t.addressed_by,
         "severity": t.severity,
         "comments": t.comments.iter().map(|c| json!({
             "authorType": c.author_type,
@@ -897,6 +898,17 @@ pub async fn call(
             } else {
                 a.reason.or(a.summary).or(a.body)
             };
+            // The reviewer resolves their own threads: the agent's resolve marks them addressed and leaves them open.
+            let reviewer_thread = thread.comments.first().is_some_and(|c| c.author_type != AuthorType::Agent);
+            if tool == "resolve" && reviewer_thread {
+                let thread = backend
+                    .mark_addressed(&thread.id, note.as_deref().map(str::trim), &b.agent_name)
+                    .await?;
+                return Ok(json!({
+                    "thread": visible_json(thread),
+                    "note": "Marked as addressed. It stays open until the reviewer checks it and resolves it.",
+                }));
+            }
             let status = if tool == "resolve" {
                 ThreadStatus::Resolved
             } else {
@@ -1279,18 +1291,35 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn user_mention_reply_reopens_resolved_thread() {
+    async fn resolve_leaves_reviewer_threads_open_and_addressed() {
         let (store, backend, b) = setup();
         let t = store.create_thread(&thread_input(&b.session_id, "rename this", false)).unwrap();
-        call(&backend, &b, "resolve", json!({ "threadId": t.id, "summary": "Fixed" }))
+        let out = call(&backend, &b, "resolve", json!({ "threadId": t.id, "summary": "Fixed: renamed" }))
             .await
             .unwrap();
-        assert_eq!(store.get_thread(&t.id).unwrap().status, ThreadStatus::Resolved);
+        assert_eq!(out["thread"]["addressedBy"], "Claude Code");
+        let stored = store.get_thread(&t.id).unwrap();
+        assert_eq!(stored.status, ThreadStatus::Open);
+        assert_eq!(stored.addressed_by.as_deref(), Some("Claude Code"));
+        assert_eq!(stored.comments.last().unwrap().body, "Fixed: renamed");
+
         let t = store
             .add_reply(&t.id, "@claude not quite, use snake_case", AuthorType::User, None)
             .unwrap();
         assert_eq!(t.status, ThreadStatus::Open);
+        assert_eq!(t.addressed_by, None);
         assert!(t.comments.last().unwrap().mentions_agent);
+    }
+
+    #[tokio::test]
+    async fn resolve_still_closes_the_agents_own_threads() {
+        let (store, backend, b) = setup();
+        let input = NewThread { author_type: Some(AuthorType::Agent), author_name: Some("Claude Code".into()), ..thread_input(&b.session_id, "typo", false) };
+        let t = store.create_thread(&input).unwrap();
+        call(&backend, &b, "resolve", json!({ "threadId": t.id })).await.unwrap();
+        let stored = store.get_thread(&t.id).unwrap();
+        assert_eq!(stored.status, ThreadStatus::Resolved);
+        assert_eq!(stored.addressed_by, None);
     }
 
     #[tokio::test]
@@ -1308,6 +1337,6 @@ mod tests {
             .unwrap();
         b.edit_rejected.store(false, Ordering::SeqCst);
         call(&backend, &b, "resolve", json!({ "threadId": t.id })).await.unwrap();
-        assert_eq!(store.get_thread(&t.id).unwrap().status, ThreadStatus::Resolved);
+        assert_eq!(store.get_thread(&t.id).unwrap().addressed_by.as_deref(), Some("Claude Code"));
     }
 }

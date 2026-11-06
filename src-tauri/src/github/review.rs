@@ -487,6 +487,7 @@ mod pushable_tests {
             review_id: None,
             view_ref: None,
             promoted_from: None,
+            addressed_by: None,
         }
     }
 
@@ -634,6 +635,7 @@ mod candidate_tests {
             review_id: None,
             view_ref: None,
             promoted_from: None,
+            addressed_by: None,
         }
     }
 

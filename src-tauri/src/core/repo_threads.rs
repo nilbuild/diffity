@@ -374,6 +374,7 @@ fn to_repo_thread(
         pending: thread.pending,
         anchor,
         moved_to,
+        addressed_by: thread.addressed_by,
         other_branch: None,
         unassigned: false,
     }

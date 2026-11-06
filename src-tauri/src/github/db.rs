@@ -2,6 +2,7 @@ use crate::core::store::Store;
 use crate::core::types::{AuthorType, Comment, Severity, Side, Thread, ThreadStatus};
 use crate::core::{AppError, Result};
 use rusqlite::{params, Connection, OptionalExtension};
+use std::collections::HashSet;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -83,7 +84,7 @@ fn load_comments(conn: &Connection, thread_id: &str) -> Result<Vec<Comment>> {
 }
 
 const THREAD_COLUMNS: &str = "id, session_id, file_path, side, start_line, end_line, status, severity, \
-     anchor_content, github_thread_id, created_at, updated_at, review_id, view_ref, promoted_from";
+     anchor_content, github_thread_id, created_at, updated_at, review_id, view_ref, promoted_from, addressed_by";
 
 fn thread_from_row(conn: &Connection, r: &rusqlite::Row<'_>) -> Result<Thread> {
     let id: String = r.get(0)?;
@@ -110,6 +111,7 @@ fn thread_from_row(conn: &Connection, r: &rusqlite::Row<'_>) -> Result<Thread> {
         review_id: r.get(12)?,
         view_ref: r.get(13)?,
         promoted_from: r.get(14)?,
+        addressed_by: r.get(15)?,
     })
 }
 
@@ -188,10 +190,18 @@ pub fn set_comment_github_id(store: &Store, comment_id: &str, github_comment_id:
 pub fn set_thread_status(store: &Store, thread_id: &str, status: ThreadStatus) -> Result<()> {
     let conn = store.conn()?;
     conn.execute(
-        "UPDATE threads SET status = ?2, updated_at = ?3 WHERE id = ?1",
+        "UPDATE threads SET status = ?2, addressed_by = NULL, updated_at = ?3 WHERE id = ?1",
         params![thread_id, enum_to_string(&status), now()],
     )?;
     Ok(())
+}
+
+/// GitHub review threads deleted in Diffity: sync skips them instead of pulling them back in.
+pub fn deleted_github_threads(store: &Store) -> Result<HashSet<String>> {
+    let conn = store.conn()?;
+    let mut stmt = conn.prepare("SELECT github_thread_id FROM deleted_github_threads")?;
+    let ids = stmt.query_map([], |r| r.get::<_, String>(0))?.collect::<rusqlite::Result<HashSet<_>>>()?;
+    Ok(ids)
 }
 
 pub struct NewComment<'a> {
