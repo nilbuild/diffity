@@ -352,6 +352,74 @@ impl GithubService {
         Ok(None)
     }
 
+    /// Pushes `branch` from `repo_path` and opens a pull request into `base` on the PR remote. In a fork setup the
+    /// branch goes to `origin` (your fork) and the PR is opened upstream as `owner:branch`.
+    pub async fn create_pr(&self, repo_path: &str, branch: &str, base: &str, title: &str, body: &str, draft: bool) -> Result<CreatedPr> {
+        let PrRemote { name: pr_remote_name, slug } = self.pr_remote(repo_path).await?;
+        let token = self.require_token().await?;
+        let remotes = gitcli::run_ok(repo_path, &["remote"]).await.unwrap_or_default();
+        let push_remote = if remotes.lines().any(|r| r == "origin") { "origin".to_string() } else { pr_remote_name };
+        let push_url = gitcli::run_ok(repo_path, &["remote", "get-url", &push_remote]).await?;
+        let head_slug = remote::parse_remote_url(push_url.trim()).unwrap_or_else(|| slug.clone());
+        push_branch(repo_path, &push_remote, branch).await?;
+        let head = if head_slug.matches(&slug) { branch.to_string() } else { format!("{}:{branch}", head_slug.owner) };
+        let repo: RepositoryData<RepositoryId> = self
+            .http
+            .query(&token, REPOSITORY_ID_QUERY, json!({ "owner": slug.owner, "name": slug.name }))
+            .await?;
+        let repository_id = repo.repository.ok_or_else(|| AppError::not_found(format!("{} not found on GitHub", slug.full_name())))?.id;
+        let created: CreatePullRequestData = self
+            .http
+            .query(
+                &token,
+                CREATE_PR_MUTATION,
+                json!({ "input": { "repositoryId": repository_id, "baseRefName": base, "headRefName": head, "title": title, "body": body, "draft": draft } }),
+            )
+            .await?;
+        let pr = created
+            .create_pull_request
+            .and_then(|c| c.pull_request)
+            .ok_or_else(|| AppError::internal("GitHub didn't return the new pull request"))?;
+        Ok(CreatedPr { number: pr.number, url: pr.url })
+    }
+
+    /// Pushes a branch that already has a pull request (after its rounds were squashed again).
+    async fn push_remote(&self, repo_path: &str) -> Result<String> {
+        let remotes = gitcli::run_ok(repo_path, &["remote"]).await.unwrap_or_default();
+        Ok(if remotes.lines().any(|r| r == "origin") { "origin".to_string() } else { self.pr_remote(repo_path).await?.name })
+    }
+
+    pub async fn push_task_branch(&self, repo_path: &str, branch: &str) -> Result<()> {
+        let remote = self.push_remote(repo_path).await?;
+        push_branch(repo_path, &remote, branch).await
+    }
+
+    /// Fetches `branch` from the push remote and returns the commit it's at there, or None when it isn't there.
+    pub async fn remote_branch_tip(&self, repo_path: &str, branch: &str) -> Result<Option<String>> {
+        let remote = self.push_remote(repo_path).await?;
+        let tracking = format!("refs/remotes/{remote}/{branch}");
+        let refspec = format!("+refs/heads/{branch}:{tracking}");
+        let fetched = gitcli::run(repo_path, &["fetch", "--quiet", &remote, &refspec]).await?;
+        if !fetched.ok {
+            return Ok(None);
+        }
+        Ok(gitcli::run_ok(repo_path, &["rev-parse", "--verify", "--quiet", &tracking]).await.ok().map(|sha| sha.trim().to_string()))
+    }
+
+    /// `OPEN`, `MERGED` or `CLOSED`.
+    pub async fn pr_state(&self, repo_path: &str, number: i64) -> Result<String> {
+        let slug = self.pr_slug(repo_path).await?;
+        let token = self.require_token().await?;
+        let data: RepositoryData<PrStateField> = self
+            .http
+            .query(&token, PR_STATE_QUERY, json!({ "owner": slug.owner, "name": slug.name, "number": number }))
+            .await?;
+        data.repository
+            .and_then(|r| r.pull_request)
+            .map(|pr| pr.state)
+            .ok_or_else(|| AppError::not_found(format!("pull request #{number} not found")))
+    }
+
     pub async fn list_prs(&self, repo_path: &str) -> Result<Vec<PullRequest>> {
         let PrRemote { name: remote_name, slug } = self.pr_remote(repo_path).await?;
         let token = self.require_token().await?;
@@ -905,9 +973,14 @@ impl GithubService {
             .into_iter()
             .filter_map(|t| t.github_thread_id.clone().map(|id| (id, t)))
             .collect();
+        let deleted = db::deleted_github_threads(&self.store)?;
         let mut result = PullResult::default();
 
         for full in &remote_threads {
+            if deleted.contains(&full.thread.id) {
+                result.skipped += 1;
+                continue;
+            }
             if let Some(existing) = local.get(&full.thread.id) {
                 if self.merge_into_existing(existing, full)? {
                     result.updated += 1;
@@ -1045,15 +1118,21 @@ impl GithubService {
         Ok(GitOpResult { ok: out.ok, output: out.output })
     }
 
+    /// Resolves or reopens a review thread on GitHub only.
+    pub async fn push_resolved(&self, github_thread_id: &str, resolved: bool) -> Result<()> {
+        let token = self.require_token().await?;
+        let mutation = if resolved { RESOLVE_MUTATION } else { UNRESOLVE_MUTATION };
+        let _: serde_json::Value = self
+            .http
+            .query(&token, mutation, json!({ "id": github_thread_id }))
+            .await?;
+        Ok(())
+    }
+
     pub async fn set_resolved(&self, thread_id: &str, resolved: bool) -> Result<Thread> {
         let thread = db::get_thread(&self.store, thread_id)?;
         if let Some(github_thread_id) = &thread.github_thread_id {
-            let token = self.require_token().await?;
-            let mutation = if resolved { RESOLVE_MUTATION } else { UNRESOLVE_MUTATION };
-            let _: serde_json::Value = self
-                .http
-                .query(&token, mutation, json!({ "id": github_thread_id }))
-                .await?;
+            self.push_resolved(github_thread_id, resolved).await?;
         }
         let status = if resolved { ThreadStatus::Resolved } else { ThreadStatus::Open };
         db::set_thread_status(&self.store, thread_id, status)?;
@@ -1313,5 +1392,15 @@ fn insert_remote_comment(store: &Store, thread_id: &str, comment: &RemoteComment
             created_at: Some(&comment.created_at),
         },
     )?;
+    Ok(())
+}
+
+async fn push_branch(repo_path: &str, remote: &str, branch: &str) -> Result<()> {
+    let refspec = format!("{branch}:{branch}");
+    // No force: a rejected push means the remote has commits this branch doesn't, and those must not be overwritten.
+    let pushed = gitcli::run(repo_path, &["push", "-u", remote, &refspec]).await?;
+    if !pushed.ok {
+        return Err(AppError::git_failed(format!("could not push {branch}: {}", pushed.output.trim())));
+    }
     Ok(())
 }

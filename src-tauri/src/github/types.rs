@@ -181,3 +181,10 @@ pub struct PullResult {
     pub updated: u32,
     pub skipped: u32,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatedPr {
+    pub number: i64,
+    pub url: String,
+}

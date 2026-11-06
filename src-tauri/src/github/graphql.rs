@@ -654,3 +654,43 @@ mod tests {
         assert_eq!(q.matches('{').count(), q.matches('}').count());
     }
 }
+
+pub const REPOSITORY_ID_QUERY: &str = "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){id}}";
+
+pub const CREATE_PR_MUTATION: &str = "mutation($input:CreatePullRequestInput!){createPullRequest(input:$input){pullRequest{number url}}}";
+
+pub const PR_STATE_QUERY: &str = "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){state}}}";
+
+#[derive(Deserialize, Debug)]
+pub struct RepositoryId {
+    pub id: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatePullRequestData {
+    pub create_pull_request: Option<CreatedPullRequestField>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatedPullRequestField {
+    pub pull_request: Option<CreatedPullRequestNode>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct CreatedPullRequestNode {
+    pub number: i64,
+    pub url: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PrStateField {
+    pub pull_request: Option<PrStateNode>,
+}
+
+#[derive(Deserialize, Debug)]
+pub struct PrStateNode {
+    pub state: String,
+}
