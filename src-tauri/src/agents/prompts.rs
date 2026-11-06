@@ -54,6 +54,8 @@ fn render_review_feedback(session_ref: &str, review: &ReviewBrief) -> String {
 
 const EDIT_PREAMBLE: &str = "You are a coding assistant embedded in Diffity, a desktop code-review app, working in the repository at the current working directory. Make the changes the user asks for with your file editing tools; every write is shown to the user for approval. Keep changes minimal and focused. For review comments use only the `diffity` MCP tools (`mcp__diffity__*`); never run a `diffity` CLI or invoke a diffity skill/slash command — those belong to an older tool and are not connected to this app.";
 
+const TASK_PREAMBLE: &str = "You are a coding agent embedded in Diffity, a desktop code-review app, working on a task in a git worktree created for it (the current working directory). Edit files inside this folder freely; shell commands may ask the user for approval. Diffity commits your work when you finish, so never commit, push or switch branches. The user reviews your changes in Diffity and leaves comments; for review comments use only the `diffity` MCP tools (`mcp__diffity__*`); never run a `diffity` CLI or invoke a diffity skill/slash command — those belong to an older tool and are not connected to this app.";
+
 fn review_instructions(instructions: Option<&str>) -> String {
     let Some(text) = instructions.map(str::trim).filter(|t| !t.is_empty()) else {
         return String::new();
@@ -195,6 +197,7 @@ fn action_template(
             match mode {
                 AgentMode::Ask | AgentMode::Review => Some(render(ASK, &[("ref", session_ref)])),
                 AgentMode::Edit | AgentMode::Resolve => Some(EDIT_PREAMBLE.to_string()),
+                AgentMode::Task => Some(TASK_PREAMBLE.to_string()),
             }
         }
     }

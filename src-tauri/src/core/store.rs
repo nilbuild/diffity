@@ -9,7 +9,7 @@ use crate::core::git;
 use crate::core::mentions;
 use crate::core::types::{
     AuthorType, Comment, Guide, GuideContent, NewThread, ProjectData, RecentRepo, Review, ReviewSession, ReviewState, ReviewVerdict, Severity, Side,
-    Thread, ThreadStatus, ViewedFile, TREE_REF,
+    Thread, ThreadSnapshot, ThreadStatus, ViewedFile, TREE_REF,
 };
 
 const SCHEMA: &str = r#"
@@ -306,7 +306,68 @@ fn migrate_v7(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-const SCHEMA_VERSION: i64 = 7;
+/// Tasks: an agent working in its own worktree and branch, reviewed in rounds (one commit per agent run).
+const MIGRATION_V8: &str = r#"
+CREATE TABLE IF NOT EXISTS tasks (
+  id TEXT PRIMARY KEY,
+  repo_path TEXT NOT NULL,
+  path TEXT NOT NULL UNIQUE,
+  branch TEXT NOT NULL,
+  base_ref TEXT NOT NULL,
+  base_sha TEXT NOT NULL,
+  title TEXT NOT NULL,
+  prompt TEXT NOT NULL,
+  agent_id TEXT NOT NULL,
+  state TEXT NOT NULL,
+  owned INTEGER NOT NULL DEFAULT 1,
+  pr_number INTEGER NULL,
+  pr_url TEXT NULL,
+  merged_at TEXT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  archived_at TEXT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_repo ON tasks(repo_path);
+CREATE TABLE IF NOT EXISTS task_rounds (
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  round INTEGER NOT NULL,
+  commit_sha TEXT NOT NULL,
+  reviewed_at TEXT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (task_id, round)
+);
+"#;
+
+/// Where "since last review" starts: the task folder's commit when you last reviewed it.
+fn migrate_v9(conn: &Connection) -> Result<()> {
+    let has_column: bool = conn
+        .prepare("SELECT 1 FROM pragma_table_info('tasks') WHERE name = 'reviewed_head'")?
+        .exists([])?;
+    if !has_column {
+        conn.execute_batch("ALTER TABLE tasks ADD COLUMN reviewed_head TEXT NULL;")?;
+    }
+    Ok(())
+}
+
+/// `addressed_by`: the agent that handled a reviewer's thread; it stays open until the reviewer resolves it.
+/// `deleted_github_threads`: GitHub threads deleted in Diffity, so a later sync doesn't pull them back in.
+fn migrate_v10(conn: &Connection) -> Result<()> {
+    let has_column = conn
+        .prepare("SELECT 1 FROM pragma_table_info('threads') WHERE name = 'addressed_by'")?
+        .exists([])?;
+    if !has_column {
+        conn.execute_batch("ALTER TABLE threads ADD COLUMN addressed_by TEXT NULL;")?;
+    }
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS deleted_github_threads (
+           github_thread_id TEXT PRIMARY KEY,
+           deleted_at TEXT NOT NULL
+         );",
+    )?;
+    Ok(())
+}
+
+const SCHEMA_VERSION: i64 = 10;
 
 pub struct Store {
     conn: Mutex<Connection>,
@@ -365,6 +426,15 @@ impl Store {
             }
             if version < 7 {
                 migrate_v7(conn)?;
+            }
+            if version < 8 {
+                conn.execute_batch(MIGRATION_V8)?;
+            }
+            if version < 9 {
+                migrate_v9(conn)?;
+            }
+            if version < 10 {
+                migrate_v10(conn)?;
             }
             conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
             Ok(())
@@ -475,7 +545,7 @@ pub enum UpsertOutcome {
     Unchanged,
 }
 
-const THREAD_COLS: &str = "id, session_id, file_path, side, start_line, end_line, status, severity, anchor_content, github_thread_id, created_at, updated_at, review_id, view_ref, promoted_from";
+const THREAD_COLS: &str = "id, session_id, file_path, side, start_line, end_line, status, severity, anchor_content, github_thread_id, created_at, updated_at, review_id, view_ref, promoted_from, addressed_by";
 const COMMENT_COLS: &str = "id, thread_id, author_type, author_name, body, github_comment_id, created_at, pending, review_id";
 const REVIEW_COLS: &str = "id, session_id, state, body, verdict, created_at, submitted_at";
 
@@ -501,6 +571,7 @@ fn row_to_thread(r: &Row) -> rusqlite::Result<Thread> {
         review_id: r.get(12)?,
         view_ref: r.get(13)?,
         promoted_from: r.get(14)?,
+        addressed_by: r.get(15)?,
     })
 }
 
@@ -720,6 +791,18 @@ fn touch_thread(conn: &Connection, thread_id: &str, ts: &str) -> Result<()> {
     Ok(())
 }
 
+/// Records the GitHub ids of the threads matching `filter` (`?1` bound to `value`) as deleted in Diffity.
+fn remember_deleted_github(conn: &Connection, filter: &str, value: &str) -> Result<()> {
+    conn.execute(
+        &format!(
+            "INSERT OR IGNORE INTO deleted_github_threads (github_thread_id, deleted_at)
+             SELECT github_thread_id, ?2 FROM threads WHERE {filter} AND github_thread_id IS NOT NULL"
+        ),
+        params![value, now()],
+    )?;
+    Ok(())
+}
+
 fn thread_session(conn: &Connection, thread_id: &str) -> Result<String> {
     conn.query_row("SELECT session_id FROM threads WHERE id = ?1", [thread_id], |r| r.get(0))
         .optional()?
@@ -732,7 +815,8 @@ impl Store {
     /// Records a repo open (insert or bump `last_opened_at`).
     pub fn touch_repo(&self, path: &str, name: &str) -> Result<()> {
         self.conn()?.execute(
-            "INSERT INTO repos (id, path, name, last_opened_at) VALUES (?1, ?2, ?3, ?4)
+            "INSERT INTO repos (id, path, name, last_opened_at)
+             SELECT ?1, ?2, ?3, ?4 WHERE NOT EXISTS (SELECT 1 FROM tasks WHERE path = ?2)
              ON CONFLICT(path) DO UPDATE SET name = excluded.name, last_opened_at = excluded.last_opened_at",
             params![new_id(), path, name, now()],
         )?;
@@ -742,7 +826,8 @@ impl Store {
     pub fn recent_repos(&self, limit: u32) -> Result<Vec<RecentRepo>> {
         let conn = self.conn()?;
         let mut stmt = conn.prepare(
-            "SELECT path, name, last_opened_at FROM repos ORDER BY last_opened_at DESC LIMIT ?1",
+            "SELECT path, name, last_opened_at FROM repos WHERE path NOT IN (SELECT path FROM tasks)
+             ORDER BY last_opened_at DESC LIMIT ?1",
         )?;
         let rows = stmt.query_map([limit], |r| {
             Ok(RecentRepo {
@@ -846,7 +931,7 @@ impl Store {
              WHERE s.repo_path = ?1 ORDER BY t.updated_at DESC, t.rowid DESC"
         ))?;
         let rows = stmt
-            .query_map([repo_path], |r| Ok((row_to_thread(r)?, r.get::<_, String>(15)?, r.get::<_, String>(16)?)))?
+            .query_map([repo_path], |r| Ok((row_to_thread(r)?, r.get::<_, String>(16)?, r.get::<_, String>(17)?)))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         rows.into_iter()
             .map(|(thread, r#ref, scope)| {
@@ -1022,7 +1107,7 @@ impl Store {
             touch_thread(&tx, thread_id, &ts)?;
         } else if author_type == AuthorType::User {
             tx.execute(
-                "UPDATE threads SET status = 'open', updated_at = ?1 WHERE id = ?2",
+                "UPDATE threads SET status = 'open', addressed_by = NULL, updated_at = ?1 WHERE id = ?2",
                 params![ts, thread_id],
             )?;
         } else {
@@ -1115,18 +1200,111 @@ impl Store {
         Ok((from, into))
     }
 
-    /// Deletes a thread and its comments. Returns the owning session id.
-    pub fn delete_thread(&self, thread_id: &str) -> Result<String> {
-        let conn = self.conn()?;
-        let session_id = thread_session(&conn, thread_id)?;
-        conn.execute("DELETE FROM threads WHERE id = ?1", [thread_id])?;
-        Ok(session_id)
+    /// Deletes a thread and its comments, returning it as it was. A GitHub thread is remembered so sync doesn't
+    /// pull it back in.
+    pub fn delete_thread(&self, thread_id: &str) -> Result<ThreadSnapshot> {
+        let mut conn = self.conn()?;
+        let tx = conn.transaction()?;
+        let thread = load_thread(&tx, thread_id)?;
+        let github_comment_id: Option<i64> =
+            tx.query_row("SELECT github_comment_id FROM threads WHERE id = ?1", [thread_id], |r| r.get(0))?;
+        remember_deleted_github(&tx, "id = ?1", thread_id)?;
+        tx.execute("DELETE FROM threads WHERE id = ?1", [thread_id])?;
+        tx.commit()?;
+        Ok(ThreadSnapshot { thread, github_comment_id })
+    }
+
+    /// Puts a deleted thread back with its ids, comments and GitHub links (Undo).
+    pub fn restore_thread(&self, snapshot: &ThreadSnapshot) -> Result<Thread> {
+        let t = &snapshot.thread;
+        let mut conn = self.conn()?;
+        let tx = conn.transaction()?;
+        let exists = |table: &str, id: Option<&str>| -> Result<bool> {
+            let Some(id) = id else {
+                return Ok(false);
+            };
+            Ok(tx.prepare(&format!("SELECT 1 FROM {table} WHERE id = ?1"))?.exists([id])?)
+        };
+        if !exists("review_sessions", Some(&t.session_id))? {
+            return Err(AppError::not_found("the comment's view no longer exists"));
+        }
+        let review_id = t.review_id.as_deref().filter(|id| exists("reviews", Some(id)).unwrap_or(false));
+        let promoted_from = t.promoted_from.as_deref().filter(|id| exists("threads", Some(id)).unwrap_or(false));
+        tx.execute(
+            "INSERT INTO threads (id, session_id, file_path, side, start_line, end_line, status, severity, anchor_content,
+               github_thread_id, github_comment_id, created_at, updated_at, review_id, view_ref, promoted_from, addressed_by)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+            params![
+                t.id,
+                t.session_id,
+                t.file_path,
+                side_str(t.side),
+                t.start_line,
+                t.end_line,
+                status_str(t.status),
+                t.severity.map(severity_str),
+                t.anchor_content,
+                t.github_thread_id,
+                snapshot.github_comment_id,
+                t.created_at,
+                t.updated_at,
+                review_id,
+                t.view_ref,
+                promoted_from,
+                t.addressed_by,
+            ],
+        )?;
+        for c in &t.comments {
+            let comment_review = c.review_id.as_deref().filter(|id| exists("reviews", Some(id)).unwrap_or(false));
+            tx.execute(
+                "INSERT INTO comments (id, thread_id, author_type, author_name, body, github_comment_id, created_at, pending, review_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    c.id,
+                    t.id,
+                    author_str(c.author_type),
+                    c.author_name,
+                    c.body,
+                    c.github_comment_id,
+                    c.created_at,
+                    (c.pending && comment_review.is_some()) as i64,
+                    comment_review,
+                ],
+            )?;
+        }
+        if let Some(github_thread_id) = &t.github_thread_id {
+            tx.execute("DELETE FROM deleted_github_threads WHERE github_thread_id = ?1", [github_thread_id])?;
+        }
+        let thread = load_thread(&tx, &t.id)?;
+        tx.commit()?;
+        Ok(thread)
     }
 
     pub fn delete_all_threads(&self, session_id: &str) -> Result<usize> {
-        Ok(self
-            .conn()?
-            .execute("DELETE FROM threads WHERE session_id = ?1", [session_id])?)
+        let mut conn = self.conn()?;
+        let tx = conn.transaction()?;
+        remember_deleted_github(&tx, "session_id = ?1", session_id)?;
+        let n = tx.execute("DELETE FROM threads WHERE session_id = ?1", [session_id])?;
+        tx.commit()?;
+        Ok(n)
+    }
+
+    /// Marks a reviewer's thread as handled by an agent: it stays open (the reviewer resolves it) and gets the
+    /// agent's summary as a reply.
+    pub fn mark_addressed(&self, thread_id: &str, summary: Option<&str>, agent_name: &str) -> Result<Thread> {
+        let mut conn = self.conn()?;
+        let tx = conn.transaction()?;
+        thread_session(&tx, thread_id)?;
+        let ts = now();
+        tx.execute(
+            "UPDATE threads SET status = 'open', addressed_by = ?1, updated_at = ?2 WHERE id = ?3",
+            params![agent_name, ts, thread_id],
+        )?;
+        let body = summary.map(str::trim).filter(|s| !s.is_empty()).unwrap_or("Done.");
+        insert_comment(&tx, thread_id, CommentRow::new(AuthorType::Agent, agent_name, body, &ts))?;
+        let thread = load_thread(&tx, thread_id)?;
+        tx.commit()?;
+        Ok(thread)
     }
 
     /// Sets status; a non-empty `summary` is appended as a comment by `Agent`.
@@ -1148,7 +1326,7 @@ impl Store {
         thread_session(&tx, thread_id)?;
         let ts = now();
         tx.execute(
-            "UPDATE threads SET status = ?1, updated_at = ?2 WHERE id = ?3",
+            "UPDATE threads SET status = ?1, addressed_by = NULL, updated_at = ?2 WHERE id = ?3",
             params![status_str(status), ts, thread_id],
         )?;
         if let Some(summary) = summary.filter(|s| !s.trim().is_empty()) {
@@ -1618,7 +1796,7 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(n, 10);
+        assert_eq!(n, 13);
     }
 
     #[test]

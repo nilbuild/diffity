@@ -47,6 +47,9 @@ fn init_state(app: &tauri::App) -> anyhow::Result<AppState> {
     let data_dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&data_dir)?;
     let store = Arc::new(Store::open(data_dir.join("diffity.db")).map_err(|e| anyhow::anyhow!(e))?);
+    if let Err(e) = crate::core::task::fail_interrupted(&store) {
+        tracing::warn!("could not reset interrupted tasks: {}", e.message);
+    }
     let agents = Arc::new(AgentManager::new(store.clone(), data_dir.clone(), mcp_binary_path()));
     let handle = app.handle().clone();
     agents.on_threads_changed(Arc::new(move |session_id: &str| {
@@ -59,9 +62,35 @@ fn init_state(app: &tauri::App) -> anyhow::Result<AppState> {
             tracing::warn!("could not start the MCP socket: {}", e.message);
         }
     });
-    Ok(AppState { store, agents, github })
+    let worktrees_root = crate::core::task::default_root(dev_build());
+    Ok(AppState { store, agents, github, worktrees_root })
 }
 
+/// Asks before quitting while agents are working, since quitting stops them. Returns true when it asked:
+/// the caller holds the quit and the dialog quits for real on confirm.
+fn confirm_stop_agents<R: Runtime>(app: &AppHandle<R>) -> bool {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+    let working = app.try_state::<AppState>().map(|state| state.agents.working_count()).unwrap_or(0);
+    if working == 0 {
+        return false;
+    }
+    let running = if working == 1 { "An agent or setup command is".to_string() } else { format!("{working} agents or setup commands are") };
+    let handle = app.clone();
+    app.dialog()
+        .message(format!("{running} still running. Quitting stops them; their edits so far stay in the folder."))
+        .title("Quit Diffity?")
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom("Quit".into(), "Cancel".into()))
+        .show(move |quit| {
+            if quit {
+                handle.exit(0);
+            }
+        });
+    true
+}
+
+const QUIT_MENU_ID: &str = "quit";
 const REPORT_ISSUE_MENU_ID: &str = "report-issue";
 const WHATS_NEW_MENU_ID: &str = "whats-new";
 const CHECK_UPDATES_MENU_ID: &str = "check-for-updates";
@@ -83,6 +112,18 @@ fn app_menu<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
             let label = format!("Install ‘{}’ Command…", cli_install::command_name());
             let install = MenuItem::with_id(handle, INSTALL_CLI_MENU_ID, label, true, None::<&str>)?;
             app_submenu.insert(&install, position)?;
+        }
+        // The stock Quit item terminates the app without an event the app can hold, so ⌘Q gets our own item that
+        // asks first while agents are working.
+        let items = app_submenu.items()?;
+        if let Some(index) = items
+            .iter()
+            .position(|item| item.as_predefined_menuitem().and_then(|p| p.text().ok()).is_some_and(|text| text.starts_with("Quit")))
+        {
+            app_submenu.remove_at(index)?;
+            let name = handle.package_info().name.clone();
+            let quit = MenuItem::with_id(handle, QUIT_MENU_ID, format!("Quit {name}"), true, Some("CmdOrCtrl+Q"))?;
+            app_submenu.insert(&quit, index)?;
         }
     }
     let whats_new = MenuItem::with_id(handle, WHATS_NEW_MENU_ID, "What’s New in Diffity", true, None::<&str>)?;
@@ -132,8 +173,15 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_system_fonts::init())
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_notification::init())
         .menu(app_menu)
         .on_menu_event(|app, event| {
+            if event.id() == QUIT_MENU_ID {
+                if !confirm_stop_agents(app) {
+                    app.exit(0);
+                }
+                return;
+            }
             if event.id() == WHATS_NEW_MENU_ID {
                 emit_to_focused(app, "open-whats-new");
                 return;
@@ -171,6 +219,12 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let app = window.app_handle();
+                if app.webview_windows().len() == 1 && confirm_stop_agents(app) {
+                    api.prevent_close();
+                }
+            }
             #[cfg(target_os = "macos")]
             match event {
                 tauri::WindowEvent::ThemeChanged(_) => traffic_lights::install(window),
@@ -209,6 +263,27 @@ pub fn run() {
             commands::repo::list_commits,
             commands::repo::list_branches,
             commands::repo::list_worktrees,
+            commands::tasks::list_tasks,
+            commands::tasks::main_checkout,
+            commands::tasks::create_task,
+            commands::tasks::set_task_state,
+            commands::tasks::rename_task,
+            commands::tasks::finish_task_run,
+            commands::tasks::archive_task,
+            commands::tasks::notify_task,
+            commands::tasks::set_task_badge,
+            commands::tasks::mark_task_reviewed,
+            commands::tasks::task_config,
+            commands::tasks::run_task_setup,
+            commands::tasks::task_base_status,
+            commands::tasks::update_task_from_base,
+            commands::tasks::ship_task_pr,
+            commands::tasks::merge_task_locally,
+            commands::tasks::restore_task,
+            commands::tasks::list_archived_tasks,
+            commands::tasks::task_storage,
+            commands::tasks::refresh_task_prs,
+            commands::tasks::adopt_worktree,
             commands::repo::git_status,
             commands::repo::repo_overview,
             commands::repo::open_in_editor,
@@ -235,6 +310,7 @@ pub fn run() {
             commands::comments::edit_comment,
             commands::comments::delete_comment,
             commands::comments::delete_thread,
+            commands::comments::restore_thread,
             commands::comments::keep_thread_on_branch,
             commands::comments::delete_all_threads,
             commands::comments::set_thread_status,

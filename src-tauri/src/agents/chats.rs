@@ -26,6 +26,7 @@ fn mode_str(mode: AgentMode) -> &'static str {
         AgentMode::Review => "review",
         AgentMode::Resolve => "resolve",
         AgentMode::Edit => "edit",
+        AgentMode::Task => "task",
     }
 }
 
@@ -34,6 +35,7 @@ fn parse_mode(s: &str) -> AgentMode {
         "review" => AgentMode::Review,
         "resolve" => AgentMode::Resolve,
         "edit" => AgentMode::Edit,
+        "task" => AgentMode::Task,
         _ => AgentMode::Ask,
     }
 }

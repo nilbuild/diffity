@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -47,6 +48,7 @@ pub struct AgentManager {
     detected: Mutex<Option<DetectCache>>,
     runtimes: std::sync::Mutex<HashMap<String, Slot>>,
     catalogs: Mutex<HashMap<String, ModelCatalog>>,
+    working: Arc<AtomicUsize>,
 }
 
 impl AgentManager {
@@ -74,6 +76,7 @@ impl AgentManager {
             detected: Mutex::new(None),
             runtimes: std::sync::Mutex::new(HashMap::new()),
             catalogs: Mutex::new(HashMap::new()),
+            working: Arc::new(AtomicUsize::new(0)),
         }
     }
 
@@ -561,7 +564,10 @@ impl AgentManager {
         let sink: EventSink = Arc::from(on_event);
         let setting = self.permission_setting().await;
         let run = crate::agents::policy::run_permissions(rec.chat.mode, &action, setting);
-        let events = rt.session.prompt(prompt, run, model, sink).await?;
+        let events = {
+            let _working = Working::start(self.working.clone());
+            rt.session.prompt(prompt, run, model, sink).await?
+        };
 
         let (store, id) = (self.store.clone(), chat_id.to_string());
         let content = ChatMessageContent::Agent(events);
@@ -617,6 +623,16 @@ impl AgentManager {
         blocking(move || chats::delete(&store, &id)).await
     }
 
+    /// How many prompts and task setups are running right now, so quitting can warn before stopping them.
+    pub fn working_count(&self) -> usize {
+        self.working.load(Ordering::SeqCst)
+    }
+
+    /// Holds a slot in `working_count` until dropped, for work outside a prompt (a task's setup command).
+    pub fn hold(&self) -> Working {
+        Working::start(self.working.clone())
+    }
+
     /// Kills every agent process. Call on app exit.
     pub async fn shutdown(&self) {
         let ids: Vec<String> = self
@@ -627,6 +643,22 @@ impl AgentManager {
         for id in ids {
             self.stop_runtime(&id).await;
         }
+    }
+}
+
+/// Counts as work in progress while alive, so quitting asks first.
+pub struct Working(Arc<AtomicUsize>);
+
+impl Working {
+    fn start(count: Arc<AtomicUsize>) -> Self {
+        count.fetch_add(1, Ordering::SeqCst);
+        Self(count)
+    }
+}
+
+impl Drop for Working {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
     }
 }
 

@@ -8,6 +8,8 @@ pub enum AgentMode {
     Review,
     Resolve,
     Edit,
+    /// A task run in its own worktree: edits inside the task folder need no approval.
+    Task,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

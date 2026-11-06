@@ -103,7 +103,7 @@ fn delete_threads() {
     assert_eq!(listed.len(), 2);
     assert_eq!(listed[0].comments[0].body, "a");
 
-    assert_eq!(store.delete_thread(&a.id).unwrap(), s.id);
+    assert_eq!(store.delete_thread(&a.id).unwrap().thread.session_id, s.id);
     assert_eq!(store.list_threads(&s.id, None).unwrap().len(), 1);
     store.delete_all_threads(&s.id).unwrap();
     assert!(store.list_threads(&s.id, None).unwrap().is_empty());
@@ -329,7 +329,7 @@ fn migrates_v1_database() {
         .unwrap()
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 7);
+    assert_eq!(version, 10);
     let t = store.get_thread("t1").unwrap();
     assert!(!t.pending);
     assert!(t.review_id.is_none());
@@ -382,7 +382,7 @@ fn v2_database_gains_viewed_snapshots() {
     }
     let store = Store::open(&path).unwrap();
     let version: i64 = store.conn().unwrap().pragma_query_value(None, "user_version", |r| r.get(0)).unwrap();
-    assert_eq!(version, 7);
+    assert_eq!(version, 10);
     let old = store.get_viewed("s1", "old.rs").unwrap().unwrap();
     assert_eq!((old.content_hash.as_str(), old.blob_id), ("h0", None));
 
@@ -552,4 +552,50 @@ fn clears_one_project_and_resets_all() {
     assert!(store.project_data().unwrap().is_empty());
     assert_eq!(store.get_setting("theme").unwrap().as_deref(), Some("dark"));
     assert_eq!(store.get_setting("agent.claude.models").unwrap(), None);
+}
+
+#[test]
+fn deleted_threads_come_back_with_undo() {
+    let store = Store::open_in_memory().unwrap();
+    let s = store.get_or_create_session("/repo", "work").unwrap();
+    let t = store.create_thread(&new_thread(&s.id, "first")).unwrap();
+    let t = store.add_reply(&t.id, "second", AuthorType::Agent, Some("Codex")).unwrap();
+    store.update_thread_github_ids(&t.id, Some("PRRT_1"), Some(42)).unwrap();
+
+    let snapshot = store.delete_thread(&t.id).unwrap();
+    assert!(store.list_threads(&s.id, None).unwrap().is_empty());
+    let conn = store.conn().unwrap();
+    let remembered: i64 = conn
+        .query_row("SELECT count(*) FROM deleted_github_threads WHERE github_thread_id = 'PRRT_1'", [], |r| r.get(0))
+        .unwrap();
+    drop(conn);
+    assert_eq!(remembered, 1);
+
+    let restored = store.restore_thread(&snapshot).unwrap();
+    assert_eq!(restored.id, t.id);
+    assert_eq!(restored.github_thread_id.as_deref(), Some("PRRT_1"));
+    assert_eq!(store.thread_github_comment_id(&t.id).unwrap(), Some(42));
+    let ids: Vec<_> = restored.comments.iter().map(|c| c.id.clone()).collect();
+    assert_eq!(ids, t.comments.iter().map(|c| c.id.clone()).collect::<Vec<_>>());
+    assert_eq!(restored.comments[1].author_name, "Codex");
+    let conn = store.conn().unwrap();
+    let remembered: i64 = conn.query_row("SELECT count(*) FROM deleted_github_threads", [], |r| r.get(0)).unwrap();
+    assert_eq!(remembered, 0);
+}
+
+#[test]
+fn addressed_threads_stay_open_until_the_reviewer_acts() {
+    let store = Store::open_in_memory().unwrap();
+    let s = store.get_or_create_session("/repo", "work").unwrap();
+    let t = store.create_thread(&new_thread(&s.id, "rename this")).unwrap();
+
+    let t = store.mark_addressed(&t.id, None, "Claude Code").unwrap();
+    assert_eq!(t.status, ThreadStatus::Open);
+    assert_eq!(t.addressed_by.as_deref(), Some("Claude Code"));
+    assert_eq!(t.comments.last().unwrap().author_type, AuthorType::Agent);
+    assert_eq!(store.list_repo_threads("/repo").unwrap()[0].1.addressed_by.as_deref(), Some("Claude Code"));
+
+    let t = store.set_thread_status(&t.id, ThreadStatus::Resolved, None).unwrap();
+    assert_eq!(t.status, ThreadStatus::Resolved);
+    assert_eq!(t.addressed_by, None);
 }

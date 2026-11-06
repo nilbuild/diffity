@@ -420,7 +420,8 @@ async fn handle_permission(
         write_paths.push(shared.resolve_path(Path::new(&d.path)));
     }
     let is_edit = diff.is_some() || policy::is_edit_kind(&kind);
-    if shared.auto_allow(&kind, is_edit) {
+    let in_worktree = policy::worktree_allows(shared.run(), is_edit, &write_paths, &shared.cwd);
+    if in_worktree || shared.auto_allow(&kind, is_edit) {
         let allow = req
             .options
             .iter()

@@ -9,6 +9,7 @@ pub mod scan;
 pub mod repo_threads;
 pub mod store;
 pub mod suggestion;
+pub mod task;
 pub mod tree;
 pub mod types;
 pub mod watch;
