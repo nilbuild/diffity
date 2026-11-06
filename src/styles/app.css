@@ -798,6 +798,20 @@ tr.guide-line-focus.guide-range-top.guide-range-bottom > td:first-child {
   transition: opacity 0.2s;
 }
 
+/* The pending line under the title bar: the same sweep, slower and quieter. */
+.pending-line {
+  animation: top-progress 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top-progress:not(.top-progress-done),
+  .pending-line {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+
 /* Toasts: fixed width, text wraps, actions sit at the end of the row; swipe right to dismiss. */
 [data-sonner-toaster] {
   --width: 360px;
@@ -877,3 +891,8 @@ tr.guide-line-focus.guide-range-top.guide-range-bottom > td:first-child {
   color: #111111;
 }
 
+
+/* Centered messages wrap into even lines instead of leaving a word or two alone on the last one. */
+.text-center {
+  text-wrap: balance;
+}
