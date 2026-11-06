@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import dayjs from 'dayjs';
-import { Skeleton } from '../ui/skeleton';
+import { Skeleton, useElapsed, useLatch } from '../ui/skeleton';
 import { SegmentedToggle } from '../ui/segmented-toggle';
 import { buttonGhost } from '../ui/button-styles';
 import { fetchCommit, fetchDiff, parseCommitRef } from '../../lib/api';
@@ -15,11 +15,12 @@ import { cn } from '../../lib/cn';
 import { getFilePath } from '../../lib/diff-utils';
 import { useCopy } from '../../hooks/use-copy';
 import { useRepoNav } from '../../hooks/use-repo';
-import { useGitHubPr, useGitStatus, useRepoMeta } from '../../hooks/use-repo-state';
+import { gitStatusOptions, useGitHubPr, useGitStatus, useRepoMeta } from '../../hooks/use-repo-state';
 import { AuthorAvatar } from './commit-list';
-import { isAllChangesRef, isPrShapedRef, prDiffRef, rangeParts, shortBase, uncommittedTwin } from './ref-menu';
+import { PR_LOOKUP_BUDGET, isAllChangesRef, isPrShapedRef, prDiffRef, rangeParts, shortBase, uncommittedTwin } from './ref-menu';
 import { CheckIcon, CopyIcon, GitCompareIcon } from '../ui/icon';
 import { prBaseFor } from '../../lib/pr-ref';
+import { TaskRoundBar, useShowsRoundBar } from '../../features/tasks/round-bar';
 
 export function useCommitDetails(sha: string | null) {
   return useQuery({
@@ -80,22 +81,55 @@ function plural(count: number, word: string) {
 
 const NO_PATHS = new Set<string>();
 
-/** Paths with uncommitted changes: empty when the tree is clean, null while still unknown. */
-export function useUncommittedPaths(): Set<string> | null {
-  const { data: status } = useGitStatus();
-  const dirty = !!status && status.staged + status.unstaged + status.untracked > 0;
-  const signature = status ? `${status.staged}/${status.unstaged}/${status.untracked}` : '';
-  const { data } = useQuery({
+function uncommittedFilesOptions(signature: string) {
+  return {
     queryKey: ['diff', 'uncommitted-files', signature],
     queryFn: () => fetchDiff(false, 'work', false),
+  };
+}
+
+function useUncommittedState(): { paths: Set<string> | null; settled: boolean; signature: string | null } {
+  const statusQuery = useGitStatus();
+  const status = statusQuery.data;
+  const dirty = !!status && status.staged + status.unstaged + status.untracked > 0;
+  const signature = status ? `${status.staged}/${status.unstaged}/${status.untracked}` : null;
+  const filesQuery = useQuery({
+    ...uncommittedFilesOptions(signature ?? ''),
     enabled: dirty,
     placeholderData: (previous) => previous,
   });
+  const { data } = filesQuery;
   const paths = useMemo(() => (data ? new Set(data.files.map(getFilePath)) : null), [data]);
   if (!status) {
-    return null;
+    return { paths: null, settled: statusQuery.isError, signature };
   }
-  return dirty ? paths : NO_PATHS;
+  if (!dirty) {
+    return { paths: NO_PATHS, settled: true, signature };
+  }
+  return { paths, settled: !!paths || filesQuery.isError, signature };
+}
+
+/** Paths with uncommitted changes: empty when the tree is clean, null while still unknown. */
+export function useUncommittedPaths(): Set<string> | null {
+  return useUncommittedState().paths;
+}
+
+/**
+ * Suspends until the uncommitted paths are known, so a paired view (`main` / `main...HEAD`) places its comments and
+ * counts its uncommitted files from final data instead of moving them once the list arrives.
+ */
+export function useUncommittedPathsReady(enabled: boolean) {
+  const client = useQueryClient();
+  const { settled, signature } = useUncommittedState();
+  // Only the first render waits: a tree that turns dirty later must not drop a mounted page back to a skeleton.
+  const ready = useLatch(settled);
+  if (!enabled || ready) {
+    return;
+  }
+  const pending = signature === null
+    ? client.fetchQuery(gitStatusOptions())
+    : client.fetchQuery(uncommittedFilesOptions(signature));
+  throw pending.catch(() => undefined);
 }
 
 /** Files with uncommitted changes (a file both staged and edited counts once); 0 when the tree is clean. */
@@ -194,23 +228,25 @@ function PrBehindNotice(props: { pr: PullRequest }) {
 
 /**
  * Switches a branch view between all changes (`main`) and commits only (`main...HEAD`) while the tree is dirty.
- * Both modes share one review, so comments and Viewed marks carry over. Lives in the title bar so it stays in sight.
+ * Both modes share one review, so comments and Viewed marks carry over.
  */
 export function ChangesModeSwitch(props: { diffRef: string }) {
   const { diffRef } = props;
   const nav = useRepoNav();
   const files = useUncommittedFiles();
-  const { details } = useGitHubPr();
+  const { details, loading: prLoading } = useGitHubPr();
+  const budgetSpent = useElapsed(PR_LOOKUP_BUDGET);
   const twin = uncommittedTwin(diffRef);
   const including = isAllChangesRef(diffRef);
 
-  if (!twin || files === 0 || (details && diffRef === prDiffRef(details))) {
+  // A PR range shows no switch once its PR is known; while the lookup runs it stays hidden rather than flashing.
+  if (!twin || files === 0 || (details && diffRef === prDiffRef(details)) || (prLoading && !budgetSpent && isPrShapedRef(diffRef))) {
     return null;
   }
   const count = plural(files, 'uncommitted file');
   return (
     <div className="flex items-center gap-2 shrink-0 text-xs text-text-secondary">
-      <span className="hidden @[880px]/titlebar:inline-flex items-center gap-1.5" title={`${count} ${including ? 'included' : 'not shown'}`}>
+      <span className="hidden @[640px]/diffbar:inline-flex items-center gap-1.5" title={`${count} ${including ? 'included' : 'not shown'}`}>
         <span className="w-1.5 h-1.5 rounded-full bg-modified" aria-hidden />
         {files} uncommitted
       </span>
@@ -239,9 +275,13 @@ export function DiffContextHeader(props: { diffRef: string }) {
   const commitSha = parseCommitRef(diffRef);
   const isPr = details !== null && diffRef === prDiffRef(details);
   const mayBePr = prLoading && isPrShapedRef(diffRef);
+  const showsRoundBar = useShowsRoundBar(diffRef);
 
   if (commitSha) {
     return <CommitHeader sha={commitSha} />;
+  }
+  if (showsRoundBar) {
+    return <TaskRoundBar diffRef={diffRef} />;
   }
   if (isPr && details) {
     return (

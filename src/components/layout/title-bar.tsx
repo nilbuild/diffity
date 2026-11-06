@@ -4,13 +4,16 @@ import { isMac, isTauri, modKey } from '../../lib/platform';
 import { toggleSidebar, useUi } from '../../lib/ui-store';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
-import { ChevronDownIcon, EditorIcon, HomeIcon, RevealIcon, SidebarIcon, SwapIcon } from '../ui/icon';
+import { ChevronDownIcon, EditorIcon, HomeIcon, PlusIcon, RevealIcon, SidebarIcon, SwapIcon } from '../ui/icon';
 import { MenuItem, MenuSeparator, Popover, useMenu } from '../ui/popover';
 import { errorMessage, openInEditor } from '../../lib/api';
 import { openQuickOpen } from '../../features/palette/quick-open';
 import { useEditorName } from '../../hooks/use-editor-name';
 import { useInsideRail } from './activity-rail';
-import { useRepoNav } from '../../hooks/use-repo';
+import { repoBase, useRepoNav } from '../../hooks/use-repo';
+import { useRepoTasks, useTaskForPath } from '../../features/tasks/tasks';
+import { TaskMenu } from '../../features/tasks/task-menu';
+import { openNewTask } from '../../features/tasks/new-task-store';
 
 interface TitleBarProps {
   children: ReactNode;
@@ -22,6 +25,8 @@ export const hasOverlayTitleBar = isTauri && isMac;
 
 export function useSidebarShortcut() {
   const nav = useRepoNav();
+  const task = useTaskForPath(nav.repoPath);
+  const homePath = task?.repoPath ?? nav.repoPath;
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -30,7 +35,12 @@ export function useSidebarShortcut() {
       }
       if (event.shiftKey && event.key.toLowerCase() === 'h') {
         event.preventDefault();
-        nav.toOverview();
+        nav.navigate(`${repoBase(homePath)}/overview`);
+        return;
+      }
+      if (!event.shiftKey && !event.altKey && event.key.toLowerCase() === 'n' && (isMac ? event.metaKey : event.ctrlKey)) {
+        event.preventDefault();
+        openNewTask(homePath);
         return;
       }
       if (event.key !== '\\') {
@@ -41,7 +51,7 @@ export function useSidebarShortcut() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [nav]);
+  }, [nav, homePath]);
 }
 
 function SidebarToggle() {
@@ -95,9 +105,10 @@ export function TitleBarDivider() {
   return <span className="w-px h-4 bg-frame-border shrink-0 mx-1" />;
 }
 
-function RepoCrumb(props: { name: string; path?: string }) {
-  const { name, path } = props;
+function RepoCrumb(props: { name: string; path?: string; homePath: string; compact?: boolean }) {
+  const { name, path, homePath, compact = false } = props;
   const nav = useRepoNav();
+  const toHome = () => nav.navigate(`${repoBase(homePath)}/overview`);
   const editor = useEditorName();
   const menu = useMenu();
   const run = (action: () => void) => () => {
@@ -106,31 +117,25 @@ function RepoCrumb(props: { name: string; path?: string }) {
   };
 
   return (
-    <div className={cn('group/crumb flex items-center min-w-12 max-w-[220px] rounded-md hover:bg-hover transition-colors', menu.open && 'bg-hover')}>
-      <button
-        onClick={nav.toOverview}
-        className="flex items-center gap-1.5 h-7 min-w-0 pl-1.5 pr-1 rounded-l-md font-semibold text-text text-[13px] cursor-pointer"
-        title={`Home (${modKey}⇧H)${path ? `\n${path}` : ''}`}
-      >
-        <HomeIcon size="sm" className="shrink-0 text-text-muted group-hover/crumb:text-text-secondary transition-colors" />
-        <span className="truncate">{name}</span>
-      </button>
+    <div className="flex items-center min-w-12 max-w-[220px]">
       <button
         ref={menu.anchorRef}
         onClick={menu.toggle}
-        aria-label="Project actions"
         aria-haspopup="menu"
         aria-expanded={menu.open}
-        title="Project actions"
         className={cn(
-          'flex items-center justify-center h-7 w-5 shrink-0 rounded-r-md text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer',
-          menu.open && 'text-text',
+          'group/crumb flex items-center gap-1.5 h-7 min-w-0 pl-1.5 pr-1 rounded-md font-semibold text-text text-[13px] hover:bg-hover transition-colors cursor-pointer',
+          menu.open && 'bg-hover',
         )}
+        title={`${name}: Home, switch project, open in editor${path ? `\n${path}` : ''}`}
       >
-        <ChevronDownIcon size="xs" />
+        <HomeIcon size="sm" className="shrink-0 text-text-muted group-hover/crumb:text-text-secondary transition-colors" />
+        <span className={cn('truncate', compact && '@max-4xl/titlebar:sr-only')}>{name}</span>
+        <ChevronDownIcon size="xs" className="shrink-0 text-text-muted" />
       </button>
       <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} width={240}>
-        <MenuItem icon={<HomeIcon size="sm" />} label="Home" hint={`${modKey}⇧H`} onSelect={run(nav.toOverview)} />
+        <MenuItem icon={<HomeIcon size="sm" />} label="Home" hint={`${modKey}⇧H`} onSelect={run(toHome)} />
+        <MenuItem icon={<PlusIcon size="sm" />} label="New task…" hint={`${modKey}N`} onSelect={run(() => openNewTask(homePath))} />
         <MenuItem icon={<SwapIcon size="sm" />} label="Switch project…" hint={`${modKey}O`} onSelect={run(openQuickOpen)} />
         <MenuSeparator />
         <MenuItem
@@ -163,21 +168,46 @@ export function CurrentCrumb(props: { children: ReactNode; icon?: ReactNode }) {
   );
 }
 
+function Slash() {
+  return <span aria-hidden className="shrink-0 px-0.5 text-text-muted/60 select-none">/</span>;
+}
+
 export function Breadcrumb(props: { name: string | null | undefined; path?: string; children?: ReactNode }) {
   const { name, path, children } = props;
+  const nav = useRepoNav();
+  const task = useTaskForPath(nav.repoPath);
+  const homePath = task?.repoPath ?? nav.repoPath;
+  const shownName = task ? homePath.split('/').filter(Boolean).pop() ?? name : name;
 
-  if (!name) {
+  if (!shownName) {
     return null;
   }
   return (
     <nav aria-label="Breadcrumb" data-tauri-drag-region className="flex items-center gap-1 min-w-0 shrink">
-      <RepoCrumb name={name} path={path} />
+      <RepoCrumb name={shownName} path={task ? homePath : path} homePath={homePath} compact={!!task} />
+      <TaskCrumb repoPath={nav.repoPath} />
       {children && (
         <>
-          <span aria-hidden className="shrink-0 px-0.5 text-text-muted/60 select-none">/</span>
+          <Slash />
           <div className="flex items-center min-w-0 shrink">{children}</div>
         </>
       )}
     </nav>
+  );
+}
+
+function TaskCrumb(props: { repoPath: string }) {
+  const { repoPath } = props;
+  const task = useTaskForPath(repoPath);
+  const tasks = useRepoTasks(repoPath);
+
+  if (!task && tasks.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      <Slash />
+      <TaskMenu repoPath={repoPath} task={task} />
+    </>
   );
 }

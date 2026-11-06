@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { useRepoNav } from '../../hooks/use-repo';
-import { useBaseBranch, useBranches, useGitHubPr, useGitStatus, useHasGitHubRemote } from '../../hooks/use-repo-state';
+import { useRepoNav, useRepoPath } from '../../hooks/use-repo';
+import { useBaseBranch, useBranches, useGitHubPr, useGitStatus, useHasGitHubRemote, usePrLookupExpected } from '../../hooks/use-repo-state';
 import { openPullRequests } from '../../lib/ui-store';
 import { commitRef, descriptionForRef, fetchCommits, isWorkingTreeRef, parseCommitRef, type Commit, type GitHubDetails } from '../../lib/api';
 import { cn } from '../../lib/cn';
@@ -16,13 +16,19 @@ import { Skeleton, useElapsed, useRevealClass } from '../ui/skeleton';
 import { PrRefChip } from '../../features/pr/pr-chip';
 import { useCurrentPr } from '../../features/pr/pr-session';
 import { prRefFor } from '../../lib/pr-ref';
+import { useTaskForPath } from '../../features/tasks/tasks';
 
 interface RefMenuProps {
   diffRef: string;
   branch: string | null;
+  /** Only a chevron button, for when the current view is already shown next to it. */
+  compact?: boolean;
 }
 
 export const HOME_REF = '__home__';
+
+/** How long a PR-shaped view waits for a slow GitHub before settling for what it knows. */
+export const PR_LOOKUP_BUDGET = 5000;
 
 export function prDiffRef(details: GitHubDetails): string {
   return prRefFor(details.pr);
@@ -71,12 +77,22 @@ export function rangeParts(diffRef: string): { base: string; head: string } {
 export function useTargetLabel(diffRef: string, branch: string | null): { label: string; icon: ReactNode; pending: boolean } {
   const { details, loading: prLoading } = useGitHubPr();
   const { isPending: branchesPending, isError: branchesFailed } = useBranches();
-  const githubBudgetSpent = useElapsed(600);
+  // A PR range on a branch that probably has a PR waits for GitHub, so the label doesn't go "branch vs main" → PR.
+  const prExpected = usePrLookupExpected();
+  const waitForPr = isPrShapedRef(diffRef) && prExpected;
+  const githubBudgetSpent = useElapsed(waitForPr ? PR_LOOKUP_BUDGET : 600);
   const base = useBaseBranch(details?.pr ?? null, branch);
   const commitSha = parseCommitRef(diffRef);
   const { data: commit, isPending: commitPending, isError: commitFailed } = useCommitDetails(commitSha);
+  const task = useTaskForPath(useRepoPath());
   if (diffRef === HOME_REF) {
     return { label: 'Home', icon: <HomeIcon className="w-3.5 h-3.5" />, pending: false };
+  }
+  if (task?.reviewedSha && diffRef === task.reviewedSha) {
+    return { label: `Since round ${task.reviewedRound}`, icon: <GitCompareIcon className="w-3.5 h-3.5" />, pending: false };
+  }
+  if (task && diffRef === task.baseRef) {
+    return { label: `All changes vs ${shortBase(task.baseRef)}`, icon: <GitCompareIcon className="w-3.5 h-3.5" />, pending: false };
   }
   if (details && diffRef === prDiffRef(details)) {
     return { label: `PR #${details.prNumber} · ${details.prTitle}`, icon: <GitPullRequestIcon className="w-3.5 h-3.5" />, pending: false };
@@ -185,8 +201,9 @@ function looksLikeRef(text: string) {
 }
 
 export function RefMenu(props: RefMenuProps) {
-  const { diffRef, branch } = props;
+  const { diffRef, branch, compact = false } = props;
   const nav = useRepoNav();
+  const task = useTaskForPath(nav.repoPath);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
@@ -194,12 +211,26 @@ export function RefMenu(props: RefMenuProps) {
   const reveal = useRevealClass(target.pending);
 
   const currentPr = useCurrentPr(diffRef);
-  const isDefault = diffRef === 'work' || diffRef === HOME_REF;
+  const home = task ? task.baseRef : 'work';
+  const isDefault = diffRef === home || diffRef === HOME_REF;
+  const homeLabel = task ? `Back to all changes vs ${task.baseRef}` : 'Back to uncommitted changes';
 
   return (
     <div className="relative min-w-0 flex items-center" ref={ref}>
       {currentPr && <PrRefChip pr={currentPr} pickerOpen={open} onTogglePicker={() => setOpen(!open)} />}
-      {!currentPr && (
+      {!currentPr && compact && (
+        <button
+          onClick={() => setOpen(!open)}
+          className={cn(buttonOutline, 'shrink-0 w-7 px-0 justify-center', open && 'bg-control-hover')}
+          title="Other views: commits, branches, ranges"
+          aria-label="Other views"
+          aria-haspopup="menu"
+          aria-expanded={open}
+        >
+          <ChevronDownIcon size="xs" className="text-text-secondary" />
+        </button>
+      )}
+      {!currentPr && !compact && (
         <div
           role="button"
           tabIndex={0}
@@ -221,11 +252,11 @@ export function RefMenu(props: RefMenuProps) {
             <button
               onClick={(event) => {
                 event.stopPropagation();
-                nav.toDiff('work');
+                nav.toDiff(home);
               }}
               className="ml-0.5 flex items-center justify-center w-5 h-5 rounded-full text-text-muted hover:text-text hover:bg-fill-hover transition-colors cursor-pointer"
-              title="Back to uncommitted changes"
-              aria-label="Back to uncommitted changes"
+              title={homeLabel}
+              aria-label={homeLabel}
             >
               <XIcon size={10} />
             </button>

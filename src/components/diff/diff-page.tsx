@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, useTransition } from 'react';
 import { SuggestionTargetContext } from '../../features/suggestions/suggestion-block';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import type { DiffFile } from '@/lib/diff-parser';
@@ -8,13 +8,13 @@ import { useDiff } from '../../hooks/use-diff';
 import { useInfo } from '../../hooks/use-info';
 import { useTheme } from '../../hooks/use-theme';
 import { useKeyboard } from '../../hooks/use-keyboard';
-import { useReviewThreads } from '../../hooks/use-review-threads';
+import { useReviewDataReady, useReviewThreads } from '../../hooks/use-review-threads';
 import { useCommentActions } from '../../hooks/use-comment-actions';
 import { Toolbar, formatThreadsForCopy } from '../layout/toolbar';
 import { CommentToolbarActions } from '../comments/comment-toolbar-actions';
 import { DiffView, type DiffViewHandle } from './diff-view';
 import { Sidebar } from '../layout/sidebar';
-import { DiffSkeleton, hideStaticSplash } from '../layout/skeleton';
+import { DiffSkeleton, PendingLine, hideStaticSplash } from '../layout/skeleton';
 import { PrSession, openPrDetails, openPrOnGitHub } from '../../features/pr/pr-session';
 import { syncPrCommentsNow, useCheckoutState } from '../../features/pr/pr-checkout';
 import { Spinner } from '../icons/spinner';
@@ -36,9 +36,11 @@ import { requestSendToClaude } from '../../features/claude/send-comments';
 import { openPrInbox } from '../../features/palette/quick-open';
 import { OtherViewThreads, OutsideThreads } from '../comments/outside-threads';
 import { splitThreadsByView } from '../../lib/thread-views';
-import { useUncommittedPaths } from '../layout/diff-context-bar';
+import { useUncommittedPaths, useUncommittedPathsReady } from '../layout/diff-context-bar';
 import type { CommentThread, LineSelection } from '../comments/types';
 import { DiffBar, hiddenFilesLabel } from './view-options';
+import { ViewBar, ViewPicker } from '../layout/view-picker';
+import { TaskRunBar } from '../../features/tasks/task-run-bar';
 import { repoBase } from '../../hooks/use-repo';
 import { errorMessage, getRepoPath, parseCommitRef } from '../../lib/api';
 import { enterLargeDiffScope } from '../../lib/large-diff';
@@ -70,6 +72,7 @@ import { deleteGuide, OVERVIEW_STEP, startGuide, useGuide, useGuideRun, type Gui
 import { setGuideOnScreen } from '../../features/guide/guide-on-screen';
 import { useRunPick } from '../../features/claude/model-setting';
 import { GENERAL_THREAD_FILE_PATH } from '../comments/types';
+import { ReviewKeys } from '../layout/review-keys';
 
 const NO_THREADS: CommentThread[] = [];
 
@@ -85,9 +88,13 @@ export function DiffPage(props: DiffPageProps) {
   const { diffRef: refParam } = props;
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => (localStorage.getItem('diffity-view-mode') as ViewMode | null) ?? 'split');
-  const [hideWhitespace, setHideWhitespace] = useViewState(`diff:${refParam}:hideWhitespace`, false);
+  const [hideWhitespace, storeHideWhitespace] = useViewState(`diff:${refParam}:hideWhitespace`, false);
   const { theme, toggleTheme } = useTheme();
-  const [showIgnored, setShowIgnored] = useViewState(`diff:${refParam}:showIgnored`, false);
+  const [showIgnored, storeShowIgnored] = useViewState(`diff:${refParam}:showIgnored`, false);
+  // These refetch the diff; in a transition the current one stays up instead of the page suspending to a skeleton.
+  const [optionsPending, startOptionsTransition] = useTransition();
+  const setHideWhitespace = useCallback((hide: boolean) => startOptionsTransition(() => storeHideWhitespace(hide)), [storeHideWhitespace]);
+  const setShowIgnored = useCallback((show: boolean) => startOptionsTransition(() => storeShowIgnored(show)), [storeShowIgnored]);
   const { data: rawDiff, error } = useDiff(hideWhitespace, refParam, showIgnored);
   useLayoutEffect(() => {
     enterLargeDiffScope(`${getRepoPath()}\u0000${refParam}`);
@@ -106,6 +113,8 @@ export function DiffPage(props: DiffPageProps) {
 
   const reviewsEnabled = !!info?.capabilities?.reviews;
   const sessionId = info?.sessionId ?? null;
+  useReviewDataReady(reviewsEnabled ? sessionId : null, sessionId);
+  useUncommittedPathsReady(!!uncommittedTwin(refParam));
   const { data: serverThreads, isFetched: threadsFetched } = useReviewThreads(reviewsEnabled ? sessionId : null);
   const allThreads = reviewsEnabled && serverThreads ? serverThreads : NO_THREADS;
   const twin = uncommittedTwin(refParam);
@@ -679,7 +688,9 @@ export function DiffPage(props: DiffPageProps) {
       promoteBlocked={promoteBlocked}
     >
     <SuggestionTargetContext.Provider value={suggestionTarget}>
-    <div className="flex flex-col h-screen bg-frame text-text font-sans">
+    <ReviewKeys threads={threads} onScrollToThread={handleScrollToThread} onResolve={commentActions.resolveThread} />
+    <div className="relative flex flex-col h-screen bg-frame text-text font-sans">
+      <PendingLine pending={optionsPending} />
       <Toolbar
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -742,6 +753,8 @@ export function DiffPage(props: DiffPageProps) {
           </div>
         ) : isEmpty ? (
           <div className="flex flex-1 min-w-0 flex-col overflow-y-auto">
+            <TaskRunBar />
+            <ViewBar diffRef={refParam} branch={info?.branch || null} />
             <DiffEmptyState
               diffRef={refParam}
               hideWhitespace={hideWhitespace}
@@ -767,6 +780,8 @@ export function DiffPage(props: DiffPageProps) {
         ) : (
           <div className="relative flex flex-1 min-w-0 flex-col">
             <FindBar className="top-12" />
+            <TaskRunBar />
+            {guideMode && !guideOpen && <ViewBar diffRef={refParam} branch={info?.branch || null} />}
             {(!guideMode || guideOpen) && (
               <DiffBar
                 viewMode={shownViewMode}
@@ -775,10 +790,11 @@ export function DiffPage(props: DiffPageProps) {
                 onHideWhitespaceChange={setHideWhitespace}
                 leading={guideOpen ? (
                   <span className="flex items-center gap-3 mr-1 min-w-0">
+                    <ViewPicker diffRef={refParam} branch={info?.branch || null} />
                     <span className="text-xs text-text-secondary tabular-nums shrink-0">{stepLabel(chapters, step)}</span>
                     <GuideBarStatus diffRef={refParam} stale={guideStale} onRewrite={rewriteGuide} />
                   </span>
-                ) : undefined}
+                ) : <ViewPicker diffRef={refParam} branch={info?.branch || null} />}
                 ignored={{ hiddenCount: diff.hiddenFiles?.length ?? 0, showing: showIgnored, onShowingChange: setShowIgnored }}
                 onExpandAll={() => setCollapsedFiles(new Set())}
                 onCollapseAll={() => setCollapsedFiles(new Set(allPaths))}

@@ -14,6 +14,8 @@ import { ContextMenu, MenuItem, MenuSeparator } from '../ui/popover';
 import { useEditorName } from '../../hooks/use-editor-name';
 import { errorMessage, openInEditor } from '../../lib/api';
 import { Skeleton, useRevealClass } from '../ui/skeleton';
+import { useTaskForPath } from '../../features/tasks/tasks';
+import { TaskStatusLine } from '../../features/tasks/task-status-line';
 
 interface StatusBarProps {
   diffRef?: string;
@@ -113,10 +115,13 @@ export function StatusBar(props: StatusBarProps) {
   const path = shortPath(fullPath);
   const loading = !status || !meta;
   const reveal = useRevealClass(loading);
+  const task = useTaskForPath(nav.repoPath);
 
   return (
     <div data-tauri-drag-region className="group/status flex items-center gap-1.5 h-8 shrink-0 pl-1.5 pr-2.5 bg-frame text-xs text-text-secondary font-sans select-none">
-      {loading ? (
+      {task ? (
+        <TaskStatusLine task={task} />
+      ) : loading ? (
         <span aria-busy className="flex items-center gap-1.5">
           <span className={itemClass}><Skeleton className="w-24 h-2.5" /></span>
           <span className={itemClass}><Skeleton className="w-28 h-2.5" /></span>

@@ -72,7 +72,7 @@ export function DiffBar(props: DiffBarProps) {
   };
 
   return (
-    <div className="flex items-center gap-2 h-10 shrink-0 px-5 border-b border-border-muted bg-bg">
+    <div className="@container/diffbar flex items-center gap-2 h-10 shrink-0 px-5 border-b border-border-muted bg-bg">
       {leading}
       {commentNav}
       <span className="flex-1" />
@@ -91,6 +91,7 @@ export function DiffBar(props: DiffBarProps) {
       <SegmentedToggle
         value={viewMode}
         onChange={onViewModeChange}
+        labelClassName="@max-[560px]/diffbar:sr-only"
         options={[
           { value: 'unified', label: 'Unified', title: 'Unified: one column (U)', icon: <UnifiedViewIcon size="sm" /> },
           { value: 'split', label: 'Split', title: 'Split: before and after side by side (S)', icon: <SplitViewIcon size="sm" /> },

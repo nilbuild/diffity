@@ -6,12 +6,15 @@ import type { CommentThread } from '../comments/types';
 import { isThreadResolved } from '../comments/types';
 import { Breadcrumb, TitleBar } from './title-bar';
 import { CommentsButton } from '../../features/comments/comments-button';
-import { RefMenu } from './ref-menu';
-import { ChangesModeSwitch } from './diff-context-bar';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
 import { FinishReview } from '../../features/review/finish-review';
-import { useRepoMeta } from '../../hooks/use-repo-state';
+import { usePrLookupExpected, useRepoMeta } from '../../hooks/use-repo-state';
+import { Skeleton, useElapsed } from '../ui/skeleton';
+import { PR_LOOKUP_BUDGET, isPrShapedRef } from './ref-menu';
 import { OwnPrAction, PrMenuItems } from '../../features/pr/pr-session';
+import { ShipMenu } from '../../features/tasks/ship-menu';
+import { useTaskForPath } from '../../features/tasks/tasks';
+import { useRepoPath } from '../../hooks/use-repo';
 import type { GitHubDetails } from '../../lib/api';
 
 interface ToolbarProps {
@@ -110,25 +113,25 @@ export function Toolbar(props: ToolbarProps) {
     diffRef,
     threads,
     repoName,
-    branch,
     sessionId,
   } = props;
   const { data: meta } = useRepoMeta();
   const hasChanges = !diff || diff.files.length > 0;
-
+  const inTask = !!useTaskForPath(useRepoPath());
+  const prExpected = usePrLookupExpected();
+  const prBudgetSpent = useElapsed(PR_LOOKUP_BUDGET);
+  // Holds the review button's place while GitHub answers, so it doesn't push the other buttons aside when it lands.
+  const reserveReview = !!diffRef && isPrShapedRef(diffRef) && prExpected && !prBudgetSpent && !props.githubDetails;
 
   return (
     <TitleBar>
       <div data-tauri-drag-region className="flex items-center gap-2.5 min-w-0 shrink">
-        <Breadcrumb name={repoName} path={meta?.path}>
-          {diffRef && <RefMenu diffRef={diffRef} branch={branch} />}
-        </Breadcrumb>
-        {diffRef && <ChangesModeSwitch diffRef={diffRef} />}
+        <Breadcrumb name={repoName} path={meta?.path} />
       </div>
       <div data-tauri-drag-region className="flex-1 min-w-2 self-stretch" />
       <div className="flex items-center gap-2 shrink-0">
         <CommentsButton />
-        <OwnPrAction diffRef={diffRef ?? null} />
+        {inTask ? <ShipMenu /> : <OwnPrAction diffRef={diffRef ?? null} />}
         {(hasChanges || threads.length > 0) && (
           <>
             <ClaudeToolbar
@@ -139,7 +142,7 @@ export function Toolbar(props: ToolbarProps) {
               threads={threads}
               formatForCopy={() => formatThreadsForCopy(threads, diff, diffRef)}
             />
-            <FinishReview githubDetails={props.githubDetails ?? null} threads={threads} />
+            {reserveReview ? <Skeleton className="w-[150px] @max-3xl/titlebar:w-[72px] h-7 rounded-md" /> : <FinishReview githubDetails={props.githubDetails ?? null} threads={threads} />}
           </>
         )}
         <OptionsMenu
