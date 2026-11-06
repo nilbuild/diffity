@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react';
 import { useIsFetching, useIsMutating } from '@tanstack/react-query';
+import { create } from 'zustand';
 import { BrandLogo } from '../icons/brand-logo';
 import { cn } from '../../lib/cn';
 import { Skeleton } from '../ui/skeleton';
-import { TitleBar, Workspace } from './title-bar';
+import { Breadcrumb, CurrentCrumb, TitleBar, Workspace } from './title-bar';
 import { endOpening } from '../../lib/opening';
 import { HomeSkeletonMain } from './home-skeleton';
 import { HomeTitleBar } from './home-title-bar';
 import { StatusBar } from './status-bar';
+import { OptionsMenu } from './options-menu';
 import { Spinner } from '../icons/spinner';
+import { CommentsButton } from '../../features/comments/comments-button';
+import { useTheme } from '../../hooks/use-theme';
+import { useNavigationPending } from '../../hooks/use-navigation-pending';
 
 /** Removes the static splash from index.html once React has painted something equivalent. */
 export function hideStaticSplash() {
@@ -33,7 +38,7 @@ export function AppSplash(props: { label?: string }) {
   }, []);
 
   return (
-    <div data-tauri-drag-region className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-5 bg-bg font-sans select-none">
+    <div data-tauri-drag-region className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-5 bg-frame font-sans select-none">
       <BrandLogo className="w-14 h-14" />
       <div className="flex items-center gap-2 text-xs text-text-muted">
         <Spinner className="w-3.5 h-3.5 text-accent" />
@@ -72,17 +77,73 @@ function useLoadingStep(): string | null {
   return counts.find((entry) => entry.count > 0)?.step.label ?? null;
 }
 
-function useDelayed(ms: number) {
-  const [shown, setShown] = useState(ms === 0);
+/** Like `Skeleton`'s: an instance mounting this soon after a shown one unmounted is shown at once. */
+const HANDOVER = 250;
+const shownCount = new Map<number, number>();
+const lastShownAt = new Map<number, number>();
+
+function shownNow(ms: number): boolean {
+  if (ms === 0 || (shownCount.get(ms) ?? 0) > 0) {
+    return true;
+  }
+  const last = lastShownAt.get(ms);
+  return last !== undefined && performance.now() - last < HANDOVER;
+}
+
+/**
+ * True once `ms` have passed since mount. One loading view replacing another that had already shown its delayed
+ * parts (the opening skeleton swapped for the page's own) starts shown, so they don't blink out and back in.
+ */
+export function useDelayed(ms: number) {
+  const [shown, setShown] = useState(() => shownNow(ms));
 
   useEffect(() => {
-    if (ms === 0) {
+    if (shown) {
       return;
     }
     const timer = setTimeout(() => setShown(true), ms);
     return () => clearTimeout(timer);
-  }, [ms]);
+  }, [ms, shown]);
+
+  useEffect(() => {
+    if (!shown) {
+      return;
+    }
+    shownCount.set(ms, (shownCount.get(ms) ?? 0) + 1);
+    return () => {
+      shownCount.set(ms, Math.max(0, (shownCount.get(ms) ?? 1) - 1));
+      lastShownAt.set(ms, performance.now());
+    };
+  }, [ms, shown]);
   return shown;
+}
+
+export type OpeningView = 'diff' | 'files' | 'home';
+
+/** The diff and Files title bars with what is known before the page loads, at the real positions and sizes. */
+function OpeningTitleBar(props: { repoName: string; view: OpeningView }) {
+  const { repoName, view } = props;
+  const { theme, toggleTheme } = useTheme();
+
+  return (
+    <TitleBar>
+      <div data-tauri-drag-region className="flex items-center gap-2.5 min-w-0 shrink">
+        <Breadcrumb name={repoName}>
+          {view === 'files' && <CurrentCrumb>Files</CurrentCrumb>}
+        </Breadcrumb>
+      </div>
+      <div data-tauri-drag-region className="flex-1 min-w-2 self-stretch" />
+      <div className="flex items-center gap-2 shrink-0">
+        {view === 'diff' && (
+          <>
+            <CommentsButton />
+            <Skeleton className="w-[102px] @max-3xl/titlebar:w-[38px] h-7 rounded-md" />
+          </>
+        )}
+        <OptionsMenu theme={theme} onToggleTheme={toggleTheme} />
+      </div>
+    </TitleBar>
+  );
 }
 
 /**
@@ -90,10 +151,11 @@ function useDelayed(ms: number) {
  * skeleton form. Bars appear after 150ms so cached switches never flash; a step label appears after 400ms and a
  * way back after a few seconds.
  */
-export function OpeningSkeleton(props: { repoName: string; onCancel?: () => void; home?: boolean }) {
-  const { repoName, onCancel, home = false } = props;
-  const bars = useDelayed(150);
+export function OpeningSkeleton(props: { repoName: string; onCancel?: () => void; view?: OpeningView; diffRef?: string }) {
+  const { repoName, onCancel, view = 'diff', diffRef } = props;
+  const home = view === 'home';
   const status = useDelayed(400);
+  const [statusHandedOver] = useState(status);
   const slow = useDelayed(4000);
   const step = useLoadingStep() ?? 'Preparing the view';
 
@@ -108,40 +170,33 @@ export function OpeningSkeleton(props: { repoName: string; onCancel?: () => void
 
   return (
     <div className="flex flex-col h-screen bg-frame font-sans">
-      {home ? <HomeTitleBar name={repoName} /> : (
-        <TitleBar>
-          <span className="font-semibold text-text text-[13px] truncate max-w-[180px] px-1.5">{repoName}</span>
-          {bars && <Bar className="w-48 h-7" />}
-        </TitleBar>
-      )}
+      {home ? <HomeTitleBar name={repoName} /> : <OpeningTitleBar repoName={repoName} view={view} />}
       <Workspace>
         <div className="relative flex flex-1 overflow-hidden">
           {home ? <HomeSkeletonMain repoName={repoName} /> : (
           <>
             <div className="shrink-0 border-r border-border bg-sidebar p-3 space-y-3" style={{ width: storedSidebarWidth() }}>
-              {bars && (
-                <>
-                  <Bar className="h-8 w-full" />
-                  <Bar className="h-7 w-full" />
-                  {[70, 55, 80, 45, 62, 50].map((width, index) => (
-                    <div key={index} className="flex items-center gap-2" style={{ paddingLeft: (index % 3) * 12 }}>
-                      <Bar className="w-3.5 h-3.5" />
-                      <div style={{ width: `${width}%` }}><Bar className="h-3" /></div>
-                    </div>
-                  ))}
-                </>
-              )}
+              <Bar className="h-8 w-full" />
+              <Bar className="h-7 w-full" />
+              {[70, 55, 80, 45, 62, 50].map((width, index) => (
+                <div key={index} className="flex items-center gap-2" style={{ paddingLeft: (index % 3) * 12 }}>
+                  <Bar className="w-3.5 h-3.5" />
+                  <div style={{ width: `${width}%` }}><Bar className="h-3" /></div>
+                </div>
+              ))}
             </div>
             <div className="flex-1 min-w-0 flex flex-col">
-              <div className="h-10 shrink-0 border-b border-border-muted" />
+              <div className="flex items-center h-10 shrink-0 px-5 border-b border-border-muted">
+                <Bar className="w-48 h-7" />
+              </div>
               <div className="flex-1 px-5 py-4 space-y-4 overflow-hidden">
-                {bars && [0, 1, 2].map((i) => <FileBlockSkeleton key={i} lines={i === 0 ? 8 : 5} />)}
+                {[0, 1, 2].map((i) => <FileBlockSkeleton key={i} lines={i === 0 ? 8 : 5} />)}
               </div>
             </div>
           </>
           )}
           {status && (
-            <div className="absolute left-1/2 top-16 -translate-x-1/2 flex items-center gap-2.5 h-9 pl-3 pr-2 rounded-full border border-overlay-border bg-overlay text-[13px] text-text-secondary animate-fade-in">
+            <div className={cn('absolute left-1/2 top-16 -translate-x-1/2 flex items-center gap-2.5 h-9 pl-3 pr-2 rounded-full border border-overlay-border bg-overlay text-[13px] text-text-secondary', !statusHandedOver && 'animate-fade-in')}>
               <Spinner className="w-3.5 h-3.5 text-text-secondary" />
               <span>Opening <span className="font-medium text-text">{repoName}</span> · {step}…</span>
               {slow && onCancel ? (
@@ -151,15 +206,36 @@ export function OpeningSkeleton(props: { repoName: string; onCancel?: () => void
           )}
         </div>
       </Workspace>
-      {home ? <StatusBar /> : <div className="h-8 shrink-0" />}
+      <StatusBar diffRef={view === 'diff' ? diffRef : undefined} />
     </div>
   );
 }
 
-export function DiffSkeleton() {
-  const repoName = (window.location.hash.match(/#\/r\/([^/]+)/)?.[1] ?? '').split('%2F').pop() ?? '';
+/** Which page a repository URL shows, for drawing its opening skeleton. */
+export function openingViewFor(pathname: string): OpeningView {
+  if (pathname.endsWith('/overview')) {
+    return 'home';
+  }
+  return pathname.endsWith('/tree') ? 'files' : 'diff';
+}
 
-  return <OpeningSkeleton repoName={decodeURIComponent(repoName)} />;
+export function DiffSkeleton() {
+  const repoName = (window.location.hash.match(/#\/r\/([^/?]+)/)?.[1] ?? '').split('%2F').pop() ?? '';
+  const hashPath = window.location.hash.slice(1).split('?')[0];
+  const diffRef = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('ref') || 'work';
+
+  return <OpeningSkeleton repoName={decodeURIComponent(repoName)} view={openingViewFor(hashPath)} diffRef={diffRef} />;
+}
+
+/** A file card placeholder that stays out of sight for the first 150ms, so quick loads never flash a frame. */
+export function DelayedFileSkeleton(props: { lines?: number }) {
+  const { lines } = props;
+  const shown = useDelayed(150);
+
+  if (!shown) {
+    return null;
+  }
+  return <FileBlockSkeleton lines={lines} />;
 }
 
 export function FileBlockSkeleton(props: { lines?: number }) {
@@ -185,6 +261,45 @@ export function FileBlockSkeleton(props: { lines?: number }) {
   );
 }
 
+/** Pending lines running now; the top progress bar stays out of their way so there's one indicator at a time. */
+const usePendingLines = create<{ count: number }>(() => ({ count: 0 }));
+
+/**
+ * A thin indeterminate line along the top of the workspace, under the title bar, for a screen that stays up while
+ * the next one loads (a view switch, a diff option). It appears only once the wait is noticeable.
+ */
+export function PendingLine(props: { pending: boolean; className?: string }) {
+  const { pending, className } = props;
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!pending) {
+      setVisible(false);
+      return;
+    }
+    usePendingLines.setState((state) => ({ count: state.count + 1 }));
+    const timer = setTimeout(() => setVisible(true), 200);
+    return () => {
+      clearTimeout(timer);
+      usePendingLines.setState((state) => ({ count: state.count - 1 }));
+    };
+  }, [pending]);
+
+  if (!visible) {
+    return null;
+  }
+  return (
+    <div role="progressbar" aria-label="Loading" className={cn('absolute left-0 right-0 top-11 z-30 h-0.5 overflow-hidden pointer-events-none', className)}>
+      <div className="h-full bg-accent/70 pending-line" />
+    </div>
+  );
+}
+
+/** `PendingLine` for navigations: the router keeps the current screen up until the next one is ready. */
+export function NavigationProgress() {
+  return <PendingLine pending={useNavigationPending()} />;
+}
+
 /** Network enrichment that loads behind a view that is already usable; it never drives the progress bar. */
 const BACKGROUND_KEYS = new Set(['github-details', 'pull-requests', 'github-auth', 'agents', 'setting', 'quick-open-roots', 'dir-suggestions', 'pr-inbox', 'recent-remotes']);
 
@@ -194,7 +309,8 @@ export function TopProgress() {
     predicate: (query) => query.state.data === undefined && query.state.status !== 'error' && !BACKGROUND_KEYS.has(String(query.queryKey[0])),
   });
   const mutating = useIsMutating();
-  const active = loading + mutating > 0;
+  const linePending = usePendingLines((state) => state.count > 0);
+  const active = loading + mutating > 0 && !linePending;
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {

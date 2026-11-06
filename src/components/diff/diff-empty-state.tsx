@@ -6,6 +6,8 @@ import { useGitStatus, useRecentCommits, useRepoMeta } from '../../hooks/use-rep
 import { commitRef, parseCommitRef } from '../../lib/api';
 import { CheckCircleIcon, ChevronRightIcon, EyeIcon, FilesIcon, GitBranchIcon, GitCommitIcon, HomeIcon, PencilIcon } from '../ui/icon';
 import { buttonOutline } from '../ui/button-styles';
+import { cn } from '../../lib/cn';
+import { Skeleton } from '../ui/skeleton';
 
 interface DiffEmptyStateProps {
   diffRef: string;
@@ -44,6 +46,21 @@ function ActionRow(props: { action: Action }) {
       {action.detail && <span className="text-text-secondary truncate min-w-0">{action.detail}</span>}
       <ChevronRightIcon className="w-3 h-3 ml-auto text-text-muted opacity-0 group-hover:opacity-100 shrink-0" />
     </button>
+  );
+}
+
+/** The message line while git status is unknown, so a count never shows as 0 first. */
+function MessageSkeleton(props: { lines: number }) {
+  const { lines } = props;
+
+  return (
+    <span aria-busy className="flex flex-col items-center">
+      {Array.from({ length: lines }, (_, index) => (
+        <span key={index} className="flex items-center justify-center w-full h-[21px]">
+          <Skeleton className={cn('max-w-full h-3', index === lines - 1 ? 'w-48' : 'w-80')} />
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -103,10 +120,11 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
 
   if (diffRef === 'staged') {
     const other = status ? status.unstaged + status.untracked : 0;
+    const message = other > 0 ? `You have ${other} unstaged or new file${other === 1 ? '' : 's'}. Stage with git add, or review everything that is uncommitted.` : 'Stage files with git add and they show up here.';
     return (
       <Shell
         title="Nothing is staged"
-        message={other > 0 ? `You have ${other} unstaged or new file${other === 1 ? '' : 's'}. Stage with git add, or review everything that is uncommitted.` : 'Stage files with git add and they show up here.'}
+        message={status ? message : <MessageSkeleton lines={2} />}
         actions={[{ label: 'View all uncommitted changes', icon: <PencilIcon className="w-3.5 h-3.5" />, onClick: () => nav.toDiff('work') }, browseCommits]}
       />
     );
@@ -116,7 +134,7 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
     return (
       <Shell
         title="No unstaged changes"
-        message={status && status.staged > 0 ? 'Everything you changed is already staged.' : 'Your working tree matches the index.'}
+        message={!status ? <MessageSkeleton lines={1} /> : status.staged > 0 ? 'Everything you changed is already staged.' : 'Your working tree matches the index.'}
         actions={[{ label: 'View all uncommitted changes', icon: <PencilIcon className="w-3.5 h-3.5" />, onClick: () => nav.toDiff('work') }, browseCommits]}
       />
     );
@@ -134,7 +152,7 @@ export function DiffEmptyState(props: DiffEmptyStateProps) {
             <HomeIcon size="sm" className="text-text-secondary" />
             Home
           </button>
-          {!last && recentLoading && <span className="inline-block w-[150px] h-7 rounded-md bg-fill animate-pulse" aria-hidden />}
+          {!last && recentLoading && <Skeleton className="w-[150px] h-7 rounded-md" />}
           {last && (
             <button onClick={() => nav.toDiff(commitRef(last.hash))} className={buttonOutline} title={last.message}>
               <GitCommitIcon size="sm" className="text-text-secondary" />

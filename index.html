@@ -14,16 +14,17 @@
       })();
     </script>
     <style>
+      /* Splash and page background use the window frame colour (--color-frame in app.css), so the fade is invisible. */
       #splash { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
-        background: #ffffff; color: #8b949e; font: 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; transition: opacity 0.18s; -webkit-user-select: none; user-select: none; }
+        background: #eaecef; color: #8b949e; font: 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; transition: opacity 0.18s; -webkit-user-select: none; user-select: none; }
       #splash .fg { fill: #1f2328; }
       #splash .row { display: flex; align-items: center; gap: 8px; }
       #splash .spin { width: 10px; height: 10px; border: 2px solid rgba(9, 105, 218, 0.3); border-top-color: #0969da; border-radius: 50%; animation: splash-spin 0.8s linear infinite; }
-      [data-theme='dark'] #splash { background: #141414; color: #737373; }
+      [data-theme='dark'] #splash { background: #0e0e10; color: #737373; }
       [data-theme='dark'] #splash .fg { fill: #e5e5e5; }
       [data-theme='dark'] #splash .spin { border-color: rgba(96, 165, 250, 0.3); border-top-color: #60a5fa; }
       @keyframes splash-spin { to { transform: rotate(360deg); } }
-      html, body { background: #ffffff; margin: 0; } [data-theme='dark'], [data-theme='dark'] body { background: #141414; }
+      html, body { background: #eaecef; margin: 0; } [data-theme='dark'], [data-theme='dark'] body { background: #0e0e10; }
     </style>
   </head>
   <body>

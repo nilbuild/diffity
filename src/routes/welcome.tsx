@@ -25,6 +25,7 @@ import { buttonIcon, buttonPrimary, inputField } from '../components/ui/button-s
 import { ConfirmDialog } from '../components/ui/confirm-dialog';
 import { CloneIcon, FolderOpenIcon, GitHubIcon, GitPullRequestIcon, MoonIcon, SettingsIcon, SunIcon, XIcon } from '../components/ui/icon';
 import { Spinner } from '../components/icons/spinner';
+import { Skeleton } from '../components/ui/skeleton';
 
 dayjs.extend(relativeTime);
 
@@ -169,19 +170,58 @@ function groupLabel(date: string) {
   return 'Earlier';
 }
 
-function RecentList(props: RecentListProps) {
-  const { repos, loading, onOpen, onRemove } = props;
+const RECENT_SHAPE_KEY = 'diffity-recent-shape';
 
-  if (loading) {
-    return <div className="h-24" />;
+/** Group sizes of the recent list last time it showed, so its placeholder takes the same room. */
+function readRecentShape(): number[] {
+  try {
+    const shape = JSON.parse(localStorage.getItem(RECENT_SHAPE_KEY) ?? '[3]') as unknown;
+    return Array.isArray(shape) && shape.every((size) => typeof size === 'number') ? shape : [3];
+  } catch {
+    return [3];
   }
-  if (repos.length === 0) {
-    return (
-      <p className="mt-10 text-[13px] text-text-secondary px-3 py-6 rounded-lg bg-bg-secondary text-center">
-        Repositories you open show up here
-      </p>
-    );
+}
+
+function writeRecentShape(shape: number[]) {
+  try {
+    localStorage.setItem(RECENT_SHAPE_KEY, JSON.stringify(shape));
+  } catch {
+    return;
   }
+}
+
+function RecentListSkeleton() {
+  const [shape] = useState(readRecentShape);
+
+  if (shape.length === 0) {
+    return <div className="mt-10 h-[68px]" />;
+  }
+  return (
+    <div aria-busy className="mt-10 space-y-5">
+      {shape.map((size, group) => (
+        <section key={group}>
+          <div className="flex items-center h-4 px-1 mb-1.5">
+            <Skeleton className="w-16 h-2.5" />
+          </div>
+          <ul className="rounded-lg border border-border bg-bg p-1">
+            {Array.from({ length: size }, (_, index) => (
+              <li key={index} className="flex items-center gap-3 h-11 px-2">
+                <Skeleton className="w-7 h-7 rounded-lg" />
+                <span className="min-w-0 flex-1 space-y-1.5">
+                  <Skeleton className="h-3" style={{ width: `${30 + ((index * 23) % 25)}%` }} />
+                  <Skeleton className="h-2.5" style={{ width: `${45 + ((index * 17) % 20)}%` }} />
+                </span>
+                <Skeleton className="w-12 h-2.5" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function groupRecent(repos: RecentRepo[]) {
   const groups: { label: string; repos: RecentRepo[] }[] = [];
   for (const repo of repos) {
     const label = groupLabel(repo.lastOpenedAt);
@@ -191,6 +231,31 @@ function RecentList(props: RecentListProps) {
       continue;
     }
     groups.push({ label, repos: [repo] });
+  }
+  return groups;
+}
+
+function RecentList(props: RecentListProps) {
+  const { repos, loading, onOpen, onRemove } = props;
+  const groups = groupRecent(repos);
+  const shape = loading ? null : groups.map((group) => group.repos.length).join(',');
+
+  useEffect(() => {
+    if (shape === null) {
+      return;
+    }
+    writeRecentShape(shape ? shape.split(',').map(Number) : []);
+  }, [shape]);
+
+  if (loading) {
+    return <RecentListSkeleton />;
+  }
+  if (repos.length === 0) {
+    return (
+      <p className="mt-10 text-[13px] text-text-secondary px-3 py-6 rounded-lg bg-bg-secondary text-center">
+        Repositories you open show up here
+      </p>
+    );
   }
   return (
     <div className="mt-10 space-y-5">

@@ -48,7 +48,7 @@ export function useRecentRepos() {
     await tauri.setSetting(HIDDEN_KEY, value).catch(() => undefined);
   };
 
-  return { repos, all: recent.data ?? [], loading: recent.isLoading, remove, restore };
+  return { repos, all: recent.data ?? [], loading: recent.isPending || hiddenQuery.isPending, remove, restore };
 }
 
 

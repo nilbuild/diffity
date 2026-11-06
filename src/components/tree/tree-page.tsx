@@ -38,7 +38,7 @@ import { focusThreadElement } from '../../lib/dom-utils';
 import { setFocusThread } from '../../lib/ui-store';
 import { ReviewStateProvider } from '../../features/review/review-state';
 import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
-import { DiffSkeleton, FileBlockSkeleton, hideStaticSplash } from '../layout/skeleton';
+import { DelayedFileSkeleton, DiffSkeleton, hideStaticSplash } from '../layout/skeleton';
 import { CodeIcon, EditorIcon, FileIcon } from '../ui/icon';
 import { useEditorName } from '../../hooks/use-editor-name';
 import { modKey } from '../../lib/platform';
@@ -154,13 +154,13 @@ export function TreePage() {
   const isDirMode = !isFileMode;
   const isImage = isFileMode && isImageFile(navPath);
 
-  const { data: fileContent, isFetching: fileFetching } = useQuery({
+  const { data: fileContent, isFetching: fileFetching, isPlaceholderData: filePlaceholder } = useQuery({
     ...treeFileContentOptions(navPath),
     enabled: isFileMode && !isImage,
     placeholderData: keepPreviousData,
   });
 
-  const { data: entriesData, isFetching: entriesFetching } = useQuery({
+  const { data: entriesData, isFetching: entriesFetching, isPlaceholderData: entriesPlaceholder } = useQuery({
     ...treeEntriesOptions(navPath || undefined),
     enabled: isDirMode,
     placeholderData: keepPreviousData,
@@ -395,8 +395,9 @@ export function TreePage() {
         </div>
       );
     }
-    if (!fileContent) {
-      return fileFetching ? <FileBlockSkeleton lines={14} /> : (
+    // Kept data belongs to the previous file: show the placeholder rather than its content under this name.
+    if (!fileContent || filePlaceholder) {
+      return fileFetching || filePlaceholder ? <DelayedFileSkeleton lines={14} /> : (
         <div className='flex items-center justify-center h-32 text-xs text-text-muted'>
           File not found
         </div>
@@ -528,10 +529,12 @@ export function TreePage() {
 
           {isFileMode ? (
             renderFile()
+          ) : entriesPlaceholder ? (
+            <DelayedFileSkeleton lines={6} />
           ) : entries.length > 0 ? (
             <FolderViewer entries={entries} onNavigate={handleNavigate} />
           ) : entriesFetching ? (
-            <FileBlockSkeleton lines={6} />
+            <DelayedFileSkeleton lines={6} />
           ) : (
             <div className='flex items-center justify-center h-32 text-xs text-text-muted'>
               Empty directory

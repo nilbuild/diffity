@@ -6,8 +6,9 @@ import { buttonPrimary } from '../../components/ui/button-styles';
 import type { PullRequest } from '../../lib/types';
 import { closePullRequests, openSettingsAt, useUi } from '../../lib/ui-store';
 import { useRepoNav } from '../../hooks/use-repo';
-import { useGitHubAuth, useGitHubPr, useHasGitHubRemote } from '../../hooks/use-repo-state';
+import { useGitHubPr, useGitHubRemote, useGitHubSignIn } from '../../hooks/use-repo-state';
 import { Spinner } from '../../components/icons/spinner';
+import { Skeleton } from '../../components/ui/skeleton';
 import { ChecksStatus, PrStateIcon, ReviewDecision, headLabel, relative } from './pr-meta';
 import { checkoutPullRequest, parsePrInput, prRefFor, useCheckoutState } from './pr-checkout';
 import { GitHubIcon, GitPullRequestIcon, RefreshIcon, SearchIcon, XIcon } from '../../components/ui/icon';
@@ -103,11 +104,23 @@ function EmptyState(props: { title: string; detail: string; action?: { label: st
   );
 }
 
+function ListSkeleton() {
+  return (
+    <div aria-busy className="space-y-3 px-4 py-4">
+      {[0, 1, 2, 3].map((index) => (
+        <div key={index} className="space-y-1.5">
+          <Skeleton className="h-3 w-2/3" />
+          <Skeleton className="h-2.5 w-1/3" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function PullRequestsBody() {
   const nav = useRepoNav();
-  const hasRemote = useHasGitHubRemote();
-  const { data: auth, isLoading: authLoading } = useGitHubAuth();
-  const signedIn = !!auth?.authenticated;
+  const { hasRemote, pending: remotePending } = useGitHubRemote();
+  const { signedIn, signedOut } = useGitHubSignIn();
   const { data: prs, isLoading, isFetching, error, refetch } = usePullRequests(hasRemote && signedIn);
   const { details } = useGitHubPr();
   const busy = useCheckoutState((state) => state.busy);
@@ -178,18 +191,16 @@ function PullRequestsBody() {
   };
 
   const renderBody = () => {
+    if (remotePending) {
+      return <ListSkeleton />;
+    }
     if (!hasRemote) {
       return <EmptyState title="No GitHub remote" detail="This repository has no github.com origin, so there are no pull requests to list." />;
     }
-    if (authLoading) {
-      return (
-        <div className="flex items-center gap-2 px-4 py-6 text-xs text-text-muted">
-          <Spinner className="h-3 w-3" />
-          Checking your GitHub account…
-        </div>
-      );
+    if (!signedIn && !signedOut) {
+      return <ListSkeleton />;
     }
-    if (!signedIn) {
+    if (signedOut) {
       return (
         <EmptyState
           title="Sign in to GitHub"
@@ -205,16 +216,7 @@ function PullRequestsBody() {
       );
     }
     if (isLoading) {
-      return (
-        <div className="space-y-3 px-4 py-4">
-          {[0, 1, 2, 3].map((index) => (
-            <div key={index} className="space-y-1.5">
-              <div className="h-3 w-2/3 animate-pulse rounded bg-bg-tertiary" />
-              <div className="h-2.5 w-1/3 animate-pulse rounded bg-bg-tertiary" />
-            </div>
-          ))}
-        </div>
-      );
+      return <ListSkeleton />;
     }
     if (error) {
       return (
