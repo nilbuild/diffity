@@ -343,6 +343,22 @@ fn log_query(repo: &Path, limit: u32, filter: Option<String>) -> Result<Vec<Comm
     Ok(parse_log(&String::from_utf8_lossy(&out)))
 }
 
+/// Commits on HEAD that are not on `base` (`base..HEAD`), like a pull request's commit list. Empty when `base` does not resolve.
+pub fn list_branch_commits(repo: &Path, base: &str, count: u32, skip: u32) -> Result<Vec<Commit>> {
+    require_repo(repo)?;
+    if !has_commits(repo)? {
+        return Ok(Vec::new());
+    }
+    let Some(base_sha) = verify_commit(repo, base)? else {
+        return Ok(Vec::new());
+    };
+    let n = format!("-n{count}");
+    let s = format!("--skip={skip}");
+    let range = format!("{base_sha}..HEAD");
+    let out = run(repo, &["log", LOG_FORMAT, "--shortstat", &n, &s, &range])?;
+    Ok(parse_log(&out))
+}
+
 /// Lists commits reachable from HEAD. `search` matches the message (case-insensitive) or the author.
 pub fn list_commits(repo: &Path, count: u32, skip: u32, search: Option<&str>) -> Result<Vec<Commit>> {
     require_repo(repo)?;

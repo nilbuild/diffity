@@ -407,6 +407,11 @@ const handlers: Record<string, (args: Args) => unknown> = {
     const count = Number(args.count ?? 20);
     return commits.filter((c) => !search || c.subject.toLowerCase().includes(search) || c.sha.startsWith(search) || c.author.toLowerCase().includes(search)).slice(skip, skip + count);
   },
+  list_branch_commits: (args) => {
+    const skip = Number(args.skip ?? 0);
+    const count = Number(args.count ?? 20);
+    return commits.slice(0, 3).slice(skip, skip + count);
+  },
   list_branches: () => branches,
   git_status: () => ({ branch: 'feat/cache', upstream: 'origin/feat/cache', ahead: 2, behind: 0, staged: 1, unstaged: 4, untracked: 2, dirty: true }),
   repo_overview: () => [

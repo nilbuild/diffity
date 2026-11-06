@@ -234,6 +234,14 @@ export async function fetchCommits(skip = 0, count = 10, search?: string): Promi
   };
 }
 
+export async function fetchBranchCommits(base: string, skip = 0, count = 10): Promise<CommitsPage> {
+  const commits = await tauri.listBranchCommits(getRepoPath(), base, count, skip);
+  return {
+    commits: commits.map(toCommit),
+    hasMore: commits.length === count,
+  };
+}
+
 function toCommit(commit: tauri.CommitRecord): Commit {
   return {
     hash: commit.sha,

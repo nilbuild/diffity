@@ -106,6 +106,16 @@ pub async fn list_commits(
 }
 
 #[tauri::command]
+pub async fn list_branch_commits(
+    repo_path: String,
+    base: String,
+    count: u32,
+    skip: u32,
+) -> Result<Vec<Commit>, AppError> {
+    blocking(move || git::list_branch_commits(Path::new(&repo_path), &base, count, skip)).await
+}
+
+#[tauri::command]
 pub async fn list_branches(repo_path: String) -> Result<Vec<Branch>, AppError> {
     blocking(move || git::list_branches(Path::new(&repo_path))).await
 }

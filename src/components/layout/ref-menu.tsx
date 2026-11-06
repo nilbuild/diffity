@@ -4,7 +4,7 @@ import dayjs from 'dayjs';
 import { useRepoNav, useRepoPath } from '../../hooks/use-repo';
 import { useBaseBranch, useBranches, useGitHubPr, useGitStatus, useHasGitHubRemote, usePrLookupExpected } from '../../hooks/use-repo-state';
 import { openPullRequests } from '../../lib/ui-store';
-import { commitRef, descriptionForRef, fetchCommits, isWorkingTreeRef, parseCommitRef, type Commit, type GitHubDetails } from '../../lib/api';
+import { commitRef, descriptionForRef, fetchBranchCommits, fetchCommits, isWorkingTreeRef, parseCommitRef, type Commit, type CommitsPage, type GitHubDetails } from '../../lib/api';
 import { cn } from '../../lib/cn';
 import { buttonOutline } from '../ui/button-styles';
 import { PopoverSearch } from '../ui/popover-search';
@@ -196,6 +196,18 @@ const WORK_SEGMENTS: { value: string; label: string; tooltip: string }[] = [
   { value: 'unstaged', label: 'Unstaged', tooltip: 'Edits not added to the index yet, plus new files' },
 ];
 
+type CommitScope = 'branch' | 'recent';
+
+function commitsHeading(search: string, scope: CommitScope | undefined, branch: string | null): string {
+  if (search) {
+    return 'Matching commits';
+  }
+  if (scope === 'branch' && branch) {
+    return `Commits on ${branch}`;
+  }
+  return 'Recent commits';
+}
+
 function looksLikeRef(text: string) {
   return /\.\./.test(text) || /^[0-9a-f]{7,40}$/i.test(text) || /^(HEAD|origin\/)/.test(text);
 }
@@ -302,12 +314,33 @@ function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (
     return () => clearTimeout(timer);
   }, [trimmed]);
 
+  // Wait for the PR lookup so the list doesn't flash commits against a guessed base before switching to the PR's.
+  const prBudgetSpent = useElapsed(PR_LOOKUP_BUDGET);
+  const prSettled = !prLoading || !!details || prBudgetSpent;
+  const branchBase = !term && branch && base ? base : null;
   const commitsQuery = useInfiniteQuery({
-    queryKey: ['commits', 'list', term],
-    queryFn: ({ pageParam }) => fetchCommits(pageParam, 30, term || undefined),
-    initialPageParam: 0,
-    getNextPageParam: (last, pages) => (last.hasMore ? pages.reduce((sum, page) => sum + page.commits.length, 0) : undefined),
+    queryKey: ['commits', 'list', term, branchBase],
+    enabled: !!term || prSettled,
+    queryFn: async ({ pageParam }): Promise<CommitsPage & { scope: CommitScope }> => {
+      if (pageParam.scope === 'branch' && branchBase) {
+        const page = await fetchBranchCommits(branchBase, pageParam.skip, 30);
+        if (page.commits.length > 0 || pageParam.skip > 0) {
+          return { ...page, scope: 'branch' };
+        }
+      }
+      const page = await fetchCommits(pageParam.skip, 30, term || undefined);
+      return { ...page, scope: 'recent' };
+    },
+    initialPageParam: { skip: 0, scope: (branchBase ? 'branch' : 'recent') as CommitScope },
+    getNextPageParam: (last, pages) => {
+      if (!last.hasMore) {
+        return undefined;
+      }
+      return { skip: pages.reduce((sum, page) => sum + page.commits.length, 0), scope: last.scope };
+    },
   });
+  const commitScope = commitsQuery.data?.pages[0]?.scope ?? (branchBase ? 'branch' : 'recent');
+  const commitsLoading = commitsQuery.isLoading || (!term && !prSettled);
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = commitsQuery;
   const commits = commitsQuery.data?.pages.flatMap((page) => page.commits) ?? [];
 
@@ -436,14 +469,14 @@ function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (
           />
         )}
 
-        <div className={sectionClass}>{trimmed ? 'Matching commits' : 'Commits'}</div>
-        {commitsQuery.isLoading && (
+        <div className={sectionClass}>{commitsHeading(trimmed, commitScope, branch)}</div>
+        {commitsLoading && (
           <div className="flex items-center gap-2 px-2.5 h-8 text-xs text-text-secondary">
             <Spinner className="w-3 h-3" />
             Loading commits…
           </div>
         )}
-        {!commitsQuery.isLoading && commits.length === 0 && (
+        {!commitsLoading && commits.length === 0 && (
           <div className="px-2.5 h-8 flex items-center text-xs text-text-secondary">{trimmed ? `No commits match “${trimmed}”` : 'No commits yet'}</div>
         )}
         {commits.map((commit) => (

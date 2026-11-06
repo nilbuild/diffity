@@ -84,6 +84,8 @@ export const watchRepo = (repoPath: string) => invoke<void>('watch_repo', { repo
 export const unwatchRepo = (repoPath: string) => invoke<void>('unwatch_repo', { repoPath });
 export const listCommits = (repoPath: string, count: number, skip: number, search?: string | null) =>
   invoke<Commit[]>('list_commits', { repoPath, count, skip, search: search ?? null });
+export const listBranchCommits = (repoPath: string, base: string, count: number, skip: number) =>
+  invoke<Commit[]>('list_branch_commits', { repoPath, base, count, skip });
 export const listBranches = (repoPath: string) => invoke<Branch[]>('list_branches', { repoPath });
 export const listWorktrees = (repoPath: string) => invoke<Worktree[]>('list_worktrees', { repoPath });
 export const listTasks = (repoPath?: string | null) => invoke<Task[]>('list_tasks', { repoPath: repoPath ?? null });

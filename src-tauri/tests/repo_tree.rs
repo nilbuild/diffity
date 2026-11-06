@@ -336,3 +336,22 @@ fn lists_worktrees() {
     let plain = tempfile::tempdir().unwrap();
     assert_eq!(git::list_worktrees(plain.path()).unwrap_err().code, "not_a_repo");
 }
+
+#[test]
+fn branch_commits_exclude_base_history() {
+    let repo = Repo::with_commit();
+    repo.write("a.txt", "a\n");
+    repo.commit("On main");
+    repo.git(&["checkout", "-b", "feature"]);
+    repo.write("b.txt", "b\n");
+    repo.commit("Feature one");
+    repo.write("c.txt", "c\n");
+    repo.commit("Feature two");
+
+    let commits = git::list_branch_commits(&repo.path, "main", 10, 0).unwrap();
+    let subjects: Vec<_> = commits.iter().map(|c| c.subject.as_str()).collect();
+    assert_eq!(subjects, ["Feature two", "Feature one"]);
+    assert_eq!(git::list_branch_commits(&repo.path, "main", 1, 1).unwrap()[0].subject, "Feature one");
+    assert!(git::list_branch_commits(&repo.path, "missing", 10, 0).unwrap().is_empty());
+    assert!(git::list_branch_commits(&repo.path, "--all", 10, 0).unwrap().is_empty());
+}
