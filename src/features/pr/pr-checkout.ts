@@ -42,6 +42,28 @@ export function dismissGuard() {
 
 type ToDiff = (ref: string) => void;
 
+/** What a branch switch needs to move you: to a diff, or Home. */
+export interface SwitchNav {
+  toDiff: ToDiff;
+  toOverview: () => void;
+}
+
+/**
+ * Where you land after switching what's checked out. Home and Files stay put and refresh. A diff of the old branch
+ * means nothing on the new one, so it moves to the new branch's uncommitted changes, or Home when there are none.
+ */
+async function landAfterSwitch(repoPath: string, nav: SwitchNav) {
+  if (!window.location.hash.includes('/diff')) {
+    return;
+  }
+  const status = await tauri.gitStatus(repoPath).catch(() => null);
+  if (status && status.staged + status.unstaged + status.untracked > 0) {
+    nav.toDiff('work');
+    return;
+  }
+  nav.toOverview();
+}
+
 export { prBaseFor, prRefFor };
 
 export function labelFor(input: string): string {
@@ -98,11 +120,13 @@ function describeStash(stash: StashResult | null): string | null {
 interface CommentSyncState {
   syncing: Record<string, boolean>;
   syncedAt: Record<string, number>;
+  /** Why the last sync failed, until one succeeds. */
+  failed: Record<string, string>;
   /** Review threads pulled in by an automatic sync that the user has not looked at yet (Comments button dot). */
   fresh: number;
 }
 
-export const useCommentSync = create<CommentSyncState>(() => ({ syncing: {}, syncedAt: {}, fresh: 0 }));
+export const useCommentSync = create<CommentSyncState>(() => ({ syncing: {}, syncedAt: {}, failed: {}, fresh: 0 }));
 
 export const AUTO_SYNC_INTERVAL = 60_000;
 
@@ -134,10 +158,17 @@ async function pullReviewThreads(repoPath: string, pr: Pick<PullRequest, 'number
   try {
     const session = await tauri.getSession(repoPath, prRefFor(pr));
     const result = await tauri.pullReview(repoPath, session.id, pr.number);
-    useCommentSync.setState((state) => ({ syncedAt: { ...state.syncedAt, [key]: Date.now() } }));
+    useCommentSync.setState((state) => {
+      const failed = { ...state.failed };
+      delete failed[key];
+      return { syncedAt: { ...state.syncedAt, [key]: Date.now() }, failed };
+    });
     queryClient.invalidateQueries({ queryKey: ['threads'] });
     queryClient.invalidateQueries({ queryKey: ['repo-threads'] });
     return result;
+  } catch (error) {
+    useCommentSync.setState((state) => ({ failed: { ...state.failed, [key]: tauri.errorMessage(error) } }));
+    throw error;
   } finally {
     useCommentSync.setState((state) => ({ syncing: { ...state.syncing, [key]: false } }));
   }
@@ -161,11 +192,14 @@ export async function syncPrCommentsNow(repoPath: string, pr: Pick<PullRequest, 
   }
 }
 
-/** Quiet background sync (opening the PR view, window focus): at most once a minute, new threads light the Comments button. */
+/**
+ * Quiet background sync (opening the PR view, window focus): at most once a minute, new threads light the Comments
+ * button. A failure shows on the sync rows ("Sync failed · Retry") rather than in a toast.
+ */
 export async function autoSyncPrComments(repoPath: string, pr: Pick<PullRequest, 'number' | 'baseRef'>) {
   const key = syncKey(repoPath, pr.number);
-  const { syncing, syncedAt } = useCommentSync.getState();
-  if (syncing[key] || Date.now() - (syncedAt[key] ?? 0) < AUTO_SYNC_INTERVAL) {
+  const { syncing, syncedAt, failed } = useCommentSync.getState();
+  if (syncing[key] || (!failed[key] && Date.now() - (syncedAt[key] ?? 0) < AUTO_SYNC_INTERVAL)) {
     return;
   }
   const result = await pullReviewThreads(repoPath, pr).catch(() => null);
@@ -242,7 +276,7 @@ export function returnLabel(point: ReturnPoint): string {
   return point.sha ? point.sha.slice(0, 7) : 'previous branch';
 }
 
-export async function returnFromPullRequest(repoPath: string, toDiff: ToDiff, options?: { stash?: boolean }) {
+export async function returnFromPullRequest(repoPath: string, nav: SwitchNav, options?: { stash?: boolean }) {
   const point = await loadReturnPoint(repoPath);
   if (!point) {
     return;
@@ -280,7 +314,7 @@ export async function returnFromPullRequest(repoPath: string, toDiff: ToDiff, op
       notes.push(`Changes from the PR branch: ${saved}`);
     }
     queryClient.invalidateQueries();
-    toDiff('work');
+    await landAfterSwitch(repoPath, nav);
     toast.success(`Back on ${label}`, { id, description: notes.join(' ') || undefined });
   } catch (error) {
     let restored = '';
@@ -305,7 +339,7 @@ export function localNameFor(branch: string, isRemote: boolean): string {
   return slash > 0 ? branch.slice(slash + 1) : branch;
 }
 
-export async function switchBranch(repoPath: string, branch: string, toDiff: ToDiff, options?: { stash?: boolean }) {
+export async function switchBranch(repoPath: string, branch: string, nav: SwitchNav, options?: { stash?: boolean }) {
   const status = await tauri.gitStatus(repoPath);
   if (status.branch === branch) {
     return;
@@ -323,7 +357,7 @@ export async function switchBranch(repoPath: string, branch: string, toDiff: ToD
     }
     await tauri.gitCheckout(repoPath, branch);
     queryClient.invalidateQueries();
-    toDiff('work');
+    await landAfterSwitch(repoPath, nav);
     toast.success(`Switched to ${branch}`, { id, description: describeStash(stash) ?? undefined });
   } catch (error) {
     if (tauri.isAppError(error) && error.code === 'dirty') {

@@ -55,11 +55,11 @@ export function CheckoutGuardDialog() {
 
   const stashAndContinue = () => {
     if (guard.kind === 'branch') {
-      void switchBranch(guard.repoPath, guard.branch, nav.toDiff, { stash: true });
+      void switchBranch(guard.repoPath, guard.branch, nav, { stash: true });
       return;
     }
     if (guard.kind === 'back') {
-      void returnFromPullRequest(guard.repoPath, nav.toDiff, { stash: true });
+      void returnFromPullRequest(guard.repoPath, nav, { stash: true });
       return;
     }
     void checkoutPullRequest(guard.repoPath, guard.input, nav, { stash: true });

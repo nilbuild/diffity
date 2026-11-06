@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { useRepoNav } from '../../hooks/use-repo';
-import { useBranches, useGitHubAuth, useGitHubPr, useHasGitHubRemote, useWorktrees } from '../../hooks/use-repo-state';
+import { useBranches, useGitHubPr, useGitHubSignIn, useHasGitHubRemote, useWorktrees } from '../../hooks/use-repo-state';
 import { openRepoAt, shortPath } from '../welcome/recent-repos';
 import { cn } from '../../lib/cn';
 import { openSettingsAt } from '../../lib/ui-store';
@@ -13,25 +13,45 @@ import { checkoutPullRequest, labelFor, localNameFor, parsePrInput, switchBranch
 import { usePullRequests } from './pull-requests-dialog';
 import { CheckIcon, ChevronUpDownIcon, GitBranchIcon, GitPullRequestIcon } from '../../components/ui/icon';
 import { Popover } from '../../components/ui/popover';
+import { Skeleton } from '../../components/ui/skeleton';
 
 const sectionClass = 'px-2.5 pt-2.5 pb-1 text-[11px] font-medium text-text-secondary';
 
-function Row(props: { icon: ReactNode; title: ReactNode; meta?: ReactNode; selected?: boolean; tooltip?: string; onClick: () => void }) {
-  const { icon, title, meta, selected, tooltip, onClick } = props;
+interface RowProps {
+  index: number;
+  active: boolean;
+  onHover: (index: number) => void;
+  icon: ReactNode;
+  title: ReactNode;
+  meta?: ReactNode;
+  selected?: boolean;
+  tooltip?: string;
+  onClick: () => void;
+}
+
+/** A pickable row. The current branch or PR shows a check in place of its icon. */
+function Row(props: RowProps) {
+  const { index, active, onHover, icon, title, meta, selected, tooltip, onClick } = props;
 
   return (
     <button
+      data-row={index}
+      role="option"
+      aria-selected={selected}
       onClick={onClick}
+      onMouseMove={() => {
+        if (!active) {
+          onHover(index);
+        }
+      }}
       title={tooltip}
-      className={cn(
-        'flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left transition-colors cursor-pointer',
-        selected ? 'bg-selected' : 'hover:bg-hover',
-      )}
+      className={cn('flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-left cursor-pointer', active && 'bg-hover')}
     >
-      <span className={cn('flex items-center shrink-0', selected ? 'text-text' : 'text-text-secondary')}>{icon}</span>
-      <span className="min-w-0 flex-1 truncate text-[13px] text-text">{title}</span>
+      <span className={cn('flex items-center justify-center w-3.5 shrink-0', selected ? 'text-text' : 'text-text-secondary')}>
+        {selected ? <CheckIcon className="w-3.5 h-3.5" /> : icon}
+      </span>
+      <span className={cn('min-w-0 flex-1 truncate text-[13px] text-text', selected && 'font-medium')}>{title}</span>
       {meta && <span className="shrink-0 flex items-center gap-2 text-xs text-text-secondary">{meta}</span>}
-      <span className="w-3.5 shrink-0 flex items-center">{selected && <CheckIcon className="w-3.5 h-3.5 text-text-secondary" />}</span>
     </button>
   );
 }
@@ -51,11 +71,13 @@ function BranchSwitcherPanel(props: { current: string | null; onDone: () => void
   const { data: branches, isLoading } = useBranches();
   const { data: worktrees } = useWorktrees();
   const hasGitHubRemote = useHasGitHubRemote();
-  const { data: auth } = useGitHubAuth();
+  const { signedIn, signedOut, pending: authPending } = useGitHubSignIn();
   const { details } = useGitHubPr();
-  const prsEnabled = hasGitHubRemote && !!auth?.authenticated;
+  const prsEnabled = hasGitHubRemote && signedIn;
   const prs = usePullRequests(prsEnabled);
   const [search, setSearch] = useState('');
+  const [active, setActive] = useState(-1);
+  const listRef = useRef<HTMLDivElement>(null);
   const needle = search.trim();
 
   const { local, remote } = useMemo(() => {
@@ -82,7 +104,7 @@ function BranchSwitcherPanel(props: { current: string | null; onDone: () => void
 
   const pickBranch = (branch: Branch) => {
     onDone();
-    void switchBranch(nav.repoPath, localNameFor(branch.name, branch.isRemote), nav.toDiff);
+    void switchBranch(nav.repoPath, localNameFor(branch.name, branch.isRemote), nav);
   };
 
   const pickPr = (input: string) => {
@@ -90,21 +112,71 @@ function BranchSwitcherPanel(props: { current: string | null; onDone: () => void
     void checkoutPullRequest(nav.repoPath, input, nav);
   };
 
+  useEffect(() => {
+    if (active < 0) {
+      return;
+    }
+    listRef.current?.querySelector(`[data-row="${active}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
+
+  const rowCount = () => listRef.current?.querySelectorAll('[data-row]').length ?? 0;
+  const move = (step: number) => {
+    const count = rowCount();
+    if (count === 0) {
+      return;
+    }
+    if (active < 0) {
+      const selected = listRef.current?.querySelector('[data-row][aria-selected="true"]')?.getAttribute('data-row');
+      setActive(step > 0 ? Number(selected ?? 0) : count - 1);
+      return;
+    }
+    setActive(Math.max(0, Math.min(count - 1, active + step)));
+  };
+  const clickRow = (index: number) => {
+    const row = listRef.current?.querySelector<HTMLButtonElement>(`[data-row="${index}"]`);
+    if (!row) {
+      return false;
+    }
+    row.click();
+    return true;
+  };
+  let rowIndex = 0;
+  const rowProps = () => {
+    const index = rowIndex++;
+    return { index, active: index === active, onHover: setActive };
+  };
+
   return (
     <div className="max-h-[min(460px,70vh)] flex flex-col font-sans overflow-hidden text-text">
       <PopoverSearch
         value={search}
-        onChange={setSearch}
+        onChange={(value) => {
+          setSearch(value);
+          setActive(value.trim() ? 0 : -1);
+        }}
         onKeyDown={(event) => {
-          if (event.key === 'Enter' && prInput && prsEnabled) {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            move(event.key === 'ArrowDown' ? 1 : -1);
+            return;
+          }
+          if (event.key !== 'Enter') {
+            return;
+          }
+          event.preventDefault();
+          if (active >= 0 && clickRow(active)) {
+            return;
+          }
+          if (prInput && prsEnabled) {
             pickPr(prInput);
           }
         }}
         placeholder={prsEnabled ? 'Branch, #PR or PR URL' : 'Switch branch'}
       />
-      <div className="flex-1 min-h-0 overflow-y-auto p-1">
+      <div ref={listRef} role="listbox" aria-label="Branches and pull requests" className="flex-1 min-h-0 overflow-y-auto p-1" onMouseLeave={() => setActive(-1)}>
         {prInput && prsEnabled && (
           <Row
+            {...rowProps()}
             icon={<GitPullRequestIcon className="w-3.5 h-3.5" />}
             title={`Check out pull request ${labelFor(prInput)}`}
             onClick={() => pickPr(prInput)}
@@ -124,6 +196,7 @@ function BranchSwitcherPanel(props: { current: string | null; onDone: () => void
           return (
             <Row
               key={branch.name}
+              {...rowProps()}
               icon={<GitBranchIcon className="w-3.5 h-3.5" />}
               title={<span className="font-mono text-xs">{branch.name}</span>}
               selected={branch.name === current}
@@ -158,6 +231,7 @@ function BranchSwitcherPanel(props: { current: string | null; onDone: () => void
         {remote.slice(0, needle ? 50 : 12).map((branch) => (
           <Row
             key={branch.name}
+            {...rowProps()}
             icon={<GitBranchIcon className="w-3.5 h-3.5" />}
             title={<span className="font-mono text-xs">{branch.name}</span>}
             tooltip={`Check out ${localNameFor(branch.name, true)} tracking ${branch.name}`}
@@ -166,7 +240,12 @@ function BranchSwitcherPanel(props: { current: string | null; onDone: () => void
         ))}
 
         {hasGitHubRemote && <div className={sectionClass}>Pull requests</div>}
-        {hasGitHubRemote && !auth?.authenticated && (
+        {hasGitHubRemote && authPending && (
+          <div aria-busy className="flex items-center h-8 px-2.5">
+            <Skeleton className="w-48 h-2.5" />
+          </div>
+        )}
+        {hasGitHubRemote && signedOut && (
           <button
             onClick={() => {
               onDone();
@@ -190,6 +269,7 @@ function BranchSwitcherPanel(props: { current: string | null; onDone: () => void
         {pullRequests.map((pr) => (
           <Row
             key={pr.number}
+            {...rowProps()}
             icon={<PrStateIcon pr={pr} className="w-3.5 h-3.5" />}
             title={
               <>

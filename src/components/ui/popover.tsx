@@ -131,7 +131,9 @@ export function Popover(props: PopoverProps) {
         left: position?.left ?? -9999,
         maxHeight: position?.maxHeight,
         width,
-        visibility: position ? 'visible' : 'hidden',
+        // Transparent rather than hidden while it measures, so a search field inside can take autoFocus.
+        opacity: position ? 1 : 0,
+        pointerEvents: position ? undefined : 'none',
       }}
     >
       <NestedPanels.Provider value={nested}>{children}</NestedPanels.Provider>
