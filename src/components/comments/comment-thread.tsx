@@ -4,7 +4,6 @@ import type { CommentAuthor, CommentSide, SubmitOptions } from './types';
 import { isThreadResolved } from './types';
 import { ThreadBadge } from '../ui/thread-badge';
 import { ThreadCard, ThreadMenu } from './thread-card';
-import { ConfirmDialog } from '../ui/confirm-dialog';
 import { CheckCircleIcon, CommentIcon, FoldIcon, UnfoldIcon } from '../ui/icon';
 import { cn } from '../../lib/cn';
 import { commentPreview } from './comment-preview';
@@ -60,14 +59,6 @@ export function CommentThread(props: CommentThreadProps) {
   const resolved = isThreadResolved(thread);
   const wasResolved = useRef(resolved);
   const [justChanged, setJustChanged] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const requestDelete = () => {
-    if (thread.comments.length > 1) {
-      setConfirmDelete(true);
-      return;
-    }
-    onDeleteThread(thread.id);
-  };
 
   useEffect(() => {
     if (wasResolved.current === resolved) {
@@ -126,20 +117,8 @@ export function CommentThread(props: CommentThreadProps) {
               <UnfoldIcon size="xs" />
               Show
             </button>
-            <ThreadMenu items={[{ label: 'Delete thread', onSelect: requestDelete, danger: true }]} />
+            <ThreadMenu items={[{ label: 'Delete thread', onSelect: () => onDeleteThread(thread.id), danger: true }]} />
           </span>
-          {confirmDelete && (
-            <ConfirmDialog
-              title="Delete thread"
-              message={`Delete this thread and its ${thread.comments.length} comments? This cannot be undone.`}
-              confirmLabel="Delete"
-              onConfirm={() => {
-                setConfirmDelete(false);
-                onDeleteThread(thread.id);
-              }}
-              onCancel={() => setConfirmDelete(false)}
-            />
-          )}
         </div>
       </td>
     );

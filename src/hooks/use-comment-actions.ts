@@ -3,11 +3,91 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { CommentAuthor, CommentSide, CommentThread, SubmitOptions } from '../components/comments/types';
 import * as api from '../lib/api';
+import { isAppError } from '../lib/tauri';
+import { queryClient } from '../lib/query-client';
+import type { ThreadSnapshot } from '../lib/types';
 import { enqueueClaude } from '../features/claude/claude-runner';
 import { mentionsAgent } from '../lib/mentions';
 
 function reportError(error: unknown) {
   toast.error(api.errorMessage(error));
+}
+
+function refreshThreads() {
+  queryClient.invalidateQueries({ queryKey: ['threads'] });
+  queryClient.invalidateQueries({ queryKey: ['repo-threads'] });
+  queryClient.invalidateQueries({ queryKey: ['reviews'] });
+}
+
+const UNDO_DURATION = 8000;
+
+/**
+ * Resolves or reopens a thread (on GitHub too when it is synced there). Resolving offers Undo. When GitHub refuses,
+ * nothing changes and the toast says so.
+ */
+export function changeThreadStatus(threadId: string, status: 'open' | 'resolved', undoable = true): Promise<boolean> {
+  return api.updateThreadStatus(threadId, status).then(
+    () => {
+      refreshThreads();
+      if (status === 'resolved' && undoable) {
+        toast('Comment resolved', {
+          id: `resolved-${threadId}`,
+          duration: UNDO_DURATION,
+          action: { label: 'Undo', onClick: () => void changeThreadStatus(threadId, 'open', false) },
+        });
+      }
+      return true;
+    },
+    (error) => {
+      refreshThreads();
+      if (isAppError(error) && error.code === 'github_sync') {
+        toast.error(status === 'resolved' ? 'Could not resolve it on GitHub' : 'Could not reopen it on GitHub', {
+          description: `${error.message} The comment is unchanged.`,
+          action: { label: 'Retry', onClick: () => void changeThreadStatus(threadId, status, undoable) },
+        });
+        return false;
+      }
+      reportError(error);
+      return false;
+    },
+  );
+}
+
+/** Puts deleted threads back (Undo). */
+export function restoreThreads(snapshots: ThreadSnapshot[]): Promise<void> {
+  return Promise.allSettled(snapshots.map((snapshot) => api.restoreThread(snapshot))).then((results) => {
+    refreshThreads();
+    const failed = results.find((result) => result.status === 'rejected');
+    if (failed) {
+      toast.error('Could not restore every comment', { description: api.errorMessage(failed.reason) });
+    }
+  });
+}
+
+/** "Deleted" toast with Undo for threads that were just deleted. */
+export function deletedToast(snapshots: ThreadSnapshot[]) {
+  if (snapshots.length === 0) {
+    return;
+  }
+  const onGitHub = snapshots.some((snapshot) => snapshot.thread.githubThreadId);
+  const title = snapshots.length === 1 ? 'Comment deleted' : `Deleted ${snapshots.length} comments`;
+  toast(title, {
+    id: snapshots.length === 1 ? `deleted-${snapshots[0].thread.id}` : undefined,
+    description: onGitHub ? 'Removed from Diffity only. It stays on GitHub and won’t sync back.' : undefined,
+    duration: UNDO_DURATION,
+    action: { label: 'Undo', onClick: () => void restoreThreads(snapshots) },
+  });
+}
+
+/** Deletes a thread with an Undo toast. */
+export function deleteThreadWithUndo(threadId: string): Promise<void> {
+  return api.deleteThread(threadId).then(
+    (snapshot) => {
+      refreshThreads();
+      deletedToast([snapshot]);
+    },
+    reportError,
+  );
 }
 
 function mentionFollowUp(thread: CommentThread, askClaude = false) {
@@ -75,29 +155,16 @@ export function useCommentActions(sessionId: string | null, enabled: boolean, vi
       return;
     }
     setLocalStatus(threadId, 'open');
-    api.updateThreadStatus(threadId, 'open').then(invalidateThreads, (error) => {
-      reportError(error);
-      invalidateThreads();
-    });
-  }, [enabled, invalidateThreads, setLocalStatus]);
+    void changeThreadStatus(threadId, 'open');
+  }, [enabled, setLocalStatus]);
 
   const resolveThread = useCallback((threadId: string) => {
     if (!enabled) {
       return;
     }
     setLocalStatus(threadId, 'resolved');
-    api.updateThreadStatus(threadId, 'resolved').then(() => {
-      invalidateThreads();
-      toast('Comment resolved', {
-        id: `resolved-${threadId}`,
-        duration: 8000,
-        action: { label: 'Undo', onClick: () => unresolveThread(threadId) },
-      });
-    }, (error) => {
-      reportError(error);
-      invalidateThreads();
-    });
-  }, [enabled, invalidateThreads, setLocalStatus, unresolveThread]);
+    void changeThreadStatus(threadId, 'resolved');
+  }, [enabled, setLocalStatus]);
 
   const dismissThread = useCallback((threadId: string) => {
     if (!enabled) {
@@ -132,8 +199,8 @@ export function useCommentActions(sessionId: string | null, enabled: boolean, vi
     if (!enabled) {
       return;
     }
-    api.deleteThread(threadId).then(invalidateThreads, reportError);
-  }, [enabled, invalidateThreads]);
+    void deleteThreadWithUndo(threadId);
+  }, [enabled]);
 
   const deleteAllThreads = useCallback(() => {
     if (!enabled || !sessionId) {

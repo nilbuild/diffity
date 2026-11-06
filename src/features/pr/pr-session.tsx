@@ -14,6 +14,8 @@ import { Spinner } from '../../components/icons/spinner';
 import { buttonClaude, buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 import { DiffStatBar } from '../../components/ui/diff-stat-bar';
 import { requestAskClaude } from '../claude/ask-claude-review';
+import { agentMeta } from '../claude/agents';
+import { useRunPick } from '../claude/model-setting';
 import { useCopy } from '../../hooks/use-copy';
 import type { CommentThread } from '../../components/comments/types';
 import { PrStateIcon, ReviewDecision, headLabel, relative } from './pr-meta';
@@ -110,12 +112,25 @@ export function useReviewRole(pr: PullRequest | null): string | null {
   return ownPr ? 'Your PR' : `Reviewing @${pr.author}’s PR`;
 }
 
-export function useLastSynced(pr: PullRequest | null): { syncing: boolean; when: string | null; at: number | null } {
+export function useLastSynced(pr: PullRequest | null): { syncing: boolean; when: string | null; at: number | null; failed: string | null } {
   const nav = useRepoNav();
   const key = pr ? syncKey(nav.repoPath, pr.number) : '';
   const syncing = useCommentSync((state) => !!state.syncing[key]);
   const syncedAt = useCommentSync((state) => state.syncedAt[key] ?? null);
-  return { syncing, when: syncedAt ? relative(new Date(syncedAt).toISOString()) : null, at: syncedAt };
+  const failed = useCommentSync((state) => state.failed[key] ?? null);
+  return { syncing, when: syncedAt ? relative(new Date(syncedAt).toISOString()) : null, at: syncedAt, failed };
+}
+
+/** "Sync failed" with a red dot; the reason is in the tooltip. */
+function SyncFailed(props: { reason: string; label?: string }) {
+  const { reason, label = 'Sync failed' } = props;
+
+  return (
+    <span className="inline-flex items-center gap-1.5 min-w-0 text-text-secondary" title={reason}>
+      <span className="size-1.5 shrink-0 rounded-full bg-deleted" aria-hidden />
+      <span className="truncate">{label}</span>
+    </span>
+  );
 }
 
 export interface BackAction {
@@ -137,7 +152,7 @@ export function usePrBack(pr: PullRequest | null): BackAction | null {
   return {
     label,
     title: `Check out ${label} again${point.stash?.sha ? ' and restore your stashed changes' : ''}`,
-    onBack: () => void returnFromPullRequest(nav.repoPath, nav.toDiff),
+    onBack: () => void returnFromPullRequest(nav.repoPath, nav),
     disabled: busy !== null,
   };
 }
@@ -187,7 +202,8 @@ function PrDetailsDialog(props: DetailsDialogProps) {
   const role = useReviewRole(pr);
   const ownPr = useOwnPr();
   const back = usePrBack(pr);
-  const { syncing, when: syncedWhen } = useLastSynced(pr);
+  const { syncing, when: syncedWhen, failed: syncFailed } = useLastSynced(pr);
+  const reviewAgent = agentMeta(useRunPick('review', nav.repoPath).agent);
   const synced = threads.filter((thread) => thread.githubThreadId).length;
   const unsynced = Math.max(0, pr.reviewThreadCount - synced);
 
@@ -281,10 +297,14 @@ function PrDetailsDialog(props: DetailsDialogProps) {
               {pr.reviewThreadCount} review thread{pr.reviewThreadCount === 1 ? '' : 's'}
               {unsynced > 0 ? ` · ${unsynced} not pulled yet` : ''}
             </span>
-            <span className="text-text-muted" title="Syncs on its own when you open the PR and when you come back to the app">{syncedWhen ? `Synced ${syncedWhen}` : 'Not synced yet'}</span>
+            {syncFailed && !syncing ? (
+              <SyncFailed reason={syncFailed} />
+            ) : (
+              <span className="text-text-muted" title="Syncs on its own when you open the PR and when you come back to the app">{syncedWhen ? `Synced ${syncedWhen}` : 'Not synced yet'}</span>
+            )}
             <button onClick={() => void syncPrCommentsNow(nav.repoPath, pr)} disabled={syncing} className={cn(buttonOutline, 'self-start')}>
               {syncing ? <Spinner className="h-3.5 w-3.5" /> : <RefreshIcon size="sm" className="text-text-secondary" />}
-              {syncing ? 'Syncing…' : 'Sync comments now'}
+              {syncing ? 'Syncing…' : syncFailed ? 'Retry' : 'Sync comments now'}
             </button>
           </SideSection>
           <SideSection label="Actions">
@@ -300,7 +320,7 @@ function PrDetailsDialog(props: DetailsDialogProps) {
             )}
             <button onClick={askClaude} className={cn(buttonClaude, 'self-start')}>
               <SparkleIcon size="sm" />
-              Ask Claude to review
+              Ask {reviewAgent.short} to review
             </button>
           </SideSection>
         </aside>
@@ -404,7 +424,7 @@ export function PrMenuItems(props: { diffRef: string | null; close: () => void }
   const nav = useRepoNav();
   const pr = useCurrentPr(diffRef);
   const back = usePrBack(pr);
-  const { syncing, when, at } = useLastSynced(pr);
+  const { syncing, when, at, failed } = useLastSynced(pr);
 
   if (!pr) {
     return null;
@@ -423,10 +443,11 @@ export function PrMenuItems(props: { diffRef: string | null; close: () => void }
         <GitHubIcon className="w-3.5 h-3.5" />
         Open on GitHub
       </button>
-      <button className={menuItemClass} disabled={syncing} onClick={run(() => void syncPrCommentsNow(nav.repoPath, pr))} title={when ? `Last synced ${when}` : 'Not synced yet'}>
+      <button className={menuItemClass} disabled={syncing} onClick={run(() => void syncPrCommentsNow(nav.repoPath, pr))} title={failed ? `Last sync failed: ${failed}` : when ? `Last synced ${when}` : 'Not synced yet'}>
         {syncing ? <Spinner className="w-3.5 h-3.5" /> : <RefreshIcon className="w-3.5 h-3.5" />}
         <span className="whitespace-nowrap">{syncing ? 'Syncing comments…' : 'Sync comments now'}</span>
-        {!syncing && at && <span className="ml-auto pl-2 text-[11px] text-text-muted whitespace-nowrap">{shortAgo(at)}</span>}
+        {!syncing && failed && <span className="ml-auto pl-2 text-[11px]"><SyncFailed reason={failed} label="Failed" /></span>}
+        {!syncing && !failed && at && <span className="ml-auto pl-2 text-[11px] text-text-muted whitespace-nowrap">{shortAgo(at)}</span>}
       </button>
       {back && (
         <button className={menuItemClass} disabled={back.disabled} onClick={run(back.onBack)} title={back.title}>
@@ -457,7 +478,7 @@ export function PrSyncRow(props: { prNumber: number; className?: string }) {
   const nav = useRepoNav();
   const { details } = useGitHubPr();
   const pr = details?.pr && details.pr.number === prNumber ? details.pr : null;
-  const { syncing, when } = useLastSynced(pr);
+  const { syncing, when, failed } = useLastSynced(pr);
 
   if (!pr) {
     return null;
@@ -465,14 +486,18 @@ export function PrSyncRow(props: { prNumber: number; className?: string }) {
   return (
     <div className={cn('flex items-center gap-2 text-xs text-text-muted', className)}>
       <GitHubIcon size="xs" />
-      <span className="min-w-0 truncate">{syncing ? 'Syncing comments from GitHub…' : when ? `Comments synced ${when}` : 'Comments not synced yet'}</span>
+      {failed && !syncing ? (
+        <SyncFailed reason={failed} label="Comment sync failed" />
+      ) : (
+        <span className="min-w-0 truncate">{syncing ? 'Syncing comments from GitHub…' : when ? `Comments synced ${when}` : 'Comments not synced yet'}</span>
+      )}
       <button
         onClick={() => void syncPrCommentsNow(nav.repoPath, pr)}
         disabled={syncing}
         className="shrink-0 inline-flex items-center gap-1 text-text-secondary hover:text-text underline-offset-2 hover:underline cursor-pointer disabled:opacity-45 disabled:cursor-default"
       >
         {syncing ? <Spinner className="w-3 h-3" /> : <RefreshIcon size="xs" />}
-        Sync comments now
+        {failed && !syncing ? 'Retry' : 'Sync comments now'}
       </button>
     </div>
   );

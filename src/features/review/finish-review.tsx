@@ -9,6 +9,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { prRefFor } from '../pr/pr-checkout';
 import {
   disabledReason,
+  excludedItems,
   groupByFile,
   headerLine,
   otherDraftSessions,
@@ -33,8 +34,10 @@ import { PrSyncRow } from '../pr/pr-session';
 import { ApproveIcon, CheckIcon, ChevronDownIcon, CommentIcon, GitHubIcon, GitPullRequestIcon, RequestChangesIcon, SparkleIcon, type GlyphProps } from '../../components/ui/icon';
 import { Spinner } from '../../components/icons/spinner';
 import { Popover } from '../../components/ui/popover';
+import { ConfirmDialog } from '../../components/ui/confirm-dialog';
 import { useRunPick } from '../claude/model-setting';
 import { agentMeta } from '../claude/agents';
+import { useOpenReviewHandler } from '../../lib/review-keys';
 
 interface FinishReviewProps {
   githubDetails: GitHubDetails | null;
@@ -86,24 +89,6 @@ function reviewItems(threads: CommentThread[]): ReviewItem[] {
     });
   }
   return items;
-}
-
-const CLAUDE_PREF_PREFIX = 'diffity-review-send-claude:';
-
-function readClaudePref(repoPath: string) {
-  try {
-    return localStorage.getItem(CLAUDE_PREF_PREFIX + repoPath) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function writeClaudePref(repoPath: string, value: boolean) {
-  try {
-    localStorage.setItem(CLAUDE_PREF_PREFIX + repoPath, value ? '1' : '0');
-  } catch {
-    return;
-  }
 }
 
 function Checkbox(props: { checked: boolean }) {
@@ -222,9 +207,9 @@ function CandidateList(props: { items: CandidateItem[]; excluded: Set<string>; o
                   'shrink-0 mt-0.5 px-1.5 rounded text-[10px] leading-4 font-medium',
                   item.draft ? 'bg-accent/15 text-accent' : 'bg-hover text-text-secondary',
                 )}
-                title={item.viewLabel ? `Left in ${item.viewLabel}` : undefined}
+                title={[item.draft ? 'In your GitHub review' : 'Not on GitHub yet. Tick it to post it.', item.viewLabel ? `Left in ${item.viewLabel}` : null].filter(Boolean).join('. ')}
               >
-                {item.draft ? 'Draft' : 'Local'}
+                {item.draft ? 'Draft' : 'Diffity only'}
               </span>
             </label>
           ))}
@@ -260,7 +245,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
   const [body, setBody] = useState('');
   const [verdict, setVerdict] = useState<ReviewVerdict>('comment');
   const [postToGitHub, setPostToGitHub] = useState(true);
-  const [sendClaude, setSendClaudeState] = useState(() => readClaudePref(repoPath));
+  const [sendClaude, setSendClaude] = useState(false);
   const [scopeChoice, setScopeChoice] = useState<'all' | 'mentions' | null>(null);
   const [toggled, setToggled] = useState<Set<string>>(new Set());
   const [pendingAction, setPendingAction] = useState<GithubPendingAction | null>(null);
@@ -268,6 +253,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
   const [savedReview, setSavedReview] = useState<Review | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
+  useOpenReviewHandler(setOpen);
   const defaultAgent = agentMeta(useRunPick('fix', repoPath).agent);
   const claudeProblem = useAgentProblem(defaultAgent, open && sendClaude && scopeChoice !== 'mentions');
 
@@ -292,11 +278,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
     () => toCandidateItems(candidatesQuery.data?.candidates ?? [], prRefFor(pr.pr)),
     [candidatesQuery.data, pr.baseRef],
   );
-  // Drafts start checked; on your own PR local comments (notes for the agent) start unchecked.
-  const excluded = useMemo(
-    () => new Set(candidateItems.filter((item) => (item.draft || !ownPr) === toggled.has(item.id)).map((item) => item.id)),
-    [candidateItems, ownPr, toggled],
-  );
+  const excluded = useMemo(() => excludedItems(candidateItems, toggled), [candidateItems, toggled]);
   const selected = selectedItems(candidateItems, excluded);
   const verdicts = ownPr ? VERDICTS.filter((option) => option.value === 'comment') : VERDICTS;
   const postableCount = candidateItems.filter((item) => !item.blockedReason).length;
@@ -314,11 +296,6 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
   const claudeHasWork = sendClaude && (scope === 'all' ? pendingCount > 0 || hasBody : mentioned.length > 0);
   const busy = submit.isPending || post.isPending;
   const badgeCount = candidatesQuery.data ? postableCount : pendingCount;
-
-  const setSendClaude = (value: boolean) => {
-    setSendClaudeState(value);
-    writeClaudePref(repoPath, value);
-  };
 
   const toggle = (id: string) => {
     setToggled((current) => {
@@ -360,13 +337,14 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
     if (claudePart) {
       return scope === 'mentions' ? `Send ${plural(claudeCount, 'mention')}` : `Send ${pendingCount > 0 ? plural(pendingCount, 'comment') : 'summary'} to ${defaultAgent.short}`;
     }
-    return pendingCount > 0 ? `Save ${plural(pendingCount, 'comment')} locally` : 'Save summary locally';
+    return pendingCount > 0 ? `Keep ${plural(pendingCount, 'comment')} in Diffity only` : 'Keep summary in Diffity only';
   };
 
   const reset = () => {
     setBody('');
     setVerdict('comment');
     setScopeChoice(null);
+    setSendClaude(false);
     setToggled(new Set());
     setPendingAction(null);
     setPostError(null);
@@ -436,7 +414,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
           <div className="px-4 pt-3.5 pb-3">
             <div className="text-[13px] font-semibold text-text">Submit review · #{pr.prNumber}</div>
             <div className="text-xs text-text-secondary mt-0.5 truncate" title={pr.prTitle}>
-              {postToGitHub ? headerLine(selected.length, blockedCount, checkingCandidates) : pendingCount > 0 ? `${plural(pendingCount, 'draft comment')}, private until you submit` : 'No draft comments'}
+              {postToGitHub ? headerLine(selected.length, blockedCount, candidatesQuery.isLoading) : pendingCount > 0 ? `${plural(pendingCount, 'draft comment')}, private until you submit` : 'No draft comments'}
               {' · '}
               {pr.prTitle}
             </div>
@@ -458,13 +436,13 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
                 Couldn't check which comments can be posted: {tauri.errorMessage(candidatesQuery.error)}
               </div>
             )}
-            {postToGitHub && checkingCandidates && (
+            {postToGitHub && candidatesQuery.isLoading && pendingCount > 0 && (
               <div className="mt-2.5 flex flex-col gap-2" aria-hidden>
                 <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
+                {pendingCount > 1 && <Skeleton className="h-4 w-1/2" />}
               </div>
             )}
-            {postToGitHub && !checkingCandidates && candidateItems.length > 0 && <CandidateList items={candidateItems} excluded={excluded} onToggle={toggle} />}
+            {postToGitHub && candidateItems.length > 0 && <CandidateList items={candidateItems} excluded={excluded} onToggle={toggle} />}
           </div>
 
           <Section
@@ -554,18 +532,14 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
             {pendingReview && pendingCount > 0 && (
               <button
                 onClick={() => {
-                  if (!confirmDiscard) {
-                    setConfirmDiscard(true);
-                    return;
-                  }
-                  discard.mutate(undefined, { onSuccess: close });
+                  close();
+                  setConfirmDiscard(true);
                 }}
-                onBlur={() => setConfirmDiscard(false)}
                 disabled={discard.isPending}
-                className={cn(buttonGhost, 'px-2 text-deleted hover:text-deleted', confirmDiscard && 'bg-deleted/10')}
+                className={cn(buttonGhost, 'px-2 text-deleted hover:text-deleted')}
                 title="Delete all draft comments"
               >
-                {confirmDiscard ? `Discard ${plural(pendingCount, 'draft')}?` : 'Discard drafts'}
+                Discard drafts
               </button>
             )}
             <div className="flex-1" />
@@ -587,6 +561,18 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
           )}
         </div>
       </Popover>
+      {confirmDiscard && (
+        <ConfirmDialog
+          title={`Discard ${plural(pendingCount, 'draft')}`}
+          message={`Delete the ${plural(pendingCount, 'draft comment')} in your review of #${pr.prNumber}? This can't be undone.`}
+          confirmLabel="Discard"
+          onConfirm={() => {
+            setConfirmDiscard(false);
+            discard.mutate();
+          }}
+          onCancel={() => setConfirmDiscard(false)}
+        />
+      )}
     </div>
   );
 }

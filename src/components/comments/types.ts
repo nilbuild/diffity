@@ -52,6 +52,8 @@ export interface CommentThread {
   severity?: string | null;
   /** The agent's comment this draft was made from ("Add to my review"). */
   promotedFrom?: string | null;
+  /** The agent that addressed this thread; it stays open until you resolve it. */
+  addressedBy?: string | null;
 }
 
 export const DEFAULT_AUTHOR: CommentAuthor = { name: 'You', type: 'user' };

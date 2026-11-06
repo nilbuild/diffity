@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import type { CommentThread, CommentAuthor, CommentSide, Comment, SubmitOptions } from '../components/comments/types';
 import * as tauri from './tauri';
-import type { DiffFileSummary, PullRequest, Thread, Comment as BackendComment, TreeEntry } from './types';
+import type { DiffFileSummary, PullRequest, Thread, ThreadSnapshot, Comment as BackendComment, TreeEntry } from './types';
 import { TREE_REF } from './types';
 
 dayjs.extend(relativeTime);
@@ -288,6 +288,7 @@ export function toCommentThread(thread: Thread): CommentThread {
     viewRef: thread.viewRef,
     severity: thread.severity,
     promotedFrom: thread.promotedFrom ?? null,
+    addressedBy: thread.addressedBy ?? null,
   };
 }
 
@@ -339,8 +340,12 @@ export function deleteAllThreads(sessionId: string): Promise<void> {
   return tauri.deleteAllThreads(sessionId);
 }
 
-export function deleteThread(threadId: string): Promise<void> {
+export function deleteThread(threadId: string): Promise<ThreadSnapshot> {
   return tauri.deleteThread(threadId);
+}
+
+export function restoreThread(snapshot: ThreadSnapshot): Promise<Thread> {
+  return tauri.restoreThread(snapshot);
 }
 
 export function keepThreadOnBranch(threadId: string): Promise<void> {

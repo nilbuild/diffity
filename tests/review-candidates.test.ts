@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   disabledReason,
+  excludedItems,
   groupByFile,
   headerLine,
   otherDraftSessions,
@@ -69,9 +70,14 @@ describe('candidate items', () => {
     PR_REF,
   );
 
-  it('selects drafts and local comments by default, never blocked ones', () => {
+  it('selects every ticked postable comment, never blocked ones', () => {
     expect(selectedItems(items, new Set()).map((i) => i.id)).toEqual(['draft', 'local', 'work', 'general']);
     expect(selectedItems(items, new Set(['local'])).map((i) => i.id)).toEqual(['draft', 'work', 'general']);
+  });
+
+  it('ticks drafts and leaves Diffity-only comments unticked until flipped', () => {
+    expect(selectedItems(items, excludedItems(items, new Set())).map((i) => i.id)).toEqual(['draft']);
+    expect(selectedItems(items, excludedItems(items, new Set(['draft', 'work']))).map((i) => i.id)).toEqual(['work']);
   });
 
   it('labels locations and other views', () => {

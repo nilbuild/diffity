@@ -10,7 +10,7 @@ import { useGitHubPr } from '../../hooks/use-repo-state';
 import { buttonGhost, buttonIconSmall, buttonOutline, buttonPrimary } from '../ui/button-styles';
 import { insertSuggestion } from '../../features/suggestions/suggestion';
 import { cn } from '../../lib/cn';
-import { PlusMinusIcon } from '../ui/icon';
+import { PlusMinusIcon, TrashIcon } from '../ui/icon';
 
 interface CommentFormProps {
   onSubmit: (body: string, options: SubmitOptions) => void;
@@ -23,7 +23,7 @@ interface CommentFormProps {
   threadPending?: boolean;
   /** Name of the agent that wrote the thread's last comment: a reply goes to it unless the user opts out. */
   replyAgent?: string | null;
-  /** Persists unsent text (per repo) so it survives refreshes and reloads; cleared on submit or cancel. */
+  /** Persists unsent text (per repo) so it survives refreshes, reloads and Cancel; cleared on submit or Discard. */
   draftKey?: string;
   isReply?: boolean;
   /** The commented new-side lines: shows "Suggest change", which inserts them as a ```suggestion block to edit. */
@@ -155,20 +155,20 @@ export function CommentForm(props: CommentFormProps) {
     });
   };
 
-  const cancel = () => {
-    writeDraft(storageKey, '');
+  const discard = () => {
+    setBody('');
     onCancel();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      submit(reviewMode && (threadPending || hasPendingReview));
+      submit(reviewMode);
       return;
     }
     if (e.key === 'Escape') {
       e.preventDefault();
-      cancel();
+      onCancel();
     }
   };
 
@@ -275,7 +275,18 @@ export function CommentForm(props: CommentFormProps) {
         <div className="min-w-0 flex-1 truncate text-xs text-text-muted" title={`${modKey}Enter submits`}>
           {hint}
         </div>
-        <button onClick={cancel} className={buttonGhost}>
+        {body.trim() && storageKey && (
+          <button
+            type="button"
+            onClick={discard}
+            className={cn(buttonIconSmall, 'hover:text-deleted')}
+            title="Discard this comment"
+            aria-label="Discard this comment"
+          >
+            <TrashIcon size="sm" />
+          </button>
+        )}
+        <button onClick={onCancel} className={buttonGhost} title={body.trim() && storageKey ? 'Close. Your text is kept for next time.' : undefined}>
           Cancel
         </button>
         {renderButtons()}

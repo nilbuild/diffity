@@ -15,7 +15,6 @@ import { useGitHubPr } from '../../hooks/use-repo-state';
 import { hasDraft } from './comment-form';
 import { useViewState } from '../../lib/view-state';
 import { Spinner } from '../icons/spinner';
-import { ConfirmDialog } from '../ui/confirm-dialog';
 import { useState } from 'react';
 import { SuggestionThreadContext } from '../../features/suggestions/suggestion-block';
 import { PromoteForm } from '../../features/review/promote-form';
@@ -24,6 +23,7 @@ import { useRepoNav } from '../../hooks/use-repo';
 import { useUncommittedPaths } from '../layout/diff-context-bar';
 import { uncommittedTwin } from '../layout/ref-menu';
 import { useReviewThreads } from '../../hooks/use-review-threads';
+import { AddressedBadge } from './addressed-badge';
 
 interface ThreadCardProps {
   thread: CommentThreadType;
@@ -89,17 +89,17 @@ function OriginBadge(props: { thread: CommentThreadType; prMode: boolean; prUrl:
   }
   if (thread.pending) {
     return (
-      <span className={cn(base, 'bg-fill text-text-secondary')} title={prMode ? 'Draft in your GitHub review; posted when you submit' : 'Draft; saved when you submit'}>
-        {prMode ? 'Draft · GitHub' : 'Draft'}
+      <span className={cn(base, 'bg-fill text-text-secondary')} title={prMode ? 'In your GitHub review. Posted when you submit the review.' : 'Saved when you submit the review'}>
+        Draft
       </span>
     );
   }
   if (thread.githubThreadId) {
     if (prUrl) {
       return (
-        <a href={prUrl} className={cn(base, 'bg-added/12 text-added hover:underline')} title="Posted on GitHub — open the pull request">
+        <a href={prUrl} className={cn(base, 'bg-added/12 text-added hover:underline')} title="Open the pull request on GitHub">
           <GitHubIcon size={10} />
-          Posted
+          On GitHub
         </a>
       );
     }
@@ -108,7 +108,7 @@ function OriginBadge(props: { thread: CommentThreadType; prMode: boolean; prUrl:
   if (!prMode) {
     return null;
   }
-  return <span className={cn(base, 'bg-fill text-text-secondary')} title="Only in Diffity; not part of your GitHub review">Local</span>;
+  return <span className={cn(base, 'bg-fill text-text-secondary')} title="Not on GitHub. It goes there only if you tick it in Submit review.">Diffity only</span>;
 }
 
 /**
@@ -178,14 +178,7 @@ export function ThreadCard(props: ThreadCardProps) {
   const runAgentId = useThreadRunAgent(thread.id);
   const runAgentName = runAgentId ? agentMeta(runAgentId).short : null;
   const showAskClaude = canAskClaude && !lastByClaude;
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const requestDelete = () => {
-    if (thread.comments.length > 1) {
-      setConfirmDelete(true);
-      return;
-    }
-    onDeleteThread();
-  };
+  const addressedBy = !resolved && thread.addressedBy ? agentByName(thread.addressedBy)?.short ?? thread.addressedBy : null;
 
   const { details } = useGitHubPr();
   const { data: sessionThreads } = useReviewThreads(review.sessionId);
@@ -210,6 +203,7 @@ export function ThreadCard(props: ThreadCardProps) {
         <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
           {headerLeft}
           <OriginBadge thread={thread} prMode={review.prMode} prUrl={details?.pr?.url ?? null} />
+          {addressedBy && <AddressedBadge agent={addressedBy} />}
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {promotedDraft && !resolved && (
@@ -251,23 +245,11 @@ export function ThreadCard(props: ThreadCardProps) {
               ...(compact && onUnresolve && resolved ? [{ label: 'Reopen', onSelect: onUnresolve }] : []),
               ...(canAskClaude && (compact || !showAskClaude || canPromote) ? [{ label: `Ask ${askAgent.short}`, onSelect: askClaude }] : []),
               ...(compact && canPromote && !review.promoteBlocked ? [{ label: 'Add to my review', onSelect: startPromote }] : []),
-              { label: 'Delete thread', onSelect: requestDelete, danger: true },
+              { label: 'Delete thread', onSelect: onDeleteThread, danger: true },
             ]}
           />
         </div>
       </div>
-      {confirmDelete && (
-        <ConfirmDialog
-          title="Delete thread"
-          message={`Delete this thread and its ${thread.comments.length} comments? This cannot be undone.`}
-          confirmLabel="Delete"
-          onConfirm={() => {
-            setConfirmDelete(false);
-            onDeleteThread();
-          }}
-          onCancel={() => setConfirmDelete(false)}
-        />
-      )}
       {children}
       <SuggestionThreadContext.Provider value={{ thread, currentCode }}>
         {thread.comments.map((comment) => (
@@ -323,6 +305,7 @@ export function ThreadCard(props: ThreadCardProps) {
         ) : (
           <div className="pl-10 pr-3 pb-3">
             <button
+              data-reply-trigger
               onClick={() => setShowReply(true)}
               className="flex items-center w-full h-8 px-2.5 rounded-md border border-control-border bg-raised text-left text-[13px] text-text-muted hover:border-focus hover:text-text-secondary transition-colors cursor-text"
             >

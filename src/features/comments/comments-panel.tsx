@@ -14,19 +14,23 @@ import { SegmentedToggle } from '../../components/ui/segmented-toggle';
 import { formatRelativeTime } from '../../components/comments/comment-bubble';
 import { GENERAL_THREAD_FILE_PATH, SEVERITY_LABELS } from '../../components/comments/types';
 import { InlineMarkdown } from '../../components/comments/inline-markdown';
+import { AddressedBadge } from '../../components/comments/addressed-badge';
 import { CheckIcon, ChevronIcon, CommentIcon, FileIcon, GitCommitIcon, GitCompareIcon, PencilIcon, SparkleIcon, TrashIcon, UndoIcon, XIcon } from '../../components/ui/icon';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { deleteThread, errorMessage, keepThreadOnBranch, updateThreadStatus } from '../../lib/api';
+import { deleteThread, errorMessage, keepThreadOnBranch } from '../../lib/api';
+import type { ThreadSnapshot } from '../../lib/types';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog';
+import { Skeleton, useRevealClass } from '../../components/ui/skeleton';
+import { changeThreadStatus, deletedToast, deleteThreadWithUndo } from '../../hooks/use-comment-actions';
 import { enqueueClaude, useThreadActivity, useThreadRunAgent } from '../claude/claude-runner';
-import { agentMeta } from '../claude/agents';
+import { agentByName, agentMeta } from '../claude/agents';
 import { useRunPick } from '../claude/model-setting';
 import { useReviewThreads } from '../../hooks/use-review-threads';
 import { MarkdownContent } from '../../components/layout/markdown-content';
 
 type StatusFilter = 'open' | 'resolved' | 'all';
-type AuthorFilter = 'all' | 'agent' | 'user';
+type AuthorFilter = 'all' | 'user' | 'github' | 'agent';
 type ScopeFilter = 'view' | 'all';
 
 interface PanelFilters {
@@ -71,10 +75,7 @@ function matchesAuthor(thread: RepoThread, author: AuthorFilter): boolean {
   if (author === 'all') {
     return true;
   }
-  if (author === 'agent') {
-    return thread.authorType === 'agent';
-  }
-  return thread.authorType !== 'agent';
+  return thread.authorType === author;
 }
 
 function fileLabel(filePath: string): string {
@@ -190,18 +191,7 @@ function ThreadRow(props: ThreadRowProps) {
     }
     setExpanded(!expanded);
   };
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const remove = () => {
-    setConfirmDelete(false);
-    deleteThread(thread.id).then(
-      () => {
-        queryClient.invalidateQueries({ queryKey: ['repo-threads'] });
-        queryClient.invalidateQueries({ queryKey: ['threads'] });
-        queryClient.invalidateQueries({ queryKey: ['reviews'] });
-      },
-      (error) => toast.error(errorMessage(error)),
-    );
-  };
+  const addressedBy = isOpen && thread.addressedBy ? agentByName(thread.addressedBy)?.short ?? thread.addressedBy : null;
   const [keeping, setKeeping] = useState(false);
   const keep = () => {
     setKeeping(true);
@@ -217,17 +207,10 @@ function ThreadRow(props: ThreadRowProps) {
       });
   };
   const toggleStatus = () => {
-    updateThreadStatus(thread.id, isOpen ? 'resolved' : 'open').then(
-      () => {
-        queryClient.invalidateQueries({ queryKey: ['repo-threads'] });
-        queryClient.invalidateQueries({ queryKey: ['threads'] });
-      },
-      (error) => toast.error(errorMessage(error)),
-    );
+    void changeThreadStatus(thread.id, isOpen ? 'resolved' : 'open');
   };
 
   return (
-    <>
     <div
       role="button"
       tabIndex={openable ? 0 : -1}
@@ -265,6 +248,7 @@ function ThreadRow(props: ThreadRowProps) {
             </span>
           )}
           {thread.pending && <ThreadBadge variant="pending" />}
+          {addressedBy && <AddressedBadge agent={addressedBy} />}
           {thread.status !== 'open' && <ThreadBadge variant={thread.status} />}
           {thread.anchor !== 'current' && !thread.unassigned && <ThreadBadge variant="outdated" />}
           <span className="ml-auto text-xs text-text-muted shrink-0 group-hover:hidden group-focus-within:hidden">{formatRelativeTime(thread.updatedAt)}</span>
@@ -297,11 +281,7 @@ function ThreadRow(props: ThreadRowProps) {
           <button
             onClick={(event) => {
               event.stopPropagation();
-              if (thread.replyCount > 0) {
-                setConfirmDelete(true);
-                return;
-              }
-              remove();
+              void deleteThreadWithUndo(thread.id);
             }}
             className="hidden group-hover:inline-flex group-focus-within:inline-flex items-center justify-center w-5 h-5 -my-0.5 rounded text-text-muted hover:text-deleted hover:bg-hover cursor-pointer shrink-0"
             title="Delete this comment and its replies"
@@ -341,16 +321,18 @@ function ThreadRow(props: ThreadRowProps) {
         )}
       </div>
     </div>
-    {confirmDelete && (
-      <ConfirmDialog
-        title="Delete comment"
-        message={`Delete this comment and its ${thread.replyCount} repl${thread.replyCount === 1 ? 'y' : 'ies'}? This cannot be undone.`}
-        confirmLabel="Delete"
-        onConfirm={remove}
-        onCancel={() => setConfirmDelete(false)}
-      />
-    )}
-    </>
+  );
+}
+
+function ThreadRowSkeleton() {
+  return (
+    <div className="flex gap-2.5 px-3 py-2.5 rounded-lg bg-bg border border-border" aria-hidden>
+      <Skeleton circle className="mt-0.5 w-5 h-5" />
+      <div className="min-w-0 flex-1">
+        <Skeleton className="h-3 w-24 mt-1" />
+        <Skeleton className="h-3 w-4/5 mt-2.5" />
+      </div>
+    </div>
   );
 }
 
@@ -379,9 +361,9 @@ function UnassignedHint(props: { thread: RepoThread; keeping: boolean; onKeep: (
 
 function deleteMessage(filters: PanelFilters, count: number, viewOnly: boolean): string {
   const status = filters.status === 'open' ? 'open ' : filters.status === 'resolved' ? 'resolved ' : '';
-  const author = filters.author === 'agent' ? ' from agents' : filters.author === 'user' ? ' from you' : '';
+  const author = { all: '', user: ' from you', github: ' from reviewers', agent: ' from agents' }[filters.author];
   const noun = count === 1 ? 'comment' : 'comments';
-  return `Delete ${count === 1 ? 'the' : `all ${count}`} ${status}${noun}${author} ${viewOnly ? 'in this view' : 'across every view in this repository'}? This cannot be undone.`;
+  return `Delete ${count === 1 ? 'the' : `all ${count}`} ${status}${noun}${author} ${viewOnly ? 'in this view' : 'across every view in this repository'}?`;
 }
 
 function emptyMessage(filters: PanelFilters, total: number, viewOnly: boolean): string {
@@ -452,19 +434,22 @@ function CommentsPanelBody() {
   const filters = useFilters();
   const scopeRef = filters.scope === 'view' ? currentRef : null;
   const threads = useMemo(() => (data ?? []).filter((thread) => inView(thread, scopeRef)), [data, scopeRef]);
+  const hasReviewers = threads.some((thread) => thread.authorType === 'github');
+  const author: AuthorFilter = filters.author === 'github' && !hasReviewers ? 'all' : filters.author;
+  const reveal = useRevealClass(isLoading);
 
   const counts = useMemo(() => {
-    const byAuthor = threads.filter((thread) => matchesAuthor(thread, filters.author));
+    const byAuthor = threads.filter((thread) => matchesAuthor(thread, author));
     return {
       open: byAuthor.filter((thread) => thread.status === 'open').length,
       resolved: byAuthor.filter((thread) => thread.status !== 'open').length,
       all: byAuthor.length,
     };
-  }, [threads, filters.author]);
+  }, [threads, author]);
 
   const visible = useMemo(
-    () => threads.filter((thread) => matchesStatus(thread, filters.status) && matchesAuthor(thread, filters.author)),
-    [threads, filters],
+    () => threads.filter((thread) => matchesStatus(thread, filters.status) && matchesAuthor(thread, author)),
+    [threads, filters.status, author],
   );
   const groups = useMemo(() => groupThreads(visible, currentRef), [visible, currentRef]);
   const queryClient = useQueryClient();
@@ -477,12 +462,12 @@ function CommentsPanelBody() {
     queryClient.invalidateQueries({ queryKey: ['repo-threads'] });
     queryClient.invalidateQueries({ queryKey: ['threads'] });
     queryClient.invalidateQueries({ queryKey: ['reviews'] });
+    const snapshots = results.flatMap((result): ThreadSnapshot[] => (result.status === 'fulfilled' ? [result.value] : []));
     const failed = results.find((result) => result.status === 'rejected');
     if (failed) {
       toast.error('Some comments could not be deleted', { description: errorMessage(failed.reason) });
-      return;
     }
-    toast.success(`Deleted ${ids.length} comment${ids.length === 1 ? '' : 's'}`);
+    deletedToast(snapshots);
   };
 
   const openThread = (thread: RepoThread) => {
@@ -553,25 +538,32 @@ function CommentsPanelBody() {
           value={filters.status}
           onChange={(status) => useFilters.setState({ status })}
           options={[
-            { value: 'open', label: `Open ${counts.open}` },
-            { value: 'resolved', label: `Resolved ${counts.resolved}` },
-            { value: 'all', label: `All ${counts.all}` },
+            { value: 'open', label: isLoading ? 'Open' : `Open ${counts.open}` },
+            { value: 'resolved', label: isLoading ? 'Resolved' : `Resolved ${counts.resolved}` },
+            { value: 'all', label: isLoading ? 'All' : `All ${counts.all}` },
           ]}
         />
         <div className="ml-auto">
           <SegmentedToggle<AuthorFilter>
-            value={filters.author}
-            onChange={(author) => useFilters.setState({ author })}
+            value={author}
+            onChange={(next) => useFilters.setState({ author: next })}
             options={[
               { value: 'all', label: 'Everyone' },
-              { value: 'agent', label: 'Agents' },
               { value: 'user', label: 'You' },
+              ...(hasReviewers ? [{ value: 'github' as const, label: 'Reviewers' }] : []),
+              { value: 'agent', label: 'Agents' },
             ]}
           />
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto py-2">
-        {isLoading && <div className="px-4 py-6 text-xs text-text-muted">Loading comments…</div>}
+      <div className={cn('flex-1 overflow-y-auto py-2', reveal)}>
+        {isLoading && (
+          <div className="flex flex-col gap-2 px-3 pt-9">
+            <ThreadRowSkeleton />
+            <ThreadRowSkeleton />
+            <ThreadRowSkeleton />
+          </div>
+        )}
         {error && <div className="px-4 py-6 text-xs text-deleted">Could not load comments: {String((error as { message?: string }).message ?? error)}</div>}
         {!isLoading && !error && groups.length === 0 && (
           <div className="px-6 py-10 text-center text-xs text-text-muted leading-relaxed">{emptyMessage(filters, threads.length, !!scopeRef)}</div>

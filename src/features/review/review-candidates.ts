@@ -81,7 +81,15 @@ export function groupByFile(items: CandidateItem[]): [string, CandidateItem[]][]
   });
 }
 
-/** Postable items not unchecked by the user; every postable comment (draft or local) starts checked. */
+/**
+ * Items left out of the post: drafts start ticked and "Diffity only" comments start unticked; `toggled` holds the ones
+ * the user flipped.
+ */
+export function excludedItems(items: CandidateItem[], toggled: Set<string>): Set<string> {
+  return new Set(items.filter((item) => item.draft === toggled.has(item.id)).map((item) => item.id));
+}
+
+/** Postable items that are ticked. */
 export function selectedItems(items: CandidateItem[], excluded: Set<string>): CandidateItem[] {
   return items.filter((item) => !item.blockedReason && !excluded.has(item.id));
 }

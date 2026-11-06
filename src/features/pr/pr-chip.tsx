@@ -13,7 +13,7 @@ const HOVER_DELAY = 450;
 function HoverCard(props: { pr: PullRequest; anchor: HTMLElement }) {
   const { pr, anchor } = props;
   const role = useReviewRole(pr);
-  const { when: syncedWhen } = useLastSynced(pr);
+  const { when: syncedWhen, failed: syncFailed } = useLastSynced(pr);
   const checks = checksLabel(pr.checks);
   const rect = anchor.getBoundingClientRect();
 
@@ -34,7 +34,7 @@ function HoverCard(props: { pr: PullRequest; anchor: HTMLElement }) {
         <span className={cn('size-1.5 shrink-0 rounded-full', checks ? checksTone(pr.checks) : 'bg-text-muted')} />
         <span>{checks ?? 'No checks reported'}</span>
       </div>
-      <div className="mt-0.5 text-xs text-text-muted">{syncedWhen ? `Comments synced ${syncedWhen}` : 'Comments not synced yet'}</div>
+      <div className="mt-0.5 text-xs text-text-muted">{syncFailed ? 'Comment sync failed' : syncedWhen ? `Comments synced ${syncedWhen}` : 'Comments not synced yet'}</div>
       <div className="mt-2 pt-1.5 border-t border-overlay-border text-[11px] text-text-muted">Click for details, description and actions</div>
     </div>,
     document.body,
