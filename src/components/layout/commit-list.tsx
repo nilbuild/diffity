@@ -3,10 +3,9 @@ import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery } from '@tanst
 import dayjs from 'dayjs';
 import { type Commit, fetchCommits } from '../../lib/api';
 import { Spinner } from '../icons/spinner';
-import { GitCommitIcon, GitCompareIcon } from '../ui/icon';
-import { ListRow, ListRowSkeleton, StatCell } from '../ui/list-row';
+import { EllipsisIcon, GitCommitIcon, GitCompareIcon } from '../ui/icon';
+import { ContextMenu, MenuItem, Popover, useMenu } from '../ui/popover';
 import { Skeleton, useRevealClass } from '../ui/skeleton';
-import { DiffStatBar } from '../ui/diff-stat-bar';
 import { useHasGitHubRemote } from '../../hooks/use-repo-state';
 import { cn } from '../../lib/cn';
 
@@ -105,31 +104,73 @@ export function AuthorAvatar(props: { name: string; email?: string }) {
   );
 }
 
+/** One line per commit: hash, message, author, line counts. Right-click or ⋯ for more. */
 function CommitRow(props: { commit: Commit; onOpen: () => void; onCompareFrom: () => void }) {
   const { commit, onOpen, onCompareFrom } = props;
+  const menu = useMenu();
+  const [contextAt, setContextAt] = useState<{ x: number; y: number } | null>(null);
+  const renderItems = (close: () => void) => (
+    <>
+      <MenuItem icon={<GitCommitIcon size="sm" />} label="View commit" onSelect={() => {
+        close();
+        onOpen();
+      }} />
+      <MenuItem icon={<GitCompareIcon size="sm" />} label="View changes since this commit" onSelect={() => {
+        close();
+        onCompareFrom();
+      }} />
+    </>
+  );
 
   return (
-    <ListRow
-      icon={<GitCommitIcon size="sm" className="text-text-muted" />}
-      title={commit.message}
-      tooltip={`${commit.message}\nView this commit`}
-      meta={
-        <>
+    <li className="group relative">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onOpen}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            onOpen();
+          }
+        }}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          setContextAt({ x: event.clientX, y: event.clientY });
+        }}
+        title={`${commit.message}\n${commit.author} · ${dayjs(commit.date).format('YYYY-MM-DD HH:mm')}`}
+        className="grid grid-cols-[64px_minmax(0,1fr)_auto_auto_28px] items-center gap-3 h-9 pl-3.5 pr-1.5 text-left hover:bg-hover focus-visible:bg-hover outline-none transition-colors cursor-pointer"
+      >
+        <code className="font-mono text-[11px] text-text-muted">{commit.shortHash}</code>
+        <span className="truncate text-[13px] text-text">{commit.message}</span>
+        <span className="hidden @[560px]/commits:flex items-center gap-1.5 min-w-0 max-w-[180px] text-xs text-text-muted">
           <AuthorAvatar name={commit.author} email={commit.authorEmail} />
-          <span className="truncate text-text-secondary">{commit.author}</span>
-          <span aria-hidden>·</span>
-          <code className="shrink-0 font-mono text-[11px]">{commit.shortHash}</code>
-          <span aria-hidden>·</span>
-          <span className="shrink-0 whitespace-nowrap" title={dayjs(commit.date).format('YYYY-MM-DD HH:mm')}>{commit.relativeDate}</span>
-        </>
-      }
-      stats={<StatCell additions={commit.additions} deletions={commit.deletions} bar={<DiffStatBar additions={commit.additions} deletions={commit.deletions} />} />}
-      onClick={onOpen}
-      actions={[
-        { label: 'View commit', icon: <GitCommitIcon size="sm" />, onSelect: onOpen },
-        { label: 'View changes since this commit', icon: <GitCompareIcon size="sm" />, onSelect: onCompareFrom },
-      ]}
-    />
+          <span className="truncate">{commit.author}</span>
+        </span>
+        <span className="inline-flex justify-end gap-1.5 min-w-[64px] font-mono text-[11px] tabular-nums whitespace-nowrap">
+          {commit.additions > 0 && <span className="text-diff-added">+{commit.additions}</span>}
+          {commit.deletions > 0 && <span className="text-diff-deleted">−{commit.deletions}</span>}
+        </span>
+        <button
+          ref={menu.anchorRef}
+          onClick={(event) => {
+            event.stopPropagation();
+            menu.toggle();
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+          className="inline-flex items-center justify-center w-7 h-7 rounded-md text-text-secondary hover:text-text hover:bg-active opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer"
+          title="More actions"
+          aria-label="More actions"
+        >
+          <EllipsisIcon size="md" />
+        </button>
+      </div>
+      <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} align="end" width={240}>
+        {renderItems(menu.close)}
+      </Popover>
+      <ContextMenu position={contextAt} onClose={() => setContextAt(null)}>
+        {renderItems(() => setContextAt(null))}
+      </ContextMenu>
+    </li>
   );
 }
 
@@ -137,7 +178,7 @@ export function SectionHeader(props: { children: ReactNode }) {
   const { children } = props;
 
   return (
-    <div className="sticky top-0 z-10 bg-bg px-3 pt-4 pb-1.5 text-xs font-medium text-text-secondary">
+    <div className="px-3.5 py-1.5 text-xs font-medium text-text-muted bg-bg-secondary border-b border-border-muted [section+section_&]:border-t">
       {children}
     </div>
   );
@@ -203,11 +244,16 @@ export function CommitList(props: CommitListProps) {
     if (query.isLoading) {
       return (
         <section aria-busy>
-          <div className="px-3 pt-4 pb-1.5 h-[38px] flex items-end">
+          <div className="px-3 pt-3 pb-1 h-[30px] flex items-end">
             <Skeleton className="w-16 h-2.5 mb-1" />
           </div>
           <ul>
-            {Array.from({ length: 6 }, (_, index) => <ListRowSkeleton key={index} index={index} avatar />)}
+            {Array.from({ length: 8 }, (_, index) => (
+              <li key={index} className="flex items-center gap-3 h-8 px-3">
+                <Skeleton className="w-14 h-2.5" />
+                <Skeleton className="h-3" style={{ width: `${[52, 38, 60, 44, 56, 34, 48, 40][index]}%` }} />
+              </li>
+            ))}
           </ul>
         </section>
       );
@@ -243,7 +289,7 @@ export function CommitList(props: CommitListProps) {
   };
 
   return (
-    <div>
+    <div className="@container/commits">
       {!term && header}
       <div className={reveal}>{renderBody()}</div>
       <div ref={sentinel} />

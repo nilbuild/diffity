@@ -1,5 +1,10 @@
 import { ListRowSkeleton } from '../ui/list-row';
 import { Skeleton } from '../ui/skeleton';
+import { buttonOutline } from '../ui/button-styles';
+import { EllipsisIcon } from '../ui/icon';
+import { cn } from '../../lib/cn';
+import { useRepoPath } from '../../hooks/use-repo';
+import { NewTaskButton } from '../../features/tasks/task-list';
 
 /** The Up next card while its decision is pending: same box and line heights as `Hero`, no text that could change. */
 function HeroSkeleton() {
@@ -62,6 +67,7 @@ export function HomeSkeletonBody() {
 /** Home's content area in placeholder form, used when a repository opens straight onto Home. */
 export function HomeSkeletonMain(props: { repoName: string }) {
   const { repoName } = props;
+  const repoPath = useRepoPath();
 
   return (
     <main className="flex-1 min-h-0 overflow-hidden">
@@ -70,8 +76,11 @@ export function HomeSkeletonMain(props: { repoName: string }) {
           <h1 className="text-[18px] leading-6 font-semibold text-text truncate">{repoName}</h1>
           <Skeleton className="w-28 h-3" />
           <span className="flex-1" />
-          <Skeleton className="w-[118px] h-7 rounded-md" />
-          <Skeleton className="w-[150px] h-7 rounded-md" />
+          <NewTaskButton repoPath={repoPath} />
+          {/* Home's ⋯ menu, inert until the page is up; same box so nothing moves when it is. */}
+          <span aria-hidden className={cn(buttonOutline, 'h-7 w-7 px-0 justify-center cursor-default')}>
+            <EllipsisIcon size="md" className="text-text-secondary" />
+          </span>
         </header>
         <HomeSkeletonBody />
       </div>

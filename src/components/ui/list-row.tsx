@@ -76,6 +76,7 @@ export function ListRow(props: ListRowProps) {
                 event.stopPropagation();
                 menu.toggle();
               }}
+              onKeyDown={(event) => event.stopPropagation()}
               className="absolute inset-0 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-active opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer"
               title="More actions"
               aria-label="More actions"
