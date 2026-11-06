@@ -24,6 +24,8 @@ interface SidebarProps {
   pending?: boolean;
 }
 
+const NO_GUIDE = { guide: 'Nothing to guide: this view has no changes' };
+
 export function Sidebar(props: SidebarProps) {
   const {
     files,
@@ -70,7 +72,7 @@ export function Sidebar(props: SidebarProps) {
   };
 
   return (
-    <SidebarFrame view="diff">
+    <SidebarFrame view="diff" disabledViews={files.length === 0 && !pending ? NO_GUIDE : undefined}>
       {files.length === 0 ? (
         <div className="px-4 pt-6 text-center text-xs text-text-muted">{pending ? '' : 'Nothing changed here'}</div>
       ) : (

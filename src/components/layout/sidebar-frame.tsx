@@ -47,11 +47,13 @@ interface SidebarFrameProps {
   collapsible?: boolean;
   storageKey?: string;
   defaultWidth?: number;
+  /** Views that can't open from here, with the reason shown on hover. */
+  disabledViews?: Partial<Record<RepoView, string>>;
   children: ReactNode;
 }
 
 export function SidebarFrame(props: SidebarFrameProps) {
-  const { view, collapsible = true, storageKey = WIDTH_KEY, defaultWidth = DEFAULT_WIDTH, children } = props;
+  const { view, collapsible = true, storageKey = WIDTH_KEY, defaultWidth = DEFAULT_WIDTH, disabledViews, children } = props;
   const collapsedSetting = useUi((state) => state.sidebarCollapsed);
   const collapsed = collapsible && collapsedSetting;
   const [width, setWidth] = useState(() => readStoredWidth(storageKey, defaultWidth));
@@ -102,7 +104,7 @@ export function SidebarFrame(props: SidebarFrameProps) {
   if (collapsed) {
     return (
       <div className="w-12 min-w-12 shrink-0 border-r border-border bg-sidebar flex flex-col items-center pt-2">
-        <ViewTabs current={view} vertical />
+        <ViewTabs current={view} disabled={disabledViews} vertical />
       </div>
     );
   }
@@ -113,7 +115,7 @@ export function SidebarFrame(props: SidebarFrameProps) {
       style={{ width }}
     >
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <ViewTabs current={view} />
+        <ViewTabs current={view} disabled={disabledViews} />
         {children}
       </div>
       <div
