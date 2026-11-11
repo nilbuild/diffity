@@ -6,6 +6,7 @@ pub mod git;
 pub mod mentions;
 pub mod quick_open;
 pub mod scan;
+pub mod search;
 pub mod repo_threads;
 pub mod store;
 pub mod suggestion;

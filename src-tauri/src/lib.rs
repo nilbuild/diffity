@@ -303,6 +303,7 @@ pub fn run() {
             commands::files::list_tree,
             commands::files::read_file,
             commands::files::read_file_base64,
+            commands::files::search_code,
             commands::comments::get_session,
             commands::comments::list_threads,
             commands::comments::list_repo_threads,
