@@ -39,6 +39,7 @@ interface ActivityState {
 export const useRunActivity = create<ActivityState>(() => ({ byRepo: {}, open: false, selected: null, showHistory: false }));
 
 export function openActivity() {
+  flushActivity();
   useRunActivity.setState({ open: true, selected: null, showHistory: false });
 }
 
@@ -55,6 +56,7 @@ export function closeActivity() {
 }
 
 export function toggleActivity() {
+  flushActivity();
   useRunActivity.setState((state) => (state.open ? { open: false } : { open: true, selected: null, showHistory: false }));
 }
 

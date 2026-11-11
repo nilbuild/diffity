@@ -52,6 +52,7 @@ import {
 } from './run-activity';
 import { describeTool, summarizeTools, type ToolLabel } from './tool-label';
 import { splitShell } from './shell-label';
+import { plural } from '../review/review-candidates';
 
 export function formatElapsed(ms: number) {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -167,8 +168,8 @@ function CommandBlock(props: { command: string }) {
   );
 }
 
-function ToolRow(props: { tool: ToolItem; startedAt: number; repoPath: string }) {
-  const { tool, startedAt, repoPath } = props;
+function ToolRow(props: { tool: ToolItem; startedAt: number; repoPath: string; fresh: boolean }) {
+  const { tool, startedAt, repoPath, fresh } = props;
   const [open, setOpen] = useState(false);
   const label = describeTool(tool, repoPath);
   const failed = tool.status === 'failed';
@@ -197,10 +198,10 @@ function ToolRow(props: { tool: ToolItem; startedAt: number; repoPath: string })
   );
 
   if (!expandable) {
-    return <div className="flex items-start gap-2 px-1.5 py-1 -mx-1.5 rounded-md">{head}</div>;
+    return <div className={cn('flex items-start gap-2 px-1.5 py-1 -mx-1.5 rounded-md', fresh && 'animate-fade-in')}>{head}</div>;
   }
   return (
-    <div className="flex flex-col">
+    <div className={cn('flex flex-col', fresh && 'animate-fade-in')}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -216,20 +217,21 @@ function ToolRow(props: { tool: ToolItem; startedAt: number; repoPath: string })
 }
 
 /** Three or more calls in a row fold into one line that says what they did. */
-function ToolGroup(props: { tools: ToolItem[]; live: boolean; startedAt: number; repoPath: string }) {
-  const { tools, live, startedAt, repoPath } = props;
+function ToolGroup(props: { tools: ToolItem[]; live: boolean; startedAt: number; repoPath: string; isFresh: (id: string) => boolean }) {
+  const { tools, live, startedAt, repoPath, isFresh } = props;
   const [open, setOpen] = useState<boolean | null>(null);
   const expanded = open ?? live;
-  const rows = tools.map((tool) => <ToolRow key={tool.id} tool={tool} startedAt={startedAt} repoPath={repoPath} />);
+  const groupFresh = isFresh(tools[0].id);
+  const rows = tools.map((tool) => <ToolRow key={tool.id} tool={tool} startedAt={startedAt} repoPath={repoPath} fresh={!groupFresh && isFresh(tool.id)} />);
 
   if (tools.length < 3) {
-    return <div className="flex flex-col">{rows}</div>;
+    return <div className={cn('flex flex-col', groupFresh && 'animate-fade-in')}>{rows}</div>;
   }
   const failed = tools.filter((tool) => tool.status === 'failed').length;
   const running = tools.some(isRunning);
 
   return (
-    <div className="flex flex-col">
+    <div className={cn('flex flex-col', groupFresh && 'animate-fade-in')}>
       <button
         type="button"
         onClick={() => setOpen(!expanded)}
@@ -338,27 +340,28 @@ function toBlocks(items: ActivityItem[]): Block[] {
 function Timeline(props: { items: ActivityItem[]; running: boolean; startedAt: number; now: number; repoPath: string; runRef: string | null }) {
   const { items, running, startedAt, now, repoPath, runRef } = props;
   const blocks = useMemo(() => toBlocks(items), [items]);
+  const [initial] = useState(() => new Set(items.map((item) => item.id)));
+  const isFresh = (id: string) => !initial.has(id);
 
   return (
     <>
       {blocks.map((block, index) => {
         const live = running && index === blocks.length - 1;
         if (block.kind === 'tools') {
-          return <ToolGroup key={`tools-${block.id}`} tools={block.tools} live={live} startedAt={startedAt} repoPath={repoPath} />;
+          return <ToolGroup key={`tools-${block.id}`} tools={block.tools} live={live} startedAt={startedAt} repoPath={repoPath} isFresh={isFresh} />;
         }
         const { item } = block;
-        switch (item.kind) {
-          case 'thought':
-            return <ThoughtRow key={`thought-${item.id}`} item={item} live={live} now={now} />;
-          case 'text':
-            return (
-              <div key={`text-${item.id}`} className="text-[13px] leading-5 text-text">
+        return (
+          <div key={`${item.kind}-${item.id}`} className={cn(isFresh(item.id) && 'animate-fade-in')}>
+            {item.kind === 'thought' && <ThoughtRow item={item} live={live} now={now} />}
+            {item.kind === 'text' && (
+              <div className="text-[13px] leading-5 text-text">
                 <MarkdownContent content={item.text} />
               </div>
-            );
-          case 'comment':
-            return <CommentRow key={`comment-${item.id}`} item={item} repoPath={repoPath} runRef={runRef} />;
-        }
+            )}
+            {item.kind === 'comment' && <CommentRow item={item} repoPath={repoPath} runRef={runRef} />}
+          </div>
+        );
       })}
     </>
   );
@@ -622,7 +625,7 @@ function LiveRun(props: { shown: ShownRun; repoPath: string }) {
           </button>
         )}
         <span className="ml-auto text-text-muted tabular-nums">
-          {formatElapsed(now - activity.startedAt)} · {toolCount(activity)} steps · {activity.items.filter((item) => item.kind === 'comment').length} comments
+          {formatElapsed(now - activity.startedAt)} · {plural(toolCount(activity), 'step')} · {plural(activity.items.filter((item) => item.kind === 'comment').length, 'comment')}
         </span>
       </div>
     </>
