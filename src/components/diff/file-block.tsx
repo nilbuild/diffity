@@ -606,9 +606,9 @@ function FileCard(props: FileCardProps) {
           onClick={() => onToggleCollapse(filePath)}
         >
           {showRename ? (
-            <span className="truncate">
-              <span className="line-through text-text-muted">{file.oldPath}</span>
-              <span className="text-text-muted"> → </span>
+            <span className="flex min-w-0 whitespace-pre">
+              <PathLabel path={file.oldPath} className="line-through shrink-[100]" nameClassName="text-text-muted" />
+              <span className="shrink-0 text-text-muted"> → </span>
               <PathLabel path={file.newPath} nameClassName="font-medium" />
             </span>
           ) : (
