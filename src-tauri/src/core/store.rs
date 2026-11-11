@@ -850,11 +850,38 @@ impl Store {
     /// and `session_scope`. The returned session carries the view's own `ref`.
     pub fn get_or_create_session(&self, repo_path: &str, r#ref: &str) -> Result<ReviewSession> {
         let scope = session_scope(repo_path, r#ref);
+        self.retire_sessions_before_branch(repo_path, &scope)?;
         let session = self.get_or_create_scoped_session(repo_path, &shared_session_ref(r#ref), &scope)?;
         Ok(ReviewSession {
             r#ref: r#ref.to_string(),
             ..session
         })
+    }
+
+    /// A branch deleted and created again under the same name holds new work, so sessions from before it was
+    /// created move to a dated scope: their guide, comments and viewed marks stop showing on the new branch but stay
+    /// listed with the repo's threads.
+    fn retire_sessions_before_branch(&self, repo_path: &str, branch: &str) -> Result<()> {
+        if branch.is_empty() || branch.starts_with("detached@") {
+            return Ok(());
+        }
+        let Some(created) = git::branch_created_at(Path::new(repo_path), branch)?.and_then(|secs| chrono::DateTime::from_timestamp(secs, 0)) else {
+            return Ok(());
+        };
+        let cutoff = created.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let conn = self.conn()?;
+        let stale = conn
+            .prepare_cached("SELECT id FROM review_sessions WHERE repo_path = ?1 AND scope = ?2 AND created_at < ?3")?
+            .query_map(params![repo_path, branch, cutoff], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let label = format!("{branch} (before {})", created.format("%Y-%m-%d"));
+        for id in stale {
+            let moved = conn.execute("UPDATE OR IGNORE review_sessions SET scope = ?2 WHERE id = ?1", params![id, label])?;
+            if moved == 0 {
+                conn.execute("UPDATE review_sessions SET scope = ?2 WHERE id = ?1", params![id, format!("{label} {}", &id[..8.min(id.len())])])?;
+            }
+        }
+        Ok(())
     }
 
     pub fn get_or_create_scoped_session(&self, repo_path: &str, r#ref: &str, scope: &str) -> Result<ReviewSession> {
@@ -1904,4 +1931,38 @@ mod tests {
         assert_eq!(store.get_session_by_id("work").unwrap().r#ref, "work");
         assert_eq!(store.list_threads("work", None).unwrap()[0].view_ref.as_deref(), Some("work"));
     }
+
+    fn git_in(dir: &Path, args: &[&str]) {
+        let status = std::process::Command::new("git").args(args).current_dir(dir).status().unwrap();
+        assert!(status.success(), "git {args:?}");
+    }
+
+    #[test]
+    fn a_recreated_branch_starts_a_fresh_session() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path();
+        git_in(repo, &["init", "-q", "-b", "main"]);
+        git_in(repo, &["-c", "user.email=t@example.com", "-c", "user.name=T", "commit", "-q", "--allow-empty", "-m", "a"]);
+        git_in(repo, &["checkout", "-q", "-b", "feat"]);
+        let path = repo.to_str().unwrap();
+        let store = Store::init(Connection::open_in_memory().unwrap()).unwrap();
+
+        let first = store.get_or_create_session(path, "work").unwrap();
+        assert_eq!(store.get_or_create_session(path, "work").unwrap().id, first.id);
+
+        store
+            .conn()
+            .unwrap()
+            .execute("UPDATE review_sessions SET created_at = '2000-01-01T00:00:00.000Z' WHERE id = ?1", [&first.id])
+            .unwrap();
+        git_in(repo, &["checkout", "-q", "main"]);
+        git_in(repo, &["branch", "-q", "-D", "feat"]);
+        git_in(repo, &["checkout", "-q", "-b", "feat"]);
+
+        let second = store.get_or_create_session(path, "work").unwrap();
+        assert_ne!(second.id, first.id);
+        assert_eq!(second.scope, "feat");
+        assert!(store.get_session_by_id(&first.id).unwrap().scope.starts_with("feat (before "));
+    }
+
 }

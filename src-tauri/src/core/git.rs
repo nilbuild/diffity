@@ -186,6 +186,30 @@ pub fn merged_fork_point(repo: &Path, base: &str, head: &str) -> Result<Option<S
     merge_base(repo, &before, head)
 }
 
+/// When `branch` was created (unix seconds), from the first entry of its reflog. `None` when the reflog doesn't
+/// record the creation (disabled, expired, or the branch came from a fetch) or when it was checked out again from
+/// the remote branch of the same name, which carries on the same work.
+pub fn branch_created_at(repo: &Path, branch: &str) -> Result<Option<i64>> {
+    if branch.is_empty() || branch.starts_with('-') {
+        return Ok(None);
+    }
+    let full = format!("refs/heads/{branch}");
+    let Some(out) = run_opt(repo, &["reflog", "show", "--date=unix", "--format=%gd%x09%gs", &full, "--"])? else {
+        return Ok(None);
+    };
+    let text = String::from_utf8_lossy(&out);
+    let Some((selector, subject)) = text.lines().last().and_then(|line| line.split_once('\t')) else {
+        return Ok(None);
+    };
+    let Some(from) = subject.strip_prefix("branch: Created from ") else {
+        return Ok(None);
+    };
+    if from.trim().ends_with(&format!("/{branch}")) {
+        return Ok(None);
+    }
+    Ok(selector.rsplit_once("@{").and_then(|(_, rest)| rest.strip_suffix('}')).and_then(|secs| secs.parse().ok()))
+}
+
 pub fn current_branch(repo: &Path) -> Result<Option<String>> {
     let out = run_opt(repo, &["symbolic-ref", "--quiet", "--short", "HEAD"])?;
     Ok(out.map(|b| String::from_utf8_lossy(&b).trim().to_string()).filter(|s| !s.is_empty()))
