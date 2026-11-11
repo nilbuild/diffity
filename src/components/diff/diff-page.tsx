@@ -73,6 +73,8 @@ import { setGuideOnScreen } from '../../features/guide/guide-on-screen';
 import { useRunPick } from '../../features/claude/model-setting';
 import { GENERAL_THREAD_FILE_PATH } from '../comments/types';
 import { ReviewKeys } from '../layout/review-keys';
+import { requestSearchFocus } from '../../features/code-search/code-search';
+import type { SearchTarget } from '../../features/code-search/sidebar-search';
 
 const NO_THREADS: CommentThread[] = [];
 
@@ -397,14 +399,7 @@ export function DiffPage(props: DiffPageProps) {
     },
     onUnifiedView: () => setShownViewMode('unified'),
     onSplitView: () => setShownViewMode('split'),
-    onFocusSearch: () => {
-      const input = document.querySelector(
-        'input[placeholder="Filter files"]',
-      ) as HTMLInputElement;
-      if (input) {
-        input.focus();
-      }
-    },
+    onFocusSearch: () => requestSearchFocus(getRepoPath(), 'files'),
     onEscape: () => undefined,
   });
 
@@ -452,6 +447,31 @@ export function DiffPage(props: DiffPageProps) {
     setActiveFile(path);
     diffViewRef.current?.scrollToFile(path);
   }, [setActiveFile, guideOpen, revealInGuide]);
+
+  const handleOpenSearchResult = useCallback((target: SearchTarget) => {
+    if (!target.inDiff) {
+      const base = repoBase(getRepoPath());
+      const back = `${location.pathname}${location.search}`;
+      const params = new URLSearchParams({ path: target.path, type: 'file', line: String(target.line) });
+      navigate(`${base}/tree?${params.toString()}`);
+      const inDiff = diff?.files.some((file) => getFilePath(file) === target.path);
+      toast(inDiff ? 'That line isn’t part of the diff, so it opened in Files' : 'That file has no changes here, so it opened in Files', {
+        action: { label: 'Back to Diff', onClick: () => navigate(back) },
+      });
+      return;
+    }
+    setCollapsedFiles((prev) => {
+      if (!prev.has(target.path)) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.delete(target.path);
+      return next;
+    });
+    setActiveFile(target.path);
+    diffViewRef.current?.revealFile(target.path);
+    focusGuideLine({ path: target.path, line: target.line, side: 'new' });
+  }, [diff, location.pathname, location.search, navigate, setActiveFile]);
 
   const handleScrollToThread = useCallback((threadId: string, filePath: string) => {
     setActiveFile(filePath);
@@ -738,6 +758,7 @@ export function DiffPage(props: DiffPageProps) {
           commentCountsByFile={commentCountsByFile}
           onFileClick={handleSidebarFileClick}
           onCommentedFileClick={handleSidebarCommentedFileClick}
+          onOpenSearchResult={handleOpenSearchResult}
           stats={isEmpty ? undefined : diff.stats}
           stateKey={`diff:${refParam}:sidebar`}
           pending={!!checkout}

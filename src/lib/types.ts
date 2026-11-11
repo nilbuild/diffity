@@ -182,6 +182,36 @@ export interface TreeEntry {
   diffIgnored?: boolean;
 }
 
+export interface SearchOptions {
+  query: string;
+  caseSensitive: boolean;
+  wholeWord: boolean;
+  regex: boolean;
+  /** Searches only these paths (the files of a diff). */
+  paths?: string[] | null;
+}
+
+export interface SearchMatch {
+  line: number;
+  /** The line, or a window of it around the first match when it is long. */
+  text: string;
+  /** `[start, end)` offsets of each match in `text`. */
+  ranges: [number, number][];
+}
+
+export interface SearchFile {
+  path: string;
+  matches: SearchMatch[];
+  diffIgnored?: boolean;
+}
+
+export interface SearchResult {
+  files: SearchFile[];
+  total: number;
+  truncated: boolean;
+  cancelled: boolean;
+}
+
 export interface FileContent {
   path: string;
   contents: string | null;

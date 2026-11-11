@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect, useRef, forwardRef } from 'react';
+import { useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   buildFileTreeFromPaths,
   collapseSingleChildDirs,
@@ -8,7 +8,8 @@ import {
   collectAllDirPaths,
 } from '../../lib/file-tree';
 import { FileTreeItem } from './file-tree-item';
-import { CommentedOnlyToggle, SidebarFilter, SidebarFrame, SidebarMenu, SidebarSummary } from '../layout/sidebar-frame';
+import { SidebarFrame, SidebarSummary } from '../layout/sidebar-frame';
+import { SidebarSearch, type SearchTarget } from '../../features/code-search/sidebar-search';
 import { MenuItem } from '../ui/popover';
 import { CollapseAllIcon, ExpandAllIcon } from '../ui/icon';
 import { useRestoredScroll, useViewState } from '../../lib/view-state';
@@ -21,9 +22,10 @@ interface TreeSidebarProps {
   commentCountsByFile: Map<string, number>;
   onFileClick: (path: string) => void;
   onDirClick: (path: string) => void;
+  onOpenSearchResult: (target: SearchTarget) => void;
 }
 
-export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(function TreeSidebar(props, ref) {
+export function TreeSidebar(props: TreeSidebarProps) {
   const {
     paths,
     diffIgnored,
@@ -31,6 +33,7 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
     commentCountsByFile,
     onFileClick,
     onDirClick,
+    onOpenSearchResult,
   } = props;
 
   const [search, setSearch] = useViewState('tree:filter', '');
@@ -123,41 +126,28 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
 
   return (
     <SidebarFrame view="tree">
-      <SidebarFilter
-        ref={ref}
-        value={search}
-        onChange={setSearch}
-        placeholder="Filter files"
-        shortcut="/"
-        trailing={
+      <SidebarSearch
+        view="tree"
+        filter={search}
+        onFilterChange={setSearch}
+        commentedToggle={{ active: effectiveCommentedOnly, count: commentedFileCount, onToggle: () => setCommentedFilesOnly((prev) => !prev) }}
+        onOpenResult={onOpenSearchResult}
+        menu={(close) => (
           <>
-            {commentedFileCount > 0 && (
-              <CommentedOnlyToggle
-                active={effectiveCommentedOnly}
-                count={commentedFileCount}
-                onToggle={() => setCommentedFilesOnly((prev) => !prev)}
-              />
-            )}
-            <SidebarMenu title="File list options">
-              {(close) => (
-                <>
-                  <MenuItem
-                    icon={<ExpandAllIcon size="sm" />}
-                    label="Expand all folders"
-                    disabled={allExpanded}
-                    onSelect={() => { setExpandedDirs(new Set(allDirPaths)); close(); }}
-                  />
-                  <MenuItem
-                    icon={<CollapseAllIcon size="sm" />}
-                    label="Collapse all folders"
-                    onSelect={() => { setExpandedDirs(new Set()); close(); }}
-                  />
-                </>
-              )}
-            </SidebarMenu>
+            <MenuItem
+              icon={<ExpandAllIcon size="sm" />}
+              label="Expand all folders"
+              disabled={allExpanded}
+              onSelect={() => { setExpandedDirs(new Set(allDirPaths)); close(); }}
+            />
+            <MenuItem
+              icon={<CollapseAllIcon size="sm" />}
+              label="Collapse all folders"
+              onSelect={() => { setExpandedDirs(new Set()); close(); }}
+            />
           </>
-        }
-      />
+        )}
+      >
       <SidebarSummary>
         {paths.length} file{paths.length === 1 ? '' : 's'}
       </SidebarSummary>
@@ -189,6 +179,7 @@ export const TreeSidebar = forwardRef<HTMLInputElement, TreeSidebarProps>(functi
           ))
         )}
       </div>
+      </SidebarSearch>
     </SidebarFrame>
   );
-});
+}

@@ -5,7 +5,8 @@ import { setSidebarFlat, useUi } from '../../lib/ui-store';
 import { useViewState } from '../../lib/view-state';
 import { FileTree } from '../tree/file-tree';
 import type { FileTreeHandle } from '../tree/file-tree';
-import { CommentedOnlyToggle, SidebarFilter, SidebarFrame, SidebarMenu, SidebarSummary } from './sidebar-frame';
+import { SidebarFrame, SidebarSummary } from './sidebar-frame';
+import { SidebarSearch, type SearchTarget } from '../../features/code-search/sidebar-search';
 import { MenuItem, MenuLabel, MenuSeparator } from '../ui/popover';
 import { CollapseAllIcon, ExpandAllIcon, ListIcon, TreeIcon } from '../ui/icon';
 
@@ -17,6 +18,7 @@ interface SidebarProps {
   commentCountsByFile: Map<string, number>;
   onFileClick: (path: string) => void;
   onCommentedFileClick: (path: string) => void;
+  onOpenSearchResult: (target: SearchTarget) => void;
   stats?: ParsedDiff['stats'];
   /** Remembers the filter, folders and scroll per view. */
   stateKey: string;
@@ -35,6 +37,7 @@ export function Sidebar(props: SidebarProps) {
     commentCountsByFile,
     onFileClick,
     onCommentedFileClick,
+    onOpenSearchResult,
     stats,
     stateKey,
     pending = false,
@@ -73,48 +76,39 @@ export function Sidebar(props: SidebarProps) {
 
   return (
     <SidebarFrame view="diff" disabledViews={files.length === 0 && !pending ? NO_GUIDE : undefined}>
+      <>
+      <SidebarSearch
+        view="diff"
+        filter={search}
+        onFilterChange={setSearch}
+        commentedToggle={{ active: commentedFilesOnly, count: commentedFileCount, onToggle: () => setCommentedFilesOnly((prev) => !prev) }}
+        diffFiles={files}
+        onOpenResult={onOpenSearchResult}
+        menu={(close) => (
+          <>
+            <MenuLabel>Show files as</MenuLabel>
+            <MenuItem icon={<TreeIcon size="sm" />} label="Tree" checked={!flat} onSelect={() => { setFlat(false); close(); }} />
+            <MenuItem icon={<ListIcon size="sm" />} label="List" checked={flat} onSelect={() => { setFlat(true); close(); }} />
+            <MenuSeparator />
+            <MenuItem
+              icon={<ExpandAllIcon size="sm" />}
+              label="Expand all folders"
+              disabled={flat || allExpanded}
+              onSelect={() => { fileTreeRef.current?.expandAll(); close(); }}
+            />
+            <MenuItem
+              icon={<CollapseAllIcon size="sm" />}
+              label="Collapse all folders"
+              disabled={flat}
+              onSelect={() => { fileTreeRef.current?.collapseAll(); close(); }}
+            />
+          </>
+        )}
+      >
       {files.length === 0 ? (
         <div className="px-4 pt-6 text-center text-xs text-text-muted">{pending ? '' : 'Nothing changed here'}</div>
       ) : (
       <>
-      <SidebarFilter
-        value={search}
-        onChange={setSearch}
-        placeholder="Filter files"
-        trailing={
-          <>
-            {commentedFileCount > 0 && (
-              <CommentedOnlyToggle
-                active={commentedFilesOnly}
-                count={commentedFileCount}
-                onToggle={() => setCommentedFilesOnly((prev) => !prev)}
-              />
-            )}
-            <SidebarMenu title="File list options">
-              {(close) => (
-                <>
-                  <MenuLabel>Show files as</MenuLabel>
-                  <MenuItem icon={<TreeIcon size="sm" />} label="Tree" checked={!flat} onSelect={() => { setFlat(false); close(); }} />
-                  <MenuItem icon={<ListIcon size="sm" />} label="List" checked={flat} onSelect={() => { setFlat(true); close(); }} />
-                  <MenuSeparator />
-                  <MenuItem
-                    icon={<ExpandAllIcon size="sm" />}
-                    label="Expand all folders"
-                    disabled={flat || allExpanded}
-                    onSelect={() => { fileTreeRef.current?.expandAll(); close(); }}
-                  />
-                  <MenuItem
-                    icon={<CollapseAllIcon size="sm" />}
-                    label="Collapse all folders"
-                    disabled={flat}
-                    onSelect={() => { fileTreeRef.current?.collapseAll(); close(); }}
-                  />
-                </>
-              )}
-            </SidebarMenu>
-          </>
-        }
-      />
       <SidebarSummary>
         <span className="truncate">{countLabel}</span>
         {stats && <DiffStats additions={stats.totalAdditions} deletions={stats.totalDeletions} />}
@@ -135,6 +129,8 @@ export function Sidebar(props: SidebarProps) {
       />
       </>
       )}
+      </SidebarSearch>
+      </>
     </SidebarFrame>
   );
 }

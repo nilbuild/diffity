@@ -27,6 +27,8 @@ import type {
   DeviceCode,
   DiffResult,
   FileContent,
+  SearchOptions,
+  SearchResult,
   FileVersions,
   Guide,
   GitOpResult,
@@ -146,6 +148,7 @@ export const applySuggestion = (repoPath: string, path: string, startLine: numbe
 // files
 export const listTree = (repoPath: string) => invoke<TreeEntry[]>('list_tree', { repoPath });
 export const readFile = (repoPath: string, path: string) => invoke<FileContent>('read_file', { repoPath, path });
+export const searchCode = (repoPath: string, options: SearchOptions) => invoke<SearchResult>('search_code', { repoPath, options });
 export const readFileBase64 = (repoPath: string, path: string) =>
   invoke<string>('read_file_base64', { repoPath, path });
 

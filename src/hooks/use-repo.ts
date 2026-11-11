@@ -96,6 +96,7 @@ export function useRepoEvents(repoPath: string) {
         queryClient.invalidateQueries({ queryKey: ['worktrees'] });
         queryClient.invalidateQueries({ queryKey: ['repo-threads'] });
         queryClient.invalidateQueries({ queryKey: ['repo-info'] });
+        queryClient.invalidateQueries({ queryKey: ['code-search', repoPath] });
       })
       .then(keep, () => undefined);
     tauri

@@ -5,6 +5,8 @@ import { ViewTabs, type RepoView } from './view-tabs';
 import { useUi } from '../../lib/ui-store';
 import { CommentIcon, EllipsisIcon, SearchIcon, XIcon } from '../ui/icon';
 import { Popover, useMenu } from '../ui/popover';
+import { useRepoPath } from '../../hooks/use-repo';
+import { requestSearchFocus } from '../../features/code-search/code-search';
 
 const WIDTH_KEY = 'diffity-sidebar-width';
 const DEFAULT_WIDTH = 300;
@@ -59,6 +61,25 @@ export function SidebarFrame(props: SidebarFrameProps) {
   const [width, setWidth] = useState(() => readStoredWidth(storageKey, defaultWidth));
   const [dragging, setDragging] = useState(false);
   const drag = useRef<{ startX: number; startWidth: number } | null>(null);
+  const repoPath = useRepoPath();
+
+  useEffect(() => {
+    if (view !== 'diff' && view !== 'tree') {
+      return;
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.altKey || event.key.toLowerCase() !== 'f') {
+        return;
+      }
+      event.preventDefault();
+      // Text selected in the code (one line) becomes the query.
+      const selected = window.getSelection()?.toString().trim() ?? '';
+      const query = selected && !selected.includes('\n') && selected.length <= 200 ? selected : undefined;
+      requestSearchFocus(repoPath, 'code', query);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [view, repoPath]);
 
   useEffect(() => {
     const onResize = () => setWidth((current) => clampWidth(current));
@@ -180,27 +201,38 @@ interface SidebarFilterProps {
   onChange: (value: string) => void;
   placeholder: string;
   shortcut?: string;
+  /** Inside the field, before the text (the search mode switch); replaces the search icon. */
+  leading?: ReactNode;
+  invalid?: boolean;
+  /** Runs before the field's own keys; `preventDefault()` skips them (Escape clearing the field). */
+  onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
   trailing?: ReactNode;
 }
 
 export const SidebarFilter = forwardRef<HTMLInputElement, SidebarFilterProps>(function SidebarFilter(props, ref) {
-  const { value, onChange, placeholder, shortcut, trailing } = props;
+  const { value, onChange, placeholder, shortcut, leading, invalid = false, onKeyDown, trailing } = props;
 
   return (
     <div className="flex items-center gap-1 px-3 pt-1 pb-2 shrink-0">
       <div className="relative flex-1 min-w-0">
-        <SearchIcon size="sm" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+        {leading ?? <SearchIcon size="sm" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />}
         <input
           autoComplete="off"
           autoCorrect="off"
           spellCheck={false}
           ref={ref}
-          className={cn(inputField, 'pl-8 pr-7')}
+          className={cn(inputField, leading ? 'pl-10' : 'pl-8', shortcut && shortcut.length > 1 ? 'pr-12' : 'pr-7', invalid && 'border-deleted focus:border-deleted focus:hover:border-deleted hover:border-deleted')}
           type="text"
           placeholder={placeholder}
+          aria-label={placeholder}
+          aria-invalid={invalid || undefined}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={(event) => {
+            onKeyDown?.(event);
+            if (event.defaultPrevented) {
+              return;
+            }
             if (event.key === 'Escape') {
               onChange('');
               event.currentTarget.blur();

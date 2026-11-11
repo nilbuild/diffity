@@ -892,6 +892,27 @@ tr.guide-line-focus.guide-range-top.guide-range-bottom > td:first-child {
 }
 
 
+/* Code search results in the sidebar: the find colours, stronger on the opened result. */
+.search-mark {
+  background-color: rgba(250, 204, 21, 0.4);
+  color: var(--color-text);
+  border-radius: 2px;
+}
+
+.search-row-active .search-mark {
+  background-color: #f59e0b;
+  color: #111111;
+}
+
+[data-theme='dark'] .search-mark {
+  background-color: rgba(234, 179, 8, 0.32);
+}
+
+[data-theme='dark'] .search-row-active .search-mark {
+  background-color: #f59e0b;
+  color: #111111;
+}
+
 /* Centered messages wrap into even lines instead of leaving a word or two alone on the last one. */
 .text-center {
   text-wrap: balance;

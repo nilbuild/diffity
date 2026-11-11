@@ -64,6 +64,7 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       { id: 'view-collapse', label: 'Collapse or expand all files', keys: ['⇧X'] },
       { label: 'Mark the file as viewed', keys: ['R'] },
       { label: 'Filter files', keys: ['/'] },
+      { id: 'search-code', label: 'Search code in every file', keys: [chord('F', { shift: true })] },
       { id: 'find', label: 'Find in all changed files', keys: [chord('F')] },
       { label: 'Next or previous match', keys: [chord('G'), chord('G', { shift: true })] },
       { id: 'copy-path', label: 'Copy the focused file’s path', keys: [chord('C', { alt: true })] },
@@ -83,6 +84,7 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
     title: 'Files',
     shortcuts: [
       { label: 'Filter files', keys: ['/'] },
+      { label: 'Search code in every file', keys: [chord('F', { shift: true })] },
       { label: 'Find in the file', keys: [chord('F')] },
       { label: 'Open the file in your editor', keys: [chord('E', { shift: true })] },
     ],

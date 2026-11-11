@@ -16,6 +16,9 @@ import type {
   Thread,
   ThreadStatus,
   TreeEntry,
+  SearchMatch,
+  SearchOptions,
+  SearchResult,
 } from './types';
 import { createTaskMockHandlers } from './mock-api-tasks';
 import { FIXTURE_CONTENTS, FIXTURE_FILES, FIXTURE_PATCH, FIXTURE_VERSIONS } from './mock-fixtures';
@@ -263,6 +266,55 @@ function fileContents(path: string): string {
   return `export function ${path.split('/').pop()?.replace(/[^a-z0-9]/gi, '_')}() {\n  return '${path}';\n}\n`;
 }
 
+/** Like `core/search.rs`: JS regex instead of Rust's, same caps and shapes. */
+function mockSearch(options: SearchOptions): SearchResult {
+  const empty: SearchResult = { files: [], total: 0, truncated: false, cancelled: false };
+  if (!options.query) {
+    return empty;
+  }
+  let source = options.regex ? options.query : options.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (options.wholeWord) {
+    source = `\\b(?:${source})\\b`;
+  }
+  let re: RegExp;
+  try {
+    re = new RegExp(source, options.caseSensitive ? 'g' : 'gi');
+  } catch (error) {
+    const message = String((error as Error).message).replace(/^Invalid regular expression: \/.*\/[a-z]*: /, '');
+    throw { code: 'invalid', message: message.charAt(0).toUpperCase() + message.slice(1) };
+  }
+  const only = options.paths ? new Set(options.paths) : null;
+  const paths = buildTree().filter((entry) => entry.kind === 'file' && !entry.path.endsWith('.png') && (!only || only.has(entry.path))).map((entry) => entry.path);
+  const result: SearchResult = { files: [], total: 0, truncated: false, cancelled: false };
+  for (const path of paths) {
+    const text = fileContents(path);
+    if (text.length > 1024 * 1024) {
+      continue;
+    }
+    const matches: SearchMatch[] = [];
+    text.split('\n').forEach((line, index) => {
+      if (result.total + matches.length >= 2000) {
+        result.truncated = true;
+        return;
+      }
+      const ranges: [number, number][] = [];
+      for (const match of line.matchAll(re)) {
+        if (match[0]) {
+          ranges.push([match.index, match.index + match[0].length]);
+        }
+      }
+      if (ranges.length) {
+        matches.push({ line: index + 1, text: line.length > 300 ? line.slice(0, 300) + '…' : line, ranges });
+      }
+    });
+    if (matches.length) {
+      result.files.push({ path, matches });
+      result.total += matches.length;
+    }
+  }
+  return result;
+}
+
 /** The newer side's commit, like the backend: HEAD (the newest mock commit) for working-tree views. */
 function mockHeadSha(ref: string): string | null {
   const commit = /^([0-9a-f]{7,40})~1\.\.\1$/i.exec(ref)?.[1];
@@ -455,6 +507,7 @@ const handlers: Record<string, (args: Args) => unknown> = {
     return { path, contents, binary: false, size: contents.length };
   },
   read_file_base64: () => PNG_1PX,
+  search_code: (args) => mockSearch(args.options as SearchOptions),
   get_session: (args) => sessionFor(String(args.repoPath), String(args.ref)),
   list_threads: (args) =>
     [...threads.values()]

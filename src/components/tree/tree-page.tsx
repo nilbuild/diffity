@@ -44,6 +44,9 @@ import { useEditorName } from '../../hooks/use-editor-name';
 import { modKey } from '../../lib/platform';
 import { handleCopyShortcut } from '../../lib/file-copy';
 import { useRestoredScroll, useViewState } from '../../lib/view-state';
+import { useRepoPath } from '../../hooks/use-repo';
+import { requestSearchFocus } from '../../features/code-search/code-search';
+import type { SearchTarget } from '../../features/code-search/sidebar-search';
 
 function formatTreeThreadsForCopy(threads: CommentThread[]): string {
   const unresolvedThreads = threads.filter(
@@ -95,6 +98,7 @@ function formatTreeThreadsForCopy(threads: CommentThread[]): string {
 
 
 export function TreePage() {
+  const repoPath = useRepoPath();
   const [searchParams, setSearchParams] = useSearchParams();
   const { theme, toggleTheme } = useTheme();
   const queryClient = useQueryClient();
@@ -122,7 +126,6 @@ export function TreePage() {
     hideStaticSplash();
   }, []);
   const [previewMode, setPreviewMode] = useViewState<'preview' | 'code'>('tree:preview', 'preview');
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const fileViewerRef = useRef<FileViewerHandle>(null);
   useRestoredScroll(mainRef, `tree:scroll:${navType}:${navPath}`);
@@ -137,12 +140,12 @@ export function TreePage() {
       }
       if (e.key === '/') {
         e.preventDefault();
-        searchInputRef.current?.focus();
+        requestSearchFocus(repoPath, 'files');
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [repoPath]);
 
   const { data: treeData } = useSuspenseQuery(treePathsOptions());
   const { data: info } = useSuspenseQuery(treeInfoOptions());
@@ -272,6 +275,17 @@ export function TreePage() {
   );
 
   const targetLine = Number(searchParams.get('line')) || null;
+
+  const handleOpenSearchResult = useCallback((target: SearchTarget) => {
+    setSearchParams({ path: target.path, type: 'file', line: String(target.line) });
+  }, [setSearchParams]);
+
+  // A line can only be shown in the code, so a rendered preview (Markdown, SVG) switches to it.
+  useEffect(() => {
+    if (targetLine && navType === 'file' && isRenderableFile(navPath) && previewMode === 'preview') {
+      setPreviewMode('code');
+    }
+  }, [targetLine, navType, navPath, previewMode, setPreviewMode]);
 
   // A link to a line (the guide's "may break" list): scroll to it once the file's rows exist, then drop the param.
   useEffect(() => {
@@ -453,13 +467,13 @@ export function TreePage() {
       <div className='relative flex flex-1 min-h-0 overflow-hidden'>
         <FindBar className='top-2' />
         <TreeSidebar
-          ref={searchInputRef}
           paths={paths}
           diffIgnored={diffIgnored}
           activeFile={isFileMode ? navPath : null}
           commentCountsByFile={commentCountsByFile}
           onFileClick={handleFileClick}
           onDirClick={handleDirClick}
+          onOpenSearchResult={handleOpenSearchResult}
         />
 
         <main ref={mainRef} className='flex-1 min-w-0 overflow-y-auto px-6 pt-4 pb-8'>
