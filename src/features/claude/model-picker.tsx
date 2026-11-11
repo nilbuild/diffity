@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '../../lib/cn';
 import * as tauri from '../../lib/tauri';
-import type { ModelCatalog, ModelChoice } from '../../lib/types';
+import type { ConfigChoice, ModelCatalog, ModelChoice } from '../../lib/types';
 import { Popover, useMenu } from '../../components/ui/popover';
 import { CheckIcon, ChevronDownIcon, RefreshIcon, SearchIcon } from '../../components/ui/icon';
 import { Spinner } from '../../components/icons/spinner';
@@ -37,6 +37,79 @@ interface Section {
 /** Claude Code lists its own default ("Default (recommended)") as a model; the agent's setting row stands for it. */
 function isDefaultEntry(model: ModelChoice): boolean {
   return model.value.toLowerCase() === 'default' || /^default\b/i.test(model.name);
+}
+
+/** Agents list their own "Default" effort; leaving the effort unset stands for it. */
+function isDefaultEffort(effort: ConfigChoice): boolean {
+  return effort.value.toLowerCase() === 'default' || /^default\b/i.test(effort.name);
+}
+
+interface EffortBarsProps {
+  efforts: ConfigChoice[];
+  value: string | undefined;
+  onChange: (value: string | undefined) => void;
+}
+
+/** Rising bars, one per effort level; clicking the lit top bar goes back to the agent's default. */
+function EffortBars(props: EffortBarsProps) {
+  const { efforts, value, onChange } = props;
+  const [preview, setPreview] = useState(-1);
+  const picked = efforts.findIndex((effort) => effort.value === value);
+  const shown = preview >= 0 ? preview : picked;
+
+  const step = (delta: number) => {
+    const next = Math.max(-1, Math.min(efforts.length - 1, picked + delta));
+    onChange(next < 0 ? undefined : efforts[next].value);
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 -mx-1 -mb-1 mt-1 px-2.5 pt-2 pb-2.5 border-t border-overlay-border">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[11px] text-text-muted">Effort</span>
+        <span className={cn('truncate text-xs', shown >= 0 ? 'text-text font-medium' : 'text-text-muted')}>{shown >= 0 ? efforts[shown].name : 'Default'}</span>
+      </div>
+      <div
+        role="group"
+        aria-label="Effort"
+        onMouseLeave={() => setPreview(-1)}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
+            return;
+          }
+          event.preventDefault();
+          step(event.key === 'ArrowRight' ? 1 : -1);
+        }}
+        className="flex items-end gap-[3px] h-[22px]"
+      >
+        {efforts.map((effort, index) => {
+          const on = index === picked;
+          const height = efforts.length > 1 ? 28 + (72 * index) / (efforts.length - 1) : 100;
+          return (
+            <button
+              key={effort.value}
+              type="button"
+              aria-pressed={on}
+              aria-label={effort.name}
+              title={effort.name}
+              onMouseEnter={() => setPreview(index)}
+              onClick={() => onChange(on ? undefined : effort.value)}
+              className="flex flex-1 items-end h-full rounded-[2px] cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-text-muted"
+            >
+              <span
+                style={{ height: `${height}%` }}
+                className={cn(
+                  'w-full rounded-[2px] transition-colors',
+                  index > shown && 'bg-overlay-border',
+                  index <= shown && preview < 0 && 'bg-text',
+                  index <= shown && preview >= 0 && 'bg-text-muted',
+                )}
+              />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function buildSection(agent: AgentMeta, query: { data?: ModelCatalog | null; isLoading: boolean; error: unknown }, value: RunPick, needle: string, expanded: boolean): Section {
@@ -100,7 +173,7 @@ export function ModelMenu(props: ModelMenuProps) {
 
   const selectedCatalog = queries[agents.findIndex((agent) => agent.id === value.agent)]?.data;
   const effective = findModel(selectedCatalog, value.model) ?? findModel(selectedCatalog, selectedCatalog?.currentModel);
-  const efforts = effective?.efforts ?? [];
+  const efforts = (effective?.efforts ?? []).filter((effort) => !isDefaultEffort(effort));
 
   useEffect(() => {
     if (active < 0) {
@@ -250,30 +323,7 @@ export function ModelMenu(props: ModelMenuProps) {
 
       {refreshError && <div className="px-2.5 pt-1 text-[11px] text-deleted truncate" title={refreshError}>{refreshError}</div>}
 
-      {efforts.length > 0 && (
-        <div className="flex flex-col gap-1.5 -mx-1 -mb-1 mt-1 px-2.5 pt-2 pb-2.5 border-t border-overlay-border">
-          <span className="text-[11px] text-text-muted">Effort</span>
-          <div className="flex gap-0.5 p-0.5 rounded-[7px] border border-overlay-border bg-segment">
-            {efforts.map((effort) => {
-              const on = value.effort === effort.value;
-              return (
-                <button
-                  key={effort.value}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => onChange({ ...value, effort: on ? undefined : effort.value })}
-                  className={cn(
-                    'flex-1 min-w-0 h-[22px] px-1 rounded-[5px] text-[11.5px] truncate transition-colors cursor-pointer',
-                    on ? 'bg-segment-on text-text font-medium shadow-sm' : 'text-text-muted hover:text-text',
-                  )}
-                >
-                  {effort.name}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {efforts.length > 0 && <EffortBars efforts={efforts} value={value.effort} onChange={(effort) => onChange({ ...value, effort })} />}
     </div>
   );
 }
