@@ -52,3 +52,20 @@
     scroll-behavior: auto;
   }
 }
+
+/* Mac copy by default; base.astro marks Linux visitors before the page paints. */
+.os-mac {
+  display: contents;
+}
+
+.os-linux {
+  display: none;
+}
+
+:root[data-os='linux'] .os-mac {
+  display: none;
+}
+
+:root[data-os='linux'] .os-linux {
+  display: contents;
+}

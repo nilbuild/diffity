@@ -2,6 +2,8 @@
 import { Image } from 'astro:assets';
 import logo from '@/assets/logo.png';
 import ButtonLink from './ui/button-link.astro';
+import DownloadButtons from './download-buttons.astro';
+import OtherPlatforms from './other-platforms.astro';
 import { LINKS } from '@/lib/links';
 ---
 
@@ -11,7 +13,8 @@ import { LINKS } from '@/lib/links';
     Free and open source. <span class="text-text-faint">Try it on your next diff.</span>
   </h2>
   <div class="mt-1.5 flex flex-wrap items-center gap-2.5">
-    <ButtonLink href={LINKS.download} icon="pull">Download for Mac</ButtonLink>
+    <DownloadButtons />
     <ButtonLink href={LINKS.newIssue} variant="outline">Report an issue</ButtonLink>
   </div>
+  <OtherPlatforms />
 </section>

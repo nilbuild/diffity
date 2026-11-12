@@ -2,8 +2,10 @@
 import { Image } from 'astro:assets';
 import logo from '@/assets/logo.png';
 import ButtonLink from './ui/button-link.astro';
+import DownloadButtons from './download-buttons.astro';
 import Eyebrow from './ui/eyebrow.astro';
 import Icon from './ui/icon.astro';
+import OtherPlatforms from './other-platforms.astro';
 import { FEATURES, featureNumber } from '@/data/features';
 import { LINKS } from '@/lib/links';
 
@@ -13,13 +15,14 @@ const navLink = 'flex h-8 items-center gap-2.5 rounded-[7px] px-2 text-[13.5px] 
 
 <aside class="box-border flex flex-[0_0_272px] flex-col border-r border-dashed border-line px-[26px] pt-9 pb-7 max-[900px]:basis-full max-[900px]:border-r-0 max-[900px]:border-b min-[901px]:sticky min-[901px]:top-0 min-[901px]:h-dvh min-[901px]:self-start min-[901px]:overflow-y-auto">
   <Image src={logo} alt="Diffity app icon" width={76} height={76} densities={[1, 2]} class="-ml-1.5" />
-  <div class="mt-3.5 text-[19px] font-medium tracking-[-0.02em]">Diffity<span class="text-text-faint"> for Mac</span></div>
+  <div class="mt-3.5 text-[19px] font-medium tracking-[-0.02em]">Diffity<span class="text-text-faint"> for Mac and Linux</span></div>
   <p class="mt-2 text-sm leading-[1.55] text-[#333]">Review code changes, yours or your agent's, the GitHub way. With Claude Code or Codex in the loop.</p>
 
   <div class="mt-5 flex flex-col gap-2">
-    <ButtonLink href={LINKS.download} icon="pull" block>Download for Mac</ButtonLink>
+    <DownloadButtons block />
     <ButtonLink href={LINKS.repo} variant="outline" icon="gitHub" block>View on GitHub</ButtonLink>
   </div>
+  <OtherPlatforms class="mt-2.5 text-center" />
 
   <div class="mt-[26px] border-t border-dashed border-line pt-5">
     <Eyebrow class="mb-2">Features</Eyebrow>

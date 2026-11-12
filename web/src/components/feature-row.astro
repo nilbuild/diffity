@@ -10,10 +10,22 @@ const props = Astro.props;
 const { row } = props;
 // Odd parts sat between backticks, so they render as key caps.
 const parts = row.text.split('`');
+const linuxKbd = row.kbd?.replace('⌘', 'Ctrl+');
 ---
 
 <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1.5 py-1 text-sm leading-normal">
-  {row.kbd && <Kbd>{row.kbd}</Kbd>}
+  {
+    row.kbd && (
+      <>
+        <span class="os-mac">
+          <Kbd>{row.kbd}</Kbd>
+        </span>
+        <span class="os-linux">
+          <Kbd>{linuxKbd}</Kbd>
+        </span>
+      </>
+    )
+  }
   <b class="font-medium text-text">{row.term}</b>
   <span class="text-dot">·</span>
   <span class="text-[#616161]">{parts.map((part, index) => (index % 2 === 1 ? <Kbd>{part}</Kbd> : part))}</span>

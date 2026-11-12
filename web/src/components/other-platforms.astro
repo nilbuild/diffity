@@ -1,0 +1,20 @@
+---
+import { getRepoStats } from '@/lib/github';
+
+interface Props {
+  class?: string;
+}
+
+const props = Astro.props;
+const { downloads } = await getRepoStats();
+const link = 'text-text-secondary underline decoration-dot underline-offset-2';
+---
+
+<p class:list={['font-mono text-xs text-text-muted', props.class]}>
+  <span class="os-mac">
+    Also for Linux: <a href={downloads.deb} class={link}>.deb</a> · <a href={downloads.rpm} class={link}>.rpm</a>
+  </span>
+  <span class="os-linux">
+    Also for <a href={downloads.mac} class={link}>Mac</a>
+  </span>
+</p>

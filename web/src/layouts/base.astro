@@ -20,6 +20,11 @@ const { title = SITE.title, description = SITE.description } = props;
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <Seo title={title} description={description} />
+    <script is:inline>
+      if (/Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)) {
+        document.documentElement.dataset.os = 'linux';
+      }
+    </script>
   </head>
   <body>
     <div class="mx-auto flex max-w-[1200px] items-stretch">

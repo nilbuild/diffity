@@ -56,14 +56,14 @@ function layout(logo: string, shot: string) {
         h('img', { width: 44, height: 44 }, undefined, { src: logo, width: 44, height: 44 }),
         h('div', { display: 'flex', fontSize: 28, fontWeight: 500, letterSpacing: -0.6 }, [
           'Diffity',
-          h('span', { color: COLOR.textFaint, marginLeft: 8 }, 'for Mac'),
+          h('span', { color: COLOR.textFaint, marginLeft: 8 }, 'for Mac and Linux'),
         ]),
       ]),
       h('div', { display: 'flex', alignItems: 'center', gap: 10, fontSize: 18, color: COLOR.textSecondary }, [
         h('div', { width: 9, height: 9, borderRadius: 9, backgroundColor: COLOR.online }),
         'macOS 13.3+',
         h('span', { color: '#c4c4c4' }, '/'),
-        'Apple Silicon and Intel',
+        'Linux',
       ]),
     ],
   );
@@ -72,7 +72,7 @@ function layout(logo: string, shot: string) {
     'div',
     { display: 'flex', flexDirection: 'column', width: 500, flexShrink: 0, padding: '44px 40px', borderRight: `1px dashed ${COLOR.line}` },
     [
-      h('div', { fontFamily: 'Geist Mono', fontSize: 15, letterSpacing: 1, color: COLOR.textMuted }, 'CODE REVIEW, ON YOUR MAC'),
+      h('div', { fontFamily: 'Geist Mono', fontSize: 15, letterSpacing: 1, color: COLOR.textMuted }, 'CODE REVIEW, ON MAC AND LINUX'),
       h('div', { display: 'flex', flexDirection: 'column', marginTop: 18, fontSize: 50, lineHeight: 1.06, fontWeight: 500, letterSpacing: -2 }, [
         h('div', { color: COLOR.text }, 'Review your code like a pull request.'),
         h('div', { color: COLOR.textFaint }, 'Let your agent fix what you find.'),

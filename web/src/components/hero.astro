@@ -1,15 +1,15 @@
 ---
 import { Image } from 'astro:assets';
 import heroShot from '@/assets/hero.png';
-import ButtonLink from './ui/button-link.astro';
+import DownloadButtons from './download-buttons.astro';
 import Eyebrow from './ui/eyebrow.astro';
 import Kbd from './ui/kbd.astro';
+import OtherPlatforms from './other-platforms.astro';
 import ScreenshotFrame from './ui/screenshot-frame.astro';
-import { LINKS } from '@/lib/links';
 ---
 
 <section class="border-b border-dashed border-line px-9 pt-12 pb-10 max-[900px]:px-5 max-[900px]:py-8">
-  <Eyebrow>Code review, on your Mac</Eyebrow>
+  <Eyebrow>Code review, on Mac and Linux</Eyebrow>
   <h1 class="mt-3.5 max-w-[720px] text-[46px] leading-[1.06] font-medium tracking-[-0.04em] max-[900px]:text-[34px]">
     Review your code like a pull request. <span class="text-text-faint">Let your agent fix what you find.</span>
   </h1>
@@ -17,9 +17,10 @@ import { LINKS } from '@/lib/links';
     Diffity shows your changes the way GitHub does. Leave comments on any line, then send them to Claude Code or Codex. The agent makes the changes and replies in the same thread.
   </p>
   <div class="mt-6 flex flex-wrap items-center gap-2.5">
-    <ButtonLink href={LINKS.download} icon="pull">Download for Mac</ButtonLink>
+    <DownloadButtons />
     <span class="font-mono text-xs text-text-muted">then run <Kbd>diffity</Kbd> in any repo</span>
   </div>
+  <OtherPlatforms class="mt-3" />
   <ScreenshotFrame class="mt-8">
     <Image src={heroShot} alt="Diffity showing uncommitted changes with a comment thread answered by Claude" widths={[900, 1400, 2000]} sizes="(max-width: 900px) 100vw, 860px" loading="eager" />
   </ScreenshotFrame>

@@ -1,0 +1,22 @@
+---
+import ButtonLink from './ui/button-link.astro';
+import { getRepoStats } from '@/lib/github';
+
+interface Props {
+  block?: boolean;
+}
+
+const props = Astro.props;
+const block = props.block ?? false;
+const { downloads } = await getRepoStats();
+---
+
+<div class="os-mac">
+  <ButtonLink href={downloads.mac} icon="pull" block={block}>Download for Mac</ButtonLink>
+</div>
+<div class="os-linux">
+  <div class:list={['flex gap-2', block && '[&>a:first-child]:flex-1 [&>a:last-child]:px-4']}>
+    <ButtonLink href={downloads.deb} icon="pull" block={block}>Download .deb</ButtonLink>
+    <ButtonLink href={downloads.rpm} variant="outline" block={block}>.rpm</ButtonLink>
+  </div>
+</div>

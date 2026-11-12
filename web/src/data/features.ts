@@ -96,7 +96,7 @@ export const FEATURES: Feature[] = [
   {
     id: 'prs',
     title: 'Review pull requests',
-    lead: 'Pick a pull request from the branch menu. Diffity checks it out on your Mac, so you can read it, run it and comment as you go. Comments stay with each branch.',
+    lead: 'Pick a pull request from the branch menu. Diffity checks it out locally, so you can read it, run it and comment as you go. Comments stay with each branch.',
     nav: { label: 'Pull requests', icon: 'gitPullRequest' },
     shot: { src: '/screenshots/pull-request.gif', alt: 'Checking out a pull request from the branch switcher and opening the review panel' },
   },
@@ -145,7 +145,7 @@ export const FEATURES: Feature[] = [
   {
     id: 'terminal',
     title: 'Open it from the terminal, or from your agent',
-    lead: 'Install the command once from the app menu: Diffity → Install ‘diffity’ Command. Then run it anywhere. Your agent can run it too, so you can ask Claude Code or Codex to open its changes in Diffity before it opens a PR.',
+    lead: 'Install the command once from Settings → Terminal. Then run it anywhere. Your agent can run it too, so you can ask Claude Code or Codex to open its changes in Diffity before it opens a PR.',
     nav: { label: 'Terminal', icon: 'terminal' },
     terminal: {
       title: 'Terminal',
@@ -172,7 +172,7 @@ export const FEATURES: Feature[] = [
       { term: 'Mermaid diagrams', text: 'drawn right in the diff, in light and dark' },
       { term: 'Colour-blind friendly', text: 'switch the diff to blue and orange' },
       { term: 'Split or unified', text: 'change the layout any time' },
-      { term: 'Light or dark', text: 'follows your Mac, or pick one' },
+      { term: 'Light or dark', text: 'follows your system, or pick one' },
       { term: 'Clean up', text: 'delete comments and chats per project from Settings → Data' },
       { term: 'Updates itself', text: 'new versions install in place' },
     ],
