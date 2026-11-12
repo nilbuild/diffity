@@ -1,6 +1,5 @@
 ---
-import '@fontsource-variable/geist';
-import '@fontsource-variable/geist-mono';
+import { Font } from 'astro:assets';
 import '@/styles/global.css';
 import Seo from '@/components/seo.astro';
 import { SITE } from '@/lib/site';
@@ -19,6 +18,8 @@ const { title = SITE.title, description = SITE.description } = props;
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <Font cssVariable="--font-geist" preload />
+    <Font cssVariable="--font-geist-mono" preload />
     <Seo title={title} description={description} />
     <script is:inline>
       if (/Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)) {

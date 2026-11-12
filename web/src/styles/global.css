@@ -1,8 +1,8 @@
 @import 'tailwindcss';
 
 @theme {
-  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: var(--font-geist);
+  --font-mono: var(--font-geist-mono);
 
   --color-bg: #ffffff;
   --color-panel: #fafafa;
