@@ -5,7 +5,22 @@ use crate::core::error::AppError;
 
 const NEW_ISSUE_URL: &str = "https://github.com/nilbuild/diffity/issues/new";
 
-fn macos_version() -> String {
+#[cfg(target_os = "linux")]
+fn os_version() -> String {
+    let release = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
+    let name = release
+        .lines()
+        .find_map(|line| line.strip_prefix("PRETTY_NAME="))
+        .map(|value| value.trim_matches('"').to_string())
+        .unwrap_or_default();
+    if name.is_empty() {
+        return "Linux".into();
+    }
+    format!("Linux ({name})")
+}
+
+#[cfg(not(target_os = "linux"))]
+fn os_version() -> String {
     std::process::Command::new("sw_vers")
         .arg("-productVersion")
         .output()
@@ -17,8 +32,8 @@ fn macos_version() -> String {
 
 fn chip() -> &'static str {
     match std::env::consts::ARCH {
-        "aarch64" => "Apple Silicon",
-        "x86_64" => "Intel",
+        "aarch64" if cfg!(target_os = "macos") => "Apple Silicon",
+        "x86_64" if cfg!(target_os = "macos") => "Intel",
         other => other,
     }
 }
@@ -38,7 +53,7 @@ fn bug_report_url(version: &str, macos: &str, arch: &str) -> String {
 
 pub fn open_bug_report<R: Runtime>(app: &AppHandle<R>) -> Result<(), AppError> {
     let version = app.package_info().version.to_string();
-    let url = bug_report_url(&version, &macos_version(), chip());
+    let url = bug_report_url(&version, &os_version(), chip());
     app.opener()
         .open_url(url, None::<&str>)
         .map_err(|e| AppError::new("open_failed", e.to_string()))

@@ -1,6 +1,6 @@
 //! `diffity`: opens a repository, a diff or a file in the Diffity app through a `diffity://open` link.
-//! It ships inside the app bundle (Contents/MacOS/diffity-cli); Diffity → Install 'diffity' Command
-//! links it into PATH.
+//! It ships inside the app bundle (Contents/MacOS/diffity-cli, or /usr/bin/diffity-cli on Linux);
+//! Settings → Terminal links it into PATH as `diffity`.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
@@ -199,6 +199,7 @@ fn own_path() -> Option<PathBuf> {
 
 /// The `.app` this binary ships in, so the link opens that copy of Diffity rather than whichever
 /// one macOS has registered for `diffity://`.
+#[cfg(target_os = "macos")]
 fn own_bundle() -> Option<PathBuf> {
     own_path()?
         .ancestors()
@@ -206,6 +207,33 @@ fn own_bundle() -> Option<PathBuf> {
         .map(Path::to_path_buf)
 }
 
+/// Runs the app installed next to this binary with the link: a running Diffity gets it from that second copy
+/// (single-instance), so this install's app opens it rather than whichever one is registered for the scheme.
+#[cfg(not(target_os = "macos"))]
+fn launch(url: &str) -> Result<(), String> {
+    use std::os::unix::process::CommandExt;
+    use std::process::Stdio;
+
+    let app = own_path().and_then(|p| p.parent().map(|dir| dir.join("diffity-desktop"))).filter(|p| p.exists());
+    let Some(app) = app else {
+        let status = Command::new("xdg-open").arg(url).status().map_err(|e| format!("could not run xdg-open: {e}"))?;
+        if !status.success() {
+            return Err("could not open Diffity. Is it installed?".into());
+        }
+        return Ok(());
+    };
+    Command::new(&app)
+        .arg(url)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .spawn()
+        .map_err(|e| format!("could not start {}: {e}", app.display()))?;
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
 fn launch(url: &str) -> Result<(), String> {
     let mut command = Command::new("open");
     if let Some(bundle) = own_bundle() {

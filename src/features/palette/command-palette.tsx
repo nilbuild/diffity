@@ -9,7 +9,7 @@ import { cn } from '../../lib/cn';
 import * as tauri from '../../lib/tauri';
 import { commitRef, errorMessage, openInEditor } from '../../lib/api';
 import { reportIssue } from '../../lib/report-issue';
-import { modKey } from '../../lib/platform';
+import { fileManagerName, modKey } from '../../lib/platform';
 import { shortcutHint } from '../../lib/shortcuts';
 import { setWrapLines, useTypography } from '../../lib/typography';
 import { KeyCaps } from '../../components/ui/key-caps';
@@ -75,7 +75,7 @@ function useGlobalActions(): PaletteAction[] {
     { id: 'pull', title: 'Pull', group: 'Actions', keywords: 'git', icon: <PullIcon size="sm" />, run: () => runGit('Pull', () => tauri.gitPull(nav.repoPath)) },
     { id: 'push', title: 'Push', group: 'Actions', keywords: 'git publish', icon: <PushIcon size="sm" />, run: () => runGit('Push', () => tauri.gitPush(nav.repoPath)) },
     { id: 'open-editor', title: 'Open repository in editor', group: 'Actions', icon: <EditorIcon size="sm" />, run: () => { openInEditor('').catch((error) => toast.error('Could not open the editor', { description: errorMessage(error) })); } },
-    { id: 'reveal', title: 'Reveal in Finder', group: 'Actions', icon: <RevealIcon size="sm" />, run: () => { revealItemInDir(nav.repoPath).catch(() => undefined); } },
+    { id: 'reveal', title: `Reveal in ${fileManagerName}`, group: 'Actions', icon: <RevealIcon size="sm" />, run: () => { revealItemInDir(nav.repoPath).catch(() => undefined); } },
     { id: 'settings', title: 'Settings', group: 'Actions', hint: shortcutHint('settings'), icon: <SettingsIcon size="sm" />, run: openSettings },
     { id: 'shortcuts', title: 'Keyboard shortcuts', group: 'Actions', hint: shortcutHint('shortcuts'), icon: <KeyboardIcon size="sm" />, run: openShortcuts },
     { id: 'report-issue', title: 'Report an issue…', group: 'Actions', keywords: 'bug feedback github idea feature request help', icon: <AlertCircleIcon size="sm" />, run: reportIssue },

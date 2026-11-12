@@ -111,10 +111,77 @@ jobs:
           prerelease: false
           args: --target universal-apple-darwin --verbose
 
+  # .deb and .rpm (both update themselves). Runs after the macOS job so the release and
+  # latest.json already exist; tauri-action merges the Linux entries in instead of racing to create them.
+  linux:
+    name: Linux x86_64
+    needs: desktop
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: linux
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libssl-dev \
+            libgtk-3-dev \
+            libxdo-dev \
+            libayatana-appindicator3-dev \
+            libdbus-1-dev
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build the diffity-mcp and diffity-cli sidecars
+        run: node scripts/prepare-mcp.mjs --release
+
+      - name: Stamp version from tag
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          python3 -c "import json,sys; p='src-tauri/tauri.conf.json'; d=json.load(open(p)); d['version']=sys.argv[1]; json.dump(d,open(p,'w'),indent=2)" "$VER"
+          echo "Building Diffity $VER"
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: .
+          tagName: ${{ github.ref_name }}
+          releaseName: __VERSION__
+          releaseDraft: false
+          prerelease: false
+          args: --verbose
+
   # The website shows the latest version, so rebuild it once the release is out.
   website:
     name: Rebuild the website
-    needs: desktop
+    needs: [desktop, linux]
     runs-on: ubuntu-latest
     steps:
       - name: Trigger the Cloudflare deploy hook

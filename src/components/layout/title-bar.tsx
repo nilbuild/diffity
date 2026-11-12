@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
-import { isMac, isTauri, modKey } from '../../lib/platform';
+import { fileManagerName, isLinux, isMac, isTauri, modKey } from '../../lib/platform';
+import { chord } from '../../lib/shortcuts';
 import { toggleSidebar, useUi } from '../../lib/ui-store';
 import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
@@ -21,7 +22,8 @@ interface TitleBarProps {
   sidebarToggle?: boolean;
 }
 
-export const hasOverlayTitleBar = isTauri && isMac;
+/** The window buttons sit over the title bar's left end: macOS's traffic lights, or ours on Linux (window-controls.tsx). */
+export const hasOverlayTitleBar = isTauri && (isMac || isLinux);
 
 export function useSidebarShortcut() {
   const nav = useRepoNav();
@@ -134,7 +136,7 @@ function RepoCrumb(props: { name: string; path?: string; homePath: string; compa
         <ChevronDownIcon size="xs" className="shrink-0 text-text-muted" />
       </button>
       <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} width={240}>
-        <MenuItem icon={<HomeIcon size="sm" />} label="Home" hint={`${modKey}⇧H`} onSelect={run(toHome)} />
+        <MenuItem icon={<HomeIcon size="sm" />} label="Home" hint={chord('H', { shift: true })} onSelect={run(toHome)} />
         <MenuItem icon={<PlusIcon size="sm" />} label="New task…" hint={`${modKey}N`} onSelect={run(() => openNewTask(homePath))} />
         <MenuItem icon={<SwapIcon size="sm" />} label="Switch project…" hint={`${modKey}O`} onSelect={run(openQuickOpen)} />
         <MenuSeparator />
@@ -147,7 +149,7 @@ function RepoCrumb(props: { name: string; path?: string; homePath: string; compa
         />
         <MenuItem
           icon={<RevealIcon size="sm" />}
-          label="Reveal in Finder"
+          label={`Reveal in ${fileManagerName}`}
           onSelect={run(() => {
             revealItemInDir(path ?? nav.repoPath).catch(() => undefined);
           })}

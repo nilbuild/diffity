@@ -1,5 +1,6 @@
 //! Settings → Terminal → diffity command: links the bundled `diffity-cli` into /usr/local/bin, asking for an
-//! administrator password when that folder is not writable. The dev build installs `diffity-dev` instead.
+//! administrator password when that folder is not writable (osascript on macOS, pkexec on Linux). The dev build
+//! installs `diffity-dev` instead.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -48,10 +49,12 @@ fn link_directly(cli: &Path, link: &Path) -> std::io::Result<()> {
     std::os::unix::fs::symlink(cli, link)
 }
 
+#[cfg(target_os = "macos")]
 fn applescript_string(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
+#[cfg(target_os = "macos")]
 fn link_as_admin(cli: &Path, link: &Path) -> Result<(), String> {
     let dir = link.parent().unwrap_or(Path::new("/usr/local/bin"));
     let script = format!(
@@ -70,6 +73,29 @@ fn link_as_admin(cli: &Path, link: &Path) -> Result<(), String> {
         return Err("Cancelled.".into());
     }
     Err(stderr.trim().to_string())
+}
+
+/// Runs `sh -c script args…` as root through polkit, which shows the desktop's password prompt.
+#[cfg(target_os = "linux")]
+fn run_as_admin(script: &str, args: &[&Path]) -> Result<(), String> {
+    let out = Command::new("pkexec")
+        .args(["sh", "-c", script, "sh"])
+        .args(args)
+        .output()
+        .map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { "pkexec is not installed, so Diffity can't ask for an administrator password.".to_string() } else { e.to_string() })?;
+    if out.status.success() {
+        return Ok(());
+    }
+    if out.status.code() == Some(126) {
+        return Err("Cancelled.".into());
+    }
+    Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+}
+
+#[cfg(target_os = "linux")]
+fn link_as_admin(cli: &Path, link: &Path) -> Result<(), String> {
+    let dir = link.parent().unwrap_or(Path::new(BIN_DIR));
+    run_as_admin(r#"mkdir -p "$1" && ln -sf "$2" "$3""#, &[dir, cli, link])
 }
 
 /// The first command of this name on PATH when it is not the one just installed, e.g. the npm package.
@@ -126,6 +152,9 @@ pub fn uninstall() -> Result<(), String> {
     }
     match std::fs::remove_file(&link) {
         Ok(()) => Ok(()),
+        #[cfg(target_os = "linux")]
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => run_as_admin(r#"rm -f "$1""#, &[&link]),
+        #[cfg(target_os = "macos")]
         Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
             let script = format!(
                 "do shell script \"rm -f \" & quoted form of {link} with prompt \"Diffity wants to remove the {name} command.\" with administrator privileges",
@@ -147,6 +176,7 @@ pub fn uninstall() -> Result<(), String> {
 mod tests {
     use super::*;
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn escapes_applescript_strings() {
         assert_eq!(applescript_string(r#"/Apps/My "D"\x.app"#), r#""/Apps/My \"D\"\\x.app""#);

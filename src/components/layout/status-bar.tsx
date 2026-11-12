@@ -16,6 +16,7 @@ import { errorMessage, openInEditor } from '../../lib/api';
 import { Skeleton, useRevealClass } from '../ui/skeleton';
 import { useTaskForPath } from '../../features/tasks/tasks';
 import { TaskStatusLine } from '../../features/tasks/task-status-line';
+import { fileManagerName } from '../../lib/platform';
 
 interface StatusBarProps {
   diffRef?: string;
@@ -69,12 +70,12 @@ function RepoPathButton(props: { label: string; path: string }) {
           setMenu({ x: event.clientX, y: event.clientY });
         }}
         className="hidden lg:inline-flex items-center h-5 min-w-0 px-1.5 rounded font-mono text-[11px] text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer"
-        title={`${path}\nReveal in Finder (right-click for more)`}
+        title={`${path}\nReveal in ${fileManagerName} (right-click for more)`}
       >
         <span className="truncate">{label}</span>
       </button>
       <ContextMenu position={menu} onClose={() => setMenu(null)}>
-        <MenuItem icon={<RevealIcon size="sm" />} label="Reveal in Finder" onSelect={run(reveal)} />
+        <MenuItem icon={<RevealIcon size="sm" />} label={`Reveal in ${fileManagerName}`} onSelect={run(reveal)} />
         <MenuItem
           icon={<TerminalIcon size="sm" />}
           label="Open in Terminal"

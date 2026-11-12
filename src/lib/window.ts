@@ -2,7 +2,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { emitTo } from '@tauri-apps/api/event';
 import { hashString } from './hash';
-import { isTauri } from './platform';
+import { isLinux, isTauri } from './platform';
 
 /** Asks a repository's window to show a route (a link with a PR, ref or file, opened while that window was already open). */
 export const NAVIGATE_EVENT = 'navigate-to';
@@ -35,6 +35,7 @@ export async function openRepoInNewWindow(path: string, extra?: Record<string, s
     minHeight: 600,
     titleBarStyle: 'overlay',
     hiddenTitle: true,
+    decorations: !isLinux,
     backgroundColor: currentBackground(),
   });
 }

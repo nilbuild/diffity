@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getTauriVersion, getVersion } from '@tauri-apps/api/app';
-import { isDevBuild, isTauri } from '../../lib/platform';
+import { isDevBuild, isMac, isTauri, keychainName } from '../../lib/platform';
 import { BrandLogo } from '../../components/icons/brand-logo';
 import { PreferencesGroup, PreferencesPane, PreferencesRow, SettingsButton } from './preferences';
 import { reportIssue } from '../../lib/report-issue';
@@ -94,8 +94,8 @@ export function AboutPane() {
       </PreferencesGroup>
       <PreferencesGroup label="Your data">
         <p className="pt-1.5 text-[12px] leading-relaxed text-text-secondary">
-          Comments, reviews and settings live in a local database on this Mac. GitHub tokens are kept in the macOS
-          keychain, or read from the GitHub CLI.
+          Comments, reviews and settings live in a local database on this {isMac ? 'Mac' : 'computer'}. GitHub tokens
+          are kept in the {keychainName}, or read from the GitHub CLI.
         </p>
       </PreferencesGroup>
     </PreferencesPane>

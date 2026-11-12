@@ -19,6 +19,7 @@ import {
 } from '../../lib/typography';
 import { PreferencesGroup, PreferencesPane, PreferencesRow, SegmentedControl, Stepper } from './preferences';
 import { DiffIgnoreRow } from './diff-ignore-row';
+import { isMac } from '../../lib/platform';
 
 const PALETTES = {
   light: { bg: '#ffffff', panel: '#f6f8fa', line: '#d0d7de', text: '#8b949e', add: '#abf2bc', del: '#ffc1bf', accent: '#0969da' },
@@ -42,7 +43,7 @@ const PALETTE_OPTIONS: { value: DiffPalette; label: string; hint: string }[] = [
 ];
 
 const THEMES: { value: ThemePreference; label: string; hint: string }[] = [
-  { value: 'system', label: 'System', hint: 'Follows macOS' },
+  { value: 'system', label: 'System', hint: isMac ? 'Follows macOS' : 'Follows your desktop' },
   { value: 'light', label: 'Light', hint: 'Always light' },
   { value: 'dark', label: 'Dark', hint: 'Always dark' },
 ];
@@ -326,7 +327,7 @@ export function GeneralPane() {
   return (
     <PreferencesPane>
       <PreferencesGroup label="Appearance">
-        <PreferencesRow stacked label="Theme" hint="System switches with your macOS appearance.">
+        <PreferencesRow stacked label="Theme" hint={`System switches with your ${isMac ? 'macOS' : 'desktop'} appearance.`}>
           <ThemePicker />
         </PreferencesRow>
         <PreferencesRow stacked label="Diff colours" hint="Colours for added and removed lines, stats and status letters.">

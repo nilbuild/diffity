@@ -6,6 +6,7 @@ import { setTaskLimit } from '../claude/claude-runner';
 import { shortPath } from '../welcome/recent-repos';
 import { PreferencesGroup, PreferencesPane, PreferencesRow, SettingsButton, Stepper, Switch } from './preferences';
 import { Skeleton } from '../../components/ui/skeleton';
+import { fileManagerName, isMac } from '../../lib/platform';
 
 const LIMITS = [1, 2, 3, 4, 5, 6, 8, 10] as const;
 
@@ -50,7 +51,7 @@ export function TasksPane() {
             />
           )}
         </PreferencesRow>
-        <PreferencesRow label="Notifications" hint="A macOS notification when a task in the background is ready, needs approval or stops.">
+        <PreferencesRow label="Notifications" hint={`A ${isMac ? 'macOS' : 'desktop'} notification when a task in the background is ready, needs approval or stops.`}>
           {notifyPending ? <Skeleton className="w-[30px] h-[18px] rounded-full" /> : (
             <Switch checked={notify} label="Notifications" onChange={(checked) => void save(NOTIFY_SETTING, checked ? '1' : '0')} />
           )}
@@ -62,7 +63,7 @@ export function TasksPane() {
           hint={storage ? `${shortPath(storage.root)} · ${storage.tasks.length} folder${storage.tasks.length === 1 ? '' : 's'} · ${isFetching ? 'measuring…' : formatBytes(total)}` : 'Measuring…'}
         >
           <SettingsButton onClick={() => storage && void revealItemInDir(storage.root).catch(() => undefined)} disabled={!storage}>
-            Reveal in Finder
+            Reveal in {fileManagerName}
           </SettingsButton>
         </PreferencesRow>
         <PreferencesRow label="Merged tasks" hint="Archiving removes the folder and keeps the branch, its rounds and comments.">

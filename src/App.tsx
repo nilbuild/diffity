@@ -15,6 +15,7 @@ import { SettingsDialog } from './features/settings/settings-dialog';
 import { QuickOpen, useQuickOpenShortcut } from './features/palette/quick-open';
 import { ShortcutsSheet } from './components/layout/shortcuts-sheet';
 import { TopProgress, hideStaticSplash } from './components/layout/skeleton';
+import { WindowControls } from './components/layout/window-controls';
 import { closeShortcuts, openSettings, openShortcuts, useUi } from './lib/ui-store';
 import { useCheckForUpdatesMenu, useUpdateChecks } from './features/updates/use-update-checks';
 import { FindHost } from './features/find/find-bar';
@@ -123,6 +124,7 @@ export function App() {
         <OpenLinksHost />
       </HashRouter>
       <TopProgress />
+      <WindowControls />
       <Toaster
         position="bottom-right"
         offset={{ bottom: 40, right: 16 }}

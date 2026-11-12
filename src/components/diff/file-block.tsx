@@ -51,6 +51,7 @@ import { diffLineKey } from '../../lib/find';
 import { SinceViewedBadge, SinceViewedDiff, type SinceViewedInfo } from './since-viewed';
 import { CodeScrollbar } from './code-scroll';
 import { useTypography } from '../../lib/typography';
+import { chord } from '../../lib/shortcuts';
 
 /** Cards that scroll straight past are never highlighted: work starts once a card has stayed mounted this long. */
 const HIGHLIGHT_DELAY_MS = 120;
@@ -153,13 +154,13 @@ function FileCardMenu(props: FileCardMenuProps) {
             <MenuSeparator />
           </>
         )}
-        <MenuItem icon={<CopyIcon size="sm" />} label="Copy relative path" hint="⌥⌘C" onSelect={run(() => copyRelativePath(path))} />
+        <MenuItem icon={<CopyIcon size="sm" />} label="Copy relative path" hint={chord('C', { alt: true })} onSelect={run(() => copyRelativePath(path))} />
         <MenuItem icon={<CopyIcon size="sm" />} label="Copy absolute path" onSelect={run(() => copyAbsolutePath(path))} />
         <MenuSeparator />
         <MenuItem
           icon={<FileTextIcon size="sm" />}
           label={file.isBinary ? 'Copy file contents (binary file)' : deleted ? 'Copy file contents (deleted here)' : contentsLabel(viewRef)}
-          hint={file.isBinary || deleted ? undefined : '⇧⌥⌘C'}
+          hint={file.isBinary || deleted ? undefined : chord('C', { alt: true, shift: true })}
           disabled={file.isBinary || deleted}
           onSelect={run(() => void copyFileContents(path, viewRef))}
         />

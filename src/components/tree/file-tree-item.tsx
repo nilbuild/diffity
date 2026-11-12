@@ -9,6 +9,7 @@ import { ContextMenu, MenuItem, MenuSeparator } from '../ui/popover';
 import { errorMessage, openInEditor } from '../../lib/api';
 import { useEditorName } from '../../hooks/use-editor-name';
 import { AgentReadingDot } from '../../features/claude/activity-panel';
+import { chord } from '../../lib/shortcuts';
 
 interface FileTreeItemProps {
   node: TreeNode;
@@ -129,13 +130,13 @@ export function TreeItemMenu(props: TreeItemMenuProps) {
         })}
       />
       <MenuSeparator />
-      <MenuItem icon={<CopyIcon size="sm" />} label="Copy relative path" hint="⌥⌘C" onSelect={run(() => copyRelativePath(path))} />
+      <MenuItem icon={<CopyIcon size="sm" />} label="Copy relative path" hint={chord('C', { alt: true })} onSelect={run(() => copyRelativePath(path))} />
       <MenuItem icon={<CopyIcon size="sm" />} label="Copy absolute path" onSelect={run(() => copyAbsolutePath(path))} />
       {isFile && (
         <MenuItem
           icon={<FileTextIcon size="sm" />}
           label={binary ? 'Copy file contents (binary file)' : contentsLabel(viewRef)}
-          hint={binary ? undefined : '⇧⌥⌘C'}
+          hint={binary ? undefined : chord('C', { alt: true, shift: true })}
           disabled={binary}
           onSelect={run(() => void copyFileContents(path, viewRef))}
         />

@@ -3,7 +3,7 @@
 #![cfg(feature = "app")]
 
 pub mod agents;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 mod cli_install;
 mod commands;
 pub mod core;
@@ -19,6 +19,7 @@ use std::sync::Arc;
 use crate::agents::AgentManager;
 use crate::core::store::Store;
 use crate::github::GithubService;
+#[cfg(target_os = "macos")]
 use tauri::menu::{Menu, MenuItem, HELP_SUBMENU_ID};
 use tauri::{AppHandle, Emitter, EventTarget, Manager, Runtime};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -94,10 +95,12 @@ const QUIT_MENU_ID: &str = "quit";
 const REPORT_ISSUE_MENU_ID: &str = "report-issue";
 const WHATS_NEW_MENU_ID: &str = "whats-new";
 const CHECK_UPDATES_MENU_ID: &str = "check-for-updates";
+#[cfg(target_os = "macos")]
 const INSTALL_CLI_MENU_ID: &str = "install-cli";
 
 /// Tauri's default menu plus Diffity → Check for Updates… and Install 'diffity' Command, and Help → What's New
 /// and Report an Issue….
+#[cfg(target_os = "macos")]
 fn app_menu<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let menu = Menu::default(handle)?;
     if let Some(app_submenu) = menu.items()?.first().and_then(|item| item.as_submenu().cloned()) {
@@ -135,6 +138,14 @@ fn app_menu<R: Runtime>(handle: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     Ok(menu)
 }
 
+/// Ctrl+Q on Linux, where there is no app menu to carry ⌘Q: asks first while agents are working, like the menu item.
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    if !confirm_stop_agents(&app) {
+        app.exit(0);
+    }
+}
+
 /// Sends a menu command to the focused window, or the main one when none has focus.
 fn emit_to_focused<R: Runtime>(app: &AppHandle<R>, event: &str) {
     let windows = app.webview_windows();
@@ -159,7 +170,7 @@ pub fn run() {
         .try_init();
     env_fix::load_login_shell_env();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
@@ -173,8 +184,12 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_system_fonts::init())
         .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_notification::init())
-        .menu(app_menu)
+        .plugin(tauri_plugin_notification::init());
+    // Linux draws an app menu as a menu bar inside every window; the app's own title bar and palette carry
+    // those commands there instead.
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(app_menu);
+    builder
         .on_menu_event(|app, event| {
             if event.id() == QUIT_MENU_ID {
                 if !confirm_stop_agents(app) {
@@ -212,6 +227,12 @@ pub fn run() {
             if let Ok(Some(urls)) = app.deep_link().get_current() {
                 open_link::handle_urls(app.handle(), urls);
             }
+            // The window draws its own title bar and window buttons, as on macOS (tauri.linux.conf.json turns the
+            // decorations off too; the dev build's window config doesn't).
+            #[cfg(target_os = "linux")]
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_decorations(false);
+            }
             #[cfg(target_os = "macos")]
             if let Some(window) = app.get_webview_window("main") {
                 traffic_lights::install(&window.as_ref().window());
@@ -242,6 +263,7 @@ pub fn run() {
             let _ = webview;
         })
         .invoke_handler(tauri::generate_handler![
+            quit_app,
             commands::terminal::terminal_status,
             commands::terminal::terminal_set_allowed,
             commands::terminal::terminal_connect,

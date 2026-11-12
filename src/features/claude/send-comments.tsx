@@ -16,6 +16,7 @@ import { ModelPicker } from './model-picker';
 import { useRunPick, writeRepoPick, type RunPick } from './model-setting';
 import { agentMeta, type AgentMeta } from './agents';
 import { clearDraft, draftKey, useDraft } from './agent-drafts';
+import { chord } from '../../lib/shortcuts';
 
 export function useAgentProblem(meta: AgentMeta, enabled: boolean): string | null {
   const { data: agents } = useQuery({ queryKey: ['agents'], queryFn: () => tauri.listAgents(), enabled, staleTime: 30_000 });
@@ -286,7 +287,7 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
             type="submit"
             disabled={sendCount === 0 || submit.isPending}
             className={buttonClaudeSolid}
-            title={queued ? 'Runs after the current one (⌘↵)' : '⌘↵'}
+            title={queued ? `Runs after the current one (${chord('↵')})` : chord('↵')}
           >
             <SendIcon size="sm" />
             {queued ? `Queue ${sendCount} for ${agent.short}` : `Send ${sendCount} to ${agent.short}`}

@@ -5,7 +5,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { toast } from 'sonner';
 import * as tauri from '../lib/tauri';
-import { isTauri, modKey } from '../lib/platform';
+import { clickModKey, isTauri, modKey } from '../lib/platform';
 import { setRepoPath } from '../lib/api';
 import type { RecentRepo } from '../lib/types';
 import { findLocalClone, isCloneOf, parsePrUrl, pickFolder } from '../features/welcome/open-repo';
@@ -282,7 +282,7 @@ function RecentRow(props: { repo: RecentRepo; onOpen: (path: string, newWindow?:
       <button
         onClick={(event) => onOpen(repo.path, event.metaKey || event.ctrlKey)}
         className="flex flex-1 min-w-0 items-center gap-3 h-11 px-2 text-left cursor-pointer"
-        title={`${repo.path}\n${modKey}-click to open in a new window`}
+        title={`${repo.path}\n${clickModKey}-click to open in a new window`}
       >
         <RepoBadge name={repo.name} className="w-7 h-7 rounded-lg text-[11px]" />
         <span className="min-w-0 flex-1">

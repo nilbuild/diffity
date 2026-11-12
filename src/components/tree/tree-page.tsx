@@ -41,12 +41,12 @@ import { ClaudeToolbar } from '../../features/claude/claude-toolbar';
 import { DelayedFileSkeleton, DiffSkeleton, hideStaticSplash } from '../layout/skeleton';
 import { CodeIcon, EditorIcon, FileIcon } from '../ui/icon';
 import { useEditorName } from '../../hooks/use-editor-name';
-import { modKey } from '../../lib/platform';
 import { handleCopyShortcut } from '../../lib/file-copy';
 import { useRestoredScroll, useViewState } from '../../lib/view-state';
 import { useRepoPath } from '../../hooks/use-repo';
 import { requestSearchFocus } from '../../features/code-search/code-search';
 import type { SearchTarget } from '../../features/code-search/sidebar-search';
+import { chord } from '../../lib/shortcuts';
 
 function formatTreeThreadsForCopy(threads: CommentThread[]): string {
   const unresolvedThreads = threads.filter(
@@ -487,7 +487,7 @@ export function TreePage() {
               <button
                 className='w-7 h-7 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer'
                 onClick={handleOpenInEditor}
-                title={`Open in ${editorName} (${modKey}⇧E)`}
+                title={`Open in ${editorName} (${chord('E', { shift: true })})`}
                 aria-label={`Open in ${editorName}`}
               >
                 <EditorIcon size='md' />

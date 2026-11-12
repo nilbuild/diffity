@@ -60,3 +60,30 @@ jobs:
       # How scripts/prepare-mcp.mjs builds the sidecars: without the app.
       - run: cargo clippy --no-default-features --features mcp,cli --bin diffity-mcp --bin diffity-cli -- -D warnings
         working-directory: src-tauri
+
+  rust-linux:
+    name: Test and lint (Rust, Linux)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev libssl-dev libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libdbus-1-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: linux
+
+      - run: cargo test --all-features
+        working-directory: src-tauri
+
+      - run: cargo clippy --all-features --all-targets -- -D warnings
+        working-directory: src-tauri

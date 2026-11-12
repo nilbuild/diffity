@@ -14,6 +14,7 @@ import {
 } from './preferences';
 import { CheckIcon, GitHubIcon, KeyIcon } from '../../components/ui/icon';
 import { Skeleton } from '../../components/ui/skeleton';
+import { keychainName } from '../../lib/platform';
 
 function useAuthChanged() {
   const queryClient = useQueryClient();
@@ -76,7 +77,7 @@ function SignInRows(props: { onSignedIn: () => void }) {
           Import from gh
         </SettingsButton>
       </PreferencesRow>
-      <PreferencesRow stacked label="Personal access token" hint="Needs the repo scope. Stored in the macOS keychain.">
+      <PreferencesRow stacked label="Personal access token" hint={`Needs the repo scope. Stored in the ${keychainName}.`}>
         <form
           className="flex items-center gap-2"
           onSubmit={(event) => {
@@ -147,7 +148,7 @@ function AccountCard(props: { status: GithubAuthStatus; onSwitch: () => void }) 
             </StatusBadge>
           </div>
           <div className="mt-0.5 text-[11px] text-text-muted">
-            {status.source === 'gh' ? 'Using the GitHub CLI login (gh auth token)' : 'Token stored in the macOS keychain'}
+            {status.source === 'gh' ? 'Using the GitHub CLI login (gh auth token)' : `Token stored in the ${keychainName}`}
           </div>
         </div>
         <SettingsButton onClick={onSwitch}>Switch</SettingsButton>

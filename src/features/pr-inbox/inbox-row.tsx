@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
 import { cn } from '../../lib/cn';
-import { modKey } from '../../lib/platform';
+import { clickModKey } from '../../lib/platform';
 import * as tauri from '../../lib/tauri';
 import { CommentIcon, CopyIcon, ExternalLinkIcon, GitHubIcon, GitPullRequestIcon } from '../../components/ui/icon';
 import { ContextMenu, MenuItem, MenuSeparator } from '../../components/ui/popover';
@@ -81,7 +81,7 @@ export function InboxRow(props: InboxRowProps) {
       </button>
       <ContextMenu position={menu} onClose={() => setMenu(null)} width={260} className="z-[90]">
         <MenuItem icon={<GitPullRequestIcon size="sm" />} label={folder ? `Open in ${folder}` : 'Open'} onSelect={run(() => onOpen(false))} />
-        <MenuItem icon={<ExternalLinkIcon size="sm" />} label="Open in new window" hint={`${modKey}-click`} onSelect={run(() => onOpen(true))} />
+        <MenuItem icon={<ExternalLinkIcon size="sm" />} label="Open in new window" hint={`${clickModKey}-click`} onSelect={run(() => onOpen(true))} />
         <MenuSeparator />
         <MenuItem
           icon={<GitHubIcon size="sm" />}

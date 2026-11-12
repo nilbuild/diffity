@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { cn } from '../../lib/cn';
 import { repoBase, useRepoNav } from '../../hooks/use-repo';
 import { openSettings } from '../../lib/ui-store';
-import { modKey } from '../../lib/platform';
+import { clickModKey, fileManagerName, modKey } from '../../lib/platform';
 import { openRepoAt, shortPath, useRecentRepos } from '../../features/welcome/recent-repos';
 import { repoInitials } from '../../features/welcome/repo-badge';
 import { useBusyRepoPaths, useClaude } from '../../features/claude/claude-runner';
@@ -501,9 +501,9 @@ function ProjectMenuItems(props: {
     <>
       <MenuLabel>{repoName(path)}</MenuLabel>
       <MenuItem icon={<FolderOpenIcon size="sm" />} label="Open" disabled={current} onSelect={run(() => onOpen(false))} />
-      <MenuItem icon={<ExternalLinkIcon size="sm" />} label="Open in new window" hint={`${modKey}-click`} onSelect={run(() => onOpen(true))} />
+      <MenuItem icon={<ExternalLinkIcon size="sm" />} label="Open in new window" hint={`${clickModKey}-click`} onSelect={run(() => onOpen(true))} />
       <MenuSeparator />
-      <MenuItem icon={<RevealIcon size="sm" />} label="Reveal in Finder" onSelect={run(() => { revealItemInDir(path).catch(() => undefined); })} />
+      <MenuItem icon={<RevealIcon size="sm" />} label={`Reveal in ${fileManagerName}`} onSelect={run(() => { revealItemInDir(path).catch(() => undefined); })} />
       <MenuItem
         icon={<EditorIcon size="sm" />}
         label={`Open in ${editor}`}

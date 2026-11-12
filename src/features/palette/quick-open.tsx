@@ -15,6 +15,7 @@ import { CloneIcon, FolderOpenIcon, FolderSimpleIcon, GitBranchIcon, GitHubIcon,
 import { filterInbox, INBOX_GROUPS, inboxCounts, type InboxGroup } from '../pr-inbox/inbox';
 import { useLocalClones, usePrInbox } from '../pr-inbox/use-pr-inbox';
 import { InboxList, OpenTabs } from '../pr-inbox/inbox-list';
+import { chord } from '../../lib/shortcuts';
 
 type Mode = 'projects' | 'prs';
 
@@ -528,7 +529,7 @@ function QuickOpenBody() {
           <button onClick={() => void browseForFolder(navigate)} className="inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-[12px] text-text-secondary hover:text-text hover:bg-hover cursor-pointer">
             <FolderOpenIcon size="sm" />
             Browse…
-            <kbd className="font-sans text-[11px] text-text-muted">{modKey}⇧O</kbd>
+            <kbd className="font-sans text-[11px] text-text-muted">{chord('O', { shift: true })}</kbd>
           </button>
           {showInbox && inbox.signedIn
             ? <span className="ml-auto pr-2">↵ opens · {modKey}↵ new window · Tab next group</span>

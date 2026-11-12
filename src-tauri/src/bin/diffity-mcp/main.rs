@@ -69,9 +69,67 @@ struct Bridge {
 }
 
 /// The `Diffity.app` this binary was bundled in, when it was.
+#[cfg(target_os = "macos")]
 fn app_bundle() -> Option<PathBuf> {
     let exe = std::env::current_exe().and_then(std::fs::canonicalize).ok()?;
     exe.ancestors().find(|dir| dir.extension().is_some_and(|ext| ext == "app")).map(Path::to_path_buf)
+}
+
+/// Starts the app in the background, so a terminal agent's call reaches it.
+#[cfg(target_os = "macos")]
+async fn launch_app() -> Result<(), String> {
+    let Some(bundle) = app_bundle() else {
+        return Err("Diffity isn't running. Open it and try again.".into());
+    };
+    let launched = tokio::process::Command::new("open").arg("-g").arg(&bundle).status().await;
+    if !launched.is_ok_and(|s| s.success()) {
+        return Err("Couldn't start Diffity. Is it installed?".into());
+    }
+    Ok(())
+}
+
+/// The app's executable, installed next to this sidecar (`/usr/bin` for the .deb and .rpm).
+#[cfg(not(target_os = "macos"))]
+fn sibling_app() -> Option<PathBuf> {
+    let exe = std::env::current_exe().and_then(std::fs::canonicalize).ok()?;
+    Some(exe.parent()?.join("diffity-desktop")).filter(|app| app.exists())
+}
+
+/// Runs the app on its own: a second copy hands its arguments to the running one and quits (single-instance).
+#[cfg(not(target_os = "macos"))]
+fn spawn_app(app: &Path, args: &[&str]) -> std::io::Result<()> {
+    use std::os::unix::process::CommandExt;
+    let mut child = std::process::Command::new(app)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .process_group(0)
+        .spawn()?;
+    std::thread::spawn(move || child.wait());
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+async fn launch_app() -> Result<(), String> {
+    let Some(app) = sibling_app() else {
+        return Err("Diffity isn't running. Open it and try again.".into());
+    };
+    spawn_app(&app, &[]).map_err(|_| "Couldn't start Diffity. Is it installed?".to_string())
+}
+
+#[cfg(target_os = "macos")]
+async fn open_link(link: &str) -> bool {
+    tokio::process::Command::new("open").arg(link).status().await.is_ok_and(|s| s.success())
+}
+
+/// Hands the link to this install's app when it can, so it never opens another copy registered for the scheme.
+#[cfg(not(target_os = "macos"))]
+async fn open_link(link: &str) -> bool {
+    if let Some(app) = sibling_app() {
+        return spawn_app(&app, &[link]).is_ok();
+    }
+    tokio::process::Command::new("xdg-open").arg(link).status().await.is_ok_and(|s| s.success())
 }
 
 impl Bridge {
@@ -97,13 +155,7 @@ impl Bridge {
             Err(e) if !launch => return Err(format!("Diffity app is not reachable ({e}). Is it still running?")),
             Err(_) => {}
         }
-        let Some(bundle) = app_bundle() else {
-            return Err("Diffity isn't running. Open it and try again.".into());
-        };
-        let launched = tokio::process::Command::new("open").arg("-g").arg(&bundle).status().await;
-        if !launched.is_ok_and(|s| s.success()) {
-            return Err("Couldn't start Diffity. Is it installed?".into());
-        }
+        launch_app().await?;
         for _ in 0..50 {
             tokio::time::sleep(Duration::from_millis(200)).await;
             if let Ok(stream) = UnixStream::connect(&self.socket).await {
@@ -220,8 +272,7 @@ impl Server {
         if let Some(r) = r#ref.map(str::trim).filter(|r| !r.is_empty()) {
             link.push_str(&format!("&ref={}", query_escape(r)));
         }
-        let status = tokio::process::Command::new("open").arg(&link).status().await;
-        if !status.is_ok_and(|s| s.success()) {
+        if !open_link(&link).await {
             return Err("Couldn't open Diffity. Is it installed?".into());
         }
         let name = Path::new(repo).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();

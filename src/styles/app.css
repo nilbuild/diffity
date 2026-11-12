@@ -917,3 +917,53 @@ tr.guide-line-focus.guide-range-top.guide-range-bottom > td:first-child {
 .text-center {
   text-wrap: balance;
 }
+
+/* Linux window buttons (window-controls.tsx), drawn like the macOS traffic lights they stand in for. */
+.window-button {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border-radius: 9999px;
+  border: 0.5px solid rgb(0 0 0 / 0.12);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+}
+.window-button svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+  fill: none;
+  stroke: rgb(0 0 0 / 0.55);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+.window-button svg .fill {
+  fill: rgb(0 0 0 / 0.55);
+  stroke: none;
+}
+.window-buttons:hover .window-button svg {
+  opacity: 1;
+}
+.window-button:active {
+  filter: brightness(0.85);
+}
+.window-button-close {
+  background: #ff5f57;
+}
+.window-button-minimize {
+  background: #febc2e;
+}
+.window-button-maximize {
+  background: #28c840;
+}
+.window-buttons-blurred:not(:hover) .window-button {
+  background: #dcdcdc;
+}
+[data-theme='dark'] .window-button {
+  border-color: rgb(255 255 255 / 0.08);
+}
+[data-theme='dark'] .window-buttons-blurred:not(:hover) .window-button {
+  background: #4a4a4a;
+}

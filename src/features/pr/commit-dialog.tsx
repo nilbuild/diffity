@@ -10,6 +10,7 @@ import { useGitStatus } from '../../hooks/use-repo-state';
 import { buttonGhost, buttonOutline, buttonPrimary, inputField } from '../../components/ui/button-styles';
 import { cn } from '../../lib/cn';
 import type { CommentThread } from '../../components/comments/types';
+import { chord } from '../../lib/shortcuts';
 
 interface CommitRequest {
   prNumber: number | null;
@@ -166,7 +167,7 @@ function CommitDialogBody(props: { prNumber: number | null }) {
               {busy === 'commit' ? 'Committing…' : 'Commit only'}
             </button>
           )}
-          <button type="submit" disabled={!!reason || busy !== null} className={buttonPrimary} title="⌘↵">
+          <button type="submit" disabled={!!reason || busy !== null} className={buttonPrimary} title={chord('↵')}>
             {busy === 'push' ? 'Pushing…' : prNumber !== null ? 'Commit & push' : 'Commit'}
           </button>
         </div>
