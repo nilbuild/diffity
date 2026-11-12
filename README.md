@@ -3,17 +3,28 @@
 # diffity
 
 [![Latest release](https://img.shields.io/github/v/release/nilbuild/diffity?display_name=tag&sort=semver&cacheSeconds=3600)](https://github.com/nilbuild/diffity/releases/latest)
-[![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey)](https://github.com/nilbuild/diffity/releases/latest)
+[![Platform: macOS | Linux](https://img.shields.io/badge/platform-macOS_%7C_Linux-lightgrey)](https://github.com/nilbuild/diffity/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-Diffity is a Mac app for reviewing code changes, yours or your agent's, GitHub-style, with Claude Code in the loop.
+Diffity is a desktop app for Mac and Linux for reviewing code changes, yours or your agent's, GitHub-style, with Claude Code in the loop.
 
 <img src="./.github/screenshots/hero.png" alt="Diffity showing uncommitted changes with a comment thread answered by Claude" />
 
 [![Download for macOS](https://img.shields.io/badge/Download_for_macOS-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/nilbuild/diffity/releases/latest)
+[![Download for Linux](https://img.shields.io/badge/Download_for_Linux-000000?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/nilbuild/diffity/releases/latest)
 [![Report an issue](https://img.shields.io/badge/Report_an_issue-ffffff?style=for-the-badge&logo=github&logoColor=black)](https://github.com/nilbuild/diffity/issues/new/choose)
 
-macOS 13.3 or later, Apple Silicon and Intel. The AI features need [Claude Code](https://docs.claude.com/en/docs/claude-code) (logged in) and Node.js.
+- **macOS** 13.3 or later, Apple Silicon and Intel. Open the `.dmg` and drag Diffity to Applications.
+- **Linux** on x86_64: Ubuntu 22.04+, Debian 12+ or Fedora. Install the `.deb` or `.rpm`, which also pulls in WebKitGTK and Git:
+
+  ```sh
+  sudo apt install ./Diffity_*_amd64.deb     # Ubuntu, Debian
+  sudo dnf install ./Diffity-*.x86_64.rpm    # Fedora
+  ```
+
+  The GitHub token is kept in your system keyring (GNOME Keyring or KWallet); without one, sign in with the GitHub CLI instead.
+
+The AI features need [Claude Code](https://docs.claude.com/en/docs/claude-code) (logged in) and Node.js. Shortcuts below are written for macOS; on Linux, use `Ctrl` wherever you see `⌘`.
 
 | What can you do? | Description |
 |---|---|
@@ -93,7 +104,7 @@ macOS 13.3 or later, Apple Silicon and Intel. The AI features need [Claude Code]
 
 > Run `diffity` in any repository to open it in the app, or pass a pull request URL to review it.
 
-Install the command once from **Settings → Terminal** (or **Diffity → Install ‘diffity’ Command…**, which opens it). It links the command into `/usr/local/bin` and asks for your password if that folder needs it.
+Install the command once from **Settings → Terminal** (on macOS, **Diffity → Install ‘diffity’ Command…** opens it too). It links the command into `/usr/local/bin` and asks for your password if that folder needs it.
 
 <img src="./.github/screenshots/install-command.png" width="320" alt="The Diffity menu with Install ‘diffity’ Command…" />
 
@@ -137,8 +148,8 @@ Coding agents can run it too, so you can ask Claude Code to “open your changes
   !dist/keep-me.js
   ```
 - **Colour-blind friendly colours.** Settings → General → Appearance switches the diff to blue and orange, in light and dark.
-- **Split or unified, light or dark.** Toggle the diff layout anytime; the theme follows your Mac unless you pick one in Settings.
-- **Updates itself.** New versions install in place, and What's New in the Help menu shows what changed.
+- **Split or unified, light or dark.** Toggle the diff layout anytime; the theme follows your system unless you pick one in Settings.
+- **Updates itself.** New versions install in place, and What's New (in the Help menu on macOS, or the command palette) shows what changed.
 
 Found a bug or have an idea? [Open an issue](https://github.com/nilbuild/diffity/issues/new/choose).
 
