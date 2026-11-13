@@ -21,8 +21,10 @@ use crate::core::store::Store;
 use crate::github::GithubService;
 #[cfg(target_os = "macos")]
 use tauri::menu::{Menu, MenuItem, HELP_SUBMENU_ID};
+use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Emitter, EventTarget, Manager, Runtime};
 use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_window_state::StateFlags;
 
 pub use state::AppState;
 
@@ -179,7 +181,11 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(StateFlags::all() & !StateFlags::VISIBLE)
+                .build(),
+        )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_system_fonts::init())
@@ -256,11 +262,13 @@ pub fn run() {
             let _ = (window, event);
         })
         // Covers `repo-*` windows opened from the frontend via `new WebviewWindow`.
-        .on_page_load(|webview, _payload| {
+        .on_page_load(|webview, payload| {
+            // The main window starts hidden so its white native background doesn't flash before the themed splash.
+            if payload.event() == PageLoadEvent::Finished && webview.label() == "main" {
+                let _ = webview.window().show();
+            }
             #[cfg(target_os = "macos")]
             traffic_lights::install(&webview.window());
-            #[cfg(not(target_os = "macos"))]
-            let _ = webview;
         })
         .invoke_handler(tauri::generate_handler![
             quit_app,

@@ -10,7 +10,8 @@
         "minWidth": 900,
         "minHeight": 600,
         "decorations": false,
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#ffffff",
+        "visible": false
       }
     ]
   },
