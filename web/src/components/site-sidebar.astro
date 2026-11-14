@@ -98,13 +98,26 @@ import { LINKS } from '@/lib/links';
   );
   syncToScroll();
 
+  // The sidebar download shows only while neither the hero's nor the closing download is on screen.
   const cta = document.querySelector<HTMLElement>('[data-sidebar-cta]');
   const heroCta = document.querySelector<HTMLElement>('[data-hero-cta]');
-  if (cta && heroCta) {
-    new IntersectionObserver(([entry]) => {
-      const shown = !entry.isIntersecting && entry.boundingClientRect.top < 0;
+  const closingCta = document.querySelector<HTMLElement>('[data-closing-cta]');
+  if (cta && heroCta && closingCta) {
+    let pastHero = false;
+    let atClosing = false;
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === heroCta) {
+          pastHero = !entry.isIntersecting && entry.boundingClientRect.top < 0;
+        } else {
+          atClosing = entry.isIntersecting || entry.boundingClientRect.top < 0;
+        }
+      }
+      const shown = pastHero && !atClosing;
       cta.toggleAttribute('data-shown', shown);
       cta.inert = !shown;
-    }).observe(heroCta);
+    });
+    observer.observe(heroCta);
+    observer.observe(closingCta);
   }
 </script>

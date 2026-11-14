@@ -1,22 +1,64 @@
 ---
-import { Image } from 'astro:assets';
-import logo from '@/assets/logo.png';
-import ButtonLink from './ui/button-link.astro';
 import DownloadButtons from './download-buttons.astro';
+import Kbd from './ui/kbd.astro';
 import OtherPlatforms from './other-platforms.astro';
+import RichText from './ui/rich-text.astro';
 import SceneFrame from './ui/scene-frame.astro';
-import { LINKS } from '@/lib/links';
+
+const step = 'start-step border-t-2 border-line pt-3 transition-[border-color] duration-300';
+const number = 'start-dim font-mono text-[10.5px] text-text-faint';
+const title = 'start-dim mt-1 block text-[14.5px] font-medium tracking-[-0.01em]';
+const body = 'start-dim mt-1 text-[13px] leading-[1.55] text-text-secondary';
 ---
 
-<section class="flex flex-col items-start gap-4 border-b border-dashed border-line px-9 py-14 max-[900px]:px-5">
-  <SceneFrame scene="diffity-review" class="mb-2 w-full" label="Comment on a line, send it to the agent, it fixes the line and replies, you approve." />
-  <Image src={logo} alt="" width={60} height={60} densities={[1, 2]} class="-ml-[5px]" />
-  <h2 class="text-[32px] leading-[1.1] font-medium tracking-[-0.03em]">
-    Free and open source. <span class="text-text-faint">Try it on your next diff.</span>
+<section class="start border-b border-dashed border-line px-9 py-14 max-[900px]:px-5 max-[900px]:py-10">
+  <h2 class="text-[32px] leading-[1.1] font-medium tracking-[-0.03em] text-balance max-[900px]:text-[26px]">
+    Try it on your next diff. <span class="text-text-faint">Free and open source.</span>
   </h2>
-  <div class="mt-1.5 flex flex-wrap items-center gap-2.5">
-    <DownloadButtons />
-    <ButtonLink href={LINKS.newIssue} variant="outline">Report an issue</ButtonLink>
-  </div>
-  <OtherPlatforms />
+  <ol class="mt-7 grid grid-cols-3 gap-x-5 gap-y-6 max-[700px]:grid-cols-1">
+    <li class={step} data-i="1">
+      <span class={number}>01</span>
+      <span class={title}>Download</span>
+      <p class={body}>macOS 13.3 or later on Apple Silicon or Intel, or Linux on x86_64.</p>
+      <div class="mt-3.5 flex flex-wrap gap-2" data-closing-cta>
+        <DownloadButtons />
+      </div>
+      <OtherPlatforms class="mt-2.5" />
+    </li>
+    <li class={step} data-i="2">
+      <span class={number}>02</span>
+      <span class={title}>Open a repo</span>
+      <p class={body}>
+        Press <span class="os-mac"><Kbd>⌘O</Kbd></span><span class="os-linux"><Kbd>Ctrl+O</Kbd></span> and pick a folder. It stays in the left rail for next time.
+      </p>
+    </li>
+    <li class={step} data-i="3">
+      <span class={number}>03</span>
+      <span class={title}>Comment on the diff</span>
+      <p class={body}>Leave notes on any line, then send them to Claude Code or Codex if you use them.</p>
+    </li>
+  </ol>
+  <p class="mt-7 text-[13px] text-text-muted">
+    <RichText text="Prefer the terminal? Turn on `diffity` in {Settings → Terminal} and run it in any repo." />
+  </p>
+  <SceneFrame scene="diffity-start" class="mt-6" label="Diffity drops in a box and you unpack it, carry a repo from the shelf into Diffity, and pin a comment on a changed line." />
 </section>
+
+<style>
+  .start-dim {
+    transition: opacity 0.3s;
+  }
+  .start:has(:global(stick-scene[data-step='1']), :global(stick-scene[data-step='2']), :global(stick-scene[data-step='3'])) .start-dim {
+    opacity: 0.45;
+  }
+  .start:has(:global(stick-scene[data-step='1'])) .start-step[data-i='1'],
+  .start:has(:global(stick-scene[data-step='2'])) .start-step[data-i='2'],
+  .start:has(:global(stick-scene[data-step='3'])) .start-step[data-i='3'] {
+    border-color: var(--color-accent);
+  }
+  .start:has(:global(stick-scene[data-step='1'])) .start-step[data-i='1'] .start-dim,
+  .start:has(:global(stick-scene[data-step='2'])) .start-step[data-i='2'] .start-dim,
+  .start:has(:global(stick-scene[data-step='3'])) .start-step[data-i='3'] .start-dim {
+    opacity: 1;
+  }
+</style>
