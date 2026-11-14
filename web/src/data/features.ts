@@ -2,7 +2,7 @@ import type { IconName } from '@/lib/icons';
 
 export interface FeatureRow {
   term: string;
-  /** Text after the dot. Wrap code in backticks to show it as a key cap. */
+  /** Text after the dot. Wrap keys in backticks for a key cap and app labels in braces, like {Settings → Agents}. */
   text: string;
   kbd?: string;
 }
@@ -78,7 +78,7 @@ export const FEATURES: Feature[] = [
     group: 'reviewing',
     scene: { id: 'diffity-files', label: 'You pull a file from a filing cabinet, it opens in Diffity, and you pin a comment on one of its lines.' },
     title: 'Comment on any file',
-    lead: 'Open the Files tab, pick any file in the repo and comment on its lines. Even code the diff does not touch. Big files stay fast.',
+    lead: 'Open the {Files} tab, pick any file in the repo and comment on its lines. Even code the diff does not touch. Big files stay fast.',
     navLabel: 'Any file',
     shot: { src: '/screenshots/files.gif', alt: 'Opening a file from the Files tab and commenting on two of its lines' },
   },
@@ -88,7 +88,7 @@ export const FEATURES: Feature[] = [
     navLabel: 'Fix comments',
     scene: { id: 'diffity-fix', label: 'You press Send, two comments fly to the agent, and it fixes each line and replies under each comment.' },
     title: 'Let your agent fix your comments',
-    lead: 'Click Send. Claude Code or Codex goes through your comments one by one, changes the code and replies in each thread. Then you review its changes like any other diff.',
+    lead: 'Click {Send}. Claude Code or Codex goes through your comments one by one, changes the code and replies in each thread. Then you review its changes like any other diff.',
     rows: [
       { term: 'Stays open', text: 'a comment the agent fixed waits for you to resolve it' },
       { term: 'Queue', text: 'line up runs and retry the ones that fail' },
@@ -129,7 +129,7 @@ export const FEATURES: Feature[] = [
     group: 'with-agents',
     scene: { id: 'diffity-guide', label: 'The agent taps each box of a diagram in turn, each step lights up its code in the diff, a risky step gets a warning, and you follow along.' },
     title: 'Read a guide to the change',
-    lead: 'Open the Guide tab and your agent writes a walkthrough of the change, in an order that makes sense, with the risky parts first.',
+    lead: 'Open the {Guide} tab and your agent writes a walkthrough of the change, in an order that makes sense, with the risky parts first.',
     isNew: true,
     navLabel: 'Guides',
     rows: [
@@ -151,7 +151,7 @@ export const FEATURES: Feature[] = [
       { term: 'Per task', text: 'pick a model for reviews, fixes and replies' },
       { term: 'Per project', text: 'Diffity remembers your last pick' },
       { term: 'Per thread', text: 'change it for one reply only' },
-      { term: 'Defaults', text: 'set them in Settings → Agents' },
+      { term: 'Defaults', text: 'set them in {Settings → Agents}' },
       { term: 'Always current', text: 'new models show up without a Diffity update' },
     ],
     terminal: {
@@ -183,7 +183,7 @@ export const FEATURES: Feature[] = [
     group: 'with-agents',
     navLabel: 'Hand off',
     title: 'Hand comments to your terminal agent',
-    lead: 'The agent that wrote the change has the context to fix it. Connect Claude Code or Codex from Settings → Terminal, then ask it to address your review. It reads your comments, makes the changes, replies in each thread and resolves the fixed ones.',
+    lead: 'The agent that wrote the change has the context to fix it. Connect Claude Code or Codex from {Settings → Terminal}, then ask it to address your review. It reads your comments, makes the changes, replies in each thread and resolves the fixed ones.',
     rows: [
       { term: 'Any MCP agent', text: 'OpenCode, Cursor and others, with the setup from the same place' },
       { term: 'Live', text: 'threads update in Diffity as it works, labelled with its name' },
@@ -218,7 +218,7 @@ export const FEATURES: Feature[] = [
     navLabel: 'Post a review',
     scene: { id: 'diffity-post', label: 'You stamp a verdict on the review, it flies to GitHub, a GitHub comment flies back onto the diff and you resolve it.' },
     title: 'Post your review to GitHub',
-    lead: 'When you are done, click Submit review. Comments from GitHub show up in the diff too, so you can reply or resolve them from the app.',
+    lead: 'When you are done, click {Submit review}. Comments from GitHub show up in the diff too, so you can reply or resolve them from the app.',
     rows: [
       { term: 'Comment', text: 'share notes without a verdict' },
       { term: 'Approve', text: 'good to merge' },
@@ -271,7 +271,7 @@ export const FEATURES: Feature[] = [
     group: 'getting-around',
     scene: { id: 'diffity-terminal', label: 'You or your agent type diffity in the terminal and it flips into Diffity, ready to review.' },
     title: 'Open it from the terminal, or from your agent',
-    lead: 'Install the command once from Settings → Terminal. Then run it anywhere. Your agent can run it too, so you can ask Claude Code or Codex to open its changes in Diffity before it opens a PR.',
+    lead: 'Install the command once from {Settings → Terminal}. Then run it anywhere. Your agent can run it too, so you can ask Claude Code or Codex to open its changes in Diffity before it opens a PR.',
     navLabel: 'Terminal',
     terminal: {
       title: 'Terminal',
@@ -302,7 +302,7 @@ export const FEATURES: Feature[] = [
       { term: 'Light or dark', text: 'follows your system, or pick one' },
       { term: 'Fonts', text: 'pick the interface and code fonts, size and tab width' },
       { term: 'Line wrapping', text: 'turn it off to scroll long lines sideways' },
-      { term: 'Clean up', text: 'delete comments and chats per project from Settings → Data' },
+      { term: 'Clean up', text: 'delete comments and chats per project from {Settings → Data}' },
       { term: 'Updates itself', text: 'new versions install in place' },
     ],
   },

@@ -1,0 +1,23 @@
+---
+import Kbd from './kbd.astro';
+
+interface Props {
+  text: string;
+}
+
+const props = Astro.props;
+// `⌘K` renders as a key cap, {Settings → Terminal} as an app label.
+const parts = props.text.split(/(`[^`]+`|\{[^}]+\})/).filter(Boolean);
+---
+
+{
+  parts.map((part) => {
+    if (part.startsWith('`')) {
+      return <Kbd>{part.slice(1, -1)}</Kbd>;
+    }
+    if (part.startsWith('{')) {
+      return <span class="rounded-[5px] border border-kbd-border bg-panel px-1.5 py-px font-medium whitespace-nowrap text-text">{part.slice(1, -1)}</span>;
+    }
+    return part;
+  })
+}

@@ -1,5 +1,6 @@
 ---
 import Kbd from './ui/kbd.astro';
+import RichText from './ui/rich-text.astro';
 import type { FeatureRow } from '@/data/features';
 
 interface Props {
@@ -8,8 +9,6 @@ interface Props {
 
 const props = Astro.props;
 const { row } = props;
-// Odd parts sat between backticks, so they render as key caps.
-const parts = row.text.split('`');
 const linuxKbd = row.kbd?.replace('⌘', 'Ctrl+');
 ---
 
@@ -28,5 +27,5 @@ const linuxKbd = row.kbd?.replace('⌘', 'Ctrl+');
   }
   <b class="font-medium text-text">{row.term}</b>
   <span class="text-dot">·</span>
-  <span class="text-[#616161]">{parts.map((part, index) => (index % 2 === 1 ? <Kbd>{part}</Kbd> : part))}</span>
+  <span class="text-[#616161]"><RichText text={row.text} /></span>
 </div>

@@ -1,5 +1,6 @@
 ---
 import FeatureRow from './feature-row.astro';
+import RichText from './ui/rich-text.astro';
 import SceneFrame from './ui/scene-frame.astro';
 import ScreenshotFrame from './ui/screenshot-frame.astro';
 import TerminalBlock from './terminal-block.astro';
@@ -18,7 +19,7 @@ const { feature } = props;
     <h3 class="text-xl font-medium tracking-[-0.02em]">{feature.title}</h3>
     {feature.isNew && <span class="self-center rounded bg-accent-soft px-1.5 py-[3px] font-mono text-[10px] tracking-[0.06em] text-accent uppercase">New</span>}
   </div>
-  <p class="mb-[18px] max-w-[600px] text-[14.5px] leading-[1.6] text-text-secondary">{feature.lead}</p>
+  <p class="mb-[18px] max-w-[600px] text-[14.5px] leading-[1.6] text-text-secondary"><RichText text={feature.lead} /></p>
   {
     feature.rows && (
       <div class:list={[(feature.shot || feature.terminal || feature.scene) && 'mb-[22px]']}>
