@@ -3,7 +3,7 @@ import FeatureRow from './feature-row.astro';
 import SceneFrame from './ui/scene-frame.astro';
 import ScreenshotFrame from './ui/screenshot-frame.astro';
 import TerminalBlock from './terminal-block.astro';
-import { featureNumber, type Feature } from '@/data/features';
+import type { Feature } from '@/data/features';
 
 interface Props {
   feature: Feature;
@@ -13,23 +13,22 @@ const props = Astro.props;
 const { feature } = props;
 ---
 
-<section id={feature.id} class="scroll-mt-[52px] border-b border-dashed border-line px-9 pt-9 pb-10 max-[900px]:px-5 max-[900px]:pt-7 max-[900px]:pb-8">
+<section id={feature.id} data-spy-group={feature.group} data-spy-feature={feature.id} class="scroll-mt-[52px] border-b border-dashed border-line px-9 pt-9 pb-10 max-[900px]:px-5 max-[900px]:pt-7 max-[900px]:pb-8">
   <div class="mb-1.5 flex flex-wrap items-baseline gap-x-2.5 gap-y-1.5">
-    <span class="w-[22px] font-mono text-[10.5px] text-text-faint">{featureNumber(feature)}</span>
-    <h2 class="text-xl font-medium tracking-[-0.02em]">{feature.title}</h2>
+    <h3 class="text-xl font-medium tracking-[-0.02em]">{feature.title}</h3>
     {feature.isNew && <span class="self-center rounded bg-accent-soft px-1.5 py-[3px] font-mono text-[10px] tracking-[0.06em] text-accent uppercase">New</span>}
   </div>
-  <p class="mb-[18px] ml-8 max-w-[600px] text-[14.5px] leading-[1.6] text-text-secondary max-[900px]:ml-0">{feature.lead}</p>
+  <p class="mb-[18px] max-w-[600px] text-[14.5px] leading-[1.6] text-text-secondary">{feature.lead}</p>
   {
     feature.rows && (
-      <div class:list={['ml-8 max-[900px]:ml-0', (feature.shot || feature.terminal || feature.scene) && 'mb-[22px]']}>
+      <div class:list={[(feature.shot || feature.terminal || feature.scene) && 'mb-[22px]']}>
         {feature.rows.map((row) => (
           <FeatureRow row={row} />
         ))}
       </div>
     )
   }
-  {feature.scene && <SceneFrame scene={feature.scene.id} label={feature.scene.label} class:list={['ml-8 max-[900px]:ml-0', feature.terminal && 'mb-[22px]']} />}
+  {feature.scene && <SceneFrame scene={feature.scene.id} label={feature.scene.label} class:list={[feature.terminal && 'mb-[22px]']} />}
   {feature.terminal && <TerminalBlock block={feature.terminal} />}
   {
     feature.shot && !feature.scene && (

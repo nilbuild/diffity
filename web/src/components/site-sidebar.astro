@@ -1,76 +1,110 @@
 ---
 import { Image } from 'astro:assets';
 import logo from '@/assets/logo.png';
-import ButtonLink from './ui/button-link.astro';
 import DownloadButtons from './download-buttons.astro';
 import Icon from './ui/icon.astro';
-import OtherPlatforms from './other-platforms.astro';
-import { FEATURES, featureNumber } from '@/data/features';
+import { GROUPS, featuresIn } from '@/data/features';
 import { LINKS } from '@/lib/links';
-
-const navItems = FEATURES.filter((feature) => feature.nav);
-const navLink = 'flex h-[clamp(27px,3.5vh,32px)] shrink-0 items-center gap-2.5 rounded-[7px] px-2 text-[13px] text-[#3a3a3a] hover:bg-fill hover:text-text';
 ---
 
-<aside class="box-border flex flex-[0_0_272px] flex-col border-r border-dashed border-line px-[26px] pt-[clamp(24px,4vh,40px)] pb-5 max-[900px]:basis-full max-[900px]:border-r-0 max-[900px]:border-b min-[901px]:sticky min-[901px]:top-0 min-[901px]:h-dvh min-[901px]:self-start min-[901px]:overflow-y-auto">
-  <Image src={logo} alt="Diffity app icon" width={52} height={52} densities={[1, 2]} class="-ml-1" />
-  <div class="mt-3.5 text-[18px] font-medium tracking-[-0.02em]">Diffity<span class="text-text-faint"> for Mac and Linux</span></div>
-  <p class="mt-1.5 text-[13.5px] leading-[1.5] text-[#333]">Review code changes, yours or your agent's, the GitHub way.</p>
-
-  <div class="mt-[clamp(16px,2.6vh,24px)] flex flex-col gap-2">
-    <DownloadButtons block />
-    <ButtonLink href={LINKS.repo} variant="outline" icon="gitHub" block>View on GitHub</ButtonLink>
+<aside class="box-border flex flex-[0_0_272px] flex-col border-r border-dashed border-line px-5 pt-[clamp(20px,3.4vh,32px)] pb-5 max-[900px]:basis-full max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:py-3.5 min-[901px]:sticky min-[901px]:top-0 min-[901px]:h-dvh min-[901px]:self-start min-[901px]:overflow-y-auto">
+  <div class="px-1.5">
+    <Image src={logo} alt="Diffity app icon" width={52} height={52} densities={[1, 2]} class="-ml-1" />
+    <div class="mt-3.5 text-[18px] font-medium tracking-[-0.02em]">Diffity<span class="text-text-faint"> for Mac and Linux</span></div>
+    <p class="mt-1.5 text-[13.5px] leading-[1.5] text-[#333]">A desktop app for reviewing code changes and pull requests.</p>
   </div>
-  <OtherPlatforms class="mt-2.5" />
 
-  <div class="mt-[clamp(16px,3.4vh,32px)]">
-    <nav class="flex flex-col" data-feature-nav>
-      {
-        navItems.map((feature, index) => (
+  <nav class="mt-[clamp(18px,3.4vh,32px)] flex flex-col gap-0.5 max-[900px]:hidden" data-chapter-nav>
+    {
+      GROUPS.map((group, index) => (
+        <div class="group/chapter" data-chapter={group.id} data-open={index === 0 ? '' : undefined}>
           <a
-            href={`#${feature.id}`}
-            data-active={index === 0 ? '' : undefined}
-            class:list={[navLink, 'data-active:bg-fill data-active:font-medium data-active:text-text [&_svg]:text-text-faint']}
+            href={`#${group.id}`}
+            class="flex h-8 items-center gap-2.5 rounded-[7px] px-2 text-[13px] font-medium text-text-muted hover:bg-fill hover:text-text group-data-open/chapter:text-text [&_svg]:text-text-faint"
           >
-            {feature.nav && <Icon name={feature.nav.icon} size={14} />}
-            {feature.nav?.label}
-            <span class="ml-auto font-mono text-[10.5px] text-text-faint">{featureNumber(feature)}</span>
+            <Icon name={group.icon} size={14} />
+            {group.name}
+            <span class="ml-auto font-mono text-[10.5px] font-normal text-text-faint">{featuresIn(group).length}</span>
           </a>
-        ))
-      }
-    </nav>
-  </div>
+          <div class="grid grid-rows-[0fr] transition-[grid-template-rows] duration-300 ease-out group-data-open/chapter:grid-rows-[1fr] motion-reduce:transition-none">
+            <div class="overflow-hidden">
+              <div class="mt-0.5 mb-2 ml-[15px] flex flex-col border-l border-line">
+                {featuresIn(group).map((feature) => (
+                  <a
+                    href={`#${feature.id}`}
+                    data-feature-link={feature.id}
+                    class="-ml-px flex h-[clamp(26px,3.3vh,30px)] shrink-0 items-center gap-2 border-l-2 border-transparent pr-2 pl-3 text-[13px] text-text-secondary hover:text-text data-active:border-accent data-active:font-medium data-active:text-text"
+                  >
+                    {feature.navLabel}
+                    {feature.isNew && <span class="ml-auto size-1.5 rounded-full bg-accent" title="New" />}
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))
+    }
+  </nav>
 
-  <div class="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-line pt-3 text-[12.5px] text-text-muted">
-    <span>Free and open source</span>
-    <a href={LINKS.x} class="text-text-muted">@nilbuild</a>
+  <div class="mt-auto pt-6 max-[900px]:hidden">
+    <div inert class="flex translate-y-1.5 flex-col gap-2 opacity-0 transition duration-300 data-shown:translate-y-0 data-shown:opacity-100 motion-reduce:transition-none" data-sidebar-cta>
+      <DownloadButtons block />
+    </div>
+    <div class="mt-4 flex items-center justify-between gap-2 border-t border-dashed border-line pt-3 text-[12.5px] text-text-muted">
+      <span>Free and open source</span>
+      <a href={LINKS.x} class="text-text-muted">@nilbuild</a>
+    </div>
   </div>
 </aside>
 
 <script>
-  const links = [...document.querySelectorAll<HTMLAnchorElement>('[data-feature-nav] a')];
-  const sections = links
-    .map((link) => document.querySelector<HTMLElement>(link.hash))
-    .filter((section): section is HTMLElement => section !== null);
+  const chapters = [...document.querySelectorAll<HTMLElement>('[data-chapter]')];
+  const featureLinks = [...document.querySelectorAll<HTMLAnchorElement>('[data-feature-link]')];
+  const firstGroup = chapters[0]?.dataset.chapter;
 
-  function setActive(id: string) {
-    for (const link of links) {
-      link.toggleAttribute('data-active', link.hash === `#${id}`);
+  function setActive(group: string | undefined, feature: string | undefined) {
+    for (const chapter of chapters) {
+      chapter.toggleAttribute('data-open', chapter.dataset.chapter === group);
+    }
+    for (const link of featureLinks) {
+      link.toggleAttribute('data-active', link.dataset.featureLink === feature);
     }
   }
 
-  const observer = new IntersectionObserver(
-    (entries) => {
-      const visible = entries.find((entry) => entry.isIntersecting);
-      if (!visible) {
+  const sections = [...document.querySelectorAll<HTMLElement>('[data-spy-group]')];
+  let frame = 0;
+
+  function syncToScroll() {
+    frame = 0;
+    const line = window.innerHeight * 0.25;
+    const current = sections.findLast((section) => section.getBoundingClientRect().top <= line);
+    if (!current) {
+      setActive(firstGroup, undefined);
+      return;
+    }
+    setActive(current.dataset.spyGroup, current.dataset.spyFeature);
+  }
+
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (frame) {
         return;
       }
-      setActive(visible.target.id);
+      frame = requestAnimationFrame(syncToScroll);
     },
-    { rootMargin: '-20% 0px -70% 0px' },
+    { passive: true },
   );
+  syncToScroll();
 
-  for (const section of sections) {
-    observer.observe(section);
+  const cta = document.querySelector<HTMLElement>('[data-sidebar-cta]');
+  const heroCta = document.querySelector<HTMLElement>('[data-hero-cta]');
+  if (cta && heroCta) {
+    new IntersectionObserver(([entry]) => {
+      const shown = !entry.isIntersecting && entry.boundingClientRect.top < 0;
+      cta.toggleAttribute('data-shown', shown);
+      cta.inert = !shown;
+    }).observe(heroCta);
   }
 </script>

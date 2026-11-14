@@ -1,0 +1,31 @@
+---
+import Eyebrow from './ui/eyebrow.astro';
+import Icon from './ui/icon.astro';
+import { featuresIn, type Group } from '@/data/features';
+
+interface Props {
+  group: Group;
+}
+
+const props = Astro.props;
+const { group } = props;
+const features = featuresIn(group);
+---
+
+<section id={group.id} data-spy-group={group.id} class="scroll-mt-12 border-b border-dashed border-line bg-panel px-9 pt-10 pb-8 max-[900px]:px-5 max-[900px]:pt-8 max-[900px]:pb-6">
+  <Eyebrow accent class="flex items-center gap-1.5">
+    <Icon name={group.icon} size={12} />
+    {group.name}
+  </Eyebrow>
+  <h2 class="mt-2.5 text-[28px] leading-[1.1] font-medium tracking-[-0.03em] text-balance max-[900px]:text-[24px]">{group.title}</h2>
+  <p class="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-[13px] text-text-muted">
+    {
+      features.map((feature, index) => (
+        <>
+          {index > 0 && <span class="text-dot">·</span>}
+          <a href={`#${feature.id}`} class="text-text-secondary">{feature.navLabel}</a>
+        </>
+      ))
+    }
+  </p>
+</section>
