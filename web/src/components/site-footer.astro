@@ -1,24 +1,70 @@
 ---
+import { Image } from 'astro:assets';
+import logo from '@/assets/logo.png';
+import { getRepoStats } from '@/lib/github';
 import { LINKS } from '@/lib/links';
 
-const links = [
-  { label: 'GitHub', href: LINKS.repo },
-  { label: 'Releases', href: LINKS.releases },
-  { label: 'Report an issue', href: LINKS.newIssue },
-  { label: 'License', href: LINKS.license },
-  { label: 'X', href: LINKS.x },
+const { downloads, version, releaseUrl } = await getRepoStats();
+
+const columns = [
+  {
+    title: 'Download',
+    links: [
+      { label: 'Mac', href: downloads.mac },
+      { label: 'Linux .deb', href: downloads.deb },
+      { label: 'Linux .rpm', href: downloads.rpm },
+      { label: 'All releases', href: LINKS.releases },
+    ],
+  },
+  {
+    title: 'Project',
+    links: [
+      { label: 'GitHub', href: LINKS.repo },
+      { label: 'Report an issue', href: LINKS.newIssue },
+      { label: 'MIT license', href: LINKS.license },
+    ],
+  },
+  {
+    title: 'Follow',
+    links: [{ label: '@nilbuild on X', href: LINKS.x }],
+  },
 ];
 ---
 
-<footer class="flex flex-wrap items-center justify-between gap-3 px-9 py-[18px] text-[12.5px] text-text-muted max-[900px]:px-5">
-  <span class="font-mono text-[11.5px]">MIT © Kamran Ahmed</span>
-  <div class="flex gap-[18px]">
+<footer class="px-9 pt-10 pb-6 max-[900px]:px-5">
+  <div class="grid grid-cols-[1.6fr_1fr_1fr_1fr] gap-8 max-[700px]:grid-cols-2">
+    <div class="max-[700px]:col-span-2">
+      <div class="flex items-center gap-2.5 text-[15px] font-medium tracking-[-0.02em]">
+        <Image src={logo} alt="" width={28} height={28} densities={[1, 2]} />
+        Diffity
+      </div>
+      <p class="mt-2.5 max-w-[240px] text-[13px] leading-[1.5] text-text-secondary">A desktop app for reviewing code changes and pull requests.</p>
+    </div>
     {
-      links.map((link) => (
-        <a href={link.href} class="text-text-muted">
-          {link.label}
-        </a>
+      columns.map((column) => (
+        <div>
+          <div class="font-mono text-[10.5px] tracking-[0.06em] text-text-faint uppercase">{column.title}</div>
+          <ul class="mt-3 flex flex-col gap-2 text-[13px]">
+            {column.links.map((link) => (
+              <li>
+                <a href={link.href} class="text-text-secondary">
+                  {link.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
       ))
+    }
+  </div>
+  <div class="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-line pt-4 font-mono text-[11.5px] text-text-muted">
+    <span>© {new Date().getFullYear()} Kamran Ahmed</span>
+    {
+      version && releaseUrl && (
+        <a href={releaseUrl} class="text-text-muted">
+          Latest: {version}
+        </a>
+      )
     }
   </div>
 </footer>
