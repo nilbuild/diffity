@@ -5,16 +5,24 @@ import DownloadButtons from './download-buttons.astro';
 import Eyebrow from './ui/eyebrow.astro';
 import Kbd from './ui/kbd.astro';
 import OtherPlatforms from './other-platforms.astro';
+import SceneFrame from './ui/scene-frame.astro';
 import ScreenshotFrame from './ui/screenshot-frame.astro';
+
+const STEPS = [
+  { title: 'Ask your agent', text: 'Give Claude Code or Codex a task in the terminal.' },
+  { title: 'It writes the code', text: 'The agent changes files. Often a lot of them.' },
+  { title: 'Review in Diffity', text: 'Run diffity, read the diff and comment on any line.' },
+  { title: 'It fixes them', text: 'Send your comments. The agent fixes each one and replies.' },
+];
 ---
 
 <section class="border-b border-dashed border-line px-9 pt-12 pb-10 max-[900px]:px-5 max-[900px]:py-8">
   <Eyebrow>Code review, on Mac and Linux</Eyebrow>
   <h1 class="mt-3.5 max-w-[720px] text-[46px] leading-[1.06] font-medium tracking-[-0.04em] max-[900px]:text-[34px]">
-    Review your code like a pull request. <span class="text-text-faint">Let your agent fix what you find.</span>
+    Review what your agent wrote. <span class="text-text-faint">Send back what needs fixing.</span>
   </h1>
   <p class="mt-4 max-w-[600px] text-base leading-[1.6] text-text-body">
-    Diffity shows your changes the way GitHub does. Leave comments on any line, then send them to Claude Code or Codex. The agent makes the changes and replies in the same thread.
+    Review code your agent wrote and pull requests from your team, explore any file in the repo, and leave comments that Claude Code or Codex can fix.
   </p>
   <div class="mt-6 flex flex-wrap items-center gap-2.5">
     <DownloadButtons />
@@ -24,4 +32,51 @@ import ScreenshotFrame from './ui/screenshot-frame.astro';
   <ScreenshotFrame class="mt-8">
     <Image src={heroShot} alt="Diffity showing uncommitted changes with a comment thread answered by Claude" widths={[900, 1400, 2000]} sizes="(max-width: 900px) 100vw, 860px" loading="eager" />
   </ScreenshotFrame>
+  <script is:inline src="/scenes/stick.js" defer></script>
+  <div class="how mt-14">
+    <Eyebrow>How it works</Eyebrow>
+    <ol class="mt-4 grid grid-cols-4 gap-x-5 gap-y-5 max-[700px]:grid-cols-2">
+      {
+        STEPS.map((step, i) => (
+          <li class="how-step border-t-2 border-line transition-[border-color,opacity] duration-300 hover:opacity-100" data-i={i + 1}>
+            <button type="button" class="block w-full cursor-pointer pt-2.5 text-left" data-how-step={i}>
+              <span class="font-mono text-[10.5px] text-text-faint">0{i + 1}</span>
+              <span class="mt-1 block text-[14.5px] font-medium tracking-[-0.01em]">{step.title}</span>
+              <span class="mt-1 block text-[13px] leading-[1.5] text-text-secondary">{step.text}</span>
+            </button>
+          </li>
+        ))
+      }
+    </ol>
+    <SceneFrame scene="diffity-loop" class="mt-8" label="You ask the agent for a change, it writes a lot of code, you review it in Diffity and comment on lines, send the comments back, and the agent fixes each one." />
+  </div>
 </section>
+
+<script>
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-how-step]')) {
+    button.addEventListener('click', () => {
+      const scene = document.querySelector<HTMLElement & { v?: { def: { dur: number; steps?: number[] }; on: boolean; u: number; play: () => void } }>('stick-scene[scene="diffity-loop"]');
+      const view = scene?.v;
+      const start = view?.def.steps?.[Number(button.dataset.howStep)];
+      if (!view || start === undefined) {
+        return;
+      }
+      view.on = true;
+      view.u = start / view.def.dur;
+      view.play();
+    });
+  }
+</script>
+
+<style>
+  .how:has(:global(stick-scene[data-step='1']), :global(stick-scene[data-step='2']), :global(stick-scene[data-step='3']), :global(stick-scene[data-step='4'])) .how-step {
+    opacity: 0.45;
+  }
+  .how:has(:global(stick-scene[data-step='1'])) .how-step[data-i='1'],
+  .how:has(:global(stick-scene[data-step='2'])) .how-step[data-i='2'],
+  .how:has(:global(stick-scene[data-step='3'])) .how-step[data-i='3'],
+  .how:has(:global(stick-scene[data-step='4'])) .how-step[data-i='4'] {
+    opacity: 1;
+    border-color: var(--color-accent);
+  }
+</style>

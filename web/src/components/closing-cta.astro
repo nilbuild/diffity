@@ -4,10 +4,12 @@ import logo from '@/assets/logo.png';
 import ButtonLink from './ui/button-link.astro';
 import DownloadButtons from './download-buttons.astro';
 import OtherPlatforms from './other-platforms.astro';
+import SceneFrame from './ui/scene-frame.astro';
 import { LINKS } from '@/lib/links';
 ---
 
 <section class="flex flex-col items-start gap-4 border-b border-dashed border-line px-9 py-14 max-[900px]:px-5">
+  <SceneFrame scene="diffity-review" class="mb-2 w-full" label="Comment on a line, send it to the agent, it fixes the line and replies, you approve." />
   <Image src={logo} alt="" width={60} height={60} densities={[1, 2]} class="-ml-[5px]" />
   <h2 class="text-[32px] leading-[1.1] font-medium tracking-[-0.03em]">
     Free and open source. <span class="text-text-faint">Try it on your next diff.</span>

@@ -1,5 +1,6 @@
 ---
 import FeatureRow from './feature-row.astro';
+import SceneFrame from './ui/scene-frame.astro';
 import ScreenshotFrame from './ui/screenshot-frame.astro';
 import TerminalBlock from './terminal-block.astro';
 import { featureNumber, type Feature } from '@/data/features';
@@ -21,16 +22,17 @@ const { feature } = props;
   <p class="mb-[18px] ml-8 max-w-[600px] text-[14.5px] leading-[1.6] text-text-secondary max-[900px]:ml-0">{feature.lead}</p>
   {
     feature.rows && (
-      <div class:list={['ml-8 max-[900px]:ml-0', (feature.shot || feature.terminal) && 'mb-[22px]']}>
+      <div class:list={['ml-8 max-[900px]:ml-0', (feature.shot || feature.terminal || feature.scene) && 'mb-[22px]']}>
         {feature.rows.map((row) => (
           <FeatureRow row={row} />
         ))}
       </div>
     )
   }
+  {feature.scene && <SceneFrame scene={feature.scene.id} label={feature.scene.label} class:list={['ml-8 max-[900px]:ml-0', feature.terminal && 'mb-[22px]']} />}
   {feature.terminal && <TerminalBlock block={feature.terminal} />}
   {
-    feature.shot && (
+    feature.shot && !feature.scene && (
       <ScreenshotFrame>
         <img src={feature.shot.src} alt={feature.shot.alt} width="960" height="608" loading="lazy" decoding="async" />
       </ScreenshotFrame>

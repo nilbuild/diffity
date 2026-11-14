@@ -1,0 +1,16 @@
+---
+interface Props {
+  scene: string;
+  label: string;
+  play?: string;
+  class?: string;
+}
+
+const props = Astro.props;
+---
+
+<div class:list={['overflow-hidden rounded-[10px] border border-frame bg-white', props.class]}>
+  <stick-scene scene={props.scene} play={props.play ?? 'loop'} label={props.label} class="block h-[250px] w-full max-[900px]:h-[200px]"></stick-scene>
+</div>
+<script is:inline src={`/scenes/${props.scene}.js`} defer></script>
+

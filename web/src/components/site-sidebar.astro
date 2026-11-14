@@ -3,30 +3,28 @@ import { Image } from 'astro:assets';
 import logo from '@/assets/logo.png';
 import ButtonLink from './ui/button-link.astro';
 import DownloadButtons from './download-buttons.astro';
-import Eyebrow from './ui/eyebrow.astro';
 import Icon from './ui/icon.astro';
 import OtherPlatforms from './other-platforms.astro';
 import { FEATURES, featureNumber } from '@/data/features';
 import { LINKS } from '@/lib/links';
 
 const navItems = FEATURES.filter((feature) => feature.nav);
-const navLink = 'flex h-8 items-center gap-2.5 rounded-[7px] px-2 text-[13.5px] text-[#3a3a3a] hover:bg-fill hover:text-text';
+const navLink = 'flex h-[clamp(27px,3.5vh,32px)] shrink-0 items-center gap-2.5 rounded-[7px] px-2 text-[13px] text-[#3a3a3a] hover:bg-fill hover:text-text';
 ---
 
-<aside class="box-border flex flex-[0_0_272px] flex-col border-r border-dashed border-line px-[26px] pt-9 pb-7 max-[900px]:basis-full max-[900px]:border-r-0 max-[900px]:border-b min-[901px]:sticky min-[901px]:top-0 min-[901px]:h-dvh min-[901px]:self-start min-[901px]:overflow-y-auto">
-  <Image src={logo} alt="Diffity app icon" width={76} height={76} densities={[1, 2]} class="-ml-1.5" />
-  <div class="mt-3.5 text-[19px] font-medium tracking-[-0.02em]">Diffity<span class="text-text-faint"> for Mac and Linux</span></div>
-  <p class="mt-2 text-sm leading-[1.55] text-[#333]">Review code changes, yours or your agent's, the GitHub way. With Claude Code or Codex in the loop.</p>
+<aside class="box-border flex flex-[0_0_272px] flex-col border-r border-dashed border-line px-[26px] pt-[clamp(24px,4vh,40px)] pb-5 max-[900px]:basis-full max-[900px]:border-r-0 max-[900px]:border-b min-[901px]:sticky min-[901px]:top-0 min-[901px]:h-dvh min-[901px]:self-start min-[901px]:overflow-y-auto">
+  <Image src={logo} alt="Diffity app icon" width={52} height={52} densities={[1, 2]} class="-ml-1" />
+  <div class="mt-3.5 text-[18px] font-medium tracking-[-0.02em]">Diffity<span class="text-text-faint"> for Mac and Linux</span></div>
+  <p class="mt-1.5 text-[13.5px] leading-[1.5] text-[#333]">Review code changes, yours or your agent's, the GitHub way.</p>
 
-  <div class="mt-5 flex flex-col gap-2">
+  <div class="mt-[clamp(16px,2.6vh,24px)] flex flex-col gap-2">
     <DownloadButtons block />
     <ButtonLink href={LINKS.repo} variant="outline" icon="gitHub" block>View on GitHub</ButtonLink>
   </div>
-  <OtherPlatforms class="mt-2.5 text-center" />
+  <OtherPlatforms class="mt-2.5" />
 
-  <div class="mt-[26px] border-t border-dashed border-line pt-5">
-    <Eyebrow class="mb-2">Features</Eyebrow>
-    <nav class="flex flex-col gap-px" data-feature-nav>
+  <div class="mt-[clamp(16px,3.4vh,32px)]">
+    <nav class="flex flex-col" data-feature-nav>
       {
         navItems.map((feature, index) => (
           <a
@@ -34,7 +32,7 @@ const navLink = 'flex h-8 items-center gap-2.5 rounded-[7px] px-2 text-[13.5px] 
             data-active={index === 0 ? '' : undefined}
             class:list={[navLink, 'data-active:bg-fill data-active:font-medium data-active:text-text [&_svg]:text-text-faint']}
           >
-            {feature.nav && <Icon name={feature.nav.icon} size={15} />}
+            {feature.nav && <Icon name={feature.nav.icon} size={14} />}
             {feature.nav?.label}
             <span class="ml-auto font-mono text-[10.5px] text-text-faint">{featureNumber(feature)}</span>
           </a>
@@ -43,7 +41,7 @@ const navLink = 'flex h-8 items-center gap-2.5 rounded-[7px] px-2 text-[13.5px] 
     </nav>
   </div>
 
-  <div class="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-line pt-4 text-[12.5px] text-text-muted">
+  <div class="mt-auto flex items-center justify-between gap-2 border-t border-dashed border-line pt-3 text-[12.5px] text-text-muted">
     <span>Free and open source</span>
     <a href={LINKS.x} class="text-text-muted">@nilbuild</a>
   </div>

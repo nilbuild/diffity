@@ -81,6 +81,22 @@ export const GLYPHS = {
       knockout(id, '<path d="M7 9.25 9.75 12 7 14.75M12.5 15h4.5" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>') +
       `<rect mask="url(#${id})" x="2.5" y="4" width="19" height="16" rx="4"/>`,
   },
+  home: {
+    kind: 'soft',
+    body: (id) =>
+      knockout(id, '<rect x="10" y="14" width="4" height="9" rx="2" fill="#000"/>') +
+      `<path mask="url(#${id})" d="M3.5 10.4c0-.75.33-1.45.9-1.93l5.9-4.95a2.6 2.6 0 0 1 3.4 0l5.9 4.95c.57.48.9 1.18.9 1.93V18a3 3 0 0 1-3 3h-11a3 3 0 0 1-3-3z"/>`,
+  },
+  book: {
+    kind: 'soft',
+    body: () =>
+      '<path d="M2.5 5.6c0-.88.74-1.58 1.62-1.52 2.85.2 5.25.98 7.13 2.3V20.4c-1.9-1.22-4.3-1.92-7.18-2.08A1.6 1.6 0 0 1 2.5 16.73z"/>' +
+      '<path d="M21.5 5.6c0-.88-.74-1.58-1.62-1.52-2.85.2-5.25.98-7.13 2.3V20.4c1.9-1.22 4.3-1.92 7.18-2.08a1.6 1.6 0 0 0 1.57-1.6z"/>',
+  },
+  gitBranch: {
+    kind: 'soft',
+    body: () => strokePath('M7 8v8M17 8c0 5-10 3-10 8') + '<circle cx="7" cy="5.5" r="3"/><circle cx="7" cy="18.5" r="3"/><circle cx="17" cy="5.5" r="3"/>',
+  },
   plus: {
     kind: 'stroke',
     body: () => strokePath('M12 4.5v15M4.5 12h15'),
