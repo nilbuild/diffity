@@ -19,8 +19,9 @@
   const EFFORT = [4, 3, 2];
   const RAIL = { x0: -150, x1: 232, y: -176 };
   const PARK = -128;
-  const ME = -222;
-  const BOX = { x: -192, y: -112, w: 46, h: 44 };
+  const ME = -212;
+  const KMAX = 0.27;
+  const BOX = { x: -192, y: -104, w: 46, h: 44 };
   const SLIDER = (k) => [BOX.x + 8 + k * (BOX.w - 16), BOX.y + 9];
   const KNOB = [BOX.x + 12, BOX.y + 26];
 
@@ -152,9 +153,9 @@
         const turn = E.soft(seg(T, 2.4, 2.65)) * (1 - E.soft(seg(T, 3.6, 3.85)));
         const nod = E.soft(seg(T, 4.4, 4.6)) * (1 - E.soft(seg(T, 5.6, 5.9)));
         const slideBack = E.soft(seg(T, 6.2, 6.4)) * (1 - E.soft(seg(T, 7.2, 7.5)));
-        const sl = SLIDER(slideK);
+        const sl = SLIDER(Math.min(slideK, KMAX));
         const wob = Math.sin(t * 9) * 1.2;
-        pose = mix(pose, P({ hF: lp([sl[0], sl[1] + 1], ME, 0, 1), hB: [-4, -54], head: [9, -115], chest: [3, -90] }), Math.max(slide, slideBack));
+        pose = mix(pose, P({ hF: lp([sl[0], sl[1] + 1], ME, 0, 1), hB: [-4, -54], head: [9, -115], chest: [6, -89] }), Math.max(slide, slideBack));
         pose = mix(pose, P({ hF: lp([KNOB[0] + wob, KNOB[1] - 1], ME, 0, 1), hB: [-4, -54], head: [9, -114], chest: [3, -90] }), turn);
         pose = mix(pose, P({ hF: [16, -104], hB: [-4, -54], head: [8, -118] }), nod);
       }
@@ -184,7 +185,7 @@
         let bp = breathe(P({ hF: [10, -58], hB: [-6, -56], head: [3, -117] }), t + b.x);
         bp = mix(bp, P({ hF: [10, -58], hB: [-6, -56], head: [-1, -119] }), look);
         if (me && T >= 0) {
-          bp = mix(bp, P({ hF: [14, -132], hB: [-10, -130], head: [3, -118] }), E.back(seg(T, 3.7, 3.95)) * (1 - E.soft(seg(T, 5.0, 5.4))));
+          bp = mix(bp, P({ hF: [12, -127], hB: [-10, -128], head: [3, -118] }), E.back(seg(T, 3.7, 4.15)) * (1 - E.soft(seg(T, 5.0, 5.4))));
         }
         const glow = me ? Math.max(power, lit * 0.4) : 0;
         fig(g, bp, b.x, -8 - (me ? hop : 0), {

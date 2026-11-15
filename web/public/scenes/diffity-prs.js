@@ -17,7 +17,7 @@
   const NOTE_ROW = 3;
   const NOTE = [B.x + 10, LY(NOTE_ROW) - 1];
   const PW = { x: 116, y: -132, w: 112, h: 76 };
-  const HOME = -222, AT_MB = -190, AT_B = -114;
+  const HOME = -222, AT_MB = -186, AT_B = -104;
 
   function card(g, x, y, label, rot) {
     g.save();
@@ -185,10 +185,10 @@
         ];
         const ws = T < 1.2 ? walks[0] : T < 6.4 ? walks[1] : walks[2];
         x = ws.x;
-        gait = ws;
-        const card42 = [CARDS[1].x, MB.y - 10];
+        gait = ws.dir * 1 < 0 ? { ph: -ws.ph, amp: ws.amp, stride: ws.stride } : ws;
+        const card42 = [CARDS[1].x - 4, MB.y - 6];
         const reachK = E.soft(seg(T, 0.5, 0.8)) * (1 - E.soft(seg(T, 0.95, 1.2)));
-        pose = mix(pose, P({ hF: [(card42[0] - x) / 0.88, card42[1] / 0.88], hB: [-4, -54], head: [9, -114], chest: [3, -90] }), reachK);
+        pose = mix(pose, P({ hF: [(card42[0] - x) / 0.88, card42[1] / 0.88], hB: [-4, -54], head: [7, -115], chest: [5, -90] }), reachK);
         const carry = E.soft(seg(T, 1.0, 1.2)) * (1 - E.soft(seg(T, 2.0, 2.1)));
         pose = mix(pose, P({ hF: [26, -68], hB: [-4, -54], head: [6, -116] }), carry);
         const toss = E.soft(seg(T, 1.95, 2.1)) * (1 - E.soft(seg(T, 2.25, 2.5)));
@@ -197,7 +197,7 @@
         pose = mix(pose, P({ hF: [40, -100], hB: [-4, -54], head: [12, -117] }), look);
         const pin = E.soft(seg(T, 4.4, 4.7)) * (1 - E.soft(seg(T, 5.0, 5.3)));
         pose = mix(pose, P({ hF: [(NOTE[0] + 4 - x) / 0.88, (NOTE[1] + 2) / 0.88], hB: [-4, -54], head: [9, -114], chest: [3, -90] }), pin);
-        const cheer = E.back(seg(T, 5.5, 5.75)) * (1 - E.soft(seg(T, 6.1, 6.4)));
+        const cheer = E.back(seg(T, 5.5, 5.9)) * (1 - E.soft(seg(T, 6.1, 6.4)));
         pose = mix(pose, P({ hF: [14, -132], hB: [-10, -130], head: [3, -118] }), cheer);
 
         held = T >= 0.9 && T < 2.1;
@@ -212,7 +212,7 @@
         sayK = seg(T, 3.25, 3.4) * (1 - seg(T, 4.1, 4.25));
         niceK = seg(T, 5.55, 5.7) * (1 - seg(T, 6.3, 6.45));
       }
-      pose = legs(pose, gait.ph, gait.amp, { arms: false });
+      pose = legs(pose, gait.ph, gait.amp, { arms: false, stride: gait.stride });
 
       board(g, tagK, rowsK, noteK, 1);
       preview(g, runK, t);

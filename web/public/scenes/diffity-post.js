@@ -12,7 +12,8 @@
   const GH = [B.x + 120, LY(2)];
   const BOX = { x: 120, y: -134, w: 62, h: 42 };
   const SLOT = [BOX.x + 8, BOX.y + 16];
-  const HOME = -208, AT = B.x - 22;
+  const HOME = -208, AT = B.x - 14;
+  const HIT = [STAMP[0] - 26, STAMP[1] + 2];
   const VERDICTS = [
     { s: 'approved', ink: ADD_INK, fill: 'rgba(218,251,225,0.92)', w: 72 },
     { s: 'changes requested', ink: DEL_INK, fill: 'rgba(255,235,233,0.92)', w: 108 },
@@ -146,16 +147,16 @@
         fade = 1 - seg(T, this.dur - 0.5, this.dur);
         const ws = T < 4 ? walkSeg(T, 0, 0.5, HOME, AT) : walkSeg(T, 7.2, 7.8, AT, HOME);
         x = ws.x;
-        gait = ws;
-        const lift = E.soft(seg(T, 0.6, 0.9)) * (1 - E.soft(seg(T, 0.95, 1.02)));
-        const slam = E.in(seg(T, 0.95, 1.05)) * (1 - E.soft(seg(T, 1.3, 1.6)));
+        gait = ws.dir * 1 < 0 ? { ph: -ws.ph, amp: ws.amp, stride: ws.stride } : ws;
+        const lift = E.soft(seg(T, 0.6, 0.9)) * (1 - seg(T, 1.05, 1.12));
+        const slam = E.sm(seg(T, 0.88, 1.05)) * (1 - E.soft(seg(T, 1.3, 1.6)));
         const flick = E.soft(seg(T, 1.7, 1.9)) * (1 - E.soft(seg(T, 2.1, 2.4)));
         const watch = E.soft(seg(T, 2.4, 2.7)) * (1 - E.soft(seg(T, 4.6, 4.9)));
         const read = E.soft(seg(T, 4.9, 5.1)) * (1 - E.soft(seg(T, 5.3, 5.5)));
         const touch = E.soft(seg(T, 5.4, 5.7)) * (1 - E.soft(seg(T, 5.9, 6.2)));
-        const cheer = E.back(seg(T, 6.3, 6.55)) * (1 - E.soft(seg(T, 6.8, 7.1)));
-        pose = mix(pose, P({ hF: [22, -128], hB: [-4, -54], head: [6, -117] }), lift);
-        pose = mix(pose, P({ hF: lp(STAMP, x, 0, 1), hB: [-4, -54], head: [10, -113], chest: [4, -89] }), slam);
+        const cheer = E.back(seg(T, 6.3, 6.7)) * (1 - E.soft(seg(T, 6.8, 7.1)));
+        pose = mix(pose, P({ hF: [20, -121], hB: [-4, -54], head: [6, -117] }), lift);
+        pose = mix(pose, P({ hF: lp(HIT, x, 0, 1), hB: [-4, -54], head: [14, -112], chest: [8, -88] }), slam);
         pose = mix(pose, P({ hF: [40, -102], hB: [-4, -54], head: [10, -116] }), flick);
         pose = mix(pose, P({ hF: [12, -60], hB: [-4, -52], head: [12, -117] }), watch);
         pose = mix(pose, chin, read);
@@ -171,14 +172,17 @@
         tickK = seg(T, 5.6, 5.9) * fade;
         saidK = seg(T, 6.3, 6.45) * (1 - seg(T, 7.0, 7.2));
       }
-      pose = legs(pose, gait.ph, gait.amp, { arms: false });
+      pose = legs(pose, gait.ph, gait.amp, { arms: false, stride: gait.stride });
 
       board(g);
       sticky(g, NOTE[0] - 6, LY(2), 0.1, 1);
       mailbox(g, flagK, shake, v.ink);
-      fig(g, pose, x, 0, { wave: S.wave, wt: S.wt });
+      const J = fig(g, pose, x, 0, { wave: S.wave, wt: S.wt });
       text(g, 'you', HOME, 18, 10, C.muted);
       stamp(g, v, stampK);
+      if (stampK > 0) {
+        R.frontArm(g, J);
+      }
       if (sheetK > 0 && sheetK < 1) {
         const z = 1 - E.in(sheetK);
         g.save();

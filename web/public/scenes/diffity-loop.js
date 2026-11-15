@@ -323,7 +323,7 @@
         const look = E.soft(seg(T, 1.6, 1.9)) * (1 - E.soft(seg(T, 2.3, 2.45)));
         const flick = E.soft(seg(T, 6.95, 7.1)) * (1 - E.soft(seg(T, 7.25, 7.5)));
         const wait = E.soft(seg(T, 7.5, 7.8)) * (1 - E.soft(seg(T, 9.15, 9.3)));
-        const cheer = E.back(seg(T, 9.3, 9.55)) * (1 - E.soft(seg(T, 9.9, 10.2)));
+        const cheer = E.back(seg(T, 9.3, 9.7)) * (1 - E.soft(seg(T, 9.9, 10.2)));
         pose = mix(pose, P({ hF: [12, -60], hB: [-4, -52], head: [9, -117] }), look);
         pose = mix(pose, P({ hF: [30, -116], hB: [-16, -114], head: [0, -118], chest: [-3, -89] }), whoa);
         pose = mix(pose, P({ hF: [40, -100], hB: [-4, -54], head: [10, -116] }), flick);

@@ -14,7 +14,7 @@
   const ROWS = 7;
   const NOTE = { x: B.x + 14, y: LY(3) - 8, w: 48, h: 16 };
   const CARD = { x: B.x + 14, y: NOTE.y + NOTE.h + 3, w: 92, h: 22 };
-  const HOME = -222, AT = B.x - 28;
+  const HOME = -222, AT = B.x - 12;
 
   function board(g) {
     ln(g, B.x + 24, B.y + B.h, B.x + 12, 0, 2.2);
@@ -115,11 +115,11 @@
         const fade = 1 - seg(T, this.dur - 0.5, this.dur);
         const ws = T < 3 ? walkSeg(T, 0, 0.55, HOME, AT) : walkSeg(T, 5.4, 6.0, AT, HOME);
         x = ws.x;
-        gait = ws;
+        gait = ws.dir * 1 < 0 ? { ph: -ws.ph, amp: ws.amp, stride: ws.stride } : ws;
         const reach = E.soft(seg(T, 0.6, 0.85)) * (1 - E.soft(seg(T, 1.05, 1.3)));
         const read = E.soft(seg(T, 3.7, 3.95)) * (1 - E.soft(seg(T, 4.25, 4.45)));
         const nod = E.soft(seg(T, 4.45, 4.6)) * (1 - E.soft(seg(T, 4.75, 4.95)));
-        pose = mix(pose, P({ hF: lp([NOTE.x + 6, NOTE.y + 8], x, 0, 1), hB: [-4, -54], head: [9, -114], chest: [3, -90] }), reach);
+        pose = mix(pose, P({ hF: lp([NOTE.x + 2, NOTE.y + 8], x, 0, 1), hB: [-4, -54], head: [9, -114], chest: [4, -90] }), reach);
         pose = mix(pose, P({ hF: [12, -60], hB: [-4, -52], head: [11, -113], chest: [4, -89] }), read);
         pose = mix(pose, P({ hF: [12, -60], hB: [-4, -52], head: [9, -110] }), nod);
         noteK = seg(T, 0.8, 1.05) * fade;
@@ -133,7 +133,7 @@
         look = E.soft(seg(T, 1.8, 2.1)) * (1 - E.soft(seg(T, 3.7, 4.0)));
         thanks = seg(T, 4.5, 4.65) * (1 - seg(T, 5.3, 5.45));
       }
-      pose = legs(pose, gait.ph, gait.amp, { arms: false });
+      pose = legs(pose, gait.ph, gait.amp, { arms: false, stride: gait.stride });
 
       plant(g, 92, t);
       board(g);
@@ -175,7 +175,7 @@
       }
       sparks(g, b.x, -150, seg(T, 1.8, 2.3), 12, 6, C.amber);
       bubble(g, b.x - 16, -138, 'hmm…', hmm, { tail: 10, size: 8.5 });
-      bubble(g, x - 4, -142, 'ah, thanks!', thanks, { tail: 8, size: 8.5 });
+      bubble(g, x - 20, -142, 'ah, thanks!', thanks, { tail: 18, size: 8.5 });
     },
   };
 })();

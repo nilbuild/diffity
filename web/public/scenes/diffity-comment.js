@@ -141,13 +141,13 @@
       let selTo = S0, selK = 0, writeK = 0, cardK = 0, pressK = 0, noteK = 0, morph = 0, fade = 1;
       const twirl = pulse(t, 6, 2.5, 1.2);
       const chin = P({ hF: [10, -96], head: [7, -116], hB: [-4, -54] });
-      if (T < 0) {
-        pose = mix(pose, chin, pulse(t, 6, 4.2, 1.6));
-      } else {
+      const idleK = T < 0 ? 1 : 1 - E.soft(seg(T, 0, 0.4));
+      pose = mix(pose, chin, pulse(t, 6, 4.2, 1.6) * idleK);
+      if (T >= 0) {
         fade = 1 - seg(T, this.dur - 0.5, this.dur);
         const ws = T < 3 ? walkSeg(T, 0, 0.6, HOME, AT) : walkSeg(T, 5.6, 6.3, AT, HOME);
         x = ws.x;
-        gait = ws;
+        gait = ws.dir * 1 < 0 ? { ph: -ws.ph, amp: ws.amp, stride: ws.stride } : ws;
         const gut = B.x + 11;
         const drag = E.soft(seg(T, 1.0, 1.8));
         const toCard = E.soft(seg(T, 2.1, 2.35));
@@ -181,13 +181,13 @@
         const hand = [tip[0] - dir[0] * (PEN - 2), tip[1] - dir[1] * (PEN - 2)];
         pose = mix(pose, P({ hF: R.lp(hand, x, 0, 1), hB: [-4, -54], head: [9, -114], chest: [3, -90] }), aim);
       }
-      pose = legs(pose, gait.ph, gait.amp, { arms: false });
+      pose = legs(pose, gait.ph, gait.amp, { arms: false, stride: gait.stride });
 
       plant(g, 188, t);
       board(g, selTo, selK, writeK, cardK, pressK, noteK, morph);
       const J = fig(g, pose, x, 0, { wave: S.wave, wt: S.wt });
       const hand = J.w.handF;
-      let ang = -1.15 + Math.sin(twirl * Math.PI * 2) * 0.5 * (T < 0 ? 1 : 0);
+      let ang = -1.15 + Math.sin(twirl * Math.PI * 2) * 0.5 * idleK;
       if (tip && aim > 0) {
         const a2 = Math.atan2(tip[1] - hand[1], tip[0] - hand[0]);
         ang = lerp(ang, a2, aim);

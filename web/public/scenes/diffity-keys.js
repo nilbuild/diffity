@@ -149,14 +149,14 @@
         const fade = 1 - seg(T, this.dur - 0.5, this.dur);
         const ws = T < 3 ? walkSeg(T, 0, 0.5, HOME, AT) : walkSeg(T, 5.6, 6.2, AT, HOME);
         x = ws.x;
-        gait = ws;
-        const lift = E.soft(seg(T, 0.55, 0.85)) * (1 - E.soft(seg(T, 0.88, 0.96)));
-        const stomp = E.in(seg(T, 0.88, 0.96)) * (1 - E.soft(seg(T, 1.2, 1.45)));
+        gait = ws.dir * 1 < 0 ? { ph: -ws.ph, amp: ws.amp, stride: ws.stride } : ws;
+        const lift = E.soft(seg(T, 0.55, 0.85)) * (1 - seg(T, 0.96, 1.04));
+        const stomp = E.sm(seg(T, 0.82, 0.96)) * (1 - E.soft(seg(T, 1.2, 1.45)));
         const watch = E.soft(seg(T, 1.4, 1.6)) * (1 - E.soft(seg(T, 3.9, 4.1)));
         const point = E.soft(seg(T, 2.5, 2.7)) * (1 - E.soft(seg(T, 3.2, 3.4)));
-        const cheer = E.back(seg(T, 4.2, 4.45)) * (1 - E.soft(seg(T, 4.9, 5.2)));
-        pose = mix(pose, P({ fF: [22, -40], kF: [26, -52], hF: [16, -78], hB: [-14, -74], head: [6, -117] }), lift);
-        pose = mix(pose, P({ fF: [24, -22], kF: [26, -44], hF: [18, -70], hB: [-14, -70], head: [7, -115], chest: [2, -88], hip: [2, -50] }), stomp);
+        const cheer = E.back(seg(T, 4.2, 4.6)) * (1 - E.soft(seg(T, 4.9, 5.2)));
+        pose = mix(pose, P({ fF: [22, -40], kF: [26, -52], hF: [16, -78], hB: [-3, -56], head: [6, -117] }), lift);
+        pose = mix(pose, P({ fF: [24, -22], kF: [26, -44], hF: [18, -70], hB: [-3, -54], head: [7, -115], chest: [2, -88], hip: [2, -50] }), stomp);
         pose = mix(pose, P({ hF: [12, -60], hB: [-4, -52], head: [12, -118] }), watch);
         pose = mix(pose, P({ hF: [40, -104], hB: [-4, -54], head: [10, -117] }), point);
         pose = mix(pose, P({ hF: [14, -132], hB: [-10, -130], head: [3, -118] }), cheer);
@@ -173,7 +173,7 @@
         jumped = T > 3.6 && T < 6.6;
         saidK = seg(T, 4.25, 4.4) * (1 - seg(T, 5.0, 5.2));
       }
-      pose = legs(pose, gait.ph, gait.amp, { arms: false });
+      pose = legs(pose, gait.ph, gait.amp, { arms: false, stride: gait.stride });
 
       stand(g);
       board(g, jumped ? v.file : 'store.ts', scroll, speed, hiK);

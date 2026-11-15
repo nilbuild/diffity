@@ -170,10 +170,10 @@
         mergeK = seg(T, 7.9, 8.0) * fade;
         label1 = mergeK > 0.5 ? 'merged' : T >= 4.8 && T < 7.9 ? 'round 2' : 'login';
         const reach = E.soft(seg(T, 0.0, 0.25)) * (1 - E.soft(seg(T, 0.55, 0.8)));
-        const flick = E.soft(seg(T, 3.15, 3.3)) * (1 - E.soft(seg(T, 3.5, 3.75)));
-        const chin = E.soft(seg(T, 2.9, 3.1)) * (1 - E.soft(seg(T, 3.15, 3.25)));
+        const flick = E.soft(seg(T, 3.12, 3.3)) * (1 - E.soft(seg(T, 3.5, 3.75)));
+        const chin = E.soft(seg(T, 2.9, 3.1)) * (1 - seg(T, 3.3, 3.4));
         const send = E.soft(seg(T, 4.05, 4.2)) * (1 - E.soft(seg(T, 4.4, 4.6)));
-        const cheer = E.back(seg(T, 7.15, 7.4)) * (1 - E.soft(seg(T, 8.2, 8.5)));
+        const cheer = E.back(seg(T, 7.15, 7.55)) * (1 - E.soft(seg(T, 8.2, 8.5)));
         pose = mix(pose, P({ hF: R.lp([KEY.x - 2, KEY.y - 10 + press * 4], ME, 0, 1), hB: [-4, -54], head: [9, -114], chest: [3, -90] }), reach);
         pose = mix(pose, P({ hF: [10, -96], head: [8, -118], hB: [-4, -54] }), chin);
         pose = mix(pose, P({ hF: [34, -112], hB: [-4, -54], head: [10, -118] }), Math.max(flick, send));
@@ -202,11 +202,11 @@
           continue;
         }
         let bp = breathe(typePose(t + i, working), t + i * 1.7);
-        const thinking = i === 2 ? think3 : i === 0 ? think1 : 0;
+        const thinking = T < 0 ? 0 : i === 2 ? E.soft(seg(T, 0.95, 1.25)) * (1 - E.soft(seg(T, 1.75, 2.05))) : i === 0 ? E.soft(seg(T, 4.75, 5.05)) * (1 - E.soft(seg(T, 5.35, 5.65))) : 0;
         bp = mix(bp, P({ hF: [10, -96], hB: [20, -56], head: [6, -118] }), thinking);
         if (i === 0 && T >= 0) {
-          const yay = E.back(seg(T, 2.4, 2.6)) * (1 - E.soft(seg(T, 3.2, 3.5))) + E.back(seg(T, 7.9, 8.1)) * (1 - E.soft(seg(T, 8.8, 9.1)));
-          bp = mix(bp, P({ hF: [14, -132], hB: [-10, -130], head: [3, -118] }), Math.min(1, yay));
+          const yay = E.back(seg(T, 2.4, 2.8)) * (1 - E.soft(seg(T, 3.2, 3.5))) + E.back(seg(T, 7.9, 8.3)) * (1 - E.soft(seg(T, 8.8, 9.1)));
+          bp = mix(bp, P({ hF: [12, -127], hB: [-10, -128], head: [3, -118] }), Math.min(1, yay));
         }
         glyphs(g, bx - 30, working ? 1 : 0, t + i * 0.3);
         const lift = i === 2 ? drop * 60 : 0;

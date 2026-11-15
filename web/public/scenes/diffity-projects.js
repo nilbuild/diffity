@@ -185,12 +185,12 @@
       } else {
         const fade = seg(T, this.dur - 0.5, this.dur);
         const sel = v.open ? 1.9 : 1.05;
-        const lift = E.soft(seg(T, 0.35, 0.75)) * (1 - E.soft(seg(T, 0.8, 0.88)));
-        const slam = E.in(seg(T, 0.8, 0.9)) * (1 - E.soft(seg(T, 1.1, 1.35)));
+        const lift = E.soft(seg(T, 0.35, 0.75)) * (1 - seg(T, 0.9, 0.98));
+        const slam = E.sm(seg(T, 0.73, 0.9)) * (1 - E.soft(seg(T, 1.1, 1.35)));
         const look = E.soft(seg(T, 1.3, 1.6)) * (1 - E.soft(seg(T, sel + 0.6, sel + 0.8)));
-        const cheer = E.back(seg(T, sel + 0.75, sel + 1.0)) * (1 - E.soft(seg(T, sel + 1.4, sel + 1.7)));
+        const cheer = E.back(seg(T, sel + 0.75, sel + 1.15)) * (1 - E.soft(seg(T, sel + 1.4, sel + 1.7)));
         cheerK = cheer;
-        pose = mix(pose, P({ hF: [22, -128], hB: [-4, -54], head: [6, -117] }), lift);
+        pose = mix(pose, P({ hF: [20, -121], hB: [-4, -54], head: [6, -117] }), lift);
         pose = mix(pose, P({ hF: lp([KEY[0], KEY[1] - 12], ME, 0, 1), hB: [-4, -54], head: [10, -113], chest: [4, -89] }), slam);
         pose = mix(pose, P({ hF: [12, -62], hB: [-4, -52], head: [10, -118] }), look);
         pose = mix(pose, P({ hF: [14, -132], hB: [-10, -130], head: [3, -118] }), cheer);

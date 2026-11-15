@@ -185,11 +185,11 @@
         pose = mix(pose, chin, pulse(t, 5.5, 2, 2.2));
       } else {
         fade = 1 - seg(T, this.dur - 0.5, this.dur);
-        const lift = E.soft(seg(T, 0.25, 0.55)) * (1 - E.soft(seg(T, 0.6, 0.7)));
-        const slam = E.in(seg(T, 0.6, 0.72)) * (1 - E.soft(seg(T, 0.95, 1.2)));
+        const lift = E.soft(seg(T, 0.25, 0.55)) * (1 - seg(T, 0.72, 0.8));
+        const slam = E.sm(seg(T, 0.56, 0.72)) * (1 - E.soft(seg(T, 0.95, 1.2)));
         const wait = E.soft(seg(T, 1.3, 1.6)) * (1 - E.soft(seg(T, 5.4, 5.6)));
-        const cheer = E.back(seg(T, 5.6, 5.85)) * (1 - E.soft(seg(T, 6.4, 6.7)));
-        pose = mix(pose, P({ hF: [22, -126], hB: [-4, -54], head: [6, -117] }), lift);
+        const cheer = E.back(seg(T, 5.6, 6.0)) * (1 - E.soft(seg(T, 6.4, 6.7)));
+        pose = mix(pose, P({ hF: [20, -121], hB: [-4, -54], head: [6, -117] }), lift);
         pose = mix(pose, P({ hF: lp([BTN[0], BTN[1] - 6], ME, 0, 1), hB: [-4, -54], head: [9, -112], chest: [4, -88] }), slam);
         pose = mix(pose, chin, wait);
         pose = mix(pose, P({ hF: [14, -132], hB: [-10, -130], head: [3, -118] }), cheer);

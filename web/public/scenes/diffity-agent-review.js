@@ -11,7 +11,7 @@
   const KINDS = ['ctx', 'del', 'add', 'ctx', 'add', 'del', 'add'];
   const PICKS = [1, 3, 5];
   const noteAt = (i) => [B.x + 34, LY(PICKS[i]) - 1];
-  const ME = -200, BOT_HOME = 206, BOT_AT = 124;
+  const ME = -200, BOT_HOME = 206, BOT_AT = 118;
   const SCAN = [2.4, 5.0];
   const rowTime = (r) => lerp(SCAN[0], SCAN[1], r / 5);
 
@@ -159,16 +159,18 @@
       let noteKs = [0, 0, 0];
       let askK = 0, sureK = 0, niceK = 0;
       const chin = P({ hF: [10, -96], head: [7, -116], hB: [-4, -54] });
+      const idleK = T < 0 ? 1 : 1 - E.soft(seg(T, 0, 0.4));
+      ap = mix(ap, chin, pulse(t, 7, 3.5, 1.8) * idleK);
       if (T < 0) {
         const bob = myTyping > 0.3 ? Math.sin(t * 24) * 2.2 : 0;
         pose = breathe(P({ hF: [24, -58 + bob], hB: [20, -56 - bob], head: [5, -116] }), t);
         pose = mix(pose, chin, pulse(t, 6.5, 1.2, 2));
-        ap = mix(ap, chin, pulse(t, 7, 3.5, 1.8));
       } else {
         fade = 1 - seg(T, this.dur - 0.5, this.dur);
         myTyping = E.soft(seg(T, 0.05, 0.2)) * (1 - E.soft(seg(T, 0.7, 0.85)));
         const bob = myTyping > 0.3 ? Math.sin(t * 24) * 2.2 : 0;
         pose = breathe(P({ hF: [24, -58 + bob], hB: [20, -56 - bob], head: [5, -116] }), t);
+        pose = mix(pose, chin, pulse(t, 6.5, 1.2, 2) * idleK);
         const ask = E.soft(seg(T, 0.8, 1.0)) * (1 - E.soft(seg(T, 1.5, 1.7)));
         pose = mix(pose, P({ hF: [40, -100], hB: [-4, -54], head: [10, -116] }), ask);
         sipK = E.soft(seg(T, 2.0, 2.4)) * (1 - E.soft(seg(T, 5.3, 5.6)));
@@ -179,7 +181,7 @@
 
         const ws = T < 4 ? walkSeg(T, 1.6, 2.3, BOT_HOME, BOT_AT) : walkSeg(T, 5.4, 6.1, BOT_AT, BOT_HOME);
         bx = ws.x;
-        bgait = ws;
+        bgait = ws.dir * -1 < 0 ? { ph: -ws.ph, amp: ws.amp, stride: ws.stride } : ws;
         lensK = seg(T, 1.3, 1.6) * (1 - seg(T, 6.1, 6.4));
         const hold = E.soft(seg(T, 1.3, 1.6)) * (1 - E.soft(seg(T, 6.0, 6.3)));
         ap = mix(ap, P({ hF: [22, -86], hB: [-4, -54], head: [6, -117] }), hold);
@@ -189,7 +191,9 @@
           lensY = lerp(LY(0), LY(5), v);
           const wig = Math.sin(T * 9) * 4;
           const target = [B.x + B.w - 38 + wig, lensY + 11];
-          const local = [(bx - target[0]) / 0.88, target[1] / 0.88];
+          const aim = [(bx - target[0]) / 0.88, target[1] / 0.88];
+          const ad = Math.hypot(aim[0] - 4, aim[1] + 88);
+          const local = ad > 38 ? [4 + ((aim[0] - 4) / ad) * 38, -88 + ((aim[1] + 88) / ad) * 38] : aim;
           ap = mix(ap, P({ hF: local, hB: [-4, -54], head: [9, -114], chest: [4, -89] }), scanK);
           if (scanK < 0.9) {
             lensY = null;
@@ -207,7 +211,7 @@
 
       board(g, noteKs, lensY);
       desk(g, ME, -1, myTyping, t + 0.4, sipK < 0.05);
-      ap = legs(ap, bgait.ph, bgait.amp, { arms: false });
+      ap = legs(ap, bgait.ph, bgait.amp, { arms: false, stride: bgait.stride });
       const blink = pulse(t, 4.3, 1.2, 0.15) > 0.5;
       const J = fig(g, ap, bx, 0, { sx: -1, ink: AGENT, far: '#e8b7a3', bot: botStyle(glow, blink) });
       lens(g, J.w.handF, lensK);

@@ -183,7 +183,7 @@
           const a = STEP_AT[i];
           const k = E.soft(seg(T, a - 0.35, a)) * (i === 3 ? 1 - E.soft(seg(T, 7.2, 7.6)) : 1);
           if (T >= a - 0.35) {
-            const prev = i === 0 ? idleTip : [BOXES[i - 1].c[0] - 12, BOXES[i - 1].c[1] + 6];
+            const prev = i === 0 ? target : [BOXES[i - 1].c[0] - 12, BOXES[i - 1].c[1] + 6];
             const to = [BOXES[i].c[0] - 12, BOXES[i].c[1] + 6];
             target = [lerp(prev[0], to[0], k), lerp(prev[1], to[1], k)];
             if (i === 3 && T > 7.2) {
@@ -191,7 +191,7 @@
             }
             w = Math.max(w, i === 0 ? k : 1);
             if (i === 3) {
-              w = k;
+              w = 1 - E.soft(seg(T, 7.2, 7.6));
             }
           }
           lit[i] = seg(T, a, a + 0.15) * (1 - seg(T, a + 1.3, a + 1.4)) * fade;
@@ -221,7 +221,10 @@
         saidGot = seg(T, 7.5, 7.65) * (1 - seg(T, 8.6, 8.8));
         botSaid = seg(T, 2.0, 2.15) * (1 - seg(T, 3.0, 3.15));
         happy = T > 7.5 && T < 8.8;
-        const reach = P({ hF: lp(target, BOT, 0, 1), hB: [-4, -54], head: [9, -115], chest: [3, -90] });
+        const aim = lp(target, BOT, 0, 1);
+        const ad = Math.hypot(aim[0] - 3, aim[1] + 89);
+        const hand = ad > 38 ? [3 + ((aim[0] - 3) / ad) * 38, -89 + ((aim[1] + 89) / ad) * 38] : aim;
+        const reach = P({ hF: hand, hB: [-4, -54], head: [9, -115], chest: [3, -90] });
         bp = mix(bp, reach, w * 0.85);
       }
       const band = S.st.band || [LY(1), LY(2)];

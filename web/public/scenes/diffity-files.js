@@ -11,7 +11,7 @@
   const LY = (i) => B.y + 32 + i * 12;
   const ROWS = 6;
   const NOTE = [B.x + 8, LY(3) - 1];
-  const ME = -116;
+  const ME = -116, AT_CAB = -128;
 
   function cabinet(g, out) {
     rr(g, CAB.x, CAB.y, CAB.w, CAB.h, 3);
@@ -170,6 +170,7 @@
       const T = S.on ? S.u * this.dur : -1;
       const t = S.t;
       let pose = breathe(P({ hF: [12, -60], hB: [-4, -52] }), t);
+      let x = ME, gait = { ph: 0, amp: 0 };
       let sx = 1, out = 0, held = 0, flyK = 0, filesK = 0, scroll = 0, speed = 0, noteK = 0, saidK = 0;
       const chin = P({ hF: [10, -96], head: [7, -116], hB: [-4, -54] });
       if (T < 0) {
@@ -177,17 +178,20 @@
       } else {
         const fade = 1 - seg(T, this.dur - 0.5, this.dur);
         sx = T > 0.25 && T < 1.55 ? -1 : 1;
-        const handle = [CAB.x + CAB.w / 2 + out * 18, CAB.y + 4 + 31 + 19];
+        const ws = T < 0.9 ? walkSeg(T, 0.25, 0.55, ME, AT_CAB) : walkSeg(T, 1.25, 1.55, AT_CAB, ME);
+        x = ws.x;
+        gait = ws.dir * sx < 0 ? { ph: -ws.ph, amp: ws.amp, stride: ws.stride } : ws;
+        const handle = [CAB.x + CAB.w - 6 + out * 18, CAB.y + 4 + 31 + 12];
         out = E.soft(seg(T, 0.55, 0.95)) * (1 - E.soft(seg(T, 1.6, 1.95)));
-        handle[0] = CAB.x + CAB.w / 2 + out * 18;
+        handle[0] = CAB.x + CAB.w - 6 + out * 18;
         const pull = E.soft(seg(T, 0.3, 0.55)) * (1 - E.soft(seg(T, 0.95, 1.1)));
         const pick = E.soft(seg(T, 1.0, 1.2)) * (1 - E.soft(seg(T, 1.45, 1.6)));
         const toss = E.soft(seg(T, 1.6, 1.75)) * (1 - E.soft(seg(T, 1.9, 2.2)));
         const watch = E.soft(seg(T, 2.3, 2.5)) * (1 - E.soft(seg(T, 3.7, 3.9)));
         const reach = E.soft(seg(T, 4.0, 4.3)) * (1 - E.soft(seg(T, 4.6, 4.9)));
-        const cheer = E.back(seg(T, 5.0, 5.25)) * (1 - E.soft(seg(T, 5.6, 5.9)));
-        pose = mix(pose, P({ hF: lp(handle, ME, 0, -1), hB: [-4, -54], head: [9, -114], chest: [3, -90] }), pull);
-        pose = mix(pose, P({ hF: lp([CAB.x + 30 + out * 18, CAB.y + 28], ME, 0, -1), hB: [-4, -54], head: [9, -114], chest: [3, -90] }), pick);
+        const cheer = E.back(seg(T, 5.0, 5.4)) * (1 - E.soft(seg(T, 5.6, 5.9)));
+        pose = mix(pose, P({ hF: lp(handle, x, 0, -1), hB: [-4, -52], head: [14, -109], chest: [8, -86], hip: [-1, -58] }), pull);
+        pose = mix(pose, P({ hF: lp([CAB.x + 30 + out * 18, CAB.y + 28], x, 0, -1), hB: [-4, -54], head: [9, -114], chest: [3, -90] }), pick);
         pose = mix(pose, P({ hF: [40, -104], hB: [-4, -54], head: [10, -116] }), toss);
         pose = mix(pose, P({ hF: [12, -60], hB: [-4, -52], head: [11, -118] }), watch);
         pose = mix(pose, P({ hF: lp([NOTE[0] + 4, NOTE[1] + 2], ME, 0, 1), hB: [-4, -54], head: [9, -114], chest: [3, -90] }), reach);
@@ -208,8 +212,9 @@
       header(g, filesK, filesK > 0.5 ? 'utils/date.ts' : '');
       diffRows(g, 1 - filesK);
       fileRows(g, filesK, scroll, speed);
-      const J = fig(g, pose, ME, 0, { sx, wave: S.wave, wt: S.wt });
-      text(g, 'you', ME, 18, 10, C.muted);
+      pose = legs(pose, gait.ph, gait.amp, { arms: false, stride: gait.stride });
+      const J = fig(g, pose, x, 0, { sx, wave: S.wave, wt: S.wt });
+      text(g, 'you', x, 18, 10, C.muted);
       if (held) {
         folder(g, J.w.handF[0], J.w.handF[1] - 6, -0.1, 1);
       }

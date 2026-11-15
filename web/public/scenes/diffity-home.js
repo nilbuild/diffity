@@ -171,7 +171,7 @@
       } else {
         const ws = T < 5 ? walkSeg(T, 1.9, 2.6, HOME, AT) : walkSeg(T, 7.0, 7.7, AT, HOME);
         x = ws.x;
-        gait = ws;
+        gait = ws.dir * 1 < 0 ? { ph: -ws.ph, amp: ws.amp, stride: ws.stride } : ws;
         bump = Math.sin(Math.PI * seg(T, 0.05, 0.45));
         enter = E.out3(seg(T, 0.3, 0.8));
         rise = E.soft(seg(T, 1.0, 1.6));
@@ -190,11 +190,13 @@
         const pin = E.soft(seg(T, 4.45, 4.7)) * (1 - E.soft(seg(T, 4.9, 5.15)));
         pose = mix(pose, sip, Math.min(1, sipK));
         pose = mix(pose, P({ hF: [12, -60], hB: [6, -62], head: [11, -119] }), look);
-        pose = mix(pose, P({ hF: lp([B.x + 20, SLOT(0) + 10], x, 0, 1), hB: [6, -62], head: [10, -118], chest: [3, -90] }), tap);
+        const card = lp([B.x + 20, SLOT(0) + 10], x, 0, 1);
+        const dir = Math.atan2(card[1] + 89, card[0] - 3);
+        pose = mix(pose, P({ hF: [3 + Math.cos(dir) * 40, -89 + Math.sin(dir) * 40], hB: [6, -62], head: [10, -118], chest: [3, -90] }), tap);
         pose = mix(pose, P({ hF: [10, -96], hB: [6, -62], head: [9, -116] }), read);
         pose = mix(pose, P({ hF: lp([B.x + 14, B.y + 26 + NOTE_ROW * 12.5 + 1], x, 0, 1), hB: [6, -62], head: [9, -114], chest: [3, -90] }), pin);
       }
-      pose = legs(pose, gait.ph, gait.amp, { arms: false });
+      pose = legs(pose, gait.ph, gait.amp, { arms: false, stride: gait.stride });
 
       const list = [];
       CARDS.forEach((c, i) => {

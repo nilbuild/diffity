@@ -213,11 +213,11 @@
 
         const w1 = walkSeg(T, 2.0, 2.7, HOME, AT_SHELF);
         const w2 = walkSeg(T, 3.3, 4.3, AT_SHELF, AT_BOARD);
-        const w3 = walkSeg(T, 7.0, 8.4, AT_BOARD, HOME);
+        const w3 = walkSeg(T, 6.95, 8.55, AT_BOARD, HOME);
         const ws = T < 3.0 ? w1 : T < 6.0 ? w2 : w3;
         x = ws.x;
         gait = ws;
-        if (T >= 7.0 && T < 8.4) {
+        if (T >= 6.95 && T < 8.55) {
           face = -1;
         }
 
@@ -250,7 +250,7 @@
           pickedA = seg(T, 7.1, 7.5);
         }
       }
-      pose = legs(pose, gait.ph, gait.amp, { arms: false });
+      pose = legs(pose, gait.ph, gait.amp, { arms: false, stride: gait.stride });
       setStep(g, step);
 
       stool(g);

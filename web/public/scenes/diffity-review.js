@@ -135,13 +135,13 @@
         ];
         const ws = T < 1.8 ? segs[0] : T < 4.6 ? segs[1] : T < 6.2 ? segs[2] : segs[3];
         x = ws.x;
-        gait = ws;
+        gait = ws.dir * 1 < 0 ? { ph: -ws.ph, amp: ws.amp, stride: ws.stride } : ws;
         const reachNote = E.soft(seg(T, 0.5, 0.85)) * (1 - E.soft(seg(T, 1.05, 1.3)));
         const flick = E.soft(seg(T, 1.25, 1.45)) * (1 - E.soft(seg(T, 1.6, 1.9)));
         const wait = E.soft(seg(T, 2.3, 2.6)) * (1 - E.soft(seg(T, 4.4, 4.6)));
-        const lift = E.soft(seg(T, 5.05, 5.3)) * (1 - E.soft(seg(T, 5.35, 5.42)));
-        const slam = E.in(seg(T, 5.32, 5.42)) * (1 - E.soft(seg(T, 5.6, 5.85)));
-        const cheer = E.back(seg(T, 5.6, 5.85)) * (1 - E.soft(seg(T, 6.0, 6.25)));
+        const lift = E.soft(seg(T, 5.05, 5.3)) * (1 - seg(T, 5.42, 5.5));
+        const slam = E.sm(seg(T, 5.27, 5.42)) * (1 - E.soft(seg(T, 5.6, 5.85)));
+        const cheer = E.back(seg(T, 5.6, 6.0)) * (1 - E.soft(seg(T, 6.05, 6.3)));
         pose = mix(pose, P({ hF: lp([NOTE[0] + 4, NOTE[1] + 2], x, 0, 1), hB: [-4, -54], head: [9, -114], chest: [3, -90] }), reachNote);
         pose = mix(pose, P({ hF: [40, -100], hB: [-4, -54], head: [10, -116] }), flick);
         pose = mix(pose, chin, wait);
@@ -161,7 +161,7 @@
           dropK = 0;
         }
       }
-      pose = legs(pose, gait.ph, gait.amp, { arms: false });
+      pose = legs(pose, gait.ph, gait.amp, { arms: false, stride: gait.stride });
 
       board(g, fixK, dropK, stampK);
       desk(g, typing, t);

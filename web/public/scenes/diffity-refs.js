@@ -157,7 +157,7 @@
         ];
         const ws = T < 1.4 ? walks[0] : T < 6.0 ? walks[1] : walks[2];
         x = ws.x;
-        gait = ws;
+        gait = ws.dir * 1 < 0 ? { ph: -ws.ph, amp: ws.amp, stride: ws.stride } : ws;
         const dragK = E.soft(seg(T, 1.4, 2.6));
         const back = E.soft(seg(T, this.dur - 0.9, this.dur - 0.2));
         L = lerp(lerp(L0, La, dragK), L0, back);
@@ -166,7 +166,7 @@
         pose = mix(pose, P({ hF: [(L - x) / 0.88 + 2, RY / 0.88], hB: [-4, -54], head: [9, -114], chest: [3, -90] }), grab);
         const point = E.soft(seg(T, 2.9, 3.1)) * (1 - E.soft(seg(T, 3.5, 3.7)));
         pose = mix(pose, P({ hF: [40, -100], hB: [-4, -54], head: [10, -116] }), point);
-        const nod = E.back(seg(T, 4.2, 4.45)) * (1 - E.soft(seg(T, 5.2, 5.5)));
+        const nod = E.back(seg(T, 4.2, 4.6)) * (1 - E.soft(seg(T, 5.2, 5.5)));
         pose = mix(pose, P({ hF: [14, -132], hB: [-10, -130], head: [3, -118] }), nod);
         glow = seg(T, 2.6, 2.8) * (1 - seg(T, 3.6, 4.2));
         cardK = seg(T, 3.0, 3.6);
@@ -185,7 +185,7 @@
         }
         sayK = seg(T, 4.2, 4.35) * (1 - seg(T, 5.4, 5.6));
       }
-      pose = legs(pose, gait.ph, gait.amp, { arms: false });
+      pose = legs(pose, gait.ph, gait.amp, { arms: false, stride: gait.stride });
 
       board(g, state, sy);
       rail(g, L, Rr, t);
