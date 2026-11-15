@@ -1,4 +1,4 @@
-/* stick-scenes runtime: the rig (figure, poses, easing, pen), a kit of props, and the <stick-scene> element. No dependencies. */
+/* stick-scene runtime: the rig (figure, poses, easing, pen), a kit of props, and the <stick-scene> element. No dependencies. */
 (function () {
   const C = {
     ink: '#141414', far: '#9a9a9a', muted: '#737373', soft: '#a3a3a3', faint: '#d4d4d4', line: '#ededed', paper: '#ffffff', floor: '#fafafa',
@@ -23,7 +23,10 @@
     in: (k) => k * k,
     out: (k) => 1 - (1 - k) * (1 - k),
     out3: (k) => 1 - Math.pow(1 - k, 3),
-    back: (k) => 1 + 2.4 * Math.pow(k - 1, 3) + 1.4 * Math.pow(k - 1, 2),
+    back: (k) => {
+      const m = k * k * (2 - k);
+      return 1 + 2.4 * Math.pow(m - 1, 3) + 1.4 * Math.pow(m - 1, 2);
+    },
     sm: (k) => k * k * (3 - 2 * k),
   };
   const WOB = Array.from({ length: 512 }, (_, i) => Math.sin(i * 0.37) * 0.35 + Math.sin(i * 1.71 + 1) * 0.22);
@@ -50,6 +53,30 @@
     }
     return r;
   }
+  // Hands swing around the shoulder on big moves instead of sliding through the body.
+  function armArc(a, b, ca, cb, k) {
+    const straight = L2(a, b, k);
+    const va = [a[0] - ca[0], a[1] - ca[1]], vb = [b[0] - cb[0], b[1] - cb[1]];
+    const ra = Math.hypot(va[0], va[1]), rb = Math.hypot(vb[0], vb[1]);
+    if (ra < 4 || rb < 4) {
+      return straight;
+    }
+    const aa = Math.atan2(va[1], va[0]);
+    let d = Math.atan2(vb[1], vb[0]) - aa;
+    const raw = Math.abs(d);
+    const side = raw > 3.9 ? clamp((raw - 3.9) / 0.3, 0, 1) : clamp((3.9 - raw) / 0.3, 0, 1);
+    if (raw > 3.9) {
+      d -= Math.sign(d) * Math.PI * 2;
+    }
+    const w = clamp((Math.abs(d) - 0.25) / 0.45, 0, 1) * side;
+    if (w <= 0) {
+      return straight;
+    }
+    const c = L2(ca, cb, k);
+    const ang = aa + d * k, r = lerp(ra, rb, k);
+    const arc = [c[0] + Math.cos(ang) * r, c[1] + Math.sin(ang) * r];
+    return L2(straight, arc, w);
+  }
   function mix(a, b, k) {
     if (k <= 0) {
       return a;
@@ -61,8 +88,11 @@
     for (const key of PK) {
       r[key] = L2(a[key], b[key], k);
     }
+    r.hF = armArc(a.hF, b.hF, a.chest, b.chest, k);
+    r.hB = armArc(a.hB, b.hB, a.chest, b.chest, k);
     r.ef = lerp(a.ef ?? 1, b.ef ?? 1, k);
     r.eb = lerp(a.eb ?? 1, b.eb ?? 1, k);
+    r.hang = lerp(a.hang ?? 1, b.hang ?? 1, k);
     return r;
   }
   function seq(t, keys, ease) {
@@ -113,13 +143,19 @@
     return r;
   }
   const STRIDE = 26;
-  function footCycle(ph, lift) {
+  function footCycle(ph, lift, stride) {
     const f = ((ph % 1) + 1) % 1;
+    const STRIDE = 26 * (stride || 1);
     if (f < 0.5) {
       return [lerp(STRIDE / 2, -STRIDE / 2, f / 0.5), 0];
     }
+    // Swing: a Hermite curve whose speed at lift-off and touch-down matches the planted foot, so in the world
+    // the foot leaves and lands at rest instead of jolting. The lift eases in and out the same way.
     const k = (f - 0.5) / 0.5;
-    return [lerp(-STRIDE / 2, STRIDE / 2, E.soft(k)), -Math.sin(Math.PI * k) * lift];
+    const k2 = k * k, k3 = k2 * k;
+    const x = (2 * k3 - 3 * k2 + 1) * (-STRIDE / 2) + (-2 * k3 + 3 * k2) * (STRIDE / 2) - STRIDE * (2 * k3 - 3 * k2 + k);
+    const up = Math.sin(Math.PI * k);
+    return [x, -up * up * lift * 1.25];
   }
   function legs(p, ph, amp, o) {
     const opt = o || {};
@@ -128,7 +164,7 @@
       return p;
     }
     const r = Object.assign({}, p);
-    const a = footCycle(ph, lift), b = footCycle(ph + 0.5, lift);
+    const a = footCycle(ph, lift, opt.stride), b = footCycle(ph + 0.5, lift, opt.stride);
     const hx = p.hip[0];
     const fF = [hx + 3 + a[0], -2.5 + a[1]];
     const fB = [hx - 2 + b[0], -2.5 + b[1]];
@@ -148,26 +184,52 @@
     return r;
   }
   function walkSeg(u, a, b, x0, x1, s, ease) {
-    const k = (ease || E.soft)(seg(u, a, b));
+    const ez = ease || E.soft;
+    const k = ez(seg(u, a, b));
     const x = lerp(x0, x1, k);
     const d = Math.abs(x - x0), D = Math.abs(x1 - x0);
-    const ph = d / (STRIDE * 2 * (s || FS));
+    // A quick walk takes longer strides instead of more steps, so a short, fast crossing reads as a brisk
+    // walk or a jog rather than a scuttle. Stride follows the speed at each moment (short steps while
+    // speeding up and slowing down), and the step phase is summed along the walk so the feet stay planted.
+    // Pass stride to legs().
+    const C = STRIDE * 2 * (s || FS), h = 0.004;
+    const strideAt = (t) => clamp((D * (ez(seg(t + h, a, b)) - ez(seg(t - h, a, b))) / (2 * h)) / 110, 1, 2.2);
+    const t1 = clamp(u, a, b);
+    let ph = 0;
+    if (D > 0 && t1 > a) {
+      const n = 24;
+      let kp = 0;
+      for (let i = 1; i <= n; i++) {
+        const kk = ez(seg(a + (t1 - a) * (i / n), a, b));
+        ph += (D * (kk - kp)) / (C * strideAt(a + (t1 - a) * ((i - 0.5) / n)));
+        kp = kk;
+      }
+    }
+    const stride = strideAt(t1);
     const amp = Math.min(E.sm(seg(d, 0, 9)), E.sm(seg(D - d, 0, 9)));
-    return { x, ph, amp, k };
+    return { x, ph, amp, k, stride, dir: Math.sign(x1 - x0) };
   }
 
   function ik(a, b, l1, l2, hint) {
     const dx = b[0] - a[0], dy = b[1] - a[1];
     let d = Math.hypot(dx, dy);
     const base = Math.atan2(dy, dx);
-    d = Math.max(Math.abs(l1 - l2) + 0.01, Math.min(l1 + l2 - 0.001, d));
+    // Soft limit near full extension: a straight limb's joint would otherwise race across the last few units
+    // of reach in a frame or two (the knee "snap" when a step lands). Past 96% it eases in instead.
+    const L = l1 + l2, soft = L * 0.96;
+    if (d > soft) {
+      d = soft + (L - soft) * (1 - Math.exp(-(d - soft) / (L - soft)));
+    }
+    d = Math.max(Math.abs(l1 - l2) + 0.01, Math.min(L - 0.001, d));
     const c = clamp((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d), -1, 1);
     const ang = Math.acos(c);
     const j1 = [a[0] + l1 * Math.cos(base + ang), a[1] + l1 * Math.sin(base + ang)];
     const j2 = [a[0] + l1 * Math.cos(base - ang), a[1] + l1 * Math.sin(base - ang)];
-    const d1 = Math.hypot(j1[0] - hint[0], j1[1] - hint[1]);
-    const d2 = Math.hypot(j2[0] - hint[0], j2[1] - hint[1]);
-    return d1 < d2 ? j1 : j2;
+    // Pick the bend on the hint's side of the limb line. Comparing distances to the hint flips sides
+    // when the limb is nearly straight and both answers sit close to it.
+    const side = dx * (hint[1] - a[1]) - dy * (hint[0] - a[0]);
+    const s1 = dx * (j1[1] - a[1]) - dy * (j1[0] - a[0]);
+    return side === 0 || Math.sign(s1) === Math.sign(side) ? j1 : j2;
   }
   function reach(a, b, max) {
     const dx = b[0] - a[0], dy = b[1] - a[1];
@@ -181,6 +243,68 @@
     const f = flip ?? 1;
     const dx = hand[0] - sh[0], dy = hand[1] - sh[1];
     return [(sh[0] + hand[0]) / 2 - dy * 0.6 * f, (sh[1] + hand[1]) / 2 + dx * 0.6 * f];
+  }
+  // A raised near arm that would cross the face is angled forward just enough to clear the head.
+  // Hands that stop at the face (a sip, a chin scratch) are left alone.
+  function clearHead(sh, hand, hc) {
+    const vx = hand[0] - sh[0], vy = hand[1] - sh[1];
+    const L = Math.hypot(vx, vy);
+    const wx = hc[0] - sh[0], wy = hc[1] - sh[1];
+    const Lw = Math.hypot(wx, wy);
+    const need = HEAD_R + 3;
+    if (L < 1 || Lw <= need) {
+      return hand;
+    }
+    const along = (vx * wx + vy * wy) / L;
+    const past = clamp((L - along - 2) / 8, 0, 1);
+    if (along <= 0 || past <= 0) {
+      return hand;
+    }
+    const th = Math.atan2(wy, wx), half = Math.asin(need / Lw);
+    let d = Math.atan2(vy, vx) - th;
+    while (d > Math.PI) {
+      d -= Math.PI * 2;
+    }
+    while (d < -Math.PI) {
+      d += Math.PI * 2;
+    }
+    if (d >= half || d <= -half) {
+      return hand;
+    }
+    const a = th + lerp(d, half, past * E.sm(clamp((d + half) / half, 0, 1)));
+    return [sh[0] + Math.cos(a) * L, sh[1] + Math.sin(a) * L];
+  }
+  // A back hand that rests low under the shoulder hangs from a nearly straight arm, the way a relaxed arm does.
+  // Without this, a resting hand placed a little high bunches the arm and pushes the elbow out behind.
+  // Hands reaching forward, up or out (typing, holding, pointing) are left alone; the blend is smooth.
+  function relax(sh, t, amount) {
+    const dx = t[0] - sh[0], dy = t[1] - sh[1];
+    const d = Math.hypot(dx, dy);
+    const want = (UARM + FARM) * 0.96;
+    if (dy <= 0 || d < 1 || d >= want) {
+      return t;
+    }
+    const w = E.sm(clamp((dy / d - 0.8) / 0.18, 0, 1)) * clamp(amount ?? 1, 0, 1);
+    if (w <= 0) {
+      return t;
+    }
+    const nd = lerp(d, want, w);
+    return [sh[0] + (dx / d) * nd, sh[1] + (dy / d) * nd];
+  }
+  // Elbows always bend the way a real one does: the forearm folds toward the front of the body.
+  // ef/eb only control straightness now: 1 is a natural bend, 0 is a straight arm. A negative value used to
+  // flip the elbow backwards, which no real arm can do, so it is treated like its positive size.
+  function elbow(sh, hand, l1, l2, flip) {
+    const f = flip ?? 1;
+    const j = ik(sh, hand, l1, l2, elbowHint(sh, hand, 1));
+    const m = Math.min(1, Math.abs(f));
+    if (m >= 1) {
+      return j;
+    }
+    const dx = hand[0] - sh[0], dy = hand[1] - sh[1];
+    const d = Math.hypot(dx, dy) || 1;
+    const line = [sh[0] + (dx / d) * l1, sh[1] + (dy / d) * l1];
+    return L2(line, j, E.sm(m));
   }
 
   function strokePath(g, pts, w, col) {
@@ -227,7 +351,7 @@
     }
     const r = Object.assign({}, p);
     const hx = p.chest[0] + 13 + Math.sin(t * 12) * 6;
-    r.hF = L2(p.hF, [hx, p.chest[1] - 40], k);
+    r.hF = armArc(p.hF, [hx, p.chest[1] - 40], p.chest, p.chest, k);
     r.ef = lerp(p.ef ?? 1, 1, k);
     r.head = L2(p.head, [p.chest[0] + 4, p.chest[1] - 26], k * 0.7);
     return r;
@@ -261,13 +385,16 @@
     const sh = [p.chest[0] - u[0], p.chest[1] - u[1]];
     const kF = ik(p.hip, p.fF, THIGH, SHIN, p.kF);
     const kB = ik(p.hip, p.fB, THIGH, SHIN, p.kB);
-    const handF = reach(sh, p.hF, UARM + FARM);
-    const handB = reach(sh, p.hB, UARM + FARM);
-    const eF = ik(sh, handF, UARM, FARM, elbowHint(sh, handF, p.ef));
-    const eB = ik(sh, handB, UARM, FARM, elbowHint(sh, handB, p.eb));
     const hd = [p.head[0] - p.chest[0], p.head[1] - p.chest[1]];
     const hl = Math.hypot(hd[0], hd[1]) || 1;
     const hc = [p.chest[0] + (hd[0] / hl) * 20.5, p.chest[1] + (hd[1] / hl) * 20.5];
+    // Only the far (back) arm relaxes: that is the arm that idles, and the near hand is the one doing
+    // precise work under the shoulder (cutting, pressing, holding), which must land exactly. Set
+    // hang: 0 on a pose when the back hand works under the shoulder too (it blends like ef/eb).
+    const handF = clearHead(sh, reach(sh, p.hF, UARM + FARM), hc);
+    const handB = reach(sh, relax(sh, p.hB, p.hang), UARM + FARM);
+    const eF = elbow(sh, handF, UARM, FARM, p.ef);
+    const eB = elbow(sh, handB, UARM, FARM, p.eb);
     const J = { sh, handF, handB, eF, eB, kF, kB, hc, hip: p.hip, chest: p.chest, fF: p.fF, fB: p.fB, hd: [hd[0] / hl, hd[1] / hl], s, sx, x, y, W };
     if (opt.behind) {
       opt.behind(g, J);
@@ -314,8 +441,68 @@
       opt.front(g, J);
     }
     g.restore();
-    J.w = { handF: W(handF), handB: W(handB), head: W(hc), sh: W(sh), hip: W(p.hip), chest: W(p.chest), fF: W(p.fF), fB: W(p.fB), eF: W(eF) };
+    J.w = { handF: W(handF), handB: W(handB), head: W(hc), sh: W(sh), hip: W(p.hip), chest: W(p.chest), fF: W(p.fF), fB: W(p.fB), eF: W(eF), eB: W(eB) };
+    J.ink = ink;
+    // Figures have no face, so this marks where a mouth would be: the front of the head, a little below its centre.
+    J.mouth = W([hc[0] - (hd[1] / hl) * 6 - (hd[0] / hl) * 3, hc[1] + (hd[0] / hl) * 6 - (hd[1] / hl) * 3]);
     return J;
+  }
+  // Arrows are drawn by hand, like koboyo.com: an open chevron head with softly curved barbs and a round nose,
+  // never a filled triangle. arrowHead draws just the head at tip, pointing along angle (radians).
+  function arrowHead(g, tip, angle, len, lw, col) {
+    const L = len ?? 7, HA = 0.58, NOSE = 0.15, EASE = 0.16;
+    const nx = -Math.sin(angle), ny = Math.cos(angle);
+    const end = (side) => [tip[0] - L * Math.cos(angle + HA * side), tip[1] - L * Math.sin(angle + HA * side)];
+    const ease = (e) => [e[0] + (tip[0] - e[0]) * EASE, e[1] + (tip[1] - e[1]) * EASE];
+    const nose = (e) => {
+      const side = Math.sign((e[0] - tip[0]) * nx + (e[1] - tip[1]) * ny);
+      return [tip[0] + nx * side * L * NOSE, tip[1] + ny * side * L * NOSE];
+    };
+    const a = end(-1), b = end(1), ca = ease(a), cb = ease(b), na = nose(a), nb = nose(b);
+    g.save();
+    g.strokeStyle = col || C.ink;
+    g.lineWidth = lw ?? 1.8;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.beginPath();
+    g.moveTo(a[0], a[1]);
+    g.bezierCurveTo(ca[0], ca[1], na[0], na[1], tip[0], tip[1]);
+    g.bezierCurveTo(nb[0], nb[1], cb[0], cb[1], b[0], b[1]);
+    g.stroke();
+    g.restore();
+  }
+  // A hand-drawn arrow through points (2 for straight, more for a bend), with the head at the last point.
+  // o: { lw, col, head (length), k (0..1 draws it on progressively) }
+  function arrow(g, pts, o) {
+    const opt = o || {};
+    const k = opt.k ?? 1;
+    if (k <= 0) {
+      return;
+    }
+    const path = partial(pts, k);
+    const lw = opt.lw ?? 1.8;
+    strokePath(g, path, lw, opt.col || C.ink);
+    const p1 = path[path.length - 1], p0 = path[path.length - 2] || pts[0];
+    arrowHead(g, p1, Math.atan2(p1[1] - p0[1], p1[0] - p0[0]), opt.head ?? 4 + lw * 1.6, lw, opt.col);
+  }
+  // A circular arrow (rotate, undo, refresh) around cx, cy from angle a0 to a1; the head points along the turn.
+  function arcArrow(g, cx, cy, r, a0, a1, o) {
+    const opt = o || {};
+    const lw = opt.lw ?? 1.8;
+    const n = 18, pts = [];
+    for (let i = 0; i <= n; i++) {
+      const a = a0 + (a1 - a0) * (i / n);
+      pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+    }
+    strokePath(g, pts, lw, opt.col || C.ink);
+    const dir = Math.sign(a1 - a0) || 1;
+    const tip = pts[n];
+    arrowHead(g, tip, a1 + dir * Math.PI / 2 - dir * 0.18, opt.head ?? 4 + lw * 1.6, lw, opt.col);
+  }
+  // Redraw the near arm on top, after a prop the hand is holding or gripping, so the hand stays in front of it.
+  // Use it when the prop is drawn after fig() in world space (a card, a lever knob, a crank).
+  function frontArm(g, J) {
+    strokePath(g, [J.w.sh, J.w.eF, J.w.handF], ARM * J.s, J.ink || C.ink);
   }
   // A robot: rounded head with a dark visor, glowing eyes, ear bolts, an antenna bulb and a chest light.
   // o: { col, dark, screen, eye (a dark col gets a white visor and ink eyes by default), glow (0..1, lights the antenna and chest), blink, happy }
@@ -548,7 +735,7 @@
     C, H, GY, FS, TAU, FONT, BASE, PK, E, WOB,
     lerp, L2, clamp, seg, wob, hash,
     P, mix, seq, nseq, shift, breathe, legs, walkSeg, footCycle, UPPER, STRIDE,
-    ik, reach, fig, toLocal, wave, hatShape,
+    ik, reach, fig, frontArm, arrow, arrowHead, arcArrow, toLocal, wave, hatShape,
     inkFill, rr, ln, poly, circle, wline, text, partial, plen, tip, star, arcPt, sparks, strokePath,
   };
 })();
@@ -565,13 +752,18 @@
     fn();
     g.restore();
   };
+  // Idle gestures (pulse) fade back in after an action ends, so the pose never jumps.
+  let settle = 1;
+  const setSettle = (v) => {
+    settle = v;
+  };
   const pulse = (t, per, at, len, edge) => {
     const l = ((t % per) + per) % per;
     const e = edge ?? 0.25;
-    return E.soft(seg(l, at, at + len * e)) * (1 - E.soft(seg(l, at + len * (1 - e), at + len)));
+    return settle * E.soft(seg(l, at, at + len * e)) * (1 - E.soft(seg(l, at + len * (1 - e), at + len)));
   };
   const lp = (pt, x, y, sx) => toLocal(pt, x, y, FS, sx);
-  const sxv = (v) => (Math.abs(v) < 0.08 ? (v < 0 ? -0.08 : 0.08) : v);
+  const sxv = (v) => (v < 0 ? -1 : 1);
   const tri = (x) => 1 - Math.abs((((x % 2) + 2) % 2) - 1);
   const tw = (g, s, size) => {
     g.font = FONT(size || 9);
@@ -590,7 +782,7 @@
   }
   function pill(g, cx, cy, label, fill, ink, size) {
     const s = size || 9;
-    const w = tw(g, label, s) + 10, h = s + 5;
+    const w = tw(g, label, s) + 12, h = s + 8;
     rr(g, cx - w / 2, cy - h / 2, w, h, h / 2);
     inkFill(g, fill || C.paper, 1.2, ink || C.ink);
     text(g, label, cx, cy + s * 0.34, s, ink || C.ink);
@@ -736,7 +928,7 @@
     ln(g, 9, 0, -3, 0, 1);
     g.restore();
   }
-  Object.assign(R, { inWorld, pulse, lp, sxv, tri, tw, typed, still, gait, toward, pill, pole, tick, tickBadge, win, term, stand, words, held, floatText, bubble, plane });
+  Object.assign(R, { setSettle, inWorld, pulse, lp, sxv, tri, tw, typed, still, gait, toward, pill, pole, tick, tickBadge, win, term, stand, words, held, floatText, bubble, plane });
 })();
 
 // ---------------------------------------------------------------- stage: one canvas per scene, shared clock
@@ -851,16 +1043,7 @@
         g.fillStyle = C.floor;
         g.fillRect(0, gy, this.w, this.h - gy);
       }
-      g.save();
-      g.translate(this.w / 2, gy);
-      g.scale(S, S);
-      g.lineCap = 'round';
-      g.lineJoin = 'round';
-      const u = this.u;
-      const w = this.on ? E.sm(seg(u, 0, 0.07)) * E.sm(1 - seg(u, 0.93, 1)) : 0;
-      const wk = this.waveT >= 0 ? E.soft(seg(this.waveT, 0, 0.25)) * (1 - E.soft(seg(this.waveT, WAVE_DUR - 0.3, WAVE_DUR))) : 0;
-      this.def.draw(g, { t: this.t, u, on: this.on, w, n: this.n, since: this.since, st: this.st, wave: wk, wt: this.waveT, hover: this.hover });
-      g.restore();
+      // The ground goes down first, so anything lying on it (a pond, a rug, a shadow) covers the line.
       if (this.ground) {
         g.save();
         g.strokeStyle = C.ink;
@@ -880,6 +1063,18 @@
         g.stroke();
         g.restore();
       }
+      g.save();
+      g.translate(this.w / 2, gy);
+      g.scale(S, S);
+      g.lineCap = 'round';
+      g.lineJoin = 'round';
+      const u = this.u;
+      const w = this.on ? E.sm(seg(u, 0, 0.07)) * E.sm(1 - seg(u, 0.93, 1)) : 0;
+      const wk = this.waveT >= 0 ? E.soft(seg(this.waveT, 0, 0.25)) * (1 - E.soft(seg(this.waveT, WAVE_DUR - 0.3, WAVE_DUR))) : 0;
+      R.setSettle(this.on ? 1 : E.sm(Math.min(1, Math.max(0, this.since / 0.8))));
+      this.def.draw(g, { t: this.t, u, on: this.on, w, n: this.n, since: this.since, st: this.st, wave: wk, wt: this.waveT, hover: this.hover });
+      R.setSettle(1);
+      g.restore();
       this.dirty = false;
     }
   }
@@ -1098,6 +1293,9 @@
       v.on = false;
       v.u = 0;
       v.t = o.idle ?? 0;
+    }
+    if (o.since != null) {
+      v.since = o.since;
     }
     v.resize();
     v.draw();
