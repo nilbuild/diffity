@@ -127,7 +127,7 @@ export const FEATURES: Feature[] = [
   {
     id: 'guides',
     group: 'with-agents',
-    scene: { id: 'diffity-guide', label: 'The agent taps each box of a diagram in turn, each step lights up its code in the diff, a risky step gets a warning, and you follow along.' },
+    scene: { id: 'diffity-guide', label: 'You ask your agent to walk you through a change. It writes a guide with the risky part first, then a flow diagram, the steps and a note on code outside the diff, and you read it until it clicks.' },
     title: 'Read a guide to the change',
     lead: 'Open the {Guide} tab and your agent writes a walkthrough of the change, in an order that makes sense, with the risky parts first.',
     isNew: true,
