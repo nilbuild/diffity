@@ -11,7 +11,7 @@
   const NOTE = [B.x + 6, LY(BUG) - 1];
   const STAMP = [B.x + 46, B.y + B.h - 18];
   const LAP = [112, -60];
-  const HOME = -168, AT = -156, NEAR = -130;
+  const HOME = -168, AT = -156, NEAR = -148;
 
   function board(g, fixK, dropK, stampK) {
     ln(g, B.x + 22, B.y + B.h, B.x + 10, 0, 2.2);
@@ -146,7 +146,7 @@
         pose = mix(pose, P({ hF: [40, -100], hB: [-4, -54], head: [10, -116] }), flick);
         pose = mix(pose, chin, wait);
         pose = mix(pose, P({ hF: [22, -128], hB: [-4, -54], head: [6, -117] }), lift);
-        pose = mix(pose, P({ hF: lp(STAMP, x, 0, 1), hB: [-4, -54], head: [10, -113], chest: [4, -89] }), slam);
+        pose = mix(pose, P({ hF: lp([STAMP[0] - 26, STAMP[1]], x, 0, 1), hB: [-4, -54], head: [10, -113], chest: [4, -89] }), slam);
         pose = mix(pose, P({ hF: [14, -132], hB: [-10, -130], head: [3, -118] }), cheer);
         noteK = seg(T, 0.7, 0.95) * fade;
         planeK = seg(T, 1.4, 2.4);
@@ -172,8 +172,8 @@
         agentLook,
       );
       fig(g, ap, 156, 0, { sx: -1, ink: AGENT, far: '#e8b7a3', bot: { col: AGENT, dark: '#a8553a', glow: typing > 0.3 ? 1 : 0 } });
-      fig(g, pose, x, 0, { wave: S.wave, wt: S.wt });
       note(g, noteK, replyK);
+      fig(g, pose, x, 0, { wave: S.wave, wt: S.wt });
       plane(g, [NOTE[0] + 10, NOTE[1] - 10], [LAP[0], LAP[1] - 20], planeK, 70, 0.9);
       if (fixFly > 0 && fixFly < 1) {
         const p = R.arcPt([LAP[0] - 6, LAP[1] - 16], [B.x + B.w / 2, LY(BUG)], 50, E.soft(fixFly));
