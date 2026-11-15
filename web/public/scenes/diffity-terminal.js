@@ -2,7 +2,7 @@
 (function () {
   const SC = (window.SCENES = window.SCENES || {});
   const R = window.RIG;
-  const { C, E, P, mix, fig, inkFill, rr, ln, text, seg, breathe, sparks, pulse, bubble, words, arcPt, circle } = R;
+  const { C, E, P, mix, fig, inkFill, rr, ln, text, seg, breathe, sparks, pulse, bubble, words, arcPt, circle, lp } = R;
 
   const ADD = '#dafbe1', ADD_INK = '#1a7f37', DEL = '#ffebe9', DEL_INK = '#cf222e';
   const AGENT = '#d97757', AGENT_DARK = '#a8553a';
@@ -192,9 +192,11 @@
     }
   }
 
-  const typePose = (t, on) => {
+  // Hands on the laptop keys of the figure's own desk (keyboard 22..64 units in front of it, top at y -55).
+  const typePose = (t, on, x, sx) => {
     const bob = on ? Math.sin(t * 24) * 2.2 : 0;
-    return P({ hF: [24, -58 + bob], hB: [20, -56 - bob], head: [5, -116] });
+    const f = lp([x + sx * 30, -56], x, 0, sx), b = lp([x + sx * 24, -56], x, 0, sx);
+    return P({ hF: [f[0], f[1] + bob], hB: [b[0], b[1] - bob], head: [5, -116], chest: [4, -89] });
   };
 
   SC['diffity-terminal'] = {
@@ -211,7 +213,7 @@
       let pose, botLook = pulse(t, 6, 3.2, 1.4);
       const chin = P({ hF: [10, -96], head: [7, -116], hB: [-4, -54] });
       if (T < 0) {
-        pose = mix(breathe(typePose(t, myType > 0.3), t), chin, pulse(t, 6.5, 1.2, 2));
+        pose = mix(breathe(typePose(t, myType > 0.3, ME, 1), t), chin, pulse(t, 6.5, 1.2, 2));
       } else {
         fade = 1 - seg(T, this.dur - 0.5, this.dur);
         const ent = botTypes ? 1.9 : 1.3;
@@ -241,7 +243,7 @@
           termSy = E.back(seg(T, this.dur - 1.05, this.dur - 0.7));
           lineA = 0;
         }
-        pose = breathe(typePose(t, myType > 0.3), t);
+        pose = breathe(typePose(t, myType > 0.3, ME, 1), t);
         const look = E.soft(seg(T, ent + 0.2, ent + 0.5)) * (1 - E.soft(seg(T, ent + 1.4, ent + 1.6)));
         pose = mix(pose, P({ hF: [12, -62], hB: [-4, -52], head: [9, -118] }), look);
         thumb = E.back(seg(T, ent + 1.5, ent + 1.75)) * (1 - E.soft(seg(T, ent + 2.7, ent + 3.0)));
@@ -272,7 +274,7 @@
       desk(g, ME, -1, myType, t + 0.4, C.muted);
       desk(g, BOT, 1, botType, t, AGENT);
       const working = botType > 0.3;
-      const ap = mix(breathe(typePose(t, working), t + 1), P({ hF: [24, -58], hB: [20, -56], head: [-2, -117] }), botLook);
+      const ap = mix(breathe(typePose(t, working, BOT, -1), t + 1), Object.assign(typePose(t, false, BOT, -1), { head: [-2, -117] }), botLook);
       const glow = working ? Math.floor(t * 6) % 2 : 0;
       const blink = pulse(t, 4.3, 1.2, 0.15) > 0.5;
       fig(g, ap, BOT, 0, { sx: -1, ink: AGENT, far: '#e8b7a3', bot: botStyle(glow, blink) });

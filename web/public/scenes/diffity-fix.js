@@ -216,8 +216,9 @@
       desk(g, BOT, 1, typing, t, AGENT);
       const working = typing > 0.3;
       const bob = working ? Math.sin(t * 26) * 2.2 : 0;
-      let ap = breathe(P({ hF: [24, -58 + bob], hB: [20, -56 - bob], head: [5, -116] }), t + 1);
-      ap = mix(ap, P({ hF: [10, -96], hB: [20, -56], head: [6, -118] }), thinkK);
+      const keyF = lp([BOT - 30, -56], BOT, 0, -1), keyB = lp([BOT - 24, -56], BOT, 0, -1);
+      let ap = breathe(P({ hF: [keyF[0], keyF[1] + bob], hB: [keyB[0], keyB[1] - bob], head: [5, -116], chest: [4, -89] }), t + 1);
+      ap = mix(ap, P({ hF: [10, -96], hB: keyB, head: [6, -118] }), thinkK);
       const glow = working ? Math.floor(t * 6) % 2 : thinkK > 0.3 ? Math.floor(t * 2.5) % 2 : 0;
       const blink = pulse(t, 4.3, 1.2, 0.15) > 0.5;
       fig(g, ap, BOT, 0, { sx: -1, ink: AGENT, far: AGENT_FAR, bot: botStyle(glow, blink) });

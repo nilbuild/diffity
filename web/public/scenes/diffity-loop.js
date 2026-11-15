@@ -285,9 +285,19 @@
     g.restore();
   }
 
-  function typePose(t, on) {
+  // Hands on the laptop keys of the desk at cx (drawn with scale dsx), for a figure at x facing sx.
+  // The keyboard runs from desk-local x -22 (near the figure) to -64; the front hand sits a little further along.
+  function keyHands(x, sx, cx, dsx) {
+    return {
+      f: lp([cx - dsx * 30, -56], x, 0, sx),
+      b: lp([cx - dsx * 24, -56], x, 0, sx),
+    };
+  }
+
+  function typePose(t, on, x, sx, cx, dsx) {
     const bob = on ? Math.sin(t * 24) * 2.2 : 0;
-    return P({ hF: [24, -58 + bob], hB: [20, -56 - bob], head: [5, -116] });
+    const k = keyHands(x, sx, cx, dsx);
+    return P({ hF: [k.f[0], k.f[1] + bob], hB: [k.b[0], k.b[1] - bob], head: [5, -116], chest: [4, -89] });
   }
 
   SC['diffity-loop'] = {
@@ -309,7 +319,7 @@
       const chin = P({ hF: [10, -96], head: [7, -116], hB: [-4, -54] });
       let pose;
       if (T < 0) {
-        pose = mix(breathe(typePose(t, myTyping > 0.3), t), chin, pulse(t, 6.5, 1.2, 2));
+        pose = mix(breathe(typePose(t, myTyping > 0.3, ME, 1, ME, -1), t), chin, pulse(t, 6.5, 1.2, 2));
       } else {
         fade = 1 - seg(real, this.dur - 0.5, this.dur);
         const notes = [5.4, 5.9, 6.4];
@@ -318,14 +328,14 @@
           E.soft(seg(T, 3.75, 3.9)) * (1 - E.soft(seg(T, 4.4, 4.55))),
           E.soft(seg(T, 5.25, 5.4)) * (1 - E.soft(seg(T, 6.8, 6.95))),
         );
-        pose = breathe(typePose(t, myTyping > 0.3), t);
+        pose = breathe(typePose(t, myTyping > 0.3, ME, 1, ME, -1), t);
         const whoa = E.soft(seg(T, 2.3, 2.6)) * (1 - E.soft(seg(T, 3.3, 3.55)));
         const look = E.soft(seg(T, 1.6, 1.9)) * (1 - E.soft(seg(T, 2.3, 2.45)));
         const flick = E.soft(seg(T, 6.95, 7.1)) * (1 - E.soft(seg(T, 7.25, 7.5)));
         const wait = E.soft(seg(T, 7.5, 7.8)) * (1 - E.soft(seg(T, 9.15, 9.3)));
         const cheer = E.back(seg(T, 9.3, 9.7)) * (1 - E.soft(seg(T, 9.9, 10.2)));
         pose = mix(pose, P({ hF: [12, -60], hB: [-4, -52], head: [9, -117] }), look);
-        pose = mix(pose, P({ hF: [30, -116], hB: [-16, -114], head: [0, -118], chest: [-3, -89] }), whoa);
+        pose = mix(pose, P({ hF: [30, -116], hB: [-16, -114], head: [0, -118], chest: [-3, -89], hang: 0 }), whoa);
         pose = mix(pose, P({ hF: [40, -100], hB: [-4, -54], head: [10, -116] }), flick);
         pose = mix(pose, chin, wait);
         pose = mix(pose, P({ hF: [14, -132], hB: [-10, -130], head: [3, -118] }), cheer);
@@ -386,12 +396,12 @@
       desk(g, BOT, 1, typing, t, AGENT);
       const working = typing > 0.3;
       let ap = mix(
-        breathe(typePose(t, working), t + 1),
-        P({ hF: [24, -58], hB: [20, -56], head: [-2, -117] }),
+        breathe(typePose(t, working, BOT, -1, BOT, 1), t + 1),
+        Object.assign(typePose(t, false, BOT, -1, BOT, 1), { head: [-2, -117] }),
         agentLook,
       );
       const thinkK = think >= 0 ? E.soft(seg(think, 0, 0.2)) * (1 - E.soft(seg(think, 0.8, 1))) : 0;
-      ap = mix(ap, P({ hF: [10, -96], hB: [20, -56], head: [6, -118] }), thinkK);
+      ap = mix(ap, P({ hF: [10, -96], hB: keyHands(BOT, -1, BOT, 1).b, head: [6, -118] }), thinkK);
       const glow = working ? Math.floor(t * 6) % 2 : think >= 0 ? Math.floor(t * 2.5) % 2 : 0;
       const blink = pulse(t, 4.3, 1.2, 0.15) > 0.5;
       fig(g, ap, BOT, 0, { sx: -1, ink: AGENT, far: '#e8b7a3', bot: botStyle(glow, blink) });

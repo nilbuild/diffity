@@ -2,7 +2,7 @@
 (function () {
   const SC = (window.SCENES = window.SCENES || {});
   const R = window.RIG;
-  const { C, E, P, mix, fig, inkFill, rr, ln, text, seg, breathe, sparks, pulse, bubble, pill, lerp, plane, tickBadge, words, circle, arcPt } = R;
+  const { C, E, P, mix, fig, inkFill, rr, ln, text, seg, breathe, sparks, pulse, bubble, pill, lerp, plane, tickBadge, words, circle, arcPt, lp } = R;
 
   const ADD = '#dafbe1', ADD_INK = '#1a7f37', DEL = '#ffebe9', DEL_INK = '#cf222e';
   const AGENT = '#d97757', AGENT_DARK = '#a8553a', AGENT_FAR = '#e8b7a3';
@@ -132,9 +132,15 @@
     g.restore();
   }
 
-  function typePose(t, on) {
+  // A booth agent at bx facing left: hands on its laptop keys (keyboard bx-42..bx-20, top at y -55).
+  function keyHands(bx) {
+    return { f: lp([bx - 28, -56], bx, 0, -1), b: lp([bx - 22, -56], bx, 0, -1) };
+  }
+
+  function typePose(t, on, bx) {
     const bob = on ? Math.sin(t * 24) * 2 : 0;
-    return P({ hF: [24, -58 + bob], hB: [20, -56 - bob], head: [5, -116] });
+    const k = keyHands(bx);
+    return P({ hF: [k.f[0], k.f[1] + bob], hB: [k.b[0], k.b[1] - bob], head: [5, -116], chest: [4, -89] });
   }
 
   SC['diffity-tasks'] = {
@@ -201,9 +207,9 @@
         if (i === 2 && fill3 <= 0.01) {
           continue;
         }
-        let bp = breathe(typePose(t + i, working), t + i * 1.7);
+        let bp = breathe(typePose(t + i, working, bx), t + i * 1.7);
         const thinking = T < 0 ? 0 : i === 2 ? E.soft(seg(T, 0.95, 1.25)) * (1 - E.soft(seg(T, 1.75, 2.05))) : i === 0 ? E.soft(seg(T, 4.75, 5.05)) * (1 - E.soft(seg(T, 5.35, 5.65))) : 0;
-        bp = mix(bp, P({ hF: [10, -96], hB: [20, -56], head: [6, -118] }), thinking);
+        bp = mix(bp, P({ hF: [10, -96], hB: keyHands(bx).b, head: [6, -118] }), thinking);
         if (i === 0 && T >= 0) {
           const yay = E.back(seg(T, 2.4, 2.8)) * (1 - E.soft(seg(T, 3.2, 3.5))) + E.back(seg(T, 7.9, 8.3)) * (1 - E.soft(seg(T, 8.8, 9.1)));
           bp = mix(bp, P({ hF: [12, -127], hB: [-10, -128], head: [3, -118] }), Math.min(1, yay));

@@ -12,6 +12,7 @@
   const STAMP = [B.x + 46, B.y + B.h - 18];
   const LAP = [112, -60];
   const HOME = -168, AT = -156, NEAR = -148;
+  const BOT = 156, KEYS = [92, 134];
 
   function board(g, fixK, dropK, stampK) {
     ln(g, B.x + 22, B.y + B.h, B.x + 10, 0, 2.2);
@@ -90,7 +91,7 @@
     ln(g, 150, -46, 154, 0, 2.2);
     rr(g, 62, -50, 96, 6, 2);
     inkFill(g, C.wood, 1.5);
-    rr(g, 92, -55, 42, 5, 1.5);
+    rr(g, KEYS[0], -55, KEYS[1] - KEYS[0], 5, 1.5);
     inkFill(g, '#e9e9e9', 1.3);
     g.save();
     g.translate(94, -55);
@@ -166,12 +167,13 @@
       board(g, fixK, dropK, stampK);
       desk(g, typing, t);
       const typeBob = typing > 0.3 ? Math.sin(t * 22) * 2.2 : 0;
+      const keyF = lp([KEYS[1] - 8, -56], BOT, 0, -1), keyB = lp([KEYS[1] - 2, -56], BOT, 0, -1);
       const ap = mix(
-        breathe(P({ hF: [24, -58 + typeBob], hB: [20, -56 - typeBob], head: [5, -116] }), t + 1),
-        P({ hF: [24, -58], hB: [20, -56], head: [-2, -117] }),
+        breathe(P({ hF: [keyF[0], keyF[1] + typeBob], hB: [keyB[0], keyB[1] - typeBob], head: [5, -116], chest: [4, -89] }), t + 1),
+        P({ hF: keyF, hB: keyB, head: [-2, -117], chest: [4, -89] }),
         agentLook,
       );
-      fig(g, ap, 156, 0, { sx: -1, ink: AGENT, far: '#e8b7a3', bot: { col: AGENT, dark: '#a8553a', glow: typing > 0.3 ? 1 : 0 } });
+      fig(g, ap, BOT, 0, { sx: -1, ink: AGENT, far: '#e8b7a3', bot: { col: AGENT, dark: '#a8553a', glow: typing > 0.3 ? 1 : 0 } });
       note(g, noteK, replyK);
       fig(g, pose, x, 0, { wave: S.wave, wt: S.wt });
       plane(g, [NOTE[0] + 10, NOTE[1] - 10], [LAP[0], LAP[1] - 20], planeK, 70, 0.9);

@@ -2,7 +2,7 @@
 (function () {
   const SC = (window.SCENES = window.SCENES || {});
   const R = window.RIG;
-  const { C, E, P, mix, legs, walkSeg, fig, inkFill, rr, ln, text, seg, breathe, sparks, pulse, bubble, words, lerp, circle } = R;
+  const { C, E, P, mix, legs, walkSeg, fig, inkFill, rr, ln, text, seg, breathe, sparks, pulse, bubble, words, lerp, circle, lp } = R;
 
   const ADD = '#dafbe1', ADD_INK = '#1a7f37', DEL = '#ffebe9', DEL_INK = '#cf222e';
   const AGENT = '#d97757', AGENT_DARK = '#a8553a', AGENT_NOTE = '#fde3d7';
@@ -119,6 +119,12 @@
     }
   }
 
+  // The person's hands on the laptop keys (desk-local x -22..-64 at y -55, mirrored by sx -1).
+  function typePose(bob) {
+    const f = lp([ME + 30, -56], ME, 0, 1), b = lp([ME + 24, -56], ME, 0, 1);
+    return P({ hF: [f[0], f[1] + bob], hB: [b[0], b[1] - bob], head: [5, -116], chest: [4, -89] });
+  }
+
   function botStyle(glow, blink) {
     return { col: AGENT, dark: AGENT_DARK, glow, blink };
   }
@@ -152,7 +158,7 @@
       const T = S.on ? S.u * this.dur : -1;
       const t = S.t;
       let myTyping = pulse(t, 6.5, 4, 1.4) * 0.6;
-      let pose = breathe(P({ hF: [24, -58], hB: [20, -56], head: [5, -116] }), t);
+      let pose = breathe(typePose(0), t);
       let bx = BOT_HOME, bgait = { ph: 0, amp: 0 };
       let ap = breathe(P({ hF: [12, -60], hB: [-4, -52], head: [3, -117] }), t + 1);
       let fade = 1, lensK = 0, lensY = null, sipK = 0, glow = 0;
@@ -163,13 +169,13 @@
       ap = mix(ap, chin, pulse(t, 7, 3.5, 1.8) * idleK);
       if (T < 0) {
         const bob = myTyping > 0.3 ? Math.sin(t * 24) * 2.2 : 0;
-        pose = breathe(P({ hF: [24, -58 + bob], hB: [20, -56 - bob], head: [5, -116] }), t);
+        pose = breathe(typePose(bob), t);
         pose = mix(pose, chin, pulse(t, 6.5, 1.2, 2));
       } else {
         fade = 1 - seg(T, this.dur - 0.5, this.dur);
         myTyping = E.soft(seg(T, 0.05, 0.2)) * (1 - E.soft(seg(T, 0.7, 0.85)));
         const bob = myTyping > 0.3 ? Math.sin(t * 24) * 2.2 : 0;
-        pose = breathe(P({ hF: [24, -58 + bob], hB: [20, -56 - bob], head: [5, -116] }), t);
+        pose = breathe(typePose(bob), t);
         pose = mix(pose, chin, pulse(t, 6.5, 1.2, 2) * idleK);
         const ask = E.soft(seg(T, 0.8, 1.0)) * (1 - E.soft(seg(T, 1.5, 1.7)));
         pose = mix(pose, P({ hF: [40, -100], hB: [-4, -54], head: [10, -116] }), ask);
