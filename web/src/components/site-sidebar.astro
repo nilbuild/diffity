@@ -8,10 +8,12 @@ import { LINKS } from '@/lib/links';
 ---
 
 <aside class="box-border flex flex-[0_0_272px] flex-col border-r border-dashed border-line px-5 pt-[clamp(20px,3.4vh,32px)] pb-5 max-[900px]:basis-full max-[900px]:border-r-0 max-[900px]:border-b max-[900px]:py-3.5 min-[901px]:sticky min-[901px]:top-0 min-[901px]:h-dvh min-[901px]:self-start min-[901px]:overflow-y-auto">
-  <div class="px-1.5">
-    <Image src={logo} alt="Diffity app icon" width={52} height={52} densities={[1, 2]} class="-ml-1" />
-    <div class="mt-3.5 text-[18px] font-medium tracking-[-0.02em]">Diffity<span class="text-text-faint"> for Mac and Linux</span></div>
-    <p class="mt-1.5 text-[13.5px] leading-[1.5] text-[#333]">A desktop app for reviewing code changes and pull requests.</p>
+  <div class="px-1.5 max-[900px]:flex max-[900px]:items-center max-[900px]:gap-3 max-[900px]:px-0">
+    <Image src={logo} alt="Diffity app icon" width={52} height={52} densities={[1, 2]} class="-ml-1 max-[900px]:ml-0 max-[900px]:size-10 max-[900px]:shrink-0" />
+    <div class="min-w-0">
+      <div class="mt-3.5 text-[18px] font-medium tracking-[-0.02em] max-[900px]:mt-0 max-[900px]:text-[16px]">Diffity<span class="text-text-faint"> for Mac and Linux</span></div>
+      <p class="mt-1.5 text-[13.5px] leading-[1.5] text-[#333] max-[900px]:mt-0.5 max-[900px]:text-[13px]">A desktop app for reviewing code changes and pull requests.</p>
+    </div>
   </div>
 
   <nav class="mt-[clamp(18px,3.4vh,32px)] flex flex-col gap-0.5 max-[900px]:hidden" data-chapter-nav>
