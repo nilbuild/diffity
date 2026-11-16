@@ -624,6 +624,28 @@ pub struct AgentSession {
     pub acp_session_id: String,
 }
 
+/// Codex's ACP adapter relays a failed API call as reply text (`{"type":"error",...}`) and ends the
+/// turn normally, so a run that did nothing but that has failed.
+fn relayed_api_error(events: &[AgentEvent]) -> Option<String> {
+    if events.iter().any(|e| matches!(e, AgentEvent::ToolCall { .. })) {
+        return None;
+    }
+    events.iter().find_map(|e| {
+        let AgentEvent::Text { delta, .. } = e else {
+            return None;
+        };
+        delta.lines().find_map(|line| {
+            let v: serde_json::Value = serde_json::from_str(line.trim()).ok()?;
+            (v["type"] == "error").then(|| {
+                v["error"]["message"]
+                    .as_str()
+                    .unwrap_or(line.trim())
+                    .to_string()
+            })
+        })
+    })
+}
+
 fn classify(err: &agent_client_protocol::Error, stderr: &str) -> AppError {
     let code: i32 = err.code.into();
     let text = format!(
@@ -947,7 +969,20 @@ impl AgentSession {
                 "agent process is not running",
             )),
         };
+        let relayed = match (&outcome, self.agent) {
+            (Ok(_), AgentKind::Codex) => self
+                .shared
+                .turn
+                .lock()
+                .ok()
+                .and_then(|t| t.as_ref().and_then(|t| relayed_api_error(&t.events))),
+            _ => None,
+        };
         let final_event = match &outcome {
+            _ if relayed.is_some() => AgentEvent::Error {
+                code: "agent_failed".into(),
+                message: relayed.unwrap_or_default(),
+            },
             Ok(stop) => AgentEvent::Done {
                 stop_reason: stop.clone(),
             },
@@ -1279,6 +1314,20 @@ mod tests {
         assert_eq!(choice.option.as_deref(), Some("allow"));
         assert!(choice.for_run);
         assert!(!broker.respond(&id, None, false, false), "answered requests are gone");
+    }
+
+    #[test]
+    fn spots_api_errors_relayed_as_text() {
+        let text = |s: &str| AgentEvent::Text { message_id: "m".into(), delta: s.into() };
+        let err = r#"Warning: Model metadata not found.
+
+{"type":"error","status":400,"error":{"type":"invalid_request_error","message":"needs a newer Codex"}}
+
+"#;
+        assert_eq!(relayed_api_error(&[text(err)]).as_deref(), Some("needs a newer Codex"));
+        assert_eq!(relayed_api_error(&[text("Looks good, no issues.")]), None);
+        let tool = AgentEvent::ToolCall { id: "t".into(), title: "x".into(), kind: "read".into(), status: "completed".into(), locations: vec![] };
+        assert_eq!(relayed_api_error(&[tool, text(err)]), None);
     }
 
     #[test]
