@@ -18,8 +18,8 @@ const { block } = props;
   <div class="overflow-x-auto px-4 py-3 font-mono text-[13px] leading-normal">
     {
       block.lines.map((line) => (
-        <div class="flex items-baseline gap-2 py-1 whitespace-nowrap">
-          <b class="min-w-[360px] font-medium text-text">{line.command}</b>
+        <div class="flex items-baseline gap-2 py-1 whitespace-nowrap max-[700px]:flex-col max-[700px]:gap-0.5 max-[700px]:py-1.5">
+          <b class="min-w-[360px] font-medium text-text max-[700px]:min-w-0">{line.command}</b>
           <span class="text-[#616161]">{line.text}</span>
         </div>
       ))

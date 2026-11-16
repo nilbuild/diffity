@@ -12,7 +12,7 @@ const { row } = props;
 const linuxKbd = row.kbd?.replace('⌘', 'Ctrl+');
 ---
 
-<div class="flex flex-wrap items-baseline gap-x-2 gap-y-1.5 py-1 text-sm leading-normal">
+<div class="flex flex-wrap items-baseline gap-x-2 gap-y-1.5 py-1 text-sm leading-normal max-[700px]:block max-[700px]:py-1.5 max-[700px]:leading-[1.6] max-[700px]:[&>.os-linux>kbd]:mr-2 max-[700px]:[&>.os-mac>kbd]:mr-2">
   {
     row.kbd && (
       <>
@@ -26,6 +26,6 @@ const linuxKbd = row.kbd?.replace('⌘', 'Ctrl+');
     )
   }
   <b class="font-medium text-text">{row.term}</b>
-  <span class="text-dot">·</span>
+  <span class="text-dot max-[700px]:mx-1.5">·</span>
   <span class="text-[#616161]"><RichText text={row.text} /></span>
 </div>
