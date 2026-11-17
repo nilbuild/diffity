@@ -222,6 +222,8 @@ interface Candidate {
   /** What the primary button does, e.g. "View changes", "Compare with main". */
   action: string;
   run?: () => void;
+  /** GitHub page for this item, shown as an "Open on GitHub" button. */
+  url?: string;
 }
 
 function Hero(props: { item: Candidate; onReview: (ref: string) => void; className?: string }) {
@@ -245,6 +247,12 @@ function Hero(props: { item: Candidate; onReview: (ref: string) => void; classNa
           <SparkleIcon size="sm" />
           Ask Claude to review
         </button>
+        {item.url && (
+          <button onClick={() => openUrl(item.url!).catch((error) => toast.error('Could not open GitHub', { description: errorMessage(error) }))} className={buttonOutline}>
+            <GitHubIcon size="sm" />
+            Open on GitHub
+          </button>
+        )}
         <AskClaudePopover
           open={asking}
           onClose={() => setAsking(false)}
@@ -357,7 +365,7 @@ export function Dashboard(props: DashboardProps) {
   const uncommitted = status ? status.staged + status.unstaged + status.untracked : 0;
   const branchBase = !details && base && branch && branch !== base && base.replace(/^(origin|upstream)\//, '') !== branch ? base : null;
   const branchRef = branchBase ? `${branchBase}...HEAD` : null;
-  const prRef = details ? prDiffRef(details) : null;
+  const prRef = details?.pr.state === 'OPEN' ? prDiffRef(details) : null;
   const last = recent?.commits[0] ?? null;
 
   const work = useDiffSummary(uncommitted > 0 ? 'work' : null);
@@ -393,6 +401,7 @@ export function Dashboard(props: DashboardProps) {
       summary: prDiff.summary,
       summaryLoading: prDiff.loading,
       action: 'View PR diff',
+      url: details.pr.url,
     });
   }
   if (branchRef && base && branchDiff.summary && branchDiff.summary.files > 0) {
