@@ -245,25 +245,24 @@ export function ChangesModeSwitch(props: { diffRef: string }) {
   }
   const count = plural(files, 'uncommitted file');
   return (
-    <div className="flex items-center gap-2 shrink-0 text-xs text-text-secondary">
-      <span className="hidden @[640px]/diffbar:inline-flex items-center gap-1.5" title={`${count} ${including ? 'included' : 'not shown'}`}>
-        <span className="w-1.5 h-1.5 rounded-full bg-modified" aria-hidden />
-        {files} uncommitted
-      </span>
-      <SegmentedToggle
-        value={including ? 'all' : 'committed'}
-        onChange={(value) => {
-          if ((value === 'all') !== including) {
-            nav.toDiff(twin);
-          }
-        }}
-        labelClassName="text-xs"
-        options={[
-          { value: 'all', label: 'All changes', title: `Commits on this branch plus ${count}` },
-          { value: 'committed', label: 'Committed only', title: 'Only what is committed, like the pull request will see it. Comments and Viewed marks are shared with All changes' },
-        ]}
-      />
-    </div>
+    <SegmentedToggle
+      value={including ? 'all' : 'committed'}
+      onChange={(value) => {
+        if ((value === 'all') !== including) {
+          nav.toDiff(twin);
+        }
+      }}
+      labelClassName="text-xs"
+      options={[
+        {
+          value: 'all',
+          label: 'All changes',
+          icon: <span className="w-1.5 h-1.5 rounded-full bg-modified" aria-hidden />,
+          title: `Commits on this branch plus ${count}`,
+        },
+        { value: 'committed', label: 'Committed only', title: 'Only what is committed, like the pull request will see it. Comments and Viewed marks are shared with All changes' },
+      ]}
+    />
   );
 }
 
