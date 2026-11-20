@@ -14,6 +14,8 @@ export interface ReturnPoint {
   sha: string | null;
   stash: StashResult | null;
   prNumber: number;
+  /** The branch the PR checkout landed on; a later checkout keeps this point only while still on it. */
+  prBranch?: string | null;
 }
 
 export type CheckoutGuard =
@@ -230,12 +232,14 @@ export async function checkoutPullRequest(repoPath: string, input: string, nav: 
       stash = await tauri.gitStashPush(repoPath, `diffity: before checking out PR ${label}`);
     }
     const pr = await tauri.checkoutPr(repoPath, input);
-    const keep = existing && existing.branch !== repo.branch ? existing : null;
+    const landed = await tauri.gitStatus(repoPath).catch(() => null);
+    const keep = existing?.prBranch && existing.prBranch === repo.branch ? existing : null;
     const point: ReturnPoint = keep ?? { branch: repo.branch, sha: repo.headSha, stash, prNumber: pr.number };
     if (keep && stash?.sha && !keep.stash?.sha) {
       point.stash = stash;
     }
     point.prNumber = pr.number;
+    point.prBranch = landed?.branch ?? null;
     await saveReturnPoint(repoPath, point);
     queryClient.invalidateQueries();
     toast.loading(`Pulling review comments for #${pr.number}…`, { id });
@@ -276,6 +280,15 @@ export function returnLabel(point: ReturnPoint): string {
   return point.sha ? point.sha.slice(0, 7) : 'previous branch';
 }
 
+/** Local, or on a remote (git checks that out as a new tracking branch). Assumes it exists when branches can't be read. */
+async function branchExists(repoPath: string, branch: string): Promise<boolean> {
+  const branches = await tauri.listBranches(repoPath).catch(() => null);
+  if (!branches) {
+    return true;
+  }
+  return branches.some((item) => localNameFor(item.name, item.isRemote) === branch);
+}
+
 export async function returnFromPullRequest(repoPath: string, nav: SwitchNav, options?: { stash?: boolean }) {
   const point = await loadReturnPoint(repoPath);
   if (!point) {
@@ -286,12 +299,18 @@ export async function returnFromPullRequest(repoPath: string, nav: SwitchNav, op
     await saveReturnPoint(repoPath, null);
     return;
   }
+  const label = returnLabel(point);
+  if (point.branch && !(await branchExists(repoPath, point.branch))) {
+    await saveReturnPoint(repoPath, null);
+    const stashNote = describeStash(point.stash);
+    toast.error(`${label} no longer exists`, { description: stashNote ?? undefined });
+    return;
+  }
   const status = await tauri.gitStatus(repoPath);
   if (hasTrackedChanges(status) && !options?.stash) {
     useCheckoutState.setState({ guard: { kind: 'back', repoPath, point, status } });
     return;
   }
-  const label = returnLabel(point);
   useCheckoutState.setState({ guard: null, busy: label });
   const id = toast.loading(`Switching back to ${label}…`);
   let stash: StashResult | null = null;
