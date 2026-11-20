@@ -1768,7 +1768,7 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
-    /// Deletes a project's comments, replies, reviews, viewed marks and Claude chats. Its git repo, settings and
+    /// Deletes a project's comments, replies, reviews, viewed marks, Claude chats and PR return point. Its git repo, settings and
     /// anything on GitHub are untouched.
     pub fn clear_project_data(&self, repo_path: &str) -> Result<()> {
         let mut conn = self.conn()?;
@@ -1779,11 +1779,12 @@ impl Store {
         )?;
         tx.execute("DELETE FROM review_sessions WHERE repo_path = ?1", [repo_path])?;
         tx.execute("DELETE FROM chats WHERE repo_path = ?1", [repo_path])?;
+        tx.execute("DELETE FROM settings WHERE key = ?1", [format!("pr.return:{repo_path}")])?;
         tx.commit()?;
         Ok(())
     }
 
-    /// Deletes every project's data plus the recent projects list. Settings (theme, editor, Claude and GitHub
+    /// Deletes every project's data (PR return points included) plus the recent projects list. Settings (theme, editor, Claude and GitHub
     /// preferences) and logins are kept; `cache_keys` are settings that only cache data and go too.
     pub fn reset_all_data(&self, cache_keys: &[&str]) -> Result<()> {
         let mut conn = self.conn()?;
@@ -1792,7 +1793,8 @@ impl Store {
             "DELETE FROM viewed_files;
              DELETE FROM review_sessions;
              DELETE FROM chats;
-             DELETE FROM repos;",
+             DELETE FROM repos;
+             DELETE FROM settings WHERE key LIKE 'pr.return:%';",
         )?;
         for key in cache_keys {
             tx.execute("DELETE FROM settings WHERE key = ?1", [key])?;
@@ -1824,6 +1826,20 @@ mod tests {
             )
             .unwrap();
         assert_eq!(n, 13);
+    }
+
+    #[test]
+    fn clearing_and_resetting_drop_pr_return_points() {
+        let store = Store::open_in_memory().unwrap();
+        store.set_setting("pr.return:/a", "{}").unwrap();
+        store.set_setting("pr.return:/b", "{}").unwrap();
+        store.set_setting("theme", "dark").unwrap();
+        store.clear_project_data("/a").unwrap();
+        assert_eq!(store.get_setting("pr.return:/a").unwrap(), None);
+        assert!(store.get_setting("pr.return:/b").unwrap().is_some());
+        store.reset_all_data(&[]).unwrap();
+        assert_eq!(store.get_setting("pr.return:/b").unwrap(), None);
+        assert_eq!(store.get_setting("theme").unwrap().as_deref(), Some("dark"));
     }
 
     #[test]
