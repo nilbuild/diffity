@@ -24,7 +24,9 @@ const LIST_TOOLS: &str = "__list_tools";
 const ADDRESS_PROMPT: &str = "address";
 const ADDRESS_TEXT: &str = "Address my open review comments in Diffity. Call list_threads, then for each open thread: \
      make the change it asks for, reply saying what you changed, and resolve it. If you disagree or can't do it, reply \
-     explaining why and leave it open. Never resolve a thread without a change or a reason. Finish with a short summary.";
+     explaining why and leave it open. Never resolve a thread without a change or a reason. If a comment states a \
+     general rule (a naming or style convention, a repeated mistake), fix every other place in the diff with the same \
+     problem too, not just the commented lines. Finish with a short summary.";
 
 /// An in-app run passes `--token`; an agent the user runs in a terminal passes `--terminal` and names the
 /// repository with each call (its working directory, or the tool's `path`).

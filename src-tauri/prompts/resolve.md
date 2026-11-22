@@ -47,6 +47,7 @@ The user reads your replies and summaries in a small box next to the code. Write
    g. Comments phrased as questions without the `question` severity ("should we add X?", "can we rename this?") are requests — make the change.
    h. Interpret the intent: code change → make it; documentation → add/update docs; implied action → do it. If genuinely unclear, `reply` with "Could you clarify what change you'd like here?" instead of silently skipping.
    i. Read the relevant file for full context around the commented lines (`startLine` 0 means the comment is about the whole file), then make the change with your file editing tools. Keep changes minimal and focused on the comment.
+   - If the comment states a general rule (a naming or style convention, a repeated mistake) rather than a one-off fix, apply it to every other place in this diff with the same problem, not just the commented lines. Stay inside the changed code, and say "(also N other places)" in the summary.
    j. Only after the change was actually written, `resolve` the thread with a one-line summary like "Fixed: <what changed>".
    k. If the write was rejected, follow **Rejected edits** below: `reply`, do not `resolve`.
 4. Call `list_threads` again to confirm the final status.
