@@ -38,6 +38,7 @@ The AI features need [Claude Code](https://docs.claude.com/en/docs/claude-code) 
 | [Browse and comment on any file](#browse-and-comment-on-any-file) | Comment on code outside the diff from the Files tab |
 | [Jump anywhere](#jump-anywhere) | ⌘P for files, ⌘K for commits, comments, PRs and every action |
 | [Switch projects](#switch-projects) | Keep your repos in a rail and switch with ⌘1–9 |
+| [Work across repos](#work-across-repos) | Group related repos, or @mention one, so Claude can read it too |
 | [Open from the terminal or your agent](#open-from-the-terminal-or-your-agent) | `diffity` opens a repo, a diff or a pull request URL in the app |
 
 ### Comment on your diff
@@ -99,6 +100,10 @@ The AI features need [Claude Code](https://docs.claude.com/en/docs/claude-code) 
 > Open a repo with `⌘O`; it stays in the left rail, so `⌘1`–`⌘9` takes you back to it.
 
 <img src="./.github/screenshots/projects.gif" alt="Switching between projects in the rail" />
+
+### Work across repos
+
+> Right-click a project in the rail and pick **Group with…**, or drag it onto a group. When Claude works in any project of a group, it can also read the others. For a one-off, type `@` and a project name in a comment or in Ask Claude. The Ask Claude popover lists every project Claude can read and why.
 
 ### Open from the terminal or your agent
 
