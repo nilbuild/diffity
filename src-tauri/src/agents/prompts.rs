@@ -1,5 +1,5 @@
 use crate::agents::policy;
-use crate::agents::types::{AgentAction, AgentMode, ContextChip};
+use crate::agents::types::{AgentAction, AgentMode, ContextChip, LinkReason, LinkedProject};
 use crate::core::types::{ReviewVerdict, Side};
 
 const REVIEW: &str = include_str!("../../prompts/review.md");
@@ -113,6 +113,27 @@ pub fn project_instructions(agents_md: &str) -> String {
     let cut: String = text.chars().take(PROJECT_INSTRUCTIONS_LIMIT).collect();
     let more = if cut.len() < text.len() { "\n\n[… AGENTS.md is longer; the rest was left out]" } else { "" };
     format!("\n## Project instructions\n\nThe repository's `AGENTS.md`. Follow it where it applies to this task; Diffity's instructions above win where they conflict.\n\n<agents-md>\n{cut}{more}\n</agents-md>\n")
+}
+
+/// The other projects the agent can read this run, appended to the prompt.
+pub fn linked_projects(projects: &[LinkedProject]) -> String {
+    if projects.is_empty() {
+        return String::new();
+    }
+    let lines: Vec<String> = projects
+        .iter()
+        .map(|project| {
+            let why = match project.reason {
+                LinkReason::Group => "in the same group as this project",
+                LinkReason::Mentioned => "mentioned by the user",
+            };
+            format!("- `{}` at `{}` ({why})", project.name, project.path)
+        })
+        .collect();
+    format!(
+        "\n## Other projects you can read\n\nThese repositories are related to this one. Read them with absolute paths when the task needs it, such as checking how a caller, client or API uses the code here. The work itself stays in this project: comments and replies are about this project's files, and edit another project only when the user asks for it.\n\n{}\n",
+        lines.join("\n")
+    )
 }
 
 pub fn render(template: &str, vars: &[(&str, &str)]) -> String {
@@ -266,6 +287,18 @@ pub fn build_prompt(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lists_linked_projects_with_their_reason() {
+        assert_eq!(linked_projects(&[]), "");
+        let text = linked_projects(&[
+            LinkedProject { path: "/code/web".into(), name: "web".into(), reason: LinkReason::Group },
+            LinkedProject { path: "/code/api".into(), name: "api".into(), reason: LinkReason::Mentioned },
+        ]);
+        assert!(text.contains("## Other projects you can read"));
+        assert!(text.contains("- `web` at `/code/web` (in the same group as this project)"));
+        assert!(text.contains("- `api` at `/code/api` (mentioned by the user)"));
+    }
 
     #[test]
     fn templates_have_no_unrendered_placeholders() {

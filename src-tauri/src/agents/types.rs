@@ -65,6 +65,22 @@ pub struct ModelCatalog {
     pub fetched_at: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum LinkReason {
+    Group,
+    Mentioned,
+}
+
+/// Another project the agent may read during a run: one in the same group as the repo, or one the user mentioned.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedProject {
+    pub path: String,
+    pub name: String,
+    pub reason: LinkReason,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextChip {

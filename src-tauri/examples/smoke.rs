@@ -2,6 +2,7 @@
 //! `cargo build --features mcp --bin diffity-mcp && cargo run --example smoke -- <claude|codex|opencode|gemini> [repo] [review|ask|edit|thread]`
 //! `resolve` leaves a plain comment asking for a fix and runs `resolve` on it; `SMOKE_PERMISSIONS=askOnce|askEach` overrides the default (skip); `SMOKE_MODEL` picks the model.
 //! `guide` writes a reading guide for `SMOKE_REF` (default `work`) and prints it; `SMOKE_TIMEOUT` (seconds) gives it longer.
+//! `SMOKE_LINKED` (comma-separated absolute paths) passes other projects the agent may read.
 //! `thread` leaves a user comment mentioning the agent (`@claude`, `@codex`, `@opencode`) on math.js and runs the `thread` action (auto-approves writes).
 
 use std::path::{Path, PathBuf};
@@ -213,7 +214,17 @@ async fn main() -> anyhow::Result<()> {
         model: std::env::var("SMOKE_MODEL").ok(),
         effort: None,
     };
-    let run = manager.send_prompt(&chat.id, text, vec![], action, model, sink);
+    let linked: Vec<diffity_desktop_lib::agents::LinkedProject> = std::env::var("SMOKE_LINKED")
+        .unwrap_or_default()
+        .split(',')
+        .filter(|path| !path.trim().is_empty())
+        .map(|path| diffity_desktop_lib::agents::LinkedProject {
+            path: path.trim().into(),
+            name: Path::new(path.trim()).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+            reason: diffity_desktop_lib::agents::LinkReason::Mentioned,
+        })
+        .collect();
+    let run = manager.send_prompt(&chat.id, text, vec![], action, model, linked, sink);
     let timeout = std::env::var("SMOKE_TIMEOUT").ok().and_then(|t| t.parse().ok()).unwrap_or(170);
     let outcome = tokio::time::timeout(Duration::from_secs(timeout), run).await;
     match outcome {

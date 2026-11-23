@@ -29,6 +29,8 @@ struct Runtime {
     session: AgentSession,
     token: String,
     edit_rejected: Arc<std::sync::atomic::AtomicBool>,
+    /// The other projects the session was started with; a run asking for different ones restarts it.
+    dirs: Vec<PathBuf>,
 }
 
 type Slot = Arc<Mutex<Option<Arc<Runtime>>>>;
@@ -396,16 +398,17 @@ impl AgentManager {
         }))
     }
 
-    async fn runtime(&self, rec: &chats::ChatRecord, mut binding: Binding) -> Result<Arc<Runtime>> {
+    async fn runtime(&self, rec: &chats::ChatRecord, mut binding: Binding, dirs: Vec<PathBuf>) -> Result<Arc<Runtime>> {
         let slot = self.slot(&rec.chat.id);
         let mut guard = slot.lock().await;
         if let Some(rt) = guard.as_ref() {
-            if rt.session.is_alive() {
+            if rt.session.is_alive() && rt.dirs == dirs {
                 binding.edit_rejected = rt.edit_rejected.clone();
                 self.bridge.update(&rt.token, |b| *b = binding);
                 return Ok(rt.clone());
             }
             self.bridge.unregister(&rt.token);
+            rt.session.close().await;
         }
         *guard = None;
 
@@ -462,6 +465,7 @@ impl AgentManager {
             resume_session_id: rec.acp_session_id.clone(),
             broker: self.broker.clone(),
             edit_rejected: edit_rejected.clone(),
+            additional_dirs: dirs.clone(),
         })
         .await;
         let session = match started {
@@ -486,11 +490,13 @@ impl AgentManager {
             session,
             token,
             edit_rejected,
+            dirs,
         });
         *guard = Some(rt.clone());
         Ok(rt)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn send_prompt(
         &self,
         chat_id: &str,
@@ -498,10 +504,13 @@ impl AgentManager {
         context: Vec<ContextChip>,
         action: AgentAction,
         model: RunModel,
+        projects: Vec<LinkedProject>,
         on_event: Box<dyn Fn(AgentEvent) + Send + Sync>,
     ) -> Result<()> {
         let (store, id) = (self.store.clone(), chat_id.to_string());
         let rec = blocking(move || chats::get(&store, &id)).await?;
+        let repo = rec.chat.repo_path.clone();
+        let projects = blocking(move || Ok(readable_projects(Path::new(&repo), projects))).await?;
         let kind = AgentKind::from_id(&rec.chat.agent_id);
         if action.needs_write_mode() && !crate::agents::policy::can_write_files(rec.chat.mode) {
             return Err(AppError::invalid(
@@ -543,6 +552,7 @@ impl AgentManager {
             Some(section) => format!("{prompt}\n{section}"),
             None => prompt,
         };
+        let prompt = format!("{prompt}{}", prompts::linked_projects(&projects));
         let prompt = if kind == Some(AgentKind::OpenCode) && first_turn {
             let repo = rec.chat.repo_path.clone();
             let agents_md = blocking(move || Ok(read_agents_md(Path::new(&repo)))).await?;
@@ -551,7 +561,8 @@ impl AgentManager {
             prompt
         };
 
-        let rt = self.runtime(&rec, binding).await?;
+        let dirs = projects.iter().map(|project| PathBuf::from(&project.path)).collect();
+        let rt = self.runtime(&rec, binding, dirs).await?;
 
         let user = ChatMessageContent::User(UserMessageContent {
             text: text.clone(),
@@ -668,6 +679,29 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T> + Send + 'sta
         .map_err(|e| AppError::internal(format!("task failed: {e}")))?
 }
 
+/// The linked projects that are real folders other than the repo itself, each once, with absolute resolved paths.
+fn readable_projects(repo: &Path, projects: Vec<LinkedProject>) -> Vec<LinkedProject> {
+    let repo = repo.canonicalize().unwrap_or_else(|_| repo.to_path_buf());
+    let mut seen: Vec<PathBuf> = Vec::new();
+    let mut kept = Vec::new();
+    for mut project in projects {
+        let path = Path::new(&project.path);
+        if !path.is_absolute() {
+            continue;
+        }
+        let Ok(real) = path.canonicalize() else {
+            continue;
+        };
+        if !real.is_dir() || real == repo || seen.contains(&real) {
+            continue;
+        }
+        project.path = real.to_string_lossy().into_owned();
+        seen.push(real);
+        kept.push(project);
+    }
+    kept
+}
+
 /// The repo's `AGENTS.md`, if it is a regular file: a symlink in a branch under review could point
 /// at a secret elsewhere on disk, which would then go into the prompt.
 fn read_agents_md(repo: &Path) -> String {
@@ -681,6 +715,31 @@ fn read_agents_md(repo: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keeps_only_real_folders_other_than_the_repo() {
+        let root = tempfile::tempdir().unwrap();
+        let repo = root.path().join("app");
+        let web = root.path().join("web");
+        std::fs::create_dir_all(&repo).unwrap();
+        std::fs::create_dir_all(&web).unwrap();
+        std::fs::write(root.path().join("file"), "").unwrap();
+        let link = |path: &Path, reason| LinkedProject { path: path.to_string_lossy().into_owned(), name: "x".into(), reason };
+        let kept = readable_projects(
+            &repo,
+            vec![
+                link(&web, LinkReason::Group),
+                link(&web, LinkReason::Mentioned),
+                link(&repo, LinkReason::Mentioned),
+                link(&root.path().join("missing"), LinkReason::Mentioned),
+                link(&root.path().join("file"), LinkReason::Mentioned),
+                link(Path::new("relative"), LinkReason::Mentioned),
+            ],
+        );
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].reason, LinkReason::Group);
+        assert_eq!(PathBuf::from(&kept[0].path), web.canonicalize().unwrap());
+    }
 
     #[test]
     fn reads_agents_md_but_not_through_a_symlink() {

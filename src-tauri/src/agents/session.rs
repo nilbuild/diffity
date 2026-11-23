@@ -614,6 +614,8 @@ pub struct SessionConfig {
     pub broker: Arc<PermissionBroker>,
     /// Shared with the MCP bridge binding; reset at the start of every turn.
     pub edit_rejected: Arc<AtomicBool>,
+    /// Other projects the agent may read (and, with approval, edit) besides `cwd`.
+    pub additional_dirs: Vec<PathBuf>,
 }
 
 pub struct AgentSession {
@@ -728,6 +730,7 @@ impl AgentSession {
         let s_err = shared.clone();
         let ready_main = ready_tx.clone();
         let cwd = config.cwd.clone();
+        let extra_dirs = config.additional_dirs.clone();
         let resume = config.resume_session_id.clone();
 
         let task = tokio::spawn(async move {
@@ -775,7 +778,9 @@ impl AgentSession {
                     let mut options: Vec<SessionConfigOption> = Vec::new();
                     if let (Some(prev), true) = (resume, init.agent_capabilities.load_session) {
                         let load = cx
-                            .send_request(LoadSessionRequest::new(prev.clone(), cwd.clone()).mcp_servers(vec![mcp.clone()]))
+                            .send_request(LoadSessionRequest::new(prev.clone(), cwd.clone())
+                                    .additional_directories(extra_dirs.clone())
+                                    .mcp_servers(vec![mcp.clone()]))
                             .block_task()
                             .await;
                         match load {
@@ -791,7 +796,9 @@ impl AgentSession {
                         Some(id) => id,
                         None => {
                             let created = cx
-                                .send_request(NewSessionRequest::new(cwd.clone()).mcp_servers(vec![mcp.clone()]))
+                                .send_request(NewSessionRequest::new(cwd.clone())
+                                    .additional_directories(extra_dirs.clone())
+                                    .mcp_servers(vec![mcp.clone()]))
                                 .block_task()
                                 .await?;
                             tracing::debug!("session/new modes={:?}", created.modes);

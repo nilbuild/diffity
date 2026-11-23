@@ -1,6 +1,6 @@
 use crate::agents::{
-    AgentAction, AgentEvent, AgentInfo, Chat, ChatMessage, ContextChip, ModelCatalog, RunModel,
-    StartChat,
+    AgentAction, AgentEvent, AgentInfo, Chat, ChatMessage, ContextChip, LinkedProject, ModelCatalog,
+    RunModel, StartChat,
 };
 use crate::core::AppError;
 use tauri::ipc::Channel;
@@ -49,6 +49,7 @@ pub async fn get_chat_messages(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn send_prompt(
     state: State<'_, AppState>,
     chat_id: String,
@@ -56,6 +57,7 @@ pub async fn send_prompt(
     context: Vec<ContextChip>,
     action: AgentAction,
     model: Option<RunModel>,
+    projects: Option<Vec<LinkedProject>>,
     on_event: Channel<AgentEvent>,
 ) -> Result<(), AppError> {
     let sink = Box::new(move |event: AgentEvent| {
@@ -65,7 +67,15 @@ pub async fn send_prompt(
     });
     state
         .agents
-        .send_prompt(&chat_id, text, context, action, model.unwrap_or_default(), sink)
+        .send_prompt(
+            &chat_id,
+            text,
+            context,
+            action,
+            model.unwrap_or_default(),
+            projects.unwrap_or_default(),
+            sink,
+        )
         .await
 }
 
