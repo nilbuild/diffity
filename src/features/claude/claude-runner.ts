@@ -18,6 +18,7 @@ import { isGuideOnScreen } from '../guide/guide-on-screen';
 import { repoBase } from '../../hooks/use-repo';
 import { addressedThreadIds, reviewAddressed, reviewFixesLabel } from '../comments/addressed';
 import { linkedProjects } from '../groups/project-directory';
+import { linkedEditTracker, noteLinkedChanges } from '../groups/linked-changes';
 
 export type ClaudeAction = Extract<
   AgentAction,
@@ -669,6 +670,7 @@ async function execute(run: ClaudeRun) {
   }
 
   const projects = await runProjects(run, sessionId);
+  const linkedEdits = linkedEditTracker(projects);
   const before = await tauri.listThreads(sessionId).catch(() => []);
   const baseline = new Set(before.map((thread) => thread.id));
   let added = 0;
@@ -714,6 +716,7 @@ async function execute(run: ClaudeRun) {
         useClaude.setState((state) => ({ permissions: [...state.permissions, permission] }));
         return;
       }
+      linkedEdits.record(event);
       recordEvent(repoPath, run.id, event);
       if (event.type === 'error') {
         failed = { code: event.code ?? '', message: event.message };
@@ -734,50 +737,58 @@ async function execute(run: ClaudeRun) {
   const outcome: RunOutcome = failed ? 'failed' : cancelled ? 'stopped' : 'done';
   patchRun(run.id, { outcome });
   finishActivity(repoPath, run.id, outcome);
-  if (failed) {
-    showFailure(`${meta.short} stopped with an error`, failed, meta, againAction(run.id));
-    return;
+  try {
+    await announceRun();
+  } finally {
+    noteLinkedChanges(linkedEdits.changes(), meta.short);
   }
-  if (cancelled) {
-    toast.info(`${meta.short} was stopped`, { action: againAction(run.id) });
-    return;
-  }
-  if (inTask && run.action.kind === 'chat') {
-    return;
-  }
-  if (run.action.kind === 'guide') {
-    const guide = await tauri.getGuide(sessionId).catch(() => null);
-    if (!guide || Date.parse(guide.createdAt) < startedAt) {
-      toast.error(`${meta.short} finished without saving a guide`, { description: 'Open the activity to see what it did, then try again.' });
+
+  async function announceRun() {
+    if (failed) {
+      showFailure(`${meta.short} stopped with an error`, failed, meta, againAction(run.id));
       return;
     }
-    const chapters = `${guide.chapters.length} chapter${guide.chapters.length === 1 ? '' : 's'}`;
-    const elsewhere = !!ref && !isGuideOnScreen(run.context.repoPath, ref);
-    toast.success(`${meta.short} wrote a guide · ${chapters}`, {
-      description: elsewhere && ref ? runViewLabel(run.context.repoPath, ref) : undefined,
-      action: elsewhere && ref ? { label: 'Open guide', onClick: () => goToGuide(run.context.repoPath, ref) } : undefined,
+    if (cancelled) {
+      toast.info(`${meta.short} was stopped`, { action: againAction(run.id) });
+      return;
+    }
+    if (inTask && run.action.kind === 'chat') {
+      return;
+    }
+    if (run.action.kind === 'guide') {
+      const guide = await tauri.getGuide(sessionId).catch(() => null);
+      if (!guide || Date.parse(guide.createdAt) < startedAt) {
+        toast.error(`${meta.short} finished without saving a guide`, { description: 'Open the activity to see what it did, then try again.' });
+        return;
+      }
+      const chapters = `${guide.chapters.length} chapter${guide.chapters.length === 1 ? '' : 's'}`;
+      const elsewhere = !!ref && !isGuideOnScreen(run.context.repoPath, ref);
+      toast.success(`${meta.short} wrote a guide · ${chapters}`, {
+        description: elsewhere && ref ? runViewLabel(run.context.repoPath, ref) : undefined,
+        action: elsewhere && ref ? { label: 'Open guide', onClick: () => goToGuide(run.context.repoPath, ref) } : undefined,
+      });
+      return;
+    }
+    const latest = useClaude.getState().runs.find((item) => item.id === run.id) ?? run;
+    const finished = { ...latest, ref, newThreadIds };
+    const after = await tauri.listThreads(sessionId).catch(() => []);
+    // Only threads still open need the user; resolved ones are done and would just bury them.
+    const touched = new Set([...newThreadIds, ...finished.threadIds]);
+    const needsYou = after.filter((thread) => touched.has(thread.id) && thread.status === 'open').map((thread) => thread.id);
+    const addressed = addressedThreadIds(after, touched);
+    const hasTarget = !!ref && needsYou.length > 0;
+    const batch = run.action.kind === 'resolve' ? batchOutcome(after, finished.threadIds, meta.short) : null;
+    const posted = await postRepliesToGitHub(sessionId, run.context.postRepliesToGitHub ?? [], meta.short);
+    const postedNote = posted > 0 ? `Posted ${posted} repl${posted === 1 ? 'y' : 'ies'} to GitHub` : null;
+    const checkNote = addressed.length > 0 ? `Check ${addressed.length === 1 ? 'it' : 'each'}, then resolve. ] goes to the next.` : null;
+    const description = (batch ? [batch.detail, postedNote, checkNote] : [postedNote, checkNote]).filter(Boolean).join(' · ') || undefined;
+    const showAction = hasTarget ? { label: needsYou.length === 1 ? 'Show comment' : `Show ${needsYou.length} open`, onClick: () => openRunResult(run.context.repoPath, ref, needsYou) } : undefined;
+    toast.success(batch?.title ?? finishedMessage(finished, added, meta.short), {
+      description,
+      duration: hasTarget ? 12_000 : undefined,
+      action: ref && addressed.length > 0 ? { label: reviewFixesLabel(addressed.length), onClick: () => reviewAddressed(run.context.repoPath, ref, addressed) } : showAction,
     });
-    return;
   }
-  const latest = useClaude.getState().runs.find((item) => item.id === run.id) ?? run;
-  const finished = { ...latest, ref, newThreadIds };
-  const after = await tauri.listThreads(sessionId).catch(() => []);
-  // Only threads still open need the user; resolved ones are done and would just bury them.
-  const touched = new Set([...newThreadIds, ...finished.threadIds]);
-  const needsYou = after.filter((thread) => touched.has(thread.id) && thread.status === 'open').map((thread) => thread.id);
-  const addressed = addressedThreadIds(after, touched);
-  const hasTarget = !!ref && needsYou.length > 0;
-  const batch = run.action.kind === 'resolve' ? batchOutcome(after, finished.threadIds, meta.short) : null;
-  const posted = await postRepliesToGitHub(sessionId, run.context.postRepliesToGitHub ?? [], meta.short);
-  const postedNote = posted > 0 ? `Posted ${posted} repl${posted === 1 ? 'y' : 'ies'} to GitHub` : null;
-  const checkNote = addressed.length > 0 ? `Check ${addressed.length === 1 ? 'it' : 'each'}, then resolve. ] goes to the next.` : null;
-  const description = (batch ? [batch.detail, postedNote, checkNote] : [postedNote, checkNote]).filter(Boolean).join(' · ') || undefined;
-  const showAction = hasTarget ? { label: needsYou.length === 1 ? 'Show comment' : `Show ${needsYou.length} open`, onClick: () => openRunResult(run.context.repoPath, ref, needsYou) } : undefined;
-  toast.success(batch?.title ?? finishedMessage(finished, added, meta.short), {
-    description,
-    duration: hasTarget ? 12_000 : undefined,
-    action: ref && addressed.length > 0 ? { label: reviewFixesLabel(addressed.length), onClick: () => reviewAddressed(run.context.repoPath, ref, addressed) } : showAction,
-  });
 }
 
 function threadRef(run: ClaudeRun): string | null {

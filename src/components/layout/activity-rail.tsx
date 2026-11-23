@@ -23,6 +23,7 @@ import { arrangeOrder, dropMembership, expandShown, getGroups, groupOf, groupWit
 import { changeGroups, GroupEditorHost, openGroupEditorAt, useGroupEditorId } from '../../features/groups/group-editor';
 import { RepoBadge } from '../../features/welcome/repo-badge';
 import { setRailProjects } from '../../features/groups/project-directory';
+import { clearLinkedChanges, setProjectOpener, useLinkedChanges } from '../../features/groups/linked-changes';
 
 const RailContext = createContext(false);
 
@@ -95,6 +96,8 @@ interface ProjectTileProps {
   busy: boolean;
   /** An agent here (or in one of its tasks) is waiting for an approval. */
   waiting: boolean;
+  /** An agent working from another project changed files here since it was last opened. */
+  changed: { agent: string; files: string[] } | null;
   offset: number;
   dragging: boolean;
   animate: boolean;
@@ -108,7 +111,7 @@ interface ProjectTileProps {
 }
 
 function ProjectTile(props: ProjectTileProps) {
-  const { path, index, current, busy, waiting, offset, dragging, animate, onPointerDown, onOpen, onMenu, loading, menuTarget, menusOpen } = props;
+  const { path, index, current, busy, waiting, changed, offset, dragging, animate, onPointerDown, onOpen, onMenu, loading, menuTarget, menusOpen } = props;
   const spinning = useDelayedFlag(loading, 150);
   const name = repoName(path);
   const shortcut = index < 9 ? `${modKey}${index + 1}` : null;
@@ -148,11 +151,12 @@ function ProjectTile(props: ProjectTileProps) {
         {spinning ? <Spinner className="w-3.5 h-3.5 text-current" label="Opening" /> : repoInitials(name)}
         {waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-modified ring-2 ring-frame" title="Waiting for your approval" />}
         {busy && !waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-claude ring-2 ring-frame" title="Claude is working here" />}
+        {changed && !busy && !waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent ring-2 ring-frame" />}
       </button>
       {!dragging && !menusOpen && (
         <RailTooltip
           title={name}
-          detail={`${shortPath(path)} · drag to reorder · right-click for more`}
+          detail={changed ? `${changed.agent} changed ${changedFiles(changed.files)} here · open to review` : `${shortPath(path)} · drag to reorder · right-click for more`}
           shortcut={shortcut}
         />
       )}
@@ -277,10 +281,15 @@ function ActivityRail() {
   const [settling, setSettling] = useState(false);
   const [menu, setMenu] = useState<{ path: string; at: { x: number; y: number } } | null>(null);
   const editor = useEditorName();
+  const changedProjects = useLinkedChanges((state) => state.byPath);
 
   useEffect(() => {
     setRailProjects(all);
   }, [all]);
+
+  useEffect(() => {
+    clearLinkedChanges(currentPath);
+  }, [currentPath, changedProjects]);
 
   const editGroup = (group: ProjectGroup) => {
     const box = navRef.current?.querySelector<HTMLElement>(`[data-group-id="${group.id}"]`);
@@ -344,6 +353,10 @@ function ActivityRail() {
     }
     void openRepoAt(path, navigate);
   }, [currentPath, navigate]);
+
+  useEffect(() => {
+    setProjectOpener(openProject);
+  }, [openProject]);
 
 
   useEffect(() => {
@@ -506,6 +519,7 @@ function ActivityRail() {
                   highlighted={groupMenu?.groupId === group.id || editingGroupId === group.id}
                   busy={members.some((member) => busyRepos.has(member))}
                   waiting={members.some((member) => waitingRepos.has(member))}
+                  changed={members.some((member) => member !== currentPath && !!changedProjects[member])}
                   offset={offsetFor(index)}
                   dragging={drag?.active === true && drag.from === index}
                   animate={drag?.active === true && !settling}
@@ -525,6 +539,7 @@ function ActivityRail() {
               loading={path === openingPath}
               busy={busyRepos.has(path)}
               waiting={waitingRepos.has(path)}
+              changed={path === currentPath ? null : changedProjects[path] ?? null}
               offset={offsetFor(index)}
               dragging={drag?.active === true && drag.from === index}
               animate={drag?.active === true && !settling}
@@ -689,6 +704,7 @@ function StackTile(props: {
   highlighted: boolean;
   busy: boolean;
   waiting: boolean;
+  changed: boolean;
   offset: number;
   dragging: boolean;
   animate: boolean;
@@ -696,7 +712,7 @@ function StackTile(props: {
   onPointerDown: (event: React.PointerEvent<HTMLButtonElement>, index: number) => void;
   onExpand: () => void;
 }) {
-  const { group, members, openPath, index, highlighted, busy, waiting, offset, dragging, animate, menusOpen, onPointerDown, onExpand } = props;
+  const { group, members, openPath, index, highlighted, busy, waiting, changed, offset, dragging, animate, menusOpen, onPointerDown, onExpand } = props;
   const names = members.map((member) => (member === openPath ? `${repoName(member)} (open)` : repoName(member)));
 
   return (
@@ -724,6 +740,7 @@ function StackTile(props: {
         </span>
         {waiting && <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-modified ring-2 ring-frame" title="Waiting for your approval" />}
         {busy && !waiting && <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-claude ring-2 ring-frame" title="Claude is working here" />}
+        {changed && !busy && !waiting && <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent ring-2 ring-frame" />}
       </button>
       {!dragging && !menusOpen && (
         <RailTooltip
@@ -878,6 +895,13 @@ function railSegments(projects: string[], groups: ProjectGroup[]) {
     segments.push({ group, items: [{ path, index }] });
   });
   return segments;
+}
+
+function changedFiles(files: string[]) {
+  if (files.length === 1) {
+    return files[0].split('/').pop() ?? files[0];
+  }
+  return `${files.length} files`;
 }
 
 function nearestSlot(centers: number[], y: number): number {

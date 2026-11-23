@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { linkedEditTracker } from '../src/features/groups/linked-changes';
 import {
   arrangeOrder,
   defaultGroupName,
@@ -97,5 +98,21 @@ describe('project mentions', () => {
       { path: '/code/diffity-web', name: 'diffity-web', reason: 'group' },
       { path: '/code/roadmap.sh', name: 'roadmap.sh', reason: 'mentioned' },
     ]);
+  });
+});
+
+describe('linkedEditTracker', () => {
+  const projects = [{ path: '/code/api', name: 'api', reason: 'group' as const }];
+
+  it('keeps finished edits inside linked projects', () => {
+    const tracker = linkedEditTracker(projects);
+    tracker.record({ type: 'toolCall', id: 'a', title: 'Edit', kind: 'edit', status: 'pending', locations: [] });
+    tracker.record({ type: 'toolCallUpdate', id: 'a', status: 'in_progress', locations: ['/code/api/src/orders.js'] });
+    tracker.record({ type: 'toolCallUpdate', id: 'a', status: 'completed' });
+    tracker.record({ type: 'toolCall', id: 'b', title: 'Read', kind: 'read', status: 'completed', locations: ['/code/api/README.md'] });
+    tracker.record({ type: 'toolCall', id: 'c', title: 'Edit', kind: 'edit', status: 'failed', locations: ['/code/api/x.js'] });
+    tracker.record({ type: 'toolCall', id: 'd', title: 'Edit', kind: 'edit', status: 'completed', locations: ['/code/web/app.js'] });
+    tracker.record({ type: 'toolCall', id: 'e', title: 'Edit', kind: 'edit', status: 'completed', locations: ['/code/api-old/y.js'] });
+    expect(tracker.changes()).toEqual([{ path: '/code/api', name: 'api', files: ['src/orders.js'] }]);
   });
 });
