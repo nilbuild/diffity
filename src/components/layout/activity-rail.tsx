@@ -9,6 +9,7 @@ import { openRepoAt, shortPath, useRecentRepos } from '../../features/welcome/re
 import { repoInitials, useProjectInitials } from '../../features/welcome/repo-badge';
 import { assignColors, colorStyle, setProjectColor, useProjectColor } from '../../features/welcome/project-colors';
 import { ColorSwatches } from '../../features/welcome/color-swatches';
+import { groupColor, groupEmoji, styleGroup } from '../../features/groups/group-look';
 import { setLogoShown, useProjectLogo } from '../../features/welcome/project-icons';
 import { useBusyRepoPaths, useClaude } from '../../features/claude/claude-runner';
 import { parentPathOf, useAllTasks } from '../../features/tasks/tasks';
@@ -787,11 +788,14 @@ function GroupBox(props: {
       </div>
     );
   }
+  const emoji = groupEmoji(group);
+
   return (
     <div
       data-group-id={group.id}
       onContextMenu={openMenu}
-      className={cn('flex flex-col items-center gap-1.5 w-11 pb-1 rounded-[13px] bg-hover', highlighted && 'ring-2 ring-focus')}
+      style={colorStyle(groupColor(group))}
+      className={cn('flex flex-col items-center gap-1.5 w-11 pb-1 rounded-[13px] project-wash', highlighted && 'ring-2 ring-focus')}
     >
       <div className="group relative w-full flex justify-center">
         <button
@@ -799,12 +803,15 @@ function GroupBox(props: {
           onClick={onToggle}
           aria-expanded
           aria-label={`${group.name} group, ${group.paths.length} projects. Collapse`}
-          className="w-full h-4 mt-0.5 px-1 rounded-t-[13px] text-[9px] leading-4 font-semibold text-text-muted hover:text-text truncate cursor-pointer"
+          className={cn(
+            'w-full px-1 rounded-t-[13px] font-semibold project-text hover:text-text cursor-pointer',
+            emoji ? 'h-6 pt-1 text-[14px] leading-5' : 'h-4 mt-0.5 text-[9px] leading-4 truncate',
+          )}
         >
-          {group.name}
+          {emoji ?? group.name}
         </button>
         {!menusOpen && (
-          <RailTooltip title={`${group.name} · ${group.paths.length} projects`} detail="Claude can work across all of them · drag a project in or out · click to collapse" />
+          <RailTooltip title={`${emoji ? `${emoji} ` : ''}${group.name} · ${group.paths.length} projects`} detail="Claude can work across all of them · drag a project in or out · click to collapse" />
         )}
       </div>
       {children}
@@ -831,27 +838,29 @@ function StackTile(props: {
 }) {
   const { group, members, openPath, index, highlighted, dropTarget, busy, waiting, changed, dragging, placeholder, menusOpen, onPointerDown, onExpand } = props;
   const names = members.map((member) => (member === openPath ? `${repoName(member)} (open)` : repoName(member)));
+  const emoji = groupEmoji(group);
 
   return (
     <div data-rail-tile={dragging ? undefined : true} data-flip={dragging ? undefined : `group:${group.id}`} className="group relative w-full flex justify-center">
       {placeholder ? <DropGap /> : (
       <>
       <button
+        style={colorStyle(groupColor(group))}
         onPointerDown={(event) => onPointerDown(event, index)}
         onClick={onExpand}
         aria-label={`${group.name} group: ${names.join(', ')}. Expand`}
         aria-current={openPath ? 'page' : undefined}
         className={cn(
           tileBase,
-          'text-[12px] font-semibold tracking-wide touch-none bg-active',
-          openPath ? 'ring-2 ring-inset ring-text text-text' : 'text-text-secondary hover:bg-fill-hover hover:text-text hover:ring-1 hover:ring-control-border',
-          dragging ? 'cursor-grabbing bg-raised opacity-90 shadow-lg' : 'cursor-pointer',
+          'text-[12px] font-semibold tracking-wide touch-none',
+          openPath ? 'project-tint-strong ring-2 ring-inset ring-(--project)' : 'project-tint hover:project-tint-strong',
+          dragging ? 'cursor-grabbing opacity-90 shadow-lg' : 'cursor-pointer',
           (highlighted || dropTarget) && 'ring-2 ring-focus ring-offset-2 ring-offset-frame',
           dropTarget && 'scale-110',
         )}
       >
-        {repoInitials(group.name)}
-        <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 rounded-full bg-text text-bg text-[9px] leading-4 font-bold text-center ring-2 ring-frame">
+        {emoji ? <span className="text-[18px] leading-none">{emoji}</span> : repoInitials(group.name)}
+        <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 px-1 rounded-full project-solid text-[9px] leading-4 font-bold text-center ring-2 ring-frame">
           {members.length}
         </span>
         {waiting && <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-modified ring-2 ring-frame" title="Waiting for your approval" />}
@@ -860,7 +869,7 @@ function StackTile(props: {
       </button>
       {!dragging && !menusOpen && (
         <RailTooltip
-          title={`${group.name} · ${members.length} projects`}
+          title={`${emoji ? `${emoji} ` : ''}${group.name} · ${members.length} projects`}
           detail={`${names.join(', ')} · click to expand · right-click for more`}
           shortcut={index < 9 ? `${modKey}${index + 1}` : null}
         />
@@ -907,13 +916,15 @@ function GroupMenu(props: { group: ProjectGroup | null; at: { x: number; y: numb
   };
   return (
     <ContextMenu position={at} onClose={onClose} width={220}>
-      <MenuLabel>{group.name}</MenuLabel>
+      <MenuLabel>{[groupEmoji(group), group.name].filter(Boolean).join(' ')}</MenuLabel>
       <MenuItem
         icon={group.collapsed ? <UnfoldIcon size="sm" /> : <FoldIcon size="sm" />}
         label={group.collapsed ? 'Expand' : 'Collapse'}
         onSelect={run(() => setGroups(toggleCollapsed(getGroups(), group.id)))}
       />
       <MenuItem icon={<PencilIcon size="sm" />} label="Edit group…" onSelect={run(() => onEdit(group))} />
+      <MenuSeparator />
+      <ColorSwatches value={groupColor(group).id} onPick={(id) => setGroups(styleGroup(getGroups(), group.id, { color: id }))} className="px-2.5" />
       <MenuSeparator />
       <MenuItem
         icon={<XIcon size="sm" />}

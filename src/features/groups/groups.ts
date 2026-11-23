@@ -7,6 +7,10 @@ export interface ProjectGroup {
   paths: string[];
   /** Shown on the rail as one stacked tile. */
   collapsed?: boolean;
+  /** A colour id from PROJECT_COLORS; picked from the id when unset. */
+  color?: string;
+  /** Shown before the name; guessed from the name when unset, none when empty. */
+  emoji?: string;
 }
 
 const GROUPS_KEY = 'diffity-rail-groups';

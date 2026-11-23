@@ -88,6 +88,15 @@
   color: color-mix(in oklab, var(--project) 40%, var(--color-text));
 }
 
+@utility project-wash {
+  background-color: color-mix(in oklab, var(--project) 16%, var(--color-frame));
+  box-shadow: inset 0 0 0 1.5px color-mix(in oklab, var(--project) 55%, transparent);
+}
+
+@utility project-text {
+  color: color-mix(in oklab, var(--project) 60%, var(--color-text));
+}
+
 @utility project-solid {
   background-color: var(--project);
   color: var(--project-ink);

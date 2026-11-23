@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { pickColors } from '../src/features/welcome/project-colors';
 import { projectInitials } from '../src/features/welcome/repo-badge';
+import { groupColor, groupEmoji, guessEmoji } from '../src/features/groups/group-look';
 
 describe('project colours', () => {
   it('gives every project a colour, spreading them before repeating', () => {
@@ -30,5 +31,29 @@ describe('project initials', () => {
 
   it('falls back to plain initials for one-word names', () => {
     expect(projectInitials('axol', ['axol', 'axolotl'])).toBe('AX');
+  });
+});
+
+describe('group look', () => {
+  it('guesses an emoji from words in the name, not parts of words', () => {
+    expect(guessEmoji('shop')).toBe('🛒');
+    expect(guessEmoji('acme-payments')).toBe('💳');
+    expect(guessEmoji('Docs site')).toBe('📚');
+    expect(guessEmoji('build')).toBeNull();
+    expect(guessEmoji('diffity')).toBeNull();
+  });
+
+  it('uses the picked emoji, and none when it was cleared', () => {
+    const base = { id: 'g1', name: 'shop', paths: ['/a', '/b'] };
+    expect(groupEmoji(base)).toBe('🛒');
+    expect(groupEmoji({ ...base, emoji: '🚀' })).toBe('🚀');
+    expect(groupEmoji({ ...base, emoji: '' })).toBeNull();
+  });
+
+  it('keeps a stable colour until one is picked', () => {
+    const base = { id: 'g1', name: 'shop', paths: ['/a', '/b'] };
+    expect(groupColor(base).id).toBe(groupColor({ ...base }).id);
+    expect(groupColor(base).id).not.toBe('gray');
+    expect(groupColor({ ...base, color: 'gray' }).id).toBe('gray');
   });
 });

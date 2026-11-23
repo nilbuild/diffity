@@ -6,7 +6,10 @@ import { buttonGhost, buttonIconSmall, buttonOutline, inputField } from '../../c
 import { PlusIcon, XIcon } from '../../components/ui/icon';
 import { cn } from '../../lib/cn';
 import { shortPath } from '../welcome/recent-repos';
-import { RepoBadge } from '../welcome/repo-badge';
+import { RepoBadge, repoInitials } from '../welcome/repo-badge';
+import { ColorSwatches } from '../welcome/color-swatches';
+import { colorStyle } from '../welcome/project-colors';
+import { GROUP_EMOJIS, groupColor, groupEmoji, styleGroup } from './group-look';
 import { getGroups, groupOf, joinGroup, leaveGroup, projectName, renameGroup, setGroups, ungroup, useGroups, type ProjectGroup } from './groups';
 import { useProjectDirectory } from './project-directory';
 
@@ -130,6 +133,7 @@ function GroupEditor(props: { group: ProjectGroup }) {
           spellCheck={false}
         />
       </label>
+      <GroupLook group={group} />
       <div className="flex flex-col">
         <span className="text-xs font-medium text-text-secondary mb-1">Projects</span>
         {group.paths.map((path) => (
@@ -198,6 +202,65 @@ function GroupEditor(props: { group: ProjectGroup }) {
           Done
         </button>
       </div>
+    </div>
+  );
+}
+
+/** The group's emoji and colour, as they show on the rail. */
+function GroupLook(props: { group: ProjectGroup }) {
+  const { group } = props;
+  const [picking, setPicking] = useState(false);
+  const emoji = groupEmoji(group);
+  const color = groupColor(group);
+
+  const pickEmoji = (value: string) => {
+    setGroups(styleGroup(getGroups(), group.id, { emoji: value }));
+    setPicking(false);
+  };
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-medium text-text-secondary">Icon and colour</span>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setPicking((value) => !value)}
+          aria-expanded={picking}
+          aria-label="Choose an emoji"
+          title="Choose an emoji"
+          style={colorStyle(color)}
+          className={cn('w-9 h-9 shrink-0 rounded-[10px] flex items-center justify-center project-tint hover:project-tint-strong cursor-pointer', picking && 'ring-2 ring-focus')}
+        >
+          {emoji ? <span className="text-[18px] leading-none">{emoji}</span> : <span className="text-[12px] font-semibold">{repoInitials(group.name)}</span>}
+        </button>
+        <ColorSwatches value={color.id} onPick={(id) => setGroups(styleGroup(getGroups(), group.id, { color: id }))} className="flex-1" />
+      </div>
+      {picking && (
+        <div role="listbox" aria-label="Emoji" className="grid grid-cols-8 gap-0.5 mt-1 p-1 rounded-lg bg-hover">
+          <button
+            type="button"
+            role="option"
+            aria-selected={!emoji}
+            onClick={() => pickEmoji('')}
+            title="No emoji: show initials"
+            className={cn('h-8 rounded-md text-[11px] font-semibold text-text-secondary hover:bg-fill-hover cursor-pointer', !emoji && 'bg-selected text-text')}
+          >
+            {repoInitials(group.name)}
+          </button>
+          {GROUP_EMOJIS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="option"
+              aria-selected={option === emoji}
+              onClick={() => pickEmoji(option)}
+              className={cn('h-8 rounded-md text-[18px] leading-none hover:bg-fill-hover cursor-pointer', option === emoji && 'bg-selected')}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
