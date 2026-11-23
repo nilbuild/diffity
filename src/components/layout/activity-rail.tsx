@@ -9,6 +9,7 @@ import { openRepoAt, shortPath, useRecentRepos } from '../../features/welcome/re
 import { repoInitials, useProjectInitials } from '../../features/welcome/repo-badge';
 import { assignColors, colorStyle, setProjectColor, useProjectColor } from '../../features/welcome/project-colors';
 import { ColorSwatches } from '../../features/welcome/color-swatches';
+import { setLogoShown, useProjectLogo } from '../../features/welcome/project-icons';
 import { useBusyRepoPaths, useClaude } from '../../features/claude/claude-runner';
 import { parentPathOf, useAllTasks } from '../../features/tasks/tasks';
 import { lastLocationFor } from '../../lib/repo-locations';
@@ -135,6 +136,7 @@ function ProjectTile(props: ProjectTileProps) {
   const name = repoName(path);
   const initials = useProjectInitials(name);
   const color = useProjectColor(path);
+  const { logo, shown: showLogo } = useProjectLogo(path);
   const shortcut = index < 9 ? `${modKey}${index + 1}` : null;
 
   return (
@@ -163,7 +165,8 @@ function ProjectTile(props: ProjectTileProps) {
         className={cn(
           tileBase,
           'text-[12px] font-semibold tracking-wide touch-none',
-          current ? 'project-solid' : 'project-tint hover:project-tint-strong',
+          !showLogo && (current ? 'project-solid' : 'project-tint hover:project-tint-strong'),
+          showLogo && (current ? 'project-tint-strong ring-2 ring-inset ring-(--project)' : 'project-tint hover:project-tint-strong'),
           dragging ? 'cursor-grabbing ring-1 ring-control-border opacity-90 shadow-lg' : 'cursor-pointer',
           dragging && dropOnto && 'scale-75 opacity-100 shadow-lg',
           menuTarget && 'ring-2 ring-focus ring-offset-2 ring-offset-frame',
@@ -171,7 +174,9 @@ function ProjectTile(props: ProjectTileProps) {
           dropTarget && 'ring-2 ring-focus ring-offset-2 ring-offset-frame scale-110',
         )}
       >
-        {spinning ? <Spinner className="w-3.5 h-3.5 text-current" label="Opening" /> : initials}
+        {showLogo && logo && <img alt="" src={logo} decoding="sync" draggable={false} className={cn('w-6 h-6 object-contain pointer-events-none transition-opacity', spinning && 'opacity-30')} />}
+        {!(showLogo && logo) && !spinning && initials}
+        {spinning && <Spinner className={cn('w-3.5 h-3.5 text-current', showLogo && logo && 'absolute')} label="Opening" />}
         {waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-modified ring-2 ring-frame" title="Waiting for your approval" />}
         {busy && !waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-claude ring-2 ring-frame" title="Claude is working here" />}
         {changed && !busy && !waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent ring-2 ring-frame" />}
@@ -873,6 +878,23 @@ function ProjectColorSwatches(props: { path: string }) {
   return <ColorSwatches value={color.id} onPick={(id) => setProjectColor(path, id)} className="px-2.5" />;
 }
 
+function LogoToggle(props: { path: string }) {
+  const { path } = props;
+  const { logo, shown } = useProjectLogo(path);
+
+  if (!logo) {
+    return null;
+  }
+  return (
+    <MenuItem
+      icon={<img alt="" src={logo} decoding="sync" className="w-4 h-4 object-contain" />}
+      label="Show project logo"
+      checked={shown}
+      onSelect={() => setLogoShown(path, !shown)}
+    />
+  );
+}
+
 function GroupMenu(props: { group: ProjectGroup | null; at: { x: number; y: number }; onClose: () => void; onEdit: (group: ProjectGroup) => void }) {
   const { group, at, onClose, onEdit } = props;
 
@@ -943,6 +965,7 @@ function ProjectMenuItems(props: {
       <MenuItem icon={<ArrowDownIcon size="sm" />} label="Move down" disabled={index < 0 || index >= count - 1} onSelect={run(() => onMove(1))} />
       <MenuSeparator />
       <ProjectColorSwatches path={path} />
+      <LogoToggle path={path} />
       <MenuSeparator />
       <GroupMenuItems path={path} group={group} groups={groups} canGroup={canGroup} run={run} onEditGroup={onEditGroup} onPickGroup={onPickGroup} />
       <button

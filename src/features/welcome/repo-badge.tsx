@@ -1,6 +1,7 @@
 import { cn } from '../../lib/cn';
 import { useProjectDirectory } from '../groups/project-directory';
 import { colorStyle, projectColor, useProjectColors } from './project-colors';
+import { useProjectLogo } from './project-icons';
 
 const SEPARATORS = /[-_.\s]+/;
 
@@ -28,11 +29,16 @@ export function useProjectInitials(name: string) {
   return useProjectDirectory((state) => projectInitials(name, state.rail.map((path) => path.split('/').filter(Boolean).pop() ?? '')));
 }
 
-/** A project's initials on its colour; `solid` fills it, for the project that's open. */
+/** A project's logo, or its initials on its colour; `solid` fills it, for the project that's open. */
 export function RepoBadge(props: { name: string; path?: string; solid?: boolean; className?: string }) {
   const { name, path, solid, className } = props;
   const initials = useProjectInitials(name);
   const color = useProjectColors((state) => (path ? projectColor(path, state.byPath) : null));
+  const { logo, shown } = useProjectLogo(path);
+
+  if (logo && shown) {
+    return <img aria-hidden alt="" src={logo} decoding="sync" draggable={false} className={cn('shrink-0 object-contain', className)} />;
+  }
 
   return (
     <span

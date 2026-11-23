@@ -284,6 +284,7 @@ pub fn run() {
             commands::repo::resolve_repo_root,
             commands::repo::clone_repo,
             commands::repo::recent_repos,
+            commands::repo::project_icon,
             commands::repo::project_data,
             commands::repo::clear_project_data,
             commands::repo::reset_all_data,

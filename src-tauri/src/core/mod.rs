@@ -4,6 +4,7 @@ pub mod editor;
 pub mod error;
 pub mod git;
 pub mod mentions;
+pub mod project_icon;
 pub mod quick_open;
 pub mod scan;
 pub mod search;

@@ -102,7 +102,7 @@ export function lastViewLocationFor(repoPath: string, view: RememberedView): str
 let cacheOwner: string | null = null;
 
 /** Queries that are not about one repository; they survive switching (the rail and palettes read them). */
-const GLOBAL_KEYS = new Set(['recent-repos', 'tasks', 'archived-tasks', 'task-storage', 'task-config', 'task-base', 'setting', 'github-auth', 'agents', 'quick-open-roots', 'dir-suggestions', 'pr-inbox', 'recent-remotes']);
+const GLOBAL_KEYS = new Set(['recent-repos', 'tasks', 'archived-tasks', 'task-storage', 'task-config', 'task-base', 'setting', 'github-auth', 'agents', 'quick-open-roots', 'dir-suggestions', 'pr-inbox', 'recent-remotes', 'project-logo']);
 
 /**
  * Query keys are not repository-scoped, so the cache belongs to one repository at a time. Switching parks the

@@ -45,6 +45,12 @@ pub async fn repo_remote_urls(path: String) -> Result<Vec<String>, AppError> {
     .await
 }
 
+/// The logo the project at `path` ships, as a `data:` URL, to show on the rail.
+#[tauri::command]
+pub async fn project_icon(path: String) -> Result<Option<String>, AppError> {
+    blocking(move || Ok(crate::core::project_icon::find(Path::new(&path)))).await
+}
+
 #[tauri::command]
 pub async fn recent_repos(state: State<'_, AppState>) -> Result<Vec<RecentRepo>, AppError> {
     let repos = state.store.recent_repos(30)?;

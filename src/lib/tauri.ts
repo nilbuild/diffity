@@ -82,6 +82,7 @@ export function errorMessage(error: unknown): string {
 // repo
 export const openRepo = (path: string) => invoke<RepoInfo>('open_repo', { path });
 export const repoRemoteUrls = (path: string) => invoke<string[]>('repo_remote_urls', { path });
+export const projectIcon = (path: string) => invoke<string | null>('project_icon', { path });
 export const recentRepos = () => invoke<RecentRepo[]>('recent_repos');
 export const watchRepo = (repoPath: string) => invoke<void>('watch_repo', { repoPath });
 export const unwatchRepo = (repoPath: string) => invoke<void>('unwatch_repo', { repoPath });

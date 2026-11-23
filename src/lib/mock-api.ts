@@ -441,6 +441,7 @@ const handlers: Record<string, (args: Args) => unknown> = {
     remoteUrl: 'https://github.com/demo/tiny-serve.git',
   }),
   repo_remote_urls: (args) => [`https://github.com/demo/${String(args.path).split('/').pop()}.git`],
+  project_icon: () => null,
   recent_repos: () => [
     { path: REPO_PATH, name: 'tiny-serve', lastOpenedAt: now() },
     { path: '/Users/demo/code/diffity', name: 'diffity', lastOpenedAt: new Date(Date.now() - 86400_000).toISOString() },
