@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { isTauri, shouldUseMockApi } from './lib/platform';
+import { blockNativeContextMenu } from './lib/native-context-menu';
 import '@fontsource-variable/inter';
 import './styles/app.css';
 import './lib/diff-palette';
@@ -11,6 +12,9 @@ async function bootstrap() {
   if (shouldUseMockApi) {
     const { installMockApi } = await import('./lib/mock-api');
     installMockApi();
+  }
+  if (isTauri) {
+    blockNativeContextMenu();
   }
   if (import.meta.env.DEV && isTauri && !shouldUseMockApi) {
     const dev = await import('./lib/dev');
