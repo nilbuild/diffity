@@ -38,7 +38,7 @@ The AI features need [Claude Code](https://docs.claude.com/en/docs/claude-code) 
 | [Browse and comment on any file](#browse-and-comment-on-any-file) | Comment on code outside the diff from the Files tab |
 | [Jump anywhere](#jump-anywhere) | ⌘P for files, ⌘K for commits, comments, PRs and every action |
 | [Switch projects](#switch-projects) | Keep your repos in a rail and switch with ⌘1–9 |
-| [Work across repos](#work-across-repos) | Group related repos, or @mention one, so Claude can read it too |
+| [Work across repos](#work-across-repos) | Group related repos, or @mention one, so Claude can work across them |
 | [Open from the terminal or your agent](#open-from-the-terminal-or-your-agent) | `diffity` opens a repo, a diff or a pull request URL in the app |
 
 ### Comment on your diff
@@ -103,7 +103,7 @@ The AI features need [Claude Code](https://docs.claude.com/en/docs/claude-code) 
 
 ### Work across repos
 
-> Right-click a project in the rail and pick **Group with…**, or drag it onto a group. When Claude works in any project of a group, it can also read the others. For a one-off, type `@` and a project name in a comment or in Ask Claude. The Ask Claude popover lists every project Claude can read and why.
+> Right-click a project in the rail and pick **Group with…**, or drag it onto a group. When Claude works in any project of a group, it can read the others and change them when the fix belongs there. For a one-off, type `@` and a project name in a comment or in Ask Claude. Reviews only read. After a run, Diffity tells you which other projects changed and marks them in the rail until you open them.
 
 ### Open from the terminal or your agent
 

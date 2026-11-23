@@ -3,7 +3,7 @@ import { useAllTasks, parentPathOf } from '../tasks/tasks';
 import { projectName, useGroupOf } from './groups';
 import { openGroupEditorAt } from './group-editor';
 
-/** Status bar note for a grouped project: which other projects Claude reads here. Opens the group editor. */
+/** Status bar note for a grouped project: which other projects Claude works with here. Opens the group editor. */
 export function GroupPill(props: { repoPath: string }) {
   const { repoPath } = props;
   const tasks = useAllTasks();
@@ -19,10 +19,10 @@ export function GroupPill(props: { repoPath: string }) {
       type="button"
       onClick={(event) => openGroupEditorAt(group.id, event.currentTarget, parent)}
       className="inline-flex items-center gap-1.5 h-5 min-w-0 px-1.5 rounded hover:bg-hover hover:text-text cursor-pointer"
-      title={`In the ${group.name} group: Claude can also read ${others.join(', ')}. Click to edit the group.`}
+      title={`In the ${group.name} group: Claude can also work in ${others.join(', ')}. Click to edit the group.`}
     >
       <LinkIcon size="xs" className="shrink-0" />
-      <span className="truncate max-w-[220px]">{group.name} · also reads {others.join(', ')}</span>
+      <span className="truncate max-w-[220px]">{group.name} · with {others.join(', ')}</span>
     </button>
   );
 }

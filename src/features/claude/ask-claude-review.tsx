@@ -336,7 +336,7 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
           </div>
         )}
       </div>
-      <ReadableProjects repoPath={repoPath} text={text} agentName={agent.short} />
+      <ReadableProjects repoPath={repoPath} text={text} agentName={agent.short} edits={false} />
       <div className="flex items-center gap-2 pt-1">
         <ModelPicker value={pick} onChange={setPicked} className="-ml-1.5 mr-auto" />
         <button type="button" onClick={onClose} className={buttonGhost}>

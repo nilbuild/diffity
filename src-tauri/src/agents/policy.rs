@@ -112,7 +112,7 @@ pub fn mode_required(agent: AgentKind) -> bool {
 }
 
 /// Actions that are expected to change code. Read-style actions never get bypass, even in a writable chat.
-fn action_edits(action: &AgentAction) -> bool {
+pub fn action_edits(action: &AgentAction) -> bool {
     matches!(
         action,
         AgentAction::Chat

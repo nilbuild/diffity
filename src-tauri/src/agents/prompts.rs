@@ -115,8 +115,31 @@ pub fn project_instructions(agents_md: &str) -> String {
     format!("\n## Project instructions\n\nThe repository's `AGENTS.md`. Follow it where it applies to this task; Diffity's instructions above win where they conflict.\n\n<agents-md>\n{cut}{more}\n</agents-md>\n")
 }
 
-/// The other projects the agent can read this run, appended to the prompt.
-pub fn linked_projects(projects: &[LinkedProject]) -> String {
+/// What the agent may do in the linked projects this run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkAccess {
+    /// A review or question: read only.
+    Read,
+    /// A run that edits this project: edit the others too when the change belongs there.
+    Edit,
+    /// A task run: its branch covers this project only, so the others stay read only.
+    Task,
+}
+
+impl LinkAccess {
+    pub fn for_run(mode: AgentMode, action: &AgentAction) -> Self {
+        if !policy::can_write_files(mode) || !policy::action_edits(action) {
+            return Self::Read;
+        }
+        if mode == AgentMode::Task {
+            return Self::Task;
+        }
+        Self::Edit
+    }
+}
+
+/// The other projects the agent can use this run, appended to the prompt.
+pub fn linked_projects(projects: &[LinkedProject], access: LinkAccess) -> String {
     if projects.is_empty() {
         return String::new();
     }
@@ -130,10 +153,21 @@ pub fn linked_projects(projects: &[LinkedProject]) -> String {
             format!("- `{}` at `{}` ({why})", project.name, project.path)
         })
         .collect();
-    format!(
-        "\n## Other projects you can read\n\nThese repositories are related to this one. Read them with absolute paths when the task needs it, such as checking how a caller, client or API uses the code here. The work itself stays in this project: comments and replies are about this project's files, and edit another project only when the user asks for it.\n\n{}\n",
-        lines.join("\n")
-    )
+    let (title, guidance) = match access {
+        LinkAccess::Edit => (
+            "Other projects you can work in",
+            "These repositories are related to this one, and the user expects changes to carry across them. Read them with absolute paths when the task needs it. When the right change belongs in one of them, such as an API or a shared type the code here uses, make it there too instead of working around it here. Comments and replies stay about this project's files. In your final message, list the files you changed in each other project.",
+        ),
+        LinkAccess::Task => (
+            "Other projects you can read",
+            "These repositories are related to this one. Read them with absolute paths when the task needs it. This task runs on its own branch of this project only, so don't edit the other projects: if one of them needs a change, say which files and what to change in your final message.",
+        ),
+        LinkAccess::Read => (
+            "Other projects you can read",
+            "These repositories are related to this one. Read them with absolute paths when it helps, such as checking how a caller, client or API uses the code here. Comments stay on this project's files; name the other project's file in a comment when it matters.",
+        ),
+    };
+    format!("\n## {title}\n\n{guidance}\n\n{}\n", lines.join("\n"))
 }
 
 pub fn render(template: &str, vars: &[(&str, &str)]) -> String {
@@ -290,11 +324,14 @@ mod tests {
 
     #[test]
     fn lists_linked_projects_with_their_reason() {
-        assert_eq!(linked_projects(&[]), "");
-        let text = linked_projects(&[
+        assert_eq!(linked_projects(&[], LinkAccess::Edit), "");
+        let projects = [
             LinkedProject { path: "/code/web".into(), name: "web".into(), reason: LinkReason::Group },
             LinkedProject { path: "/code/api".into(), name: "api".into(), reason: LinkReason::Mentioned },
-        ]);
+        ];
+        assert!(linked_projects(&projects, LinkAccess::Edit).contains("## Other projects you can work in"));
+        assert!(linked_projects(&projects, LinkAccess::Task).contains("don't edit the other projects"));
+        let text = linked_projects(&projects, LinkAccess::Read);
         assert!(text.contains("## Other projects you can read"));
         assert!(text.contains("- `web` at `/code/web` (in the same group as this project)"));
         assert!(text.contains("- `api` at `/code/api` (mentioned by the user)"));

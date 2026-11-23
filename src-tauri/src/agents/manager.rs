@@ -552,7 +552,8 @@ impl AgentManager {
             Some(section) => format!("{prompt}\n{section}"),
             None => prompt,
         };
-        let prompt = format!("{prompt}{}", prompts::linked_projects(&projects));
+        let access = prompts::LinkAccess::for_run(rec.chat.mode, &action);
+        let prompt = format!("{prompt}{}", prompts::linked_projects(&projects, access));
         let prompt = if kind == Some(AgentKind::OpenCode) && first_turn {
             let repo = rec.chat.repo_path.clone();
             let agents_md = blocking(move || Ok(read_agents_md(Path::new(&repo)))).await?;
