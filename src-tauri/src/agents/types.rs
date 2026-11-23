@@ -234,6 +234,10 @@ pub enum AgentEvent {
         status: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         title: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        kind: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        locations: Option<Vec<String>>,
     },
     Plan {
         entries: Vec<PlanEntry>,

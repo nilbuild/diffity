@@ -490,7 +490,7 @@ export type AgentEvent =
   | { type: 'text'; messageId: string; delta: string }
   | { type: 'thought'; delta: string }
   | { type: 'toolCall'; id: string; title: string; kind: string; status: string; locations: string[] }
-  | { type: 'toolCallUpdate'; id: string; status: string; title?: string }
+  | { type: 'toolCallUpdate'; id: string; status: string; title?: string; kind?: string; locations?: string[] }
   | { type: 'plan'; entries: PlanEntry[] }
   | { type: 'permissionRequest'; requestId: string; title: string; options: PermissionOption[]; diff?: PermissionDiff }
   | { type: 'done'; stopReason: string }

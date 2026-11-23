@@ -109,7 +109,13 @@ export function applyEvents(log: ActivityLog, events: AgentEvent[], at: number |
         const index = findTool(items, event.id);
         if (index !== -1) {
           const tool = items[index] as Extract<ActivityItem, { kind: 'tool' }>;
-          items[index] = { ...tool, status: event.status, title: event.title ?? tool.title };
+          items[index] = {
+            ...tool,
+            status: event.status,
+            title: event.title ?? tool.title,
+            toolKind: event.kind ?? tool.toolKind,
+            locations: event.locations ? [...new Set([...tool.locations, ...event.locations])] : tool.locations,
+          };
         }
         break;
       }

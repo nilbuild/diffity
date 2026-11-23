@@ -196,7 +196,12 @@ impl Shared {
                 if let Ok(mut titles) = self.tool_titles.lock() {
                     titles.insert(id.clone(), call.title.clone());
                 }
-                if let (Some(diff), Ok(mut diffs)) = (first_diff(&call.content), self.tool_diffs.lock()) {
+                let diff = first_diff(&call.content);
+                let mut locations: Vec<String> = call.locations.iter().map(|l| l.path.to_string_lossy().into_owned()).collect();
+                if let Some(d) = diff.as_ref().filter(|d| !locations.contains(&d.path)) {
+                    locations.push(d.path.clone());
+                }
+                if let (Some(diff), Ok(mut diffs)) = (diff, self.tool_diffs.lock()) {
                     diffs.insert(id, diff);
                 }
                 self.emit(AgentEvent::ToolCall {
@@ -204,22 +209,28 @@ impl Shared {
                     title: call.title,
                     kind: enum_str(&call.kind),
                     status: enum_str(&call.status),
-                    locations: call
-                        .locations
-                        .iter()
-                        .map(|l| l.path.to_string_lossy().into_owned())
-                        .collect(),
+                    locations,
                 });
             }
             SessionUpdate::ToolCallUpdate(update) => {
                 let status = update.fields.status.as_ref().map(enum_str);
-                if status.is_none() && update.fields.title.is_none() {
+                let diff = update.fields.content.as_deref().and_then(first_diff);
+                let mut locations: Vec<String> = update
+                    .fields
+                    .locations
+                    .iter()
+                    .flatten()
+                    .map(|l| l.path.to_string_lossy().into_owned())
+                    .collect();
+                if let Some(d) = diff.as_ref().filter(|d| !locations.contains(&d.path)) {
+                    locations.push(d.path.clone());
+                }
+                if status.is_none() && update.fields.title.is_none() && locations.is_empty() {
                     return;
                 }
                 if let (Some(title), Ok(mut titles)) = (&update.fields.title, self.tool_titles.lock()) {
                     titles.insert(update.tool_call_id.0.to_string(), title.clone());
                 }
-                let diff = update.fields.content.as_deref().and_then(first_diff);
                 if let (Some(diff), Ok(mut diffs)) = (diff, self.tool_diffs.lock()) {
                     diffs.insert(update.tool_call_id.0.to_string(), diff);
                 }
@@ -227,6 +238,8 @@ impl Shared {
                     id: update.tool_call_id.0.to_string(),
                     status: status.unwrap_or_else(|| "in_progress".into()),
                     title: update.fields.title,
+                    kind: update.fields.kind.as_ref().map(enum_str),
+                    locations: (!locations.is_empty()).then_some(locations),
                 });
             }
             SessionUpdate::Plan(plan) => {
@@ -614,7 +627,7 @@ pub struct SessionConfig {
     pub broker: Arc<PermissionBroker>,
     /// Shared with the MCP bridge binding; reset at the start of every turn.
     pub edit_rejected: Arc<AtomicBool>,
-    /// Other projects the agent may read (and, with approval, edit) besides `cwd`.
+    /// Other projects the agent may work in besides `cwd`; edits there follow the run's permissions.
     pub additional_dirs: Vec<PathBuf>,
 }
 
