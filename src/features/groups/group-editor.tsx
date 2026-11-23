@@ -106,7 +106,7 @@ function GroupEditor(props: { group: ProjectGroup }) {
     changeGroups(
       joinGroup(getGroups(), path, group.id),
       `Added ${projectName(path)} to ${group.name}`,
-      from ? `It left ${from.name}.` : `Claude working in any of the ${group.paths.length + 1} projects can now read the others.`,
+      from ? `It left ${from.name}.` : `Claude working in one of the ${group.paths.length + 1} projects can now work across all of them.`,
     );
     setAdding(false);
   };
@@ -180,7 +180,7 @@ function GroupEditor(props: { group: ProjectGroup }) {
         )}
       </div>
       <p className="m-0 text-xs leading-4 text-text-muted">
-        Claude can read every project in the group when it works in any of them. Its comments and edits stay in the project you asked about.
+        When Claude works in one of these projects, it can read the others and change them when the fix belongs there. Reviews only read.
       </p>
       <div className="flex items-center gap-2 pt-2 border-t border-border">
         <button
@@ -201,4 +201,3 @@ function GroupEditor(props: { group: ProjectGroup }) {
     </div>
   );
 }
-

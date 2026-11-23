@@ -3,13 +3,15 @@ import { linkedEditTracker } from '../src/features/groups/linked-changes';
 import {
   arrangeOrder,
   defaultGroupName,
-  dropMembership,
   expandShown,
   groupOf,
   groupWith,
   joinGroup,
   leaveGroup,
   normalizeGroups,
+  planDrop,
+  previewDrop,
+  type RailGeometry,
   shownOrder,
   type ProjectGroup,
 } from '../src/features/groups/groups';
@@ -58,13 +60,101 @@ describe('project groups', () => {
     expect(shownOrder(order, groups)).toEqual(['/a', '/b', '/d']);
     expect(expandShown(['/d', '/b', '/a'], order, groups)).toEqual(['/d', '/b', '/c', '/a']);
   });
+});
 
-  it('dropping between two projects of a group joins it, dropping away leaves it', () => {
-    const groups = [group('g', '/b', '/c')];
-    expect(dropMembership(['/a', '/b', '/x', '/c'], groups, '/x').join?.id).toBe('g');
-    expect(dropMembership(['/a', '/b', '/c', '/x'], groups, '/x')).toEqual({ join: null, leave: null });
-    expect(dropMembership(['/b', '/a', '/c'], groups, '/b').leave?.id).toBe('g');
-    expect(dropMembership(['/a', '/c', '/b'], groups, '/b')).toEqual({ join: null, leave: null });
+describe('dragging on the rail', () => {
+  /** Lays the rail out like the app: 36px tiles 10px apart, a group's box adds a header and tighter gaps. */
+  function layout(order: string[], groups: ProjectGroup[]): RailGeometry {
+    const tiles: RailGeometry['tiles'] = [];
+    const boxes: RailGeometry['boxes'] = {};
+    let y = 0;
+    order.forEach((path, index) => {
+      const group = groupOf(groups, path);
+      const open = group && !group.collapsed;
+      const first = open && groupOf(groups, order[index - 1] ?? '')?.id !== group.id;
+      const last = open && groupOf(groups, order[index + 1] ?? '')?.id !== group.id;
+      if (first) {
+        boxes[group.id] = { top: y, bottom: 0 };
+        y += 24;
+      }
+      tiles.push({ top: y, bottom: y + 36 });
+      y += 36;
+      if (last) {
+        boxes[group.id].bottom = y + 4;
+        y += 4 + 10;
+        return;
+      }
+      y += open ? 6 : 10;
+    });
+    return { tiles, boxes };
+  }
+  const centre = (geometry: RailGeometry, index: number) => (geometry.tiles[index].top + geometry.tiles[index].bottom) / 2;
+
+  it('stays put when let go where it started', () => {
+    const groups = [group('shop', '/a', '/b')];
+    const order = ['/x', '/a', '/b'];
+    const geometry = layout(order, groups);
+    for (const from of [0, 1, 2]) {
+      expect(planDrop(order, groups, geometry, from, centre(geometry, from))).toMatchObject({ target: from, onto: null, join: null, leave: null });
+    }
+  });
+
+  it('drops between the two projects of a group into the group, without pushing either out', () => {
+    const groups = [group('shop', '/a', '/b')];
+    const order = ['/x', '/a', '/b'];
+    const geometry = layout(order, groups);
+    const plan = planDrop(order, groups, geometry, 0, (geometry.tiles[1].bottom + geometry.tiles[2].top) / 2);
+    expect(plan).toMatchObject({ target: 1, join: { id: 'shop' }, hint: 'Add to shop' });
+    const preview = previewDrop(order, groups, 0, plan);
+    expect(preview.projects).toEqual(['/a', '/x', '/b']);
+    expect(groupOf(preview.groups, '/a')?.paths.sort()).toEqual(['/a', '/b', '/x']);
+  });
+
+  it('joins at the top of a group just inside its box, and stays out just above it', () => {
+    const groups = [group('shop', '/a', '/b')];
+    const order = ['/x', '/a', '/b'];
+    const geometry = layout(order, groups);
+    const box = geometry.boxes.shop;
+    expect(planDrop(order, groups, geometry, 0, box.top + 6)).toMatchObject({ target: 0, join: { id: 'shop' } });
+    expect(planDrop(order, groups, geometry, 0, box.top - 6)).toMatchObject({ target: 0, join: null, leave: null });
+  });
+
+  it('takes the last project out below a group at the end of the rail, leaving the rest grouped', () => {
+    const groups = [group('shop', '/a', '/b', '/c')];
+    const order = ['/x', '/a', '/b', '/c'];
+    const geometry = layout(order, groups);
+    const plan = planDrop(order, groups, geometry, 3, geometry.boxes.shop.bottom + 14);
+    expect(plan).toMatchObject({ target: 3, leave: { id: 'shop' }, hint: 'Take out of shop' });
+    const preview = previewDrop(order, groups, 3, plan);
+    expect(groupOf(preview.groups, '/c')).toBeNull();
+    expect(groupOf(preview.groups, '/a')?.paths).toEqual(['/a', '/b']);
+  });
+
+  it('dissolves a group of two when one is taken out', () => {
+    const groups = [group('shop', '/a', '/b')];
+    const order = ['/a', '/b'];
+    const geometry = layout(order, groups);
+    const plan = planDrop(order, groups, geometry, 0, geometry.boxes.shop.top - 14);
+    expect(plan).toMatchObject({ leave: { id: 'shop' } });
+    expect(previewDrop(order, groups, 0, plan).groups).toEqual([]);
+  });
+
+  it('groups with a project when dropped onto it, but only reorders over its own group', () => {
+    const groups = [group('shop', '/a', '/b')];
+    const order = ['/x', '/a', '/b', '/y'];
+    const geometry = layout(order, groups);
+    expect(planDrop(order, groups, geometry, 0, centre(geometry, 3))).toMatchObject({ onto: '/y', group: null, target: 3, hint: 'Group with y' });
+    expect(planDrop(order, groups, geometry, 3, centre(geometry, 2))).toMatchObject({ onto: '/b', group: { id: 'shop' }, hint: 'Add to shop' });
+    expect(planDrop(order, groups, geometry, 1, centre(geometry, 2))).toMatchObject({ onto: null, join: null, leave: null });
+  });
+
+  it('keeps a collapsed group out of other groups', () => {
+    const groups = [group('shop', '/a', '/b'), { ...group('docs', '/d', '/e'), collapsed: true }];
+    const order = ['/d', '/a', '/b'];
+    const geometry = layout(order, groups);
+    const plan = planDrop(order, groups, geometry, 0, (geometry.tiles[1].bottom + geometry.tiles[2].top) / 2);
+    expect(plan).toMatchObject({ onto: null, join: null, leave: null });
+    expect(plan.target === 0 || plan.target === 2).toBe(true);
   });
 });
 

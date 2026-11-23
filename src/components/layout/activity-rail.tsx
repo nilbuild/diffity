@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { cn } from '../../lib/cn';
@@ -19,7 +19,7 @@ import { useEditorName } from '../../hooks/use-editor-name';
 import { useSidebarShortcut } from './title-bar';
 import { openQuickOpen } from '../../features/palette/quick-open';
 import { Spinner } from '../icons/spinner';
-import { arrangeOrder, dropMembership, expandShown, getGroups, groupOf, groupWith, joinGroup, leaveGroup, setGroups, shownOrder, toggleCollapsed, ungroup, useGroups, type ProjectGroup } from '../../features/groups/groups';
+import { arrangeOrder, expandShown, getGroups, groupOf, groupWith, joinGroup, leaveGroup, planDrop, previewDrop, setGroups, type RailGeometry, shownOrder, toggleCollapsed, ungroup, useGroups, type ProjectGroup } from '../../features/groups/groups';
 import { changeGroups, GroupEditorHost, openGroupEditorAt, useGroupEditorId } from '../../features/groups/group-editor';
 import { RepoBadge } from '../../features/welcome/repo-badge';
 import { setRailProjects } from '../../features/groups/project-directory';
@@ -72,6 +72,16 @@ function RailTooltip(props: { title: string; detail?: string; shortcut?: string 
   );
 }
 
+function DropHint(props: { text: string }) {
+  const { text } = props;
+
+  return (
+    <span className="pointer-events-none absolute left-[calc(100%-2px)] top-1/2 -translate-y-1/2 z-50 px-2.5 py-1 rounded-md bg-overlay border border-overlay-border text-[12px] font-medium text-text whitespace-nowrap">
+      {text}
+    </span>
+  );
+}
+
 const tileBase = 'relative w-9 h-9 rounded-[10px] flex items-center justify-center select-none';
 
 function useDelayedFlag(on: boolean, ms: number) {
@@ -98,9 +108,10 @@ interface ProjectTileProps {
   waiting: boolean;
   /** An agent working from another project changed files here since it was last opened. */
   changed: { agent: string; files: string[] } | null;
-  offset: number;
+  /** The copy that follows the pointer while this tile is dragged. */
   dragging: boolean;
-  animate: boolean;
+  /** The gap where the dragged tile will land. */
+  placeholder: boolean;
   onPointerDown: (event: React.PointerEvent<HTMLButtonElement>, index: number) => void;
   onOpen: (newWindow: boolean) => void;
   onMenu: (at: { x: number; y: number }) => void;
@@ -108,20 +119,24 @@ interface ProjectTileProps {
   menuTarget: boolean;
   /** Any rail menu or popover is open: tooltips stay hidden so they never sit behind it. */
   menusOpen: boolean;
+  /** The dragged tile is over this one: letting go groups them. */
+  dropTarget: boolean;
+  /** What letting go of this tile, while dragged, does to its group. */
+  dropHint: string | null;
+  /** This tile, while dragged, is over another one it would group with. */
+  dropOnto: boolean;
 }
 
 function ProjectTile(props: ProjectTileProps) {
-  const { path, index, current, busy, waiting, changed, offset, dragging, animate, onPointerDown, onOpen, onMenu, loading, menuTarget, menusOpen } = props;
+  const { path, index, current, busy, waiting, changed, dragging, placeholder, onPointerDown, onOpen, onMenu, loading, menuTarget, menusOpen, dropTarget, dropHint, dropOnto } = props;
   const spinning = useDelayedFlag(loading, 150);
   const name = repoName(path);
   const shortcut = index < 9 ? `${modKey}${index + 1}` : null;
 
   return (
-    <div
-      data-rail-tile
-      className={cn('group relative w-full flex justify-center', dragging && 'z-10', animate && !dragging && 'transition-transform duration-150 ease-out')}
-      style={{ transform: offset ? `translateY(${offset}px)` : undefined }}
-    >
+    <div data-rail-tile={dragging ? undefined : true} data-flip={dragging ? undefined : path} className="group relative w-full flex justify-center">
+      {placeholder ? <DropGap /> : (
+      <>
       <button
         onPointerDown={(event) => onPointerDown(event, index)}
         onClick={(event) => onOpen(event.metaKey || event.ctrlKey)}
@@ -143,9 +158,11 @@ function ProjectTile(props: ProjectTileProps) {
           tileBase,
           'text-[12px] font-semibold tracking-wide touch-none',
           current ? 'bg-text text-bg' : 'bg-active text-text-secondary hover:bg-fill-hover hover:text-text hover:ring-1 hover:ring-control-border',
-          dragging ? 'cursor-grabbing bg-raised ring-1 ring-control-border opacity-90' : 'cursor-pointer',
+          dragging ? 'cursor-grabbing bg-raised ring-1 ring-control-border opacity-90 shadow-lg' : 'cursor-pointer',
+          dragging && dropOnto && 'scale-75 opacity-100 shadow-lg',
           menuTarget && 'ring-2 ring-focus ring-offset-2 ring-offset-frame',
           menuTarget && !current && 'bg-fill-hover text-text',
+          dropTarget && 'ring-2 ring-focus ring-offset-2 ring-offset-frame scale-110',
         )}
       >
         {spinning ? <Spinner className="w-3.5 h-3.5 text-current" label="Opening" /> : repoInitials(name)}
@@ -156,12 +173,64 @@ function ProjectTile(props: ProjectTileProps) {
       {!dragging && !menusOpen && (
         <RailTooltip
           title={name}
-          detail={changed ? `${changed.agent} changed ${changedFiles(changed.files)} here · open to review` : `${shortPath(path)} · drag to reorder · right-click for more`}
+          detail={changed ? `${changed.agent} changed ${changedFiles(changed.files)} here · open to review` : `${shortPath(path)} · drag to reorder or onto another to group · right-click for more`}
           shortcut={shortcut}
         />
       )}
+      {dragging && dropHint && <DropHint text={dropHint} />}
+      </>
+      )}
     </div>
   );
+}
+
+function middle(span: { top: number; bottom: number }) {
+  return (span.top + span.bottom) / 2;
+}
+
+function shiftOf(element: HTMLElement) {
+  const transform = getComputedStyle(element).transform;
+  return transform === 'none' ? 0 : new DOMMatrixReadOnly(transform).m42;
+}
+
+/** Slides rail tiles from where they were to where they are after a render moves them. Set the returned ref to
+ * start one tile from somewhere else instead, like the dragged copy it replaces. */
+function useFlip(listRef: RefObject<HTMLElement | null>) {
+  const tops = useRef(new Map<string, number>());
+  const from = useRef<{ key: string; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+    const pending = from.current;
+    from.current = null;
+    const next = new Map<string, number>();
+    list.querySelectorAll<HTMLElement>('[data-flip]').forEach((element) => {
+      const key = element.dataset.flip ?? '';
+      const shift = shiftOf(element);
+      const top = element.getBoundingClientRect().top - shift;
+      next.set(key, top);
+      const before = tops.current.get(key);
+      const start = pending?.key === key ? pending.top : before === undefined || Math.abs(before - top) < 0.5 ? null : before + shift;
+      if (start === null) {
+        return;
+      }
+      element.style.transition = 'none';
+      element.style.transform = `translateY(${start - top}px)`;
+      void element.offsetHeight;
+      element.style.transition = 'transform 160ms cubic-bezier(0.2, 0, 0, 1)';
+      element.style.transform = '';
+    });
+    tops.current = next;
+  });
+
+  return from;
+}
+
+function DropGap() {
+  return <div aria-hidden className={cn(tileBase, 'border border-dashed border-control-border bg-hover')} />;
 }
 
 function useProjectOrder(currentPath: string, openingPath: string | null) {
@@ -273,12 +342,13 @@ function ActivityRail() {
   const { projects, all, move, remove } = useProjectOrder(currentPath, openingPath);
   const groups = useGroups((state) => state.groups);
   const navRef = useRef<HTMLElement>(null);
-  const [drag, setDrag] = useState<{ from: number; startY: number; dy: number; active: boolean; centers: number[] } | null>(null);
+  const [drag, setDrag] = useState<{ from: number; startY: number; dy: number; active: boolean; geometry: RailGeometry; left: number; width: number } | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const ghostRef = useRef<HTMLDivElement>(null);
   const [picker, setPicker] = useState<{ path: string; at: { x: number; y: number } } | null>(null);
   const [groupMenu, setGroupMenu] = useState<{ groupId: string; at: { x: number; y: number } } | null>(null);
   const editingGroupId = useGroupEditorId();
   const suppressClick = useRef(false);
-  const [settling, setSettling] = useState(false);
   const [menu, setMenu] = useState<{ path: string; at: { x: number; y: number } } | null>(null);
   const editor = useEditorName();
   const changedProjects = useLinkedChanges((state) => state.byPath);
@@ -388,49 +458,39 @@ function ActivityRail() {
     return () => window.removeEventListener('keydown', handler);
   }, [projects, currentPath, openProject]);
 
-  const targetIndex = drag?.active ? nearestSlot(drag.centers, drag.centers[drag.from] + drag.dy) : null;
-  const dropOrder = drag?.active && targetIndex !== null ? reordered(projects, drag.from, targetIndex) : null;
-  const draggingStack = !!drag && !!groupOf(groups, projects[drag.from])?.collapsed;
-  const dropGroup = drag && dropOrder && targetIndex !== drag.from && !draggingStack ? dropMembership(dropOrder, groups, projects[drag.from]).join : null;
-
-  const offsetFor = (index: number) => {
-    if (!drag?.active || targetIndex === null) {
-      return 0;
-    }
-    const { centers } = drag;
-    if (index === drag.from) {
-      return drag.dy;
-    }
-    if (drag.from < targetIndex && index > drag.from && index <= targetIndex) {
-      return centers[index - 1] - centers[index];
-    }
-    if (drag.from > targetIndex && index < drag.from && index >= targetIndex) {
-      return centers[index + 1] - centers[index];
-    }
-    return 0;
-  };
+  const drop = drag?.active ? planDrop(projects, groups, drag.geometry, drag.from, middle(drag.geometry.tiles[drag.from]) + drag.dy) : null;
+  const draggedPath = drag?.active ? projects[drag.from] : null;
+  const view = drag?.active && drop ? previewDrop(projects, groups, drag.from, drop) : { projects, groups };
+  const dropGroup = drop?.onto && drop.group && !drop.group.collapsed ? drop.group : null;
+  const draggedStack = draggedPath ? groupOf(groups, draggedPath) : null;
+  const flipFrom = useFlip(listRef);
 
   const dragRef = useRef(drag);
   dragRef.current = drag;
-  const targetRef = useRef(targetIndex);
-  targetRef.current = targetIndex;
+  const dropRef = useRef(drop);
+  dropRef.current = drop;
   const projectsRef = useRef(projects);
   projectsRef.current = projects;
 
   const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>, index: number) => {
-    if (event.button !== 0) {
+    if (event.button !== 0 || !listRef.current || !navRef.current) {
       return;
     }
     suppressClick.current = false;
-    const tiles = navRef.current?.querySelectorAll<HTMLElement>('[data-rail-tile]') ?? [];
-    const centers = [...tiles].map((tile) => {
+    const tiles = [...listRef.current.querySelectorAll<HTMLElement>('[data-rail-tile]')].map((tile) => {
       const rect = tile.getBoundingClientRect();
-      return rect.top + rect.height / 2;
+      return { top: rect.top, bottom: rect.bottom };
     });
-    if (centers.length !== projectsRef.current.length) {
+    if (tiles.length !== projectsRef.current.length) {
       return;
     }
-    setDrag({ from: index, startY: event.clientY, dy: 0, active: false, centers });
+    const boxes: RailGeometry['boxes'] = {};
+    listRef.current.querySelectorAll<HTMLElement>('[data-group-id]').forEach((box) => {
+      const rect = box.getBoundingClientRect();
+      boxes[box.dataset.groupId ?? ''] = { top: rect.top, bottom: rect.bottom };
+    });
+    const nav = navRef.current.getBoundingClientRect();
+    setDrag({ from: index, startY: event.clientY, dy: 0, active: false, geometry: { tiles, boxes }, left: nav.left, width: nav.width });
   };
 
   const dragging = drag !== null;
@@ -448,38 +508,111 @@ function ActivityRail() {
         return;
       }
       suppressClick.current = true;
-      const { centers } = current;
-      const min = centers[0] - centers[current.from] - 8;
-      const max = centers[centers.length - 1] - centers[current.from] + 8;
+      const { tiles } = current.geometry;
+      const min = tiles[0].top - tiles[current.from].top - 24;
+      const max = tiles[tiles.length - 1].bottom - tiles[current.from].bottom + 24;
       setDrag({ ...current, dy: Math.max(min, Math.min(max, dy)), active: true });
+    };
+    const settleGhost = (path: string) => {
+      const ghost = ghostRef.current?.getBoundingClientRect();
+      if (!ghost) {
+        return;
+      }
+      const stack = groupOf(getGroups(), path);
+      flipFrom.current = { key: stack?.collapsed ? `group:${stack.id}` : path, top: ghost.top };
+    };
+    const finish = () => {
+      setDrag(null);
+      setTimeout(() => {
+        suppressClick.current = false;
+      }, 0);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      const current = dragRef.current;
+      if (event.key !== 'Escape' || !current?.active) {
+        return;
+      }
+      event.preventDefault();
+      settleGhost(projectsRef.current[current.from]);
+      finish();
     };
     const onUp = () => {
       const current = dragRef.current;
-      const target = targetRef.current;
-      if (current?.active && target !== null && target !== current.from) {
-        const path = projectsRef.current[current.from];
-        const stack = !!groupOf(getGroups(), path)?.collapsed;
-        const { join, leave } = stack ? { join: null, leave: null } : dropMembership(reordered(projectsRef.current, current.from, target), getGroups(), path);
-        setSettling(true);
-        if (join) {
-          changeGroups(joinGroup(getGroups(), path, join.id), `Added ${repoName(path)} to ${join.name}`, `Claude working in any of its projects can now read the others.`);
-        } else if (leave) {
-          changeGroups(leaveGroup(getGroups(), path), `Removed ${repoName(path)} from ${leave.name}`);
-        }
-        move(path, target);
-        requestAnimationFrame(() => requestAnimationFrame(() => setSettling(false)));
+      const plan = dropRef.current;
+      if (current?.active) {
+        settleGhost(projectsRef.current[current.from]);
       }
-      setDrag(null);
+      if (current?.active && plan && (plan.onto || plan.join || plan.leave || plan.target !== current.from)) {
+        const path = projectsRef.current[current.from];
+        const name = repoName(path);
+        if (plan.onto) {
+          const message = plan.group ? `Added ${name} to ${plan.group.name}` : `Grouped ${name} with ${repoName(plan.onto)}`;
+          changeGroups(groupWith(getGroups(), path, plan.onto), message, GROUPED_NOTE);
+        } else if (plan.join) {
+          changeGroups(joinGroup(getGroups(), path, plan.join.id), `Added ${name} to ${plan.join.name}`, GROUPED_NOTE);
+        } else if (plan.leave) {
+          changeGroups(leaveGroup(getGroups(), path), `Took ${name} out of ${plan.leave.name}`);
+        }
+        move(path, plan.target);
+      }
+      finish();
     };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
+    window.addEventListener('keydown', onKey, true);
     return () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('keydown', onKey, true);
     };
-  }, [dragging, move]);
+  }, [dragging, move, flipFrom]);
+
+  const quiet = menusOpen || !!draggedPath;
+  const projectTile = (path: string, ghost: boolean) => (
+    <ProjectTile
+      key={path}
+      path={path}
+      index={projects.indexOf(path)}
+      current={openingPath ? path === openingPath : path === currentPath}
+      loading={path === openingPath}
+      busy={busyRepos.has(path)}
+      waiting={waitingRepos.has(path)}
+      changed={path === currentPath ? null : changedProjects[path] ?? null}
+      dragging={ghost}
+      placeholder={!ghost && path === draggedPath}
+      onPointerDown={handlePointerDown}
+      onOpen={(newWindow) => openProject(path, newWindow)}
+      onMenu={(at) => setMenu({ path, at })}
+      menuTarget={menu?.path === path || picker?.path === path}
+      menusOpen={quiet}
+      dropTarget={!ghost && drop?.onto === path}
+      dropHint={ghost ? drop?.hint ?? null : null}
+      dropOnto={ghost && !!drop?.onto}
+    />
+  );
+  const stackTile = (group: ProjectGroup, first: string, ghost: boolean) => {
+    const members = all.filter((item) => group.paths.includes(item));
+    return (
+      <StackTile
+        group={group}
+        members={members}
+        index={projects.indexOf(first)}
+        openPath={members.find((member) => member === (openingPath ?? currentPath)) ?? null}
+        highlighted={groupMenu?.groupId === group.id || editingGroupId === group.id}
+        dropTarget={!ghost && drop?.onto === first}
+        busy={members.some((member) => busyRepos.has(member))}
+        waiting={members.some((member) => waitingRepos.has(member))}
+        changed={members.some((member) => member !== currentPath && !!changedProjects[member])}
+        dragging={ghost}
+        placeholder={!ghost && first === draggedPath}
+        onPointerDown={handlePointerDown}
+        onExpand={() => setGroups(toggleCollapsed(getGroups(), group.id))}
+        menusOpen={quiet}
+      />
+    );
+  };
 
   return (
     <nav
@@ -496,60 +629,24 @@ function ActivityRail() {
       }}
     >
       <div data-tauri-drag-region className="h-11 w-full shrink-0" />
-      <div className="flex flex-col items-center gap-2.5 w-full pt-1.5">
-        {railSegments(projects, groups).map((segment) => {
+      <div ref={listRef} className="flex flex-col items-center gap-2.5 w-full pt-1.5">
+        {railSegments(view.projects, view.groups).map((segment) => {
           const group = segment.group;
           if (group?.collapsed) {
-            const { index } = segment.items[0];
-            const members = all.filter((item) => group.paths.includes(item));
             return (
               <GroupBox
                 key={group.id}
                 group={group}
                 highlighted={groupMenu?.groupId === group.id || editingGroupId === group.id}
-                menusOpen={menusOpen}
+                menusOpen={quiet}
                 onToggle={() => setGroups(toggleCollapsed(getGroups(), group.id))}
                 onMenu={(at) => setGroupMenu({ groupId: group.id, at })}
               >
-                <StackTile
-                  group={group}
-                  members={members}
-                  index={index}
-                  openPath={members.find((member) => member === (openingPath ?? currentPath)) ?? null}
-                  highlighted={groupMenu?.groupId === group.id || editingGroupId === group.id}
-                  busy={members.some((member) => busyRepos.has(member))}
-                  waiting={members.some((member) => waitingRepos.has(member))}
-                  changed={members.some((member) => member !== currentPath && !!changedProjects[member])}
-                  offset={offsetFor(index)}
-                  dragging={drag?.active === true && drag.from === index}
-                  animate={drag?.active === true && !settling}
-                  onPointerDown={handlePointerDown}
-                  onExpand={() => setGroups(toggleCollapsed(getGroups(), group.id))}
-                  menusOpen={menusOpen}
-                />
+                {stackTile(group, segment.items[0].path, false)}
               </GroupBox>
             );
           }
-          const tiles = segment.items.map(({ path, index }) => (
-            <ProjectTile
-              key={path}
-              path={path}
-              index={index}
-              current={openingPath ? path === openingPath : path === currentPath}
-              loading={path === openingPath}
-              busy={busyRepos.has(path)}
-              waiting={waitingRepos.has(path)}
-              changed={path === currentPath ? null : changedProjects[path] ?? null}
-              offset={offsetFor(index)}
-              dragging={drag?.active === true && drag.from === index}
-              animate={drag?.active === true && !settling}
-              onPointerDown={handlePointerDown}
-              onOpen={(newWindow) => openProject(path, newWindow)}
-              onMenu={(at) => setMenu({ path, at })}
-              menuTarget={menu?.path === path || picker?.path === path}
-              menusOpen={menusOpen}
-            />
-          ));
+          const tiles = segment.items.map(({ path }) => projectTile(path, false));
           if (!group) {
             return tiles;
           }
@@ -558,7 +655,7 @@ function ActivityRail() {
               key={group.id}
               group={group}
               highlighted={dropGroup?.id === group.id || groupMenu?.groupId === group.id || editingGroupId === group.id}
-              menusOpen={menusOpen}
+              menusOpen={quiet}
               onToggle={() => setGroups(toggleCollapsed(getGroups(), group.id))}
               onMenu={(at) => setGroupMenu({ groupId: group.id, at })}
             >
@@ -577,6 +674,15 @@ function ActivityRail() {
           <RailTooltip title="Open…" detail="A folder, a recent project or a GitHub URL" shortcut={`${modKey}O`} />
         </div>
       </div>
+      {drag?.active && draggedPath && (
+        <div
+          ref={ghostRef}
+          className="fixed z-50 pointer-events-none"
+          style={{ left: drag.left, width: drag.width, top: drag.geometry.tiles[drag.from].top + drag.dy }}
+        >
+          {draggedStack?.collapsed ? stackTile(draggedStack, draggedPath, true) : projectTile(draggedPath, true)}
+        </div>
+      )}
       <div data-tauri-drag-region className="flex-1 w-full" />
       <div className="group relative w-full flex justify-center pb-3">
         <button
@@ -624,7 +730,7 @@ function ActivityRail() {
                   setPicker(null);
                   const next = groupWith(getGroups(), picker.path, path);
                   const message = other ? `Added ${name} to ${other.name}` : `Grouped ${name} with ${repoName(path)}`;
-                  changeGroups(next, message, 'Claude working in any project of the group can read the others.');
+                  changeGroups(next, message, GROUPED_NOTE);
                 }}
               />
             );
@@ -669,7 +775,6 @@ function GroupBox(props: {
       </div>
     );
   }
-
   return (
     <div
       data-group-id={group.id}
@@ -687,7 +792,7 @@ function GroupBox(props: {
           {group.name}
         </button>
         {!menusOpen && (
-          <RailTooltip title={`${group.name} · ${group.paths.length} projects`} detail="Claude reads all of them · click to collapse · right-click for more" />
+          <RailTooltip title={`${group.name} · ${group.paths.length} projects`} detail="Claude can work across all of them · drag a project in or out · click to collapse" />
         )}
       </div>
       {children}
@@ -702,25 +807,23 @@ function StackTile(props: {
   openPath: string | null;
   index: number;
   highlighted: boolean;
+  dropTarget: boolean;
   busy: boolean;
   waiting: boolean;
   changed: boolean;
-  offset: number;
   dragging: boolean;
-  animate: boolean;
+  placeholder: boolean;
   menusOpen: boolean;
   onPointerDown: (event: React.PointerEvent<HTMLButtonElement>, index: number) => void;
   onExpand: () => void;
 }) {
-  const { group, members, openPath, index, highlighted, busy, waiting, changed, offset, dragging, animate, menusOpen, onPointerDown, onExpand } = props;
+  const { group, members, openPath, index, highlighted, dropTarget, busy, waiting, changed, dragging, placeholder, menusOpen, onPointerDown, onExpand } = props;
   const names = members.map((member) => (member === openPath ? `${repoName(member)} (open)` : repoName(member)));
 
   return (
-    <div
-      data-rail-tile
-      className={cn('group relative w-full flex justify-center', dragging && 'z-10', animate && !dragging && 'transition-transform duration-150 ease-out')}
-      style={{ transform: offset ? `translateY(${offset}px)` : undefined }}
-    >
+    <div data-rail-tile={dragging ? undefined : true} data-flip={dragging ? undefined : `group:${group.id}`} className="group relative w-full flex justify-center">
+      {placeholder ? <DropGap /> : (
+      <>
       <button
         onPointerDown={(event) => onPointerDown(event, index)}
         onClick={onExpand}
@@ -730,8 +833,9 @@ function StackTile(props: {
           tileBase,
           'text-[12px] font-semibold tracking-wide touch-none bg-active',
           openPath ? 'ring-2 ring-inset ring-text text-text' : 'text-text-secondary hover:bg-fill-hover hover:text-text hover:ring-1 hover:ring-control-border',
-          dragging ? 'cursor-grabbing bg-raised opacity-90' : 'cursor-pointer',
-          highlighted && 'ring-2 ring-focus ring-offset-2 ring-offset-frame',
+          dragging ? 'cursor-grabbing bg-raised opacity-90 shadow-lg' : 'cursor-pointer',
+          (highlighted || dropTarget) && 'ring-2 ring-focus ring-offset-2 ring-offset-frame',
+          dropTarget && 'scale-110',
         )}
       >
         {repoInitials(group.name)}
@@ -748,6 +852,8 @@ function StackTile(props: {
           detail={`${names.join(', ')} · click to expand · right-click for more`}
           shortcut={index < 9 ? `${modKey}${index + 1}` : null}
         />
+      )}
+      </>
       )}
     </div>
   );
@@ -904,18 +1010,4 @@ function changedFiles(files: string[]) {
   return `${files.length} files`;
 }
 
-function nearestSlot(centers: number[], y: number): number {
-  let best = 0;
-  centers.forEach((center, index) => {
-    if (Math.abs(center - y) < Math.abs(centers[best] - y)) {
-      best = index;
-    }
-  });
-  return best;
-}
-
-function reordered(order: string[], from: number, to: number): string[] {
-  const next = order.filter((_, index) => index !== from);
-  next.splice(to, 0, order[from]);
-  return next;
-}
+const GROUPED_NOTE = 'Claude working in one of them can now work across all of them.';

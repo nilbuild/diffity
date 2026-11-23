@@ -180,18 +180,123 @@ export function arrangeOrder(order: string[], groups: ProjectGroup[]): string[] 
   return result;
 }
 
-/** What dropping `path` at its place in `order` does to its group: dropped between two projects of a group joins it,
- * dropped away from its own group leaves it. */
-export function dropMembership(order: string[], groups: ProjectGroup[], path: string): { join: ProjectGroup | null; leave: ProjectGroup | null } {
-  const index = order.indexOf(path);
-  const before = index > 0 ? groupOf(groups, order[index - 1]) : null;
-  const after = index >= 0 && index < order.length - 1 ? groupOf(groups, order[index + 1]) : null;
+/** How close (px) the dragged tile's centre has to be to another tile's centre to drop onto it rather than beside it. */
+const ONTO_ZONE = 12;
+
+interface Span {
+  top: number;
+  bottom: number;
+}
+
+/** Where things sat on the rail when a drag started. */
+export interface RailGeometry {
+  /** Each tile, in rail order. */
+  tiles: Span[];
+  /** Each expanded group's box, by group id. */
+  boxes: Record<string, Span>;
+}
+
+export interface DropPlan {
+  /** Where the dragged tile lands among the other tiles. */
+  target: number;
+  /** The project it was dropped onto, to group with. */
+  onto: string | null;
+  /** The group it ends up in, when that changes. */
+  group: ProjectGroup | null;
+  join: ProjectGroup | null;
+  leave: ProjectGroup | null;
+  hint: string | null;
+}
+
+interface Slot {
+  target: number;
+  /** The group a project dropped here is in: the gap is inside that group's box. */
+  home: ProjectGroup | null;
+  y: number;
+}
+
+/** Every place the dragged tile can land, with the height that picks it. A gap at a group's edge has two: just inside
+ * the group's box, and just outside it. */
+function dropSlots(projects: string[], groups: ProjectGroup[], geometry: RailGeometry, from: number): Slot[] {
+  const stack = !!groupOf(groups, projects[from])?.collapsed;
+  const others = projects.map((path, index) => ({ path, index })).filter((item) => item.index !== from);
+  const boxOf = (item: { path: string } | undefined) => {
+    const group = item ? groupOf(groups, item.path) : null;
+    return group && !group.collapsed && geometry.boxes[group.id] ? { group, box: geometry.boxes[group.id] } : null;
+  };
+  const slots: Slot[] = [];
+  for (let target = 0; target <= others.length; target += 1) {
+    const before = others[target - 1];
+    const after = others[target];
+    const above = before ? geometry.tiles[before.index] : null;
+    const below = after ? geometry.tiles[after.index] : null;
+    const beforeBox = boxOf(before);
+    const afterBox = boxOf(after);
+    if (beforeBox && afterBox && beforeBox.group.id === afterBox.group.id) {
+      if (!stack && above && below) {
+        slots.push({ target, home: beforeBox.group, y: (above.bottom + below.top) / 2 });
+      }
+      continue;
+    }
+    const low = beforeBox?.box.bottom ?? above?.bottom;
+    const high = afterBox?.box.top ?? below?.top;
+    const own = geometry.tiles[from];
+    const y = low === undefined && high === undefined ? (own.top + own.bottom) / 2 : low === undefined ? high! - 12 : high === undefined ? low + 12 : (low + high) / 2;
+    slots.push({ target, home: null, y });
+    if (stack) {
+      continue;
+    }
+    if (beforeBox && above) {
+      slots.push({ target, home: beforeBox.group, y: (above.bottom + beforeBox.box.bottom) / 2 });
+    }
+    if (afterBox && below) {
+      slots.push({ target, home: afterBox.group, y: (afterBox.box.top + below.top) / 2 });
+    }
+  }
+  return slots;
+}
+
+/** What letting go of the tile dragged from `from`, with its centre at height `y`, does. Over another tile's centre it
+ * groups with it; otherwise it lands in the nearest gap, joining or leaving a group by which side of a box it's on. */
+export function planDrop(projects: string[], groups: ProjectGroup[], geometry: RailGeometry, from: number, y: number): DropPlan {
+  const path = projects[from];
   const own = groupOf(groups, path);
-  if (own && (before?.id === own.id || after?.id === own.id)) {
-    return { join: null, leave: null };
+  const stack = !!own?.collapsed;
+  const none = { target: from, onto: null, group: null, join: null, leave: null, hint: null };
+  if (!stack) {
+    const onto = geometry.tiles.findIndex((tile, index) => {
+      if (index === from || Math.abs(y - (tile.top + tile.bottom) / 2) > ONTO_ZONE) {
+        return false;
+      }
+      return !own || groupOf(groups, projects[index])?.id !== own.id;
+    });
+    if (onto >= 0) {
+      const other = projects[onto];
+      const otherGroup = groupOf(groups, other);
+      const hint = otherGroup ? `Add to ${otherGroup.name}` : `Group with ${projectName(other)}`;
+      return { target: onto < from ? onto + 1 : onto, onto: other, group: otherGroup, join: null, leave: null, hint };
+    }
   }
-  if (before && after && before.id === after.id) {
-    return { join: before, leave: own };
+  const slots = dropSlots(projects, groups, geometry, from);
+  if (slots.length === 0) {
+    return none;
   }
-  return { join: null, leave: own };
+  const slot = slots.reduce((best, item) => (Math.abs(item.y - y) < Math.abs(best.y - y) ? item : best));
+  const join = slot.home && slot.home.id !== own?.id ? slot.home : null;
+  const leave = !stack && own && slot.home?.id !== own.id ? own : null;
+  const hint = join ? `Add to ${join.name}` : leave ? `Take out of ${leave.name}` : null;
+  return { target: slot.target, onto: null, group: join, join, leave, hint };
+}
+
+/** The rail as it will look once the drop lands, to show while dragging. Dropping onto a tile changes nothing until
+ * it lands. */
+export function previewDrop(projects: string[], groups: ProjectGroup[], from: number, plan: DropPlan): { projects: string[]; groups: ProjectGroup[] } {
+  if (plan.onto) {
+    return { projects, groups };
+  }
+  const path = projects[from];
+  const order = projects.filter((_, index) => index !== from);
+  order.splice(plan.target, 0, path);
+  const moved = plan.join ? joinGroup(groups, path, plan.join.id) : plan.leave ? leaveGroup(groups, path) : groups;
+  return { projects: order, groups: normalizeGroups(moved) };
 }
