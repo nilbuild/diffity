@@ -10,6 +10,7 @@ import {
   enqueueClaude,
   onRunEnd,
   onRunStart,
+  setParentPathResolver,
   setTaskLimit,
   setTaskPathCheck,
   useClaude,
@@ -357,6 +358,7 @@ export function useTaskEvents() {
     let disposed = false;
     let unlisten: (() => void) | null = null;
     setTaskPathCheck((path) => !!taskForPath(cachedTasks(), path));
+    setParentPathResolver((path) => parentPathOf(cachedTasks(), path));
     void readLimit().then(setTaskLimit);
     tauri
       .onTasksChanged(() => {

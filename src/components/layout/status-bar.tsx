@@ -17,6 +17,7 @@ import { Skeleton, useRevealClass } from '../ui/skeleton';
 import { useTaskForPath } from '../../features/tasks/tasks';
 import { TaskStatusLine } from '../../features/tasks/task-status-line';
 import { fileManagerName } from '../../lib/platform';
+import { GroupPill } from '../../features/groups/group-pill';
 
 interface StatusBarProps {
   diffRef?: string;
@@ -151,6 +152,7 @@ export function StatusBar(props: StatusBarProps) {
           </span>
         </button>
       )}
+      <GroupPill repoPath={nav.repoPath} />
       <RepoPathButton label={path} path={fullPath} />
     </div>
   );

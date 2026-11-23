@@ -8,6 +8,7 @@ import { useHighlighter } from '../../hooks/use-highlighter';
 import { useThemeStore } from '../../hooks/use-theme';
 import { MermaidDiagram } from '../mermaid-diagram';
 import { rehypeMentions } from '../../lib/mentions';
+import { knownProjects, rehypeProjectMentions, useProjectDirectory } from '../../features/groups/project-directory';
 import { tokensToHtml } from '../../lib/syntax-token';
 import { SuggestionBlock } from '../../features/suggestions/suggestion-block';
 import { GuideRefLink } from '../../features/guide/guide-ref-link';
@@ -148,9 +149,16 @@ export const MarkdownContent = memo(function MarkdownContent(props: MarkdownCont
     },
   }), [highlight, theme]);
 
+  const rail = useProjectDirectory((state) => state.rail);
+  const folders = useProjectDirectory((state) => state.folders);
+  const rehypePlugins = useMemo(
+    () => [rehypeRaw, rehypeSanitize, rehypeMentions, rehypeProjectMentions(knownProjects({ rail, folders }))],
+    [rail, folders],
+  );
+
   return (
     <div className="markdown-body">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, rehypeSanitize, rehypeMentions]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins} components={components}>
         {content}
       </ReactMarkdown>
     </div>

@@ -405,6 +405,8 @@ export const CheckIcon = softStroke(() => <path d="M4.75 12.5 9.5 17.25 19.25 7"
 
 export const XIcon = softStroke(() => <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />);
 
+export const LinkIcon = softStroke(() => <path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />);
+
 export const PlusIcon = softStroke(() => <path d="M12 4.5v15M4.5 12h15" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />);
 
 export const PlusMinusIcon = softStroke(() => <path d="M12 3.5v9M7.5 8h9M7.5 19h9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />);

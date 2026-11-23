@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import { queryClient } from '../../lib/query-client';
 import { openComments, openSettingsAt } from '../../lib/ui-store';
-import type { AgentAction, AgentInfo, AgentMode, PermissionDiff, PermissionOption, RepoThread, RunModel, Thread } from '../../lib/types';
+import type { AgentAction, AgentInfo, AgentMode, LinkedProject, PermissionDiff, PermissionOption, RepoThread, RunModel, Thread } from '../../lib/types';
 import { parseCommitRef, refForSession } from '../../lib/api';
 import { TREE_REF } from '../../lib/types';
 import { goToGuide, goToThread, viewLabel } from '../../lib/thread-location';
@@ -17,6 +17,7 @@ import { finishActivity, recordComments, recordEvent, startActivity } from './ru
 import { isGuideOnScreen } from '../guide/guide-on-screen';
 import { repoBase } from '../../hooks/use-repo';
 import { addressedThreadIds, reviewAddressed, reviewFixesLabel } from '../comments/addressed';
+import { linkedProjects } from '../groups/project-directory';
 
 export type ClaudeAction = Extract<
   AgentAction,
@@ -79,6 +80,7 @@ export interface RunStart {
 const runEndListeners = new Set<(end: RunEnd) => void>();
 const runStartListeners = new Set<(start: RunStart) => void>();
 let isTaskPath: (repoPath: string) => boolean = () => false;
+let parentPathFor: (repoPath: string) => string = (repoPath) => repoPath;
 let taskLimit = 4;
 
 /** Called when a run starts in any project (after any wait for a free task slot). */
@@ -93,6 +95,11 @@ export function onRunStart(listener: (start: RunStart) => void): () => void {
  * share the parallel limit, and announce their own results. */
 export function setTaskPathCheck(check: (repoPath: string) => boolean) {
   isTaskPath = check;
+}
+
+/** Lets the tasks feature map a task folder to its project, so a task run reads the project's group. */
+export function setParentPathResolver(resolve: (repoPath: string) => string) {
+  parentPathFor = resolve;
 }
 
 export function setTaskLimit(limit: number) {
@@ -438,6 +445,34 @@ async function resolveSession(run: ClaudeRun): Promise<string> {
   return context.sessionId;
 }
 
+/** What the run asked for in words: the request, the review instructions or note, and the comments it works on. */
+async function runTexts(run: ClaudeRun, sessionId: string): Promise<string[]> {
+  const { action } = run;
+  const texts = [run.context.text ?? ''];
+  if (action.kind === 'review') {
+    texts.push(action.instructions ?? '');
+  }
+  if (action.kind === 'resolve') {
+    texts.push(action.note ?? '');
+  }
+  const threadIds = useClaude.getState().runs.find((item) => item.id === run.id)?.threadIds ?? run.threadIds;
+  if (threadIds.length === 0) {
+    return texts;
+  }
+  const threads = await tauri.listThreads(sessionId).catch(() => [] as Thread[]);
+  for (const thread of threads.filter((item) => threadIds.includes(item.id))) {
+    texts.push(...thread.comments.filter((comment) => comment.authorType === 'user').map((comment) => comment.body));
+  }
+  return texts;
+}
+
+/** The other projects the agent may read: the repo's group and the projects mentioned in the run. */
+export async function runProjects(run: ClaudeRun, sessionId: string): Promise<LinkedProject[]> {
+  const parent = parentPathFor(run.context.repoPath);
+  const projects = linkedProjects(parent, await runTexts(run, sessionId));
+  return projects.filter((project) => project.path !== run.context.repoPath);
+}
+
 interface ClaudeFailure {
   code: string;
   message: string;
@@ -633,6 +668,7 @@ async function execute(run: ClaudeRun) {
     showBypassNotice(meta.short, () => openSettingsAt('agents'));
   }
 
+  const projects = await runProjects(run, sessionId);
   const before = await tauri.listThreads(sessionId).catch(() => []);
   const baseline = new Set(before.map((thread) => thread.id));
   let added = 0;
@@ -665,7 +701,7 @@ async function execute(run: ClaudeRun) {
   let failed: ClaudeFailure | null = null;
   let cancelled = false;
   try {
-    await tauri.sendPrompt(chat.id, run.context.text ?? '', [], run.action, model, (event) => {
+    await tauri.sendPrompt(chat.id, run.context.text ?? '', [], run.action, model, projects, (event) => {
       if (event.type === 'permissionRequest') {
         const permission: ClaudePermission = {
           runId: run.id,

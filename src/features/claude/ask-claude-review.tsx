@@ -24,6 +24,8 @@ import { FocusChips } from './review-focus-chips';
 import { focusesForRepo, reviewRequest, useCustomFocuses } from './review-focuses';
 import { clearDraft, draftKey, useDraft } from './agent-drafts';
 import { toast } from 'sonner';
+import { MentionTextarea } from '../../components/comments/mention-textarea';
+import { ReadableProjects } from '../groups/readable-projects';
 
 export { REVIEW_FOCUSES } from './review-focuses';
 
@@ -287,11 +289,11 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
         <label className="block mb-1.5 text-xs font-medium text-text-secondary" htmlFor="claude-instructions">
           {changing ? `What should ${agent.short} change?` : `What should ${agent.short} focus on?`}
         </label>
-        <textarea
+        <MentionTextarea
           id="claude-instructions"
           ref={textRef}
           value={text}
-          onChange={(event) => setText(event.target.value)}
+          onChange={setText}
           rows={3}
           placeholder={changing
             ? 'For example “Remove the code comments from this file” or “Rename getUser to fetchUser everywhere”.'
@@ -334,6 +336,7 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
           </div>
         )}
       </div>
+      <ReadableProjects repoPath={repoPath} text={text} agentName={agent.short} />
       <div className="flex items-center gap-2 pt-1">
         <ModelPicker value={pick} onChange={setPicked} className="-ml-1.5 mr-auto" />
         <button type="button" onClick={onClose} className={buttonGhost}>

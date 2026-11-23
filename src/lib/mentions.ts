@@ -3,7 +3,7 @@
 /** Mention handles, one per agent id. */
 export const AGENT_HANDLES = ['claude', 'codex', 'opencode'] as const;
 
-function stripCode(body: string): string {
+export function stripCode(body: string): string {
   const out: string[] = [];
   let fence: { ch: string; len: number } | null = null;
   for (const line of body.split('\n')) {

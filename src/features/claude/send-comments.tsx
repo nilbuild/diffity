@@ -17,6 +17,7 @@ import { useRunPick, writeRepoPick, type RunPick } from './model-setting';
 import { agentMeta, type AgentMeta } from './agents';
 import { clearDraft, draftKey, useDraft } from './agent-drafts';
 import { chord } from '../../lib/shortcuts';
+import { ReadableProjects } from '../groups/readable-projects';
 
 export function useAgentProblem(meta: AgentMeta, enabled: boolean): string | null {
   const { data: agents } = useQuery({ queryKey: ['agents'], queryFn: () => tauri.listAgents(), enabled, staleTime: 30_000 });
@@ -156,6 +157,7 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
 
   const groups = useMemo(() => threadsByFile(local), [local]);
   const claudeGroups = useMemo(() => threadsByFile(fromClaude), [fromClaude]);
+  const readableText = [note, ...selected.flatMap((thread) => thread.comments.map((comment) => comment.body))].join('\n');
 
   const send = async () => {
     if (sendCount === 0 || submit.isPending) {
@@ -279,6 +281,9 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
           placeholder="Anything else? (optional)"
           className="block w-full px-2.5 py-1.5 text-[13px] leading-5 bg-raised text-text rounded-md border border-control-border focus:border-focus resize-y outline-none placeholder:text-text-muted"
         />
+        <div className="mt-2.5">
+          <ReadableProjects repoPath={getRepoPath()} text={readableText} agentName={agent.short} />
+        </div>
         {claudeProblem && <div className="mt-2 px-2.5 py-1.5 rounded-md bg-deleted/10 text-xs text-deleted">{claudeProblem}</div>}
         <div className="mt-2.5 flex items-center gap-2">
           <ModelPicker value={pick} onChange={setPicked} className="-ml-1.5 mr-auto" />

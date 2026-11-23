@@ -423,6 +423,13 @@ export interface ModelCatalog {
   fetchedAt: string;
 }
 
+/** Another project an agent may read during a run. */
+export interface LinkedProject {
+  path: string;
+  name: string;
+  reason: 'group' | 'mentioned';
+}
+
 export interface ContextChip {
   filePath: string;
   side?: Side;
