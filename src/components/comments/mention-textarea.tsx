@@ -278,7 +278,7 @@ function SuggestionContent(props: { item: Suggestion }) {
   if (item.kind === 'project') {
     return (
       <>
-        <RepoBadge name={item.project.name} className="w-4 h-4 rounded text-[8px]" />
+        <RepoBadge name={item.project.name} path={item.project.path} className="w-4 h-4 rounded text-[8px]" />
         <span className="font-medium truncate">{item.project.name}</span>
         <span className="flex-1 min-w-0 text-right text-text-muted truncate">{item.inGroup ? 'already in group' : shortPath(item.project.path)}</span>
       </>

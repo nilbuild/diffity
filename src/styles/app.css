@@ -77,6 +77,22 @@
   --shadow-overlay: 0 8px 24px rgba(66, 74, 83, 0.14), 0 1px 3px rgba(66, 74, 83, 0.08);
 }
 
+/* A project's colour, set as --project and --project-ink on the element. */
+@utility project-tint {
+  background-color: color-mix(in oklab, var(--project) 22%, var(--color-frame));
+  color: color-mix(in oklab, var(--project) 55%, var(--color-text));
+}
+
+@utility project-tint-strong {
+  background-color: color-mix(in oklab, var(--project) 34%, var(--color-frame));
+  color: color-mix(in oklab, var(--project) 40%, var(--color-text));
+}
+
+@utility project-solid {
+  background-color: var(--project);
+  color: var(--project-ink);
+}
+
 [data-theme='dark'] {
   --color-bg: #19191c;
   --color-bg-secondary: #1e1e21;

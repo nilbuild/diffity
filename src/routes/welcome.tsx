@@ -284,7 +284,7 @@ function RecentRow(props: { repo: RecentRepo; onOpen: (path: string, newWindow?:
         className="flex flex-1 min-w-0 items-center gap-3 h-11 px-2 text-left cursor-pointer"
         title={`${repo.path}\n${clickModKey}-click to open in a new window`}
       >
-        <RepoBadge name={repo.name} className="w-7 h-7 rounded-lg text-[11px]" />
+        <RepoBadge name={repo.name} path={repo.path} className="w-7 h-7 rounded-lg text-[11px]" />
         <span className="min-w-0 flex-1">
           <span className="block text-[13px] font-medium text-text truncate">{repo.name}</span>
           <span className="block text-xs text-text-muted truncate">{parentPath(repo.path)}</span>

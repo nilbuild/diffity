@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { cn } from '../../lib/cn';
 import { RepoBadge } from '../welcome/repo-badge';
 import { parentPathOf, useAllTasks } from '../tasks/tasks';
 import { groupOf, projectName, useGroups } from './groups';
@@ -44,7 +43,7 @@ export function ReadableProjects(props: { repoPath: string; text: string; agentN
       </div>
       {rows.map((row) => (
         <div key={row.path} className="flex items-center gap-2 h-6 text-xs" title={row.path}>
-          <RepoBadge name={projectName(row.path)} className={cn('w-4 h-4 rounded text-[8px]', row.path === parent && 'bg-text text-bg')} />
+          <RepoBadge name={projectName(row.path)} path={row.path} solid={row.path === parent} className="w-4 h-4 rounded text-[8px]" />
           <span className="flex-1 min-w-0 truncate text-text">{projectName(row.path)}</span>
           <span className="text-[11px] text-text-muted">{row.why}</span>
         </div>

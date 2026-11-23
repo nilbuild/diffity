@@ -14,6 +14,7 @@ import { useInsideRail } from './activity-rail';
 import { repoBase, useRepoNav } from '../../hooks/use-repo';
 import { useRepoTasks, useTaskForPath } from '../../features/tasks/tasks';
 import { TaskMenu } from '../../features/tasks/task-menu';
+import { RepoBadge } from '../../features/welcome/repo-badge';
 import { openNewTask } from '../../features/tasks/new-task-store';
 
 interface TitleBarProps {
@@ -131,7 +132,7 @@ function RepoCrumb(props: { name: string; path?: string; homePath: string; compa
         )}
         title={`${name}: Home, switch project, open in editor${path ? `\n${path}` : ''}`}
       >
-        <HomeIcon size="sm" className="shrink-0 text-text-muted group-hover/crumb:text-text-secondary transition-colors" />
+        <RepoBadge name={homePath.split('/').filter(Boolean).pop() ?? name} path={homePath} solid className="w-4 h-4 rounded text-[8px]" />
         <span className={cn('truncate', compact && '@max-4xl/titlebar:sr-only')}>{name}</span>
         <ChevronDownIcon size="xs" className="shrink-0 text-text-muted" />
       </button>

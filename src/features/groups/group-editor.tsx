@@ -134,7 +134,7 @@ function GroupEditor(props: { group: ProjectGroup }) {
         <span className="text-xs font-medium text-text-secondary mb-1">Projects</span>
         {group.paths.map((path) => (
           <div key={path} className="group/row flex items-center gap-2.5 h-8 px-1 -mx-1 rounded-md hover:bg-hover" title={path}>
-            <RepoBadge name={projectName(path)} className={cn('w-6 h-6 rounded-md text-[10px]', path === currentPath && 'bg-text text-bg')} />
+            <RepoBadge name={projectName(path)} path={path} solid={path === currentPath} className="w-6 h-6 rounded-md text-[10px]" />
             <span className="flex-1 min-w-0 truncate text-[13px] text-text">{projectName(path)}</span>
             {path === currentPath && <span className="text-[11px] text-text-muted">open now</span>}
             <button

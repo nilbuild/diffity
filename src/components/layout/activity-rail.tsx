@@ -6,7 +6,9 @@ import { repoBase, useRepoNav } from '../../hooks/use-repo';
 import { openSettings } from '../../lib/ui-store';
 import { clickModKey, fileManagerName, modKey } from '../../lib/platform';
 import { openRepoAt, shortPath, useRecentRepos } from '../../features/welcome/recent-repos';
-import { repoInitials } from '../../features/welcome/repo-badge';
+import { repoInitials, useProjectInitials } from '../../features/welcome/repo-badge';
+import { assignColors, colorStyle, setProjectColor, useProjectColor } from '../../features/welcome/project-colors';
+import { ColorSwatches } from '../../features/welcome/color-swatches';
 import { useBusyRepoPaths, useClaude } from '../../features/claude/claude-runner';
 import { parentPathOf, useAllTasks } from '../../features/tasks/tasks';
 import { lastLocationFor } from '../../lib/repo-locations';
@@ -131,13 +133,17 @@ function ProjectTile(props: ProjectTileProps) {
   const { path, index, current, busy, waiting, changed, dragging, placeholder, onPointerDown, onOpen, onMenu, loading, menuTarget, menusOpen, dropTarget, dropHint, dropOnto } = props;
   const spinning = useDelayedFlag(loading, 150);
   const name = repoName(path);
+  const initials = useProjectInitials(name);
+  const color = useProjectColor(path);
   const shortcut = index < 9 ? `${modKey}${index + 1}` : null;
 
   return (
     <div data-rail-tile={dragging ? undefined : true} data-flip={dragging ? undefined : path} className="group relative w-full flex justify-center">
       {placeholder ? <DropGap /> : (
       <>
+      {current && !dragging && <span aria-hidden className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full bg-text" />}
       <button
+        style={colorStyle(color)}
         onPointerDown={(event) => onPointerDown(event, index)}
         onClick={(event) => onOpen(event.metaKey || event.ctrlKey)}
         onContextMenu={(event) => {
@@ -157,15 +163,15 @@ function ProjectTile(props: ProjectTileProps) {
         className={cn(
           tileBase,
           'text-[12px] font-semibold tracking-wide touch-none',
-          current ? 'bg-text text-bg' : 'bg-active text-text-secondary hover:bg-fill-hover hover:text-text hover:ring-1 hover:ring-control-border',
-          dragging ? 'cursor-grabbing bg-raised ring-1 ring-control-border opacity-90 shadow-lg' : 'cursor-pointer',
+          current ? 'project-solid' : 'project-tint hover:project-tint-strong',
+          dragging ? 'cursor-grabbing ring-1 ring-control-border opacity-90 shadow-lg' : 'cursor-pointer',
           dragging && dropOnto && 'scale-75 opacity-100 shadow-lg',
           menuTarget && 'ring-2 ring-focus ring-offset-2 ring-offset-frame',
-          menuTarget && !current && 'bg-fill-hover text-text',
+          menuTarget && !current && 'project-tint-strong',
           dropTarget && 'ring-2 ring-focus ring-offset-2 ring-offset-frame scale-110',
         )}
       >
-        {spinning ? <Spinner className="w-3.5 h-3.5 text-current" label="Opening" /> : repoInitials(name)}
+        {spinning ? <Spinner className="w-3.5 h-3.5 text-current" label="Opening" /> : initials}
         {waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-modified ring-2 ring-frame" title="Waiting for your approval" />}
         {busy && !waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-claude ring-2 ring-frame" title="Claude is working here" />}
         {changed && !busy && !waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent ring-2 ring-frame" />}
@@ -355,6 +361,7 @@ function ActivityRail() {
 
   useEffect(() => {
     setRailProjects(all);
+    assignColors(all);
   }, [all]);
 
   useEffect(() => {
@@ -722,7 +729,7 @@ function ActivityRail() {
             return (
               <MenuItem
                 key={path}
-                icon={<RepoBadge name={repoName(path)} className="w-4 h-4 rounded text-[8px]" />}
+                icon={<RepoBadge name={repoName(path)} path={path} className="w-4 h-4 rounded text-[8px]" />}
                 label={repoName(path)}
                 hint={other ? `in ${other.name}` : undefined}
                 onSelect={() => {
@@ -859,6 +866,13 @@ function StackTile(props: {
   );
 }
 
+function ProjectColorSwatches(props: { path: string }) {
+  const { path } = props;
+  const color = useProjectColor(path);
+
+  return <ColorSwatches value={color.id} onPick={(id) => setProjectColor(path, id)} className="px-2.5" />;
+}
+
 function GroupMenu(props: { group: ProjectGroup | null; at: { x: number; y: number }; onClose: () => void; onEdit: (group: ProjectGroup) => void }) {
   const { group, at, onClose, onEdit } = props;
 
@@ -927,6 +941,8 @@ function ProjectMenuItems(props: {
       <MenuSeparator />
       <MenuItem icon={<ArrowUpIcon size="sm" />} label="Move up" disabled={index <= 0} onSelect={run(() => onMove(-1))} />
       <MenuItem icon={<ArrowDownIcon size="sm" />} label="Move down" disabled={index < 0 || index >= count - 1} onSelect={run(() => onMove(1))} />
+      <MenuSeparator />
+      <ProjectColorSwatches path={path} />
       <MenuSeparator />
       <GroupMenuItems path={path} group={group} groups={groups} canGroup={canGroup} run={run} onEditGroup={onEditGroup} onPickGroup={onPickGroup} />
       <button
