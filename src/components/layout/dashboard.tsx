@@ -318,7 +318,7 @@ export function Dashboard(props: DashboardProps) {
       title: `${branch} vs ${base.replace(/^origin\//, '')}`,
       explain: `Everything on this branch since it split from ${base.replace(/^origin\//, '')}`,
       summary: branchDiff.summary,
-      action: `Compare with ${base.replace(/^origin\//, '')}`,
+      action: 'View diff',
     });
   }
   const askClaudeFor = (ref: string) => {
