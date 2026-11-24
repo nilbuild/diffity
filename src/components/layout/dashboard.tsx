@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { diffOptions } from '../../queries/diff';
 import { AskClaudePopover, requestAskClaude } from '../../features/claude/ask-claude-review';
+import { useRunPick } from '../../features/claude/model-setting';
+import { agentMeta } from '../../features/claude/agents';
 import { usePullRequests } from '../../features/pr/pull-requests-dialog';
 import { checkoutPullRequest } from '../../features/pr/pr-checkout';
 import { BranchSwitcher } from '../../features/pr/branch-switcher';
@@ -226,33 +228,44 @@ interface Candidate {
   url?: string;
 }
 
-function Hero(props: { item: Candidate; onReview: (ref: string) => void; className?: string }) {
-  const { item, onReview, className } = props;
+/** What to look at first, as one bar: what it is and its size on the left, the actions on the right. */
+function Hero(props: { item: Candidate; agentName: string; onReview: (ref: string) => void; className?: string }) {
+  const { item, agentName, onReview, className } = props;
   const [asking, setAsking] = useState(false);
   const askRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <section className={cn('mt-6 rounded-xl border border-border bg-bg-secondary px-6 py-5', className)}>
-      <div className="flex items-center gap-2 text-xs font-medium text-text-secondary">
-        {item.icon}
-        Up next · {item.eyebrow}
+    <section className={cn('mt-6 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-xl border border-border bg-bg-secondary px-4 py-3.5', className)}>
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-fill text-text-secondary">{item.icon}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h2 className="truncate text-[14px] font-semibold text-text" title={item.title}>{item.title}</h2>
+          <span className="shrink-0 text-[11px] font-medium text-text-muted">Up next · {item.eyebrow}</span>
+        </div>
+        <div className="mt-0.5 flex min-w-0 items-center gap-3">
+          {item.summary && <StatLine summary={item.summary} />}
+          {!item.summary && item.summaryLoading && <Skeleton className="w-36 h-3" />}
+          {item.explain && <span className="truncate text-xs text-text-muted">{item.explain}</span>}
+        </div>
       </div>
-      <h2 className="mt-2 text-[18px] leading-6 font-semibold text-text line-clamp-2">{item.title}</h2>
-      <p className="mt-1 text-[13px] text-text-secondary">{item.explain}</p>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div className="flex shrink-0 items-center gap-2">
+        {item.url && (
+          <button
+            onClick={() => openUrl(item.url!).catch((error) => toast.error('Could not open GitHub', { description: errorMessage(error) }))}
+            className={cn(buttonGhost, 'w-7 px-0')}
+            title="Open on GitHub"
+            aria-label="Open on GitHub"
+          >
+            <GitHubIcon size="sm" />
+          </button>
+        )}
+        <button ref={askRef} onClick={() => setAsking(!asking)} className={buttonClaude} aria-expanded={asking}>
+          <SparkleIcon size="sm" />
+          Ask {agentName} to review
+        </button>
         <button onClick={() => (item.run ? item.run() : onReview(item.ref))} className={buttonPrimary}>
           {item.action}
         </button>
-        <button ref={askRef} onClick={() => setAsking(!asking)} className={buttonClaude} aria-expanded={asking}>
-          <SparkleIcon size="sm" />
-          Ask Claude to review
-        </button>
-        {item.url && (
-          <button onClick={() => openUrl(item.url!).catch((error) => toast.error('Could not open GitHub', { description: errorMessage(error) }))} className={buttonOutline}>
-            <GitHubIcon size="sm" />
-            Open on GitHub
-          </button>
-        )}
         <AskClaudePopover
           open={asking}
           onClose={() => setAsking(false)}
@@ -261,8 +274,6 @@ function Hero(props: { item: Candidate; onReview: (ref: string) => void; classNa
           sessionId={null}
           onStarted={() => onReview(item.ref)}
         />
-        {item.summary && <span className="ml-auto"><StatLine summary={item.summary} /></span>}
-        {!item.summary && item.summaryLoading && <Skeleton className="ml-auto w-36 h-3" />}
       </div>
     </section>
   );
@@ -355,6 +366,7 @@ export function Dashboard(props: DashboardProps) {
   const listBudgetSpent = useElapsed(600);
   const localBudgetSpent = useElapsed(3000);
   const hasTasks = useRepoTasks(nav.repoPath).length > 0;
+  const reviewAgent = agentMeta(useRunPick('review', nav.repoPath).agent).short;
   const [historyOpen, setHistoryOpen] = useViewState<boolean | null>('home:history-open', null);
   const showHistory = historyOpen ?? !hasTasks;
 
@@ -509,7 +521,7 @@ export function Dashboard(props: DashboardProps) {
       }
       onClick={() => (hero.run ? hero.run() : onNavigate(hero.ref))}
       tooltip={hero.action}
-      actions={[{ label: 'Ask Claude to review', icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => askClaudeFor(hero.ref) }]}
+      actions={[{ label: `Ask ${reviewAgent} to review`, icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => askClaudeFor(hero.ref) }]}
     />
   ) : null;
 
@@ -546,7 +558,7 @@ export function Dashboard(props: DashboardProps) {
                 <TaskSections repoPath={nav.repoPath} checkoutRow={checkoutRow} />
 
                 {hasTasks ? null : hero ? (
-                  <Hero key={hero.key} item={hero} onReview={onNavigate} className={heroUpgraded ? 'reveal' : undefined} />
+                  <Hero key={hero.key} item={hero} agentName={reviewAgent} onReview={onNavigate} className={heroUpgraded ? 'reveal' : undefined} />
                 ) : (
                   <div className="mt-6 flex items-center gap-3 px-4 py-3 rounded-lg border border-added/25 bg-added/[0.06]">
                     <span className="flex items-center justify-center w-7 h-7 rounded-full bg-added/15 text-added shrink-0">
@@ -582,7 +594,7 @@ export function Dashboard(props: DashboardProps) {
                           tooltip={item.action}
                           actions={[
                             { label: item.action, icon: item.icon, onSelect: () => (item.run ? item.run() : onNavigate(item.ref)) },
-                            { label: 'Ask Claude to review', icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => askClaudeFor(item.ref) },
+                            { label: `Ask ${reviewAgent} to review`, icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => askClaudeFor(item.ref) },
                           ]}
                         />
                       ))}
@@ -682,6 +694,7 @@ export function Dashboard(props: DashboardProps) {
                   }
                 >
                   <CommitList
+                    limit={10}
                     search={search}
                     onFetchingChange={setSearching}
                     onOpen={(commit) => onNavigate(commitRef(commit.hash))}

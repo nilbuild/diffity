@@ -16,6 +16,8 @@ interface CommitListProps {
   onCompareFrom: (hash: string) => void;
   onFetchingChange?: (fetching: boolean) => void;
   onLoaded?: (commits: Commit[]) => void;
+  /** Shows only the newest commits until "Show more history"; a search always shows every match. */
+  limit?: number;
 }
 
 const PAGE_SIZE = 40;
@@ -194,13 +196,17 @@ export function commitListOptions(term: string) {
 }
 
 export function CommitList(props: CommitListProps) {
-  const { search, header, onOpen, onCompareFrom, onFetchingChange, onLoaded } = props;
+  const { search, header, onOpen, onCompareFrom, onFetchingChange, onLoaded, limit } = props;
+  const [expanded, setExpanded] = useState(false);
   const term = useDebounced(search.trim(), 250);
   const sentinel = useRef<HTMLDivElement>(null);
 
   const query = useInfiniteQuery({ ...commitListOptions(term), placeholderData: keepPreviousData });
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
-  const commits = useMemo(() => query.data?.pages.flatMap((page) => page.commits) ?? [], [query.data]);
+  const loaded = useMemo(() => query.data?.pages.flatMap((page) => page.commits) ?? [], [query.data]);
+  const capped = !!limit && !expanded && !term;
+  const commits = useMemo(() => (capped ? loaded.slice(0, limit) : loaded), [capped, loaded, limit]);
+  const more = capped && (loaded.length > commits.length || !!hasNextPage);
   const refetching = query.isFetching && !query.isLoading && !isFetchingNextPage;
   const reveal = useRevealClass(query.isLoading);
 
@@ -209,8 +215,8 @@ export function CommitList(props: CommitListProps) {
   }, [refetching, onFetchingChange]);
 
   useEffect(() => {
-    onLoaded?.(commits);
-  }, [commits, onLoaded]);
+    onLoaded?.(loaded);
+  }, [loaded, onLoaded]);
 
   const groups = useMemo(() => {
     const result: { label: string; commits: Commit[] }[] = [];
@@ -228,7 +234,7 @@ export function CommitList(props: CommitListProps) {
 
   useEffect(() => {
     const node = sentinel.current;
-    if (!node || !hasNextPage) {
+    if (!node || !hasNextPage || capped) {
       return;
     }
     const observer = new IntersectionObserver((entries) => {
@@ -238,7 +244,7 @@ export function CommitList(props: CommitListProps) {
     }, { rootMargin: '200px' });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, capped]);
 
   const renderBody = () => {
     if (query.isLoading) {
@@ -293,7 +299,14 @@ export function CommitList(props: CommitListProps) {
       {!term && header}
       <div className={reveal}>{renderBody()}</div>
       <div ref={sentinel} />
-      {hasNextPage && !isFetchingNextPage && (
+      {more && (
+        <div className="px-3 py-2.5 border-t border-border/60">
+          <button onClick={() => setExpanded(true)} className="text-[13px] text-text-secondary hover:text-text cursor-pointer">
+            Show more history
+          </button>
+        </div>
+      )}
+      {!capped && hasNextPage && !isFetchingNextPage && (
         <div className="px-3 py-3">
           <button onClick={() => void fetchNextPage()} className="text-[13px] text-text-secondary hover:text-text cursor-pointer">
             Load more commits

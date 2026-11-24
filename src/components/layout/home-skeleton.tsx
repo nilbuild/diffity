@@ -6,24 +6,21 @@ import { cn } from '../../lib/cn';
 import { useRepoPath } from '../../hooks/use-repo';
 import { NewTaskButton } from '../../features/tasks/task-list';
 
-/** The Up next card while its decision is pending: same box and line heights as `Hero`, no text that could change. */
+/** The Up next bar while its decision is pending: same box and line heights as `Hero`, no text that could change. */
 function HeroSkeleton() {
   return (
-    <section aria-busy className="mt-6 rounded-xl border border-border bg-bg-secondary px-6 py-5">
-      <div className="flex items-center h-4">
-        <Skeleton className="w-44 h-3" />
+    <section aria-busy className="mt-6 flex items-center gap-4 rounded-xl border border-border bg-bg-secondary px-4 py-3.5">
+      <Skeleton className="size-8 shrink-0 rounded-lg" />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center h-5">
+          <Skeleton className="w-[300px] max-w-full h-3.5" />
+        </div>
+        <div className="mt-0.5 flex items-center h-4">
+          <Skeleton className="w-44 h-2.5" />
+        </div>
       </div>
-      <div className="flex items-center mt-2 h-6">
-        <Skeleton className="w-[340px] max-w-full h-4" />
-      </div>
-      <div className="flex items-center mt-1 h-5">
-        <Skeleton className="w-52 h-3" />
-      </div>
-      <div className="mt-4 flex items-center gap-3">
-        <Skeleton className="w-28 h-7 rounded-md" />
-        <Skeleton className="w-44 h-7 rounded-md" />
-        <Skeleton className="ml-auto w-36 h-3" />
-      </div>
+      <Skeleton className="w-40 h-7 shrink-0 rounded-md" />
+      <Skeleton className="w-28 h-7 shrink-0 rounded-md" />
     </section>
   );
 }
