@@ -103,7 +103,7 @@ The AI features need one of [Claude Code](https://docs.claude.com/en/docs/claude
 
 ### Work across repos
 
-> Drag a project onto another in the rail to group them, or right-click it and pick **Group with…**. Drag a project into a group's box to add it, or out to take it out. Each project gets its own colour, or its logo when it has one, and each group an emoji and colour; right-click to change them. When Claude works in any project of a group, it can read the others and change them when the fix belongs there. For a one-off, type `@` and a project name in a comment or in Ask Claude. Reviews only read. After a run, Diffity tells you which other projects changed and marks them in the rail until you open them.
+> Drag a project onto another in the rail to group them, or right-click it and pick **Group with…**. Drag a project into a group's box to add it, or out to take it out. Each project gets its own colour, or its logo when it has one, and each group an emoji and colour; right-click a project and pick **Edit project…**, or a group and pick **Edit group…**, to change them or give it an emoji. When Claude works in any project of a group, it can read the others and change them when the fix belongs there. For a one-off, type `@` and a project name in a comment or in Ask Claude. Reviews only read. After a run, Diffity tells you which other projects changed and marks them in the rail until you open them.
 
 ### Open from the terminal or your agent
 

@@ -1,15 +1,6 @@
 import { PROJECT_COLORS, type ProjectColor } from '../welcome/project-colors';
 import type { ProjectGroup } from './groups';
 
-/** Emojis offered for a group, roughly by what the projects are about. */
-export const GROUP_EMOJIS = [
-  '🛒', '💳', '🏦', '📦', '🚚', '🏠', '🍕', '✈️',
-  '🌐', '📱', '🖥️', '⚙️', '🛠️', '🧩', '🔌', '☁️',
-  '🤖', '🧠', '📊', '🗄️', '🔒', '🧪', '🐛', '🚀',
-  '📚', '📝', '✉️', '💬', '🎨', '🎮', '🎵', '🎬',
-  '📷', '🎓', '🗺️', '🌱', '⚡', '🔥', '⭐',
-];
-
 /** Words in a group's name that suggest its emoji. Short words must match a whole word, longer ones its start. */
 const HINTS: [string, string[]][] = [
   ['🛒', ['shop', 'store', 'cart', 'commerce', 'market', 'checkout']],

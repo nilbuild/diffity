@@ -9,7 +9,8 @@ import { shortPath } from '../welcome/recent-repos';
 import { RepoBadge, repoInitials } from '../welcome/repo-badge';
 import { ColorSwatches } from '../welcome/color-swatches';
 import { colorStyle } from '../welcome/project-colors';
-import { GROUP_EMOJIS, groupColor, groupEmoji, styleGroup } from './group-look';
+import { EmojiGrid } from '../welcome/emoji-grid';
+import { groupColor, groupEmoji, styleGroup } from './group-look';
 import { getGroups, groupOf, joinGroup, leaveGroup, projectName, renameGroup, setGroups, ungroup, useGroups, type ProjectGroup } from './groups';
 import { useProjectDirectory } from './project-directory';
 
@@ -236,30 +237,12 @@ function GroupLook(props: { group: ProjectGroup }) {
         <ColorSwatches value={color.id} onPick={(id) => setGroups(styleGroup(getGroups(), group.id, { color: id }))} className="flex-1" />
       </div>
       {picking && (
-        <div role="listbox" aria-label="Emoji" className="grid grid-cols-8 gap-0.5 mt-1 p-1 rounded-lg bg-hover">
-          <button
-            type="button"
-            role="option"
-            aria-selected={!emoji}
-            onClick={() => pickEmoji('')}
-            title="No emoji: show initials"
-            className={cn('h-8 rounded-md text-[11px] font-semibold text-text-secondary hover:bg-fill-hover cursor-pointer', !emoji && 'bg-selected text-text')}
-          >
-            {repoInitials(group.name)}
-          </button>
-          {GROUP_EMOJIS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              role="option"
-              aria-selected={option === emoji}
-              onClick={() => pickEmoji(option)}
-              className={cn('h-8 rounded-md text-[18px] leading-none hover:bg-fill-hover cursor-pointer', option === emoji && 'bg-selected')}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
+        <EmojiGrid
+          value={emoji}
+          choices={[{ key: 'initials', label: repoInitials(group.name), title: 'No emoji: show initials', selected: !emoji, onPick: () => pickEmoji('') }]}
+          onPick={pickEmoji}
+          className="mt-1 p-1 rounded-lg bg-hover"
+        />
       )}
     </div>
   );

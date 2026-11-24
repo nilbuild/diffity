@@ -10,7 +10,9 @@ import { repoInitials, useProjectInitials } from '../../features/welcome/repo-ba
 import { assignColors, colorStyle, setProjectColor, useProjectColor } from '../../features/welcome/project-colors';
 import { ColorSwatches } from '../../features/welcome/color-swatches';
 import { groupColor, groupEmoji, styleGroup } from '../../features/groups/group-look';
-import { setLogoShown, useProjectLogo } from '../../features/welcome/project-icons';
+import { useProjectLogo } from '../../features/welcome/project-icons';
+import { useProjectEmoji } from '../../features/welcome/project-emojis';
+import { openProjectEditorAt, ProjectEditorHost, useProjectEditorPath } from '../../features/welcome/project-editor';
 import { useBusyRepoPaths, useClaude } from '../../features/claude/claude-runner';
 import { parentPathOf, useAllTasks } from '../../features/tasks/tasks';
 import { lastLocationFor } from '../../lib/repo-locations';
@@ -137,7 +139,9 @@ function ProjectTile(props: ProjectTileProps) {
   const name = repoName(path);
   const initials = useProjectInitials(name);
   const color = useProjectColor(path);
-  const { logo, shown: showLogo } = useProjectLogo(path);
+  const emoji = useProjectEmoji(path);
+  const { logo, shown: logoShown } = useProjectLogo(path);
+  const showLogo = logoShown && !emoji;
   const shortcut = index < 9 ? `${modKey}${index + 1}` : null;
 
   return (
@@ -166,8 +170,8 @@ function ProjectTile(props: ProjectTileProps) {
         className={cn(
           tileBase,
           'text-[12px] font-semibold tracking-wide touch-none',
-          !showLogo && (current ? 'project-solid' : 'project-tint hover:project-tint-strong'),
-          showLogo && (current ? 'project-tint-strong ring-2 ring-inset ring-(--project)' : 'project-tint hover:project-tint-strong'),
+          !showLogo && !emoji && (current ? 'project-solid' : 'project-tint hover:project-tint-strong'),
+          (showLogo || emoji) && (current ? 'project-tint-strong ring-2 ring-inset ring-(--project)' : 'project-tint hover:project-tint-strong'),
           dragging ? 'cursor-grabbing ring-1 ring-control-border opacity-90 shadow-lg' : 'cursor-pointer',
           dragging && dropOnto && 'scale-75 opacity-100 shadow-lg',
           menuTarget && 'ring-2 ring-focus ring-offset-2 ring-offset-frame',
@@ -176,8 +180,9 @@ function ProjectTile(props: ProjectTileProps) {
         )}
       >
         {showLogo && logo && <img alt="" src={logo} decoding="sync" draggable={false} className={cn('w-6 h-6 object-contain pointer-events-none transition-opacity', spinning && 'opacity-30')} />}
-        {!(showLogo && logo) && !spinning && initials}
-        {spinning && <Spinner className={cn('w-3.5 h-3.5 text-current', showLogo && logo && 'absolute')} label="Opening" />}
+        {emoji && <span className={cn('text-[18px] leading-none transition-opacity', spinning && 'opacity-30')}>{emoji}</span>}
+        {!(showLogo && logo) && !emoji && !spinning && initials}
+        {spinning && <Spinner className={cn('w-3.5 h-3.5 text-current', ((showLogo && logo) || emoji) && 'absolute')} label="Opening" />}
         {waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-modified ring-2 ring-frame" title="Waiting for your approval" />}
         {busy && !waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-claude ring-2 ring-frame" title="Claude is working here" />}
         {changed && !busy && !waiting && <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-accent ring-2 ring-frame" />}
@@ -337,6 +342,7 @@ export function RailFrame(props: { children: ReactNode }) {
         <div className="flex-1 min-w-0 relative">{children}</div>
       </div>
       <GroupEditorHost />
+      <ProjectEditorHost />
     </RailContext.Provider>
   );
 }
@@ -362,6 +368,7 @@ function ActivityRail() {
   const editingGroupId = useGroupEditorId();
   const suppressClick = useRef(false);
   const [menu, setMenu] = useState<{ path: string; at: { x: number; y: number } } | null>(null);
+  const editingPath = useProjectEditorPath();
   const editor = useEditorName();
   const changedProjects = useLinkedChanges((state) => state.byPath);
 
@@ -374,6 +381,13 @@ function ActivityRail() {
     clearLinkedChanges(currentPath);
   }, [currentPath, changedProjects]);
 
+  const editProject = (path: string) => {
+    const tile = navRef.current?.querySelector<HTMLElement>(`[data-flip="${CSS.escape(path)}"]`);
+    if (tile) {
+      openProjectEditorAt(path, tile);
+    }
+  };
+
   const editGroup = (group: ProjectGroup) => {
     const box = navRef.current?.querySelector<HTMLElement>(`[data-group-id="${group.id}"]`);
     if (box) {
@@ -381,7 +395,7 @@ function ActivityRail() {
     }
   };
 
-  const menusOpen = !!menu || !!picker || !!groupMenu || !!editingGroupId;
+  const menusOpen = !!menu || !!picker || !!editingPath || !!groupMenu || !!editingGroupId;
 
   const removeProject = (path: string) => {
     const wasCurrent = path === currentPath;
@@ -598,7 +612,7 @@ function ActivityRail() {
       onPointerDown={handlePointerDown}
       onOpen={(newWindow) => openProject(path, newWindow)}
       onMenu={(at) => setMenu({ path, at })}
-      menuTarget={menu?.path === path || picker?.path === path}
+      menuTarget={menu?.path === path || picker?.path === path || editingPath === path}
       menusOpen={quiet}
       dropTarget={!ghost && drop?.onto === path}
       dropHint={ghost ? drop?.hint ?? null : null}
@@ -724,6 +738,7 @@ function ActivityRail() {
             canGroup={all.length > 1}
             onEditGroup={editGroup}
             onPickGroup={() => setPicker({ path: menu.path, at: menu.at })}
+            onEditProject={() => editProject(menu.path)}
           />
         </ContextMenu>
       )}
@@ -887,23 +902,6 @@ function ProjectColorSwatches(props: { path: string }) {
   return <ColorSwatches value={color.id} onPick={(id) => setProjectColor(path, id)} className="px-2.5" />;
 }
 
-function LogoToggle(props: { path: string }) {
-  const { path } = props;
-  const { logo, shown } = useProjectLogo(path);
-
-  if (!logo) {
-    return null;
-  }
-  return (
-    <MenuItem
-      icon={<img alt="" src={logo} decoding="sync" className="w-4 h-4 object-contain" />}
-      label="Show project logo"
-      checked={shown}
-      onSelect={() => setLogoShown(path, !shown)}
-    />
-  );
-}
-
 function GroupMenu(props: { group: ProjectGroup | null; at: { x: number; y: number }; onClose: () => void; onEdit: (group: ProjectGroup) => void }) {
   const { group, at, onClose, onEdit } = props;
 
@@ -950,8 +948,9 @@ function ProjectMenuItems(props: {
   canGroup: boolean;
   onEditGroup: (group: ProjectGroup) => void;
   onPickGroup: () => void;
+  onEditProject: () => void;
 }) {
-  const { path, current, editor, index, count, onClose, onOpen, onMove, onRemove, group, groups, canGroup, onEditGroup, onPickGroup } = props;
+  const { path, current, editor, index, count, onClose, onOpen, onMove, onRemove, group, groups, canGroup, onEditGroup, onPickGroup, onEditProject } = props;
   const run = (action: () => void) => () => {
     onClose();
     action();
@@ -975,8 +974,8 @@ function ProjectMenuItems(props: {
       <MenuItem icon={<ArrowUpIcon size="sm" />} label="Move up" disabled={index <= 0} onSelect={run(() => onMove(-1))} />
       <MenuItem icon={<ArrowDownIcon size="sm" />} label="Move down" disabled={index < 0 || index >= count - 1} onSelect={run(() => onMove(1))} />
       <MenuSeparator />
+      <MenuItem icon={<PencilIcon size="sm" />} label="Edit project…" onSelect={run(onEditProject)} />
       <ProjectColorSwatches path={path} />
-      <LogoToggle path={path} />
       <MenuSeparator />
       <GroupMenuItems path={path} group={group} groups={groups} canGroup={canGroup} run={run} onEditGroup={onEditGroup} onPickGroup={onPickGroup} />
       <button
