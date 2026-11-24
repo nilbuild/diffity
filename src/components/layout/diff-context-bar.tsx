@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import dayjs from 'dayjs';
@@ -18,7 +18,9 @@ import { useRepoNav } from '../../hooks/use-repo';
 import { gitStatusOptions, useGitHubPr, useGitStatus, useRepoMeta } from '../../hooks/use-repo-state';
 import { AuthorAvatar } from './commit-list';
 import { PR_LOOKUP_BUDGET, isAllChangesRef, isPrShapedRef, prDiffRef, rangeParts, shortBase, uncommittedTwin } from './ref-menu';
-import { CheckIcon, CopyIcon, GitCompareIcon } from '../ui/icon';
+import { CheckIcon, ChevronDownIcon, CopyIcon, GitCompareIcon } from '../ui/icon';
+import { Popover } from '../ui/popover';
+import { CompareForm } from './compare-form';
 import { prBaseFor } from '../../lib/pr-ref';
 import { TaskRoundBar, useShowsRoundBar } from '../../features/tasks/round-bar';
 
@@ -266,6 +268,45 @@ export function ChangesModeSwitch(props: { diffRef: string }) {
   );
 }
 
+/** The base in "since it split from <base>": opens Compare to pick another base for the same branch. */
+function BasePicker(props: { diffRef: string; base: string }) {
+  const { diffRef, base } = props;
+  const nav = useRepoNav();
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
+  const close = useCallback(() => setOpen(false), []);
+  const allChanges = isAllChangesRef(diffRef);
+  const baseRef = allChanges ? diffRef : diffRef.split('...')[0];
+  const headRef = allChanges ? 'HEAD' : diffRef.split('...')[1] || 'HEAD';
+
+  return (
+    <>
+      <button
+        ref={anchor}
+        onClick={() => setOpen(!open)}
+        title="Compare against another branch"
+        className={cn(
+          'inline-flex items-center gap-0.5 -mx-1 px-1 h-5 rounded font-mono text-text align-middle transition-colors cursor-pointer hover:bg-hover',
+          open && 'bg-hover',
+        )}
+      >
+        {base}
+        <ChevronDownIcon className="w-3 h-3 text-text-secondary" />
+      </button>
+      <Popover open={open} onClose={close} anchorRef={anchor} width={340} className="p-3 overflow-visible">
+        <CompareForm
+          defaultBase={baseRef}
+          defaultHead={headRef}
+          onCompare={(nextBase, nextHead) => {
+            close();
+            nav.toDiff(allChanges && nextHead === 'HEAD' ? nextBase : `${nextBase}...${nextHead}`);
+          }}
+        />
+      </Popover>
+    </>
+  );
+}
+
 /** A light header at the top of the diff for a commit or a compared range (not a sticky bar). */
 export function DiffContextHeader(props: { diffRef: string }) {
   const { diffRef } = props;
@@ -302,7 +343,7 @@ export function DiffContextHeader(props: { diffRef: string }) {
       <span className="truncate">
         {diffRef.includes('..') && !diffRef.includes('...')
           ? <>Every change after <code className="font-mono text-text">{base}</code>, up to <code className="font-mono text-text">{head}</code></>
-          : <>Changes on <code className="font-mono text-text">{head}</code> since it split from <code className="font-mono text-text">{base}</code></>}
+          : <>Changes on <code className="font-mono text-text">{head}</code> since it split from <BasePicker diffRef={diffRef} base={base} /></>}
       </span>
     </div>
   );

@@ -33,88 +33,18 @@ import { isOpenThread, useRepoThreads } from '../../hooks/use-repo-threads';
 import { openSettingsAt } from '../../lib/ui-store';
 import { cn } from '../../lib/cn';
 import { buttonClaude, buttonGhost, buttonOutline, buttonPrimary, inputField } from '../ui/button-styles';
-import { ChangesIcon, CheckCircleIcon, ChevronDownIcon, CommentIcon, EllipsisIcon, GitCommitIcon, EditorIcon, FilesIcon, GitCompareIcon, GitHubIcon, GitPullRequestIcon, SearchIcon, SparkleIcon, SwapIcon, XIcon } from '../ui/icon';
+import { ChangesIcon, CheckCircleIcon, ChevronDownIcon, CommentIcon, EllipsisIcon, GitCommitIcon, EditorIcon, FilesIcon, GitCompareIcon, GitHubIcon, GitPullRequestIcon, SearchIcon, SparkleIcon, XIcon } from '../ui/icon';
 import { MenuItem, Popover, useMenu } from '../ui/popover';
 import { Panel } from '../ui/panel';
+import { CompareForm } from './compare-form';
 import { useRestoredScroll, useViewState } from '../../lib/view-state';
 
 interface DashboardProps {
   onNavigate: (ref: string) => void;
 }
 
-function RefInput(props: { value: string; onChange: (value: string) => void; placeholder: string; options: string[]; autoFocus?: boolean }) {
-  const { value, onChange, placeholder, options, autoFocus } = props;
-  const [focused, setFocused] = useState(false);
-  const [active, setActive] = useState(0);
-  const needle = value.trim().toLowerCase();
-  const suggestions = options.filter((option) => option.toLowerCase().includes(needle) && option !== value).slice(0, 6);
-  const show = focused && needle.length > 0 && suggestions.length > 0;
-
-  return (
-    <div className="relative flex-1 min-w-0">
-      <input
-        autoFocus={autoFocus}
-        type="text"
-        value={value}
-        onChange={(event) => {
-          onChange(event.target.value);
-          setActive(0);
-        }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        onKeyDown={(event) => {
-          if (!show) {
-            return;
-          }
-          if (event.key === 'ArrowDown') {
-            event.preventDefault();
-            setActive((index) => Math.min(index + 1, suggestions.length - 1));
-            return;
-          }
-          if (event.key === 'ArrowUp') {
-            event.preventDefault();
-            setActive((index) => Math.max(index - 1, 0));
-            return;
-          }
-          if (event.key === 'Tab' || (event.key === 'Enter' && needle && suggestions[active])) {
-            event.preventDefault();
-            onChange(suggestions[active]);
-          }
-        }}
-        placeholder={placeholder}
-        spellCheck={false}
-        autoComplete="off"
-        className={cn(inputField, 'font-mono text-xs')}
-      />
-      {show && (
-        <ul className="absolute left-0 right-0 top-full mt-1 z-10 p-1 bg-overlay rounded-md ring-1 ring-overlay-border">
-          {suggestions.map((option, index) => (
-            <li key={option}>
-              <button
-                type="button"
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  onChange(option);
-                }}
-                onMouseEnter={() => setActive(index)}
-                className={cn(
-                  'flex items-center w-full h-7 px-2 rounded text-left font-mono text-xs text-text truncate cursor-pointer',
-                  index === active && 'bg-hover',
-                )}
-              >
-                {option}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 function ComparePopover(props: { onNavigate: (ref: string) => void; defaultBase: string | null; openSignal?: number }) {
   const { onNavigate, defaultBase, openSignal = 0 } = props;
-  const { data: branches } = useBranches();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -122,12 +52,8 @@ function ComparePopover(props: { onNavigate: (ref: string) => void; defaultBase:
       setOpen(true);
     }
   }, [openSignal]);
-  const [base, setBase] = useState('');
-  const [head, setHead] = useState('HEAD');
   const ref = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
-  const effectiveBase = base.trim() || defaultBase || '';
-  const refOptions = ['HEAD', ...(branches ?? []).map((branch) => branch.name)];
 
   return (
     <div className="relative shrink-0" ref={ref}>
@@ -141,43 +67,13 @@ function ComparePopover(props: { onNavigate: (ref: string) => void; defaultBase:
         <ChevronDownIcon className="w-3 h-3 text-text-secondary" />
       </button>
       <Popover open={open} onClose={close} anchorRef={ref} align="end" width={340} className="p-3 overflow-visible">
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!effectiveBase) {
-              return;
-            }
+        <CompareForm
+          defaultBase={defaultBase}
+          onCompare={(base, head) => {
             close();
-            onNavigate(`${effectiveBase}...${head.trim() || 'HEAD'}`);
+            onNavigate(`${base}...${head}`);
           }}
-        >
-          <div className="text-[13px] font-medium text-text">Compare changes</div>
-          <p className="mt-0.5 mb-3 text-xs text-text-secondary">The changes Compare has on top of Base, the way a pull request shows them.</p>
-          <div className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-x-2 gap-y-2">
-            <span className="text-xs text-text-secondary">Base</span>
-            <RefInput autoFocus value={base} onChange={setBase} placeholder={defaultBase ?? 'branch, tag or commit'} options={refOptions} />
-            <span className="text-xs text-text-secondary">Compare</span>
-            <RefInput value={head} onChange={setHead} placeholder="HEAD" options={refOptions} />
-          </div>
-          <div className="flex items-center justify-between mt-3">
-            <button
-              type="button"
-              className={cn(buttonGhost, 'h-7 -ml-2 px-2 text-xs')}
-              title="Swap base and compare"
-              onClick={() => {
-                const nextBase = head.trim() || 'HEAD';
-                setHead(effectiveBase);
-                setBase(nextBase);
-              }}
-            >
-              <SwapIcon className="w-3.5 h-3.5" />
-              Swap
-            </button>
-            <button type="submit" disabled={!effectiveBase} className={buttonPrimary}>
-              Compare
-            </button>
-          </div>
-        </form>
+        />
       </Popover>
     </div>
   );
