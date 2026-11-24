@@ -182,8 +182,8 @@ export function guessBaseBranch(branches: Branch[], current: string | null): str
   return null;
 }
 
-/** Base branch to compare the current branch against: the PR base, else main/master (prefers `upstream`, then `origin`). */
-export function useBaseBranch(pr: Pick<PullRequest, 'baseRef' | 'baseRemote'> | null, current: string | null): string | null {
+/** The trunk the current branch builds on: the PR base, else main/master (prefers `upstream`, then `origin`). */
+export function useTrunkBranch(pr: Pick<PullRequest, 'baseRef' | 'baseRemote'> | null, current: string | null): string | null {
   const { data: branches } = useBranches();
   if (pr) {
     return prBaseFor(pr);
@@ -192,6 +192,33 @@ export function useBaseBranch(pr: Pick<PullRequest, 'baseRef' | 'baseRemote'> | 
     return null;
   }
   return guessBaseBranch(branches, current);
+}
+
+/**
+ * Base branch to compare the current branch against: the PR base, else the local branch it was built on (the one
+ * below it in a stack), else the trunk. `pending` while the branch below is still being looked up.
+ */
+export function useBaseBranchState(pr: Pick<PullRequest, 'baseRef' | 'baseRemote'> | null, current: string | null): { base: string | null; trunk: string | null; pending: boolean } {
+  const trunk = useTrunkBranch(pr, current);
+  const lookup = !pr && !!trunk;
+  const parent = useQuery({
+    queryKey: ['branches', 'parent', trunk, current],
+    queryFn: () => tauri.parentBranch(getRepoPath(), trunk ?? ''),
+    enabled: lookup,
+    staleTime: 30_000,
+    retry: false,
+  });
+  if (!lookup) {
+    return { base: trunk, trunk, pending: false };
+  }
+  if (parent.isPending) {
+    return { base: null, trunk, pending: true };
+  }
+  return { base: parent.data ?? trunk, trunk, pending: false };
+}
+
+export function useBaseBranch(pr: Pick<PullRequest, 'baseRef' | 'baseRemote'> | null, current: string | null): string | null {
+  return useBaseBranchState(pr, current).base;
 }
 
 export function useRecentCommits(count: number) {

@@ -467,6 +467,7 @@ const handlers: Record<string, (args: Args) => unknown> = {
     return commits.slice(0, 3).slice(skip, skip + count);
   },
   list_branches: () => branches,
+  parent_branch: () => null,
   git_status: () => ({ branch: 'feat/cache', upstream: 'origin/feat/cache', ahead: 2, behind: 0, staged: 1, unstaged: 4, untracked: 2, dirty: true }),
   repo_overview: () => [
     { path: 'src/cache.ts', status: 'staged' },

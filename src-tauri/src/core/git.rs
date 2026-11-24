@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
@@ -466,6 +467,42 @@ pub fn list_branches(repo: &Path) -> Result<Vec<Branch>> {
     }
     branches.sort_by_key(|b| (!b.is_current, b.is_remote));
     Ok(branches)
+}
+
+/// The local branch HEAD was built on top of `trunk` (the nearest branch tip among HEAD's own commits), so a branch
+/// in a stack compares against the one below it. `None` when HEAD sits straight on `trunk`.
+pub fn parent_branch(repo: &Path, trunk: &str) -> Result<Option<String>> {
+    require_repo(repo)?;
+    let (Some(head), Some(_)) = (head_sha(repo)?, verify_commit(repo, trunk)?) else {
+        return Ok(None);
+    };
+    let range = format!("{trunk}..{head}");
+    let Some(out) = run_opt(repo, &["rev-list", "--topo-order", "--max-count=2000", &range])? else {
+        return Ok(None);
+    };
+    let order: HashMap<String, usize> = String::from_utf8_lossy(&out)
+        .lines()
+        .enumerate()
+        .map(|(index, sha)| (sha.to_string(), index))
+        .collect();
+    let current = current_branch(repo)?;
+    let tips = run(repo, &["for-each-ref", "--format=%(refname:short)%1f%(objectname)", "refs/heads"])?;
+    let mut best: Option<(usize, String)> = None;
+    for line in tips.lines() {
+        let Some((name, sha)) = line.split_once('\x1f') else {
+            continue;
+        };
+        if sha == head || current.as_deref() == Some(name) {
+            continue;
+        }
+        let Some(&index) = order.get(sha) else {
+            continue;
+        };
+        if best.as_ref().is_none_or(|(nearest, _)| index < *nearest) {
+            best = Some((index, name.to_string()));
+        }
+    }
+    Ok(best.map(|(_, name)| name))
 }
 
 /// Working trees that share `repo`'s repository, the main one first. Bare, prunable and missing ones are left out.

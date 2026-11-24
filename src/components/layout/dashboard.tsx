@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useInfo } from '../../hooks/use-info';
-import { expectsPullRequest, useBaseBranch, useBranches, useGitHubAuth, useGitHubPr, useGitStatus, useRecentCommits, useRepoMeta } from '../../hooks/use-repo-state';
+import { expectsPullRequest, useBaseBranchState, useBranches, useGitHubAuth, useGitHubPr, useGitStatus, useRecentCommits, useRepoMeta } from '../../hooks/use-repo-state';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { openUrl } from '@tauri-apps/plugin-opener';
@@ -350,7 +350,7 @@ export function Dashboard(props: DashboardProps) {
   const threadsQuery = useRepoThreads();
   const repoThreads = threadsQuery.data;
   const branch = status?.branch ?? info?.branch ?? null;
-  const base = useBaseBranch(details?.pr ?? null, branch);
+  const { base, pending: basePending } = useBaseBranchState(details?.pr ?? null, branch);
   const [search, setSearch] = useViewState('home:search', '');
   const [searching, setSearching] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
@@ -388,7 +388,7 @@ export function Dashboard(props: DashboardProps) {
 
   const settled = (query: { isPending: boolean; isError: boolean; fetchStatus: string }) => !query.isPending || query.isError || query.fetchStatus === 'idle';
   const localSettled = settled(statusQuery) && settled(metaQuery) && settled(branchesQuery) && settled(threadsQuery) && settled(recentQuery) && settled(historyQuery)
-    && (localBudgetSpent || (!work.loading && !branchDiff.loading));
+    && (localBudgetSpent || (!basePending && !work.loading && !branchDiff.loading));
   const prSettled = settled(metaQuery) && (!hasRemote || (settled(authQuery) && !prLoading));
   const ready = useLatch(localSettled && (prSettled || prBudgetSpent) && (!prsLoading || listBudgetSpent));
   const reveal = useRevealClass(!ready);
@@ -420,7 +420,7 @@ export function Dashboard(props: DashboardProps) {
     candidates.push({
       key: 'branch', ref: base, icon: <GitCompareIcon size="sm" />, eyebrow: 'This branch',
       title: `${branch} vs ${base.replace(/^origin\//, '')}`,
-      explain: 'Everything on this branch since it split from its base',
+      explain: `Everything on this branch since it split from ${base.replace(/^origin\//, '')}`,
       summary: branchDiff.summary,
       action: `Compare with ${base.replace(/^origin\//, '')}`,
     });

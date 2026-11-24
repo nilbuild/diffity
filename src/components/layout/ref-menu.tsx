@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useRepoNav, useRepoPath } from '../../hooks/use-repo';
-import { useBaseBranch, useBranches, useGitHubPr, useGitStatus, useHasGitHubRemote, usePrLookupExpected } from '../../hooks/use-repo-state';
+import { useBaseBranchState, useBranches, useGitHubPr, useGitStatus, useHasGitHubRemote, usePrLookupExpected } from '../../hooks/use-repo-state';
 import { openPullRequests } from '../../lib/ui-store';
 import { commitRef, descriptionForRef, fetchBranchCommits, fetchCommits, isWorkingTreeRef, parseCommitRef, type Commit, type CommitsPage, type GitHubDetails } from '../../lib/api';
 import { cn } from '../../lib/cn';
@@ -81,7 +81,7 @@ export function useTargetLabel(diffRef: string, branch: string | null): { label:
   const prExpected = usePrLookupExpected();
   const waitForPr = isPrShapedRef(diffRef) && prExpected;
   const githubBudgetSpent = useElapsed(waitForPr ? PR_LOOKUP_BUDGET : 600);
-  const base = useBaseBranch(details?.pr ?? null, branch);
+  const { base, trunk, pending: basePending } = useBaseBranchState(details?.pr ?? null, branch);
   const commitSha = parseCommitRef(diffRef);
   const { data: commit, isPending: commitPending, isError: commitFailed } = useCommitDetails(commitSha);
   const task = useTaskForPath(useRepoPath());
@@ -98,11 +98,12 @@ export function useTargetLabel(diffRef: string, branch: string | null): { label:
     return { label: `PR #${details.prNumber} · ${details.prTitle}`, icon: <GitPullRequestIcon className="w-3.5 h-3.5" />, pending: false };
   }
   const againstHead = diffRef.endsWith('...HEAD') || isAllChangesRef(diffRef);
-  if (againstHead && ((prLoading && !githubBudgetSpent) || (branchesPending && !branchesFailed))) {
+  if (againstHead && ((prLoading && !githubBudgetSpent) || (branchesPending && !branchesFailed) || basePending)) {
     return { label: '', icon: <GitCompareIcon className="w-3.5 h-3.5" />, pending: true };
   }
-  if (base && branch && (diffRef === base || diffRef === `${base}...HEAD`)) {
-    return { label: `${branch} vs ${shortBase(base)}`, icon: <GitCompareIcon className="w-3.5 h-3.5" />, pending: false };
+  const against = [base, trunk].find((ref) => ref && (diffRef === ref || diffRef === `${ref}...HEAD`));
+  if (against && branch) {
+    return { label: `${branch} vs ${shortBase(against)}`, icon: <GitCompareIcon className="w-3.5 h-3.5" />, pending: false };
   }
   if (commitSha) {
     const short = commitSha.slice(0, 7);
@@ -302,7 +303,7 @@ function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (
   const hasGitHubRemote = useHasGitHubRemote();
   const { data: status } = useGitStatus();
   const { details, loading: prLoading } = useGitHubPr();
-  const base = useBaseBranch(details?.pr ?? null, branch);
+  const { base, trunk } = useBaseBranchState(details?.pr ?? null, branch);
   const [search, setSearch] = useState('');
   const [term, setTerm] = useState('');
   const sentinel = useRef<HTMLDivElement>(null);
@@ -457,6 +458,16 @@ function RefMenuPanel(props: { diffRef: string; branch: string | null; onPick: (
             title={`${branch} vs ${shortBase(base ?? '')}`}
             tooltip={`Everything on ${branch} since it split from ${shortBase(base ?? '')}, uncommitted changes included`}
             onClick={() => onPick(branchRef)}
+          />
+        )}
+        {showWork && !details && branch && trunk && base && trunk !== base && (
+          <Item
+            selected={diffRef === trunk || diffRef === `${trunk}...HEAD`}
+            icon={<GitCompareIcon className="w-3.5 h-3.5" />}
+            title={`${branch} vs ${shortBase(trunk)}`}
+            hint={`The whole stack, ${shortBase(base)} included`}
+            tooltip={`Everything on ${branch} since it split from ${shortBase(trunk)}, uncommitted changes included`}
+            onClick={() => onPick(trunk)}
           />
         )}
         {showWork && hasGitHubRemote && (

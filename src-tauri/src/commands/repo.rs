@@ -128,6 +128,11 @@ pub async fn list_branches(repo_path: String) -> Result<Vec<Branch>, AppError> {
 }
 
 #[tauri::command]
+pub async fn parent_branch(repo_path: String, trunk: String) -> Result<Option<String>, AppError> {
+    blocking(move || git::parent_branch(Path::new(&repo_path), &trunk)).await
+}
+
+#[tauri::command]
 pub async fn list_worktrees(repo_path: String) -> Result<Vec<Worktree>, AppError> {
     blocking(move || git::list_worktrees(Path::new(&repo_path))).await
 }

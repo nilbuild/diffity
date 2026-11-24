@@ -91,6 +91,7 @@ export const listCommits = (repoPath: string, count: number, skip: number, searc
 export const listBranchCommits = (repoPath: string, base: string, count: number, skip: number) =>
   invoke<Commit[]>('list_branch_commits', { repoPath, base, count, skip });
 export const listBranches = (repoPath: string) => invoke<Branch[]>('list_branches', { repoPath });
+export const parentBranch = (repoPath: string, trunk: string) => invoke<string | null>('parent_branch', { repoPath, trunk });
 export const listWorktrees = (repoPath: string) => invoke<Worktree[]>('list_worktrees', { repoPath });
 export const listTasks = (repoPath?: string | null) => invoke<Task[]>('list_tasks', { repoPath: repoPath ?? null });
 export const mainCheckout = (path: string) => invoke<string>('main_checkout', { path });

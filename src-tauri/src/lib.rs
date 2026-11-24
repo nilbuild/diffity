@@ -294,6 +294,7 @@ pub fn run() {
             commands::repo::list_commits,
             commands::repo::list_branch_commits,
             commands::repo::list_branches,
+            commands::repo::parent_branch,
             commands::repo::list_worktrees,
             commands::tasks::list_tasks,
             commands::tasks::main_checkout,
