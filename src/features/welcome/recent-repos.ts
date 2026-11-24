@@ -65,6 +65,17 @@ export function parentPath(path: string): string {
   return shortPath(path).replace(/\/[^/]+\/?$/, '') || '/';
 }
 
+/** Whether a project is still in the recent list and the rail, i.e. not removed from them since it was last opened. */
+export async function isShownProject(path: string): Promise<boolean> {
+  const [recent, hidden] = await Promise.all([tauri.recentRepos().catch(() => []), tauri.getSetting(HIDDEN_KEY).catch(() => null)]);
+  const repo = recent.find((item) => item.path === path);
+  if (!repo) {
+    return false;
+  }
+  const hiddenAt = parseHidden(hidden)[path];
+  return !hiddenAt || repo.lastOpenedAt > hiddenAt;
+}
+
 /** Opening a project again brings it back to the rail and the recent list if it had been removed. */
 async function unhideRepo(path: string) {
   const current = parseHidden(queryClient.getQueryData<string | null>(['setting', HIDDEN_KEY]) ?? (await tauri.getSetting(HIDDEN_KEY).catch(() => null)));

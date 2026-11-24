@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useNavigate, type NavigateFunction } from 'react-router';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { isTauri } from '../../lib/platform';
+import { isBareLaunch, launchDecided, resumeLastProject, useLaunch } from '../../lib/launch';
 import { NAVIGATE_EVENT } from '../../lib/window';
 import * as tauri from '../../lib/tauri';
 import type { OpenRequest } from '../../lib/types';
@@ -52,6 +53,9 @@ async function openRequest(request: OpenRequest, navigate: NavigateFunction) {
   await openRepoAt(request.path, navigate, { newWindow, extra });
 }
 
+/** The launch check runs once per page load (React runs effects twice in development). */
+let launchChecked = false;
+
 /**
  * `diffity://open` links (the `diffity` command, agents) queue up in the app until a window takes them. The main
  * window checks on load, for the link that launched the app; after that the app pokes the window it picked.
@@ -66,16 +70,29 @@ export function useOpenLinks() {
       return;
     }
     const current = getCurrentWebviewWindow();
-    const drain = async () => {
+    const drain = async (launching: boolean) => {
       const requests = await tauri.takeOpenRequests().catch(() => []);
+      if (launching && requests.length === 0 && useLaunch.getState().deciding && isBareLaunch()) {
+        await resumeLastProject(navigateRef.current).catch(() => false);
+      }
       for (const request of requests) {
         await openRequest(request, navigateRef.current);
       }
+      if (launching) {
+        launchDecided();
+      }
     };
-    if (current.label === 'main') {
-      void drain();
+    // A link that launched the app wins; with none, a fresh launch reopens the last project.
+    const fallback = setTimeout(launchDecided, 5000);
+    if (current.label === 'main' && !launchChecked) {
+      launchChecked = true;
+      void drain(true).finally(() => clearTimeout(fallback));
+    } else if (current.label === 'main') {
+      void drain(false).finally(() => clearTimeout(fallback));
+    } else {
+      clearTimeout(fallback);
     }
-    const unlisten = current.listen('open-requests', () => void drain());
+    const unlisten = current.listen('open-requests', () => void drain(false));
     const unlistenNavigate = current.listen<string>(NAVIGATE_EVENT, (event) => {
       if (!event.payload.startsWith('/r/')) {
         return;
@@ -83,6 +100,7 @@ export function useOpenLinks() {
       navigateRef.current(event.payload);
     });
     return () => {
+      clearTimeout(fallback);
       void unlisten.then((fn) => fn());
       void unlistenNavigate.then((fn) => fn());
     };

@@ -3,6 +3,7 @@ import { repoBase } from '../hooks/use-repo';
 
 const LOCATIONS_KEY = 'diffity-repo-locations';
 const VIEW_LOCATIONS_KEY = 'diffity-view-locations';
+const LAST_LOCATION_KEY = 'diffity-last-location';
 const TRANSIENT_PARAMS = ['thread', 'file', 'pr'];
 const caches = new Map<string, DehydratedState>();
 
@@ -37,10 +38,24 @@ export function rememberLocation(repoPath: string, location: string) {
     const all = readLocations();
     all[repoPath] = withoutParams(location, ['pr']);
     localStorage.setItem(LOCATIONS_KEY, JSON.stringify(all));
+    localStorage.setItem(LAST_LOCATION_KEY, JSON.stringify({ repoPath, location: all[repoPath] }));
   } catch {
     return;
   }
   rememberViewLocation(repoPath, location);
+}
+
+/** The project and view shown last in any window, which launch reopens. */
+export function lastProjectLocation(): { repoPath: string; location: string } | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LAST_LOCATION_KEY) ?? 'null') as { repoPath?: unknown; location?: unknown } | null;
+    if (typeof parsed?.repoPath !== 'string' || typeof parsed.location !== 'string') {
+      return null;
+    }
+    return { repoPath: parsed.repoPath, location: parsed.location };
+  } catch {
+    return null;
+  }
 }
 
 /** Inside a task folder: switching back to its repository (rail, ⌘1–9) returns to the task. */

@@ -11,6 +11,7 @@ import type { RecentRepo } from '../lib/types';
 import { findLocalClone, isCloneOf, parsePrUrl, pickFolder } from '../features/welcome/open-repo';
 import { openQuickOpen } from '../features/palette/quick-open';
 import { useOpening } from '../lib/opening';
+import { useLaunch } from '../lib/launch';
 import { openRepoAt, parentPath, useRecentRepos } from '../features/welcome/recent-repos';
 import { RepoBadge } from '../features/welcome/repo-badge';
 import { AgentsCard } from '../features/welcome/agents-card';
@@ -69,12 +70,19 @@ export function WelcomePage() {
   const recent = useRecentRepos();
   const [dragging, setDragging] = useState(false);
   const [mode, setMode] = useState<'clone' | 'pr' | null>(null);
+  const deciding = useLaunch((state) => state.deciding);
 
   useEffect(() => {
     setRepoPath(null);
     document.title = 'Diffity';
-    hideStaticSplash();
   }, []);
+
+  useEffect(() => {
+    if (deciding) {
+      return;
+    }
+    hideStaticSplash();
+  }, [deciding]);
 
   const openRepo = (path: string, newWindow = false, extra?: Record<string, string>) => openRepoAt(path, navigate, { newWindow, extra });
 
@@ -83,8 +91,12 @@ export function WelcomePage() {
 
   useFolderDrop((path) => void openRepo(path), setDragging);
 
+  if (deciding) {
+    return null;
+  }
+
   return (
-    <div className="relative flex flex-col h-screen bg-bg text-text font-sans">
+    <div className="relative flex flex-col h-screen bg-bg text-text font-sans select-none">
       <div data-tauri-drag-region className={cn('flex items-center justify-end gap-0.5 h-11 shrink-0 px-2', hasOverlayTitleBar && 'pl-[84px]')}>
         <button onClick={openSettings} className={buttonIcon} title={`Settings (${modKey},)`}>
           <SettingsIcon className="w-4 h-4" />
@@ -376,7 +388,7 @@ function CloneForm(props: { onCloned: (path: string) => void }) {
           value={url}
           onChange={(event) => setUrl(event.target.value)}
           placeholder="https://github.com/owner/repo or owner/repo"
-          className={cn(inputField, 'pl-8')}
+          className={cn(inputField, 'pl-8 select-text')}
         />
       </div>
       <button type="submit" disabled={busy || !url.trim()} className={buttonPrimary} title="Choose where to put it, then clone">
@@ -467,7 +479,7 @@ function PrUrlForm(props: { recent: RecentRepo[]; onOpen: (path: string, newWind
           onChange={(event) => setUrl(event.target.value)}
           autoFocus
           placeholder="https://github.com/owner/repo/pull/123"
-          className={cn(inputField, 'pl-8')}
+          className={cn(inputField, 'pl-8 select-text')}
         />
       </div>
       <button type="submit" disabled={busy || !url.trim()} className={buttonPrimary}>
