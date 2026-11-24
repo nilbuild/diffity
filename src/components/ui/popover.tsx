@@ -82,7 +82,8 @@ export function Popover(props: PopoverProps) {
       return;
     }
     // The path is fixed at dispatch, so a click whose target React removed before this listener ran
-    // (a suggestion that filters itself out on mousedown) still counts as inside.
+    // (a suggestion that filters itself out on mousedown) still counts as inside. Listening in the capture phase
+    // still hears clicks inside dialogs that stop mousedown from bubbling (Settings, so it stays open).
     const handlePointer = (event: MouseEvent) => {
       const path = event.composedPath();
       const inside = (element: Element | null) => !!element && path.includes(element);
@@ -104,13 +105,13 @@ export function Popover(props: PopoverProps) {
     if (panelRef.current) {
       observer.observe(panelRef.current);
     }
-    document.addEventListener('mousedown', handlePointer);
+    document.addEventListener('mousedown', handlePointer, true);
     window.addEventListener('keydown', handleKey, true);
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
     return () => {
       observer.disconnect();
-      document.removeEventListener('mousedown', handlePointer);
+      document.removeEventListener('mousedown', handlePointer, true);
       window.removeEventListener('keydown', handleKey, true);
       window.removeEventListener('resize', update);
       window.removeEventListener('scroll', update, true);
