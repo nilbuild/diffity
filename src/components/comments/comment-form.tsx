@@ -108,6 +108,8 @@ export function CommentForm(props: CommentFormProps) {
   const review = reviewState;
   const reviewMode = reviewable && review.enabled && review.prMode;
   const hasPendingReview = review.pendingReview !== null;
+  const askedAgent = mentioned ? agentMeta(mentioned).short : replyAgent && sendToClaude ? replyAgent : null;
+  const sendsToAgentNow = reviewMode && !threadPending && askedAgent !== null;
 
   useEffect(() => {
     if (autoFocus && textareaRef.current) {
@@ -163,7 +165,7 @@ export function CommentForm(props: CommentFormProps) {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      submit(reviewMode);
+      submit(reviewMode && !sendsToAgentNow);
       return;
     }
     if (e.key === 'Escape') {
@@ -207,6 +209,18 @@ export function CommentForm(props: CommentFormProps) {
         </button>
       );
     }
+    if (sendsToAgentNow) {
+      return (
+        <button
+          onClick={() => submit(false)}
+          disabled={!body.trim()}
+          className={primaryClass}
+          title={`Kept out of your review: ${askedAgent} replies right away`}
+        >
+          Ask {askedAgent}
+        </button>
+      );
+    }
     return (
       <>
         {!isReply && prNumber && (
@@ -247,7 +261,9 @@ export function CommentForm(props: CommentFormProps) {
           </button>
         </>
       )
-      : destinationHint({ reviewMode, prNumber, mentioned: mentioned ? agentMeta(mentioned).short : null });
+      : threadPending && mentioned
+        ? `${agentMeta(mentioned).short} replies when you submit`
+        : destinationHint({ reviewMode, prNumber, mentioned: mentioned ? agentMeta(mentioned).short : null });
 
   return (
     <div className="rounded-lg border border-border bg-bg transition-colors focus-within:border-focus">
