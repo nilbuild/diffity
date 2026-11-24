@@ -13,18 +13,18 @@ const NOTICE_KEY = 'diffity.bypass-notice-seen';
 export const PERMISSION_OPTIONS: { value: PermissionSetting; label: string; hint: string }[] = [
   {
     value: 'skip',
-    label: 'Skip all permission prompts',
-    hint: 'The agent edits files and runs commands without asking when it fixes comments. Reviews stay read-only and read or fetch without asking.',
+    label: "Don't ask",
+    hint: 'Agents edit files and run commands without asking.',
   },
   {
     value: 'askOnce',
     label: 'Ask once per run',
-    hint: 'Approve the first edit and the agent keeps going for the rest of that run. Commands still ask.',
+    hint: 'Approving the first edit covers the rest of the run. Commands still ask.',
   },
   {
     value: 'askEach',
-    label: 'Ask for each edit',
-    hint: 'Review every file change before it is written.',
+    label: 'Ask for every edit',
+    hint: 'Every file change waits for your approval.',
   },
 ];
 
