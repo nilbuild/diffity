@@ -23,6 +23,8 @@ describe('mentionedAgent', () => {
     expect(mentionedAgent('`@claude` but @codex')).toBe('codex');
     expect(mentionedAgent('@codexx and bob@codex.dev')).toBe(null);
     expect(mentionedAgent('thoughts, @OpenCode?')).toBe('opencode');
+    expect(mentionedAgent('@pi can you fix this')).toBe('pi');
+    expect(mentionedAgent('@pipeline and mail@pi.dev')).toBe(null);
   });
 });
 

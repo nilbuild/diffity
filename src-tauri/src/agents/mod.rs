@@ -1,3 +1,4 @@
+pub mod acp;
 pub mod backend;
 pub mod bridge;
 mod chats;
@@ -8,8 +9,10 @@ pub mod mentions {
     pub use crate::core::mentions::*;
 }
 pub mod patch;
+pub mod pi;
 pub mod policy;
 pub mod prompts;
+pub mod run_state;
 pub mod session;
 pub mod terminal;
 pub mod tools;

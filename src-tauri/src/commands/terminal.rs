@@ -19,25 +19,52 @@ use crate::state::AppState;
 pub enum TerminalAgent {
     Claude,
     Codex,
+    Pi,
 }
 
 impl TerminalAgent {
-    const ALL: [TerminalAgent; 2] = [TerminalAgent::Claude, TerminalAgent::Codex];
+    const ALL: [TerminalAgent; 3] = [TerminalAgent::Claude, TerminalAgent::Codex, TerminalAgent::Pi];
 
     fn cli(self) -> &'static str {
         match self {
             Self::Claude => "claude",
             Self::Codex => "codex",
+            Self::Pi => "pi",
         }
     }
 
-    fn scope_args(self) -> &'static [&'static str] {
+    /// `mcp add` for every project, replacing an earlier registration. pi offers a server's tools through its
+    /// codemode script tool unless they are `direct`.
+    fn add_args<'a>(self, server: &'a str, command: &'a [String]) -> Vec<&'a str> {
+        let mut args = vec!["mcp", "add"];
         match self {
-            Self::Claude => &["--scope", "user"],
-            Self::Codex => &[],
+            Self::Claude => args.extend(["--scope", "user", server]),
+            Self::Codex => args.push(server),
+            Self::Pi => args.extend([server, "--exposure", "direct"]),
+        }
+        args.push("--");
+        args.extend(command.iter().map(String::as_str));
+        args
+    }
+
+    /// The server's name in the agent's config. pi lets its own config win over the `diffity` server Diffity
+    /// starts it with in the app, so the terminal registration needs another name there.
+    fn server(self) -> &'static str {
+        match (self, crate::dev_build()) {
+            (Self::Pi, false) => crate::agents::pi::TERMINAL_SERVER,
+            _ => server_name(),
+        }
+    }
+
+    fn remove_args(self, server: &str) -> Vec<&str> {
+        match self {
+            Self::Claude => vec!["mcp", "remove", "--scope", "user", server],
+            Self::Codex | Self::Pi => vec!["mcp", "remove", server],
         }
     }
 }
+
+
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -116,7 +143,11 @@ fn agent_status(agent: TerminalAgent) -> TerminalAgentStatus {
     let Some(cli) = find_in_path(agent.cli()) else {
         return TerminalAgentStatus { agent, found: false, connected: false };
     };
-    let connected = run(&cli, &["mcp", "get", server_name()]).is_ok_and(|out| out.status.success());
+    // pi has no `mcp get`, and `mcp list` connects to every server, so its config file is read instead.
+    let connected = match agent {
+        TerminalAgent::Pi => crate::agents::pi::user_has_mcp_server(agent.server()),
+        _ => run(&cli, &["mcp", "get", agent.server()]).is_ok_and(|out| out.status.success()),
+    };
     TerminalAgentStatus { agent, found: true, connected }
 }
 
@@ -155,15 +186,8 @@ pub async fn terminal_connect(state: State<'_, AppState>, agent: TerminalAgent) 
     let command = mcp_command(&state);
     blocking(move || {
         let cli = find_in_path(agent.cli()).ok_or_else(|| AppError::new("not_found", format!("`{}` isn't on your PATH.", agent.cli())))?;
-        let mut remove = vec!["mcp", "remove"];
-        remove.extend(agent.scope_args());
-        remove.push(server_name());
-        let _ = run(&cli, &remove);
-        let mut add = vec!["mcp", "add"];
-        add.extend(agent.scope_args());
-        add.extend([server_name(), "--"]);
-        add.extend(command.iter().map(String::as_str));
-        let out = run(&cli, &add)?;
+        let _ = run(&cli, &agent.remove_args(agent.server()));
+        let out = run(&cli, &agent.add_args(agent.server(), &command))?;
         if !out.status.success() {
             let stderr = String::from_utf8_lossy(&out.stderr);
             let stdout = String::from_utf8_lossy(&out.stdout);
@@ -180,10 +204,7 @@ pub async fn terminal_connect(state: State<'_, AppState>, agent: TerminalAgent) 
 pub async fn terminal_disconnect(agent: TerminalAgent) -> Result<(), AppError> {
     blocking(move || {
         let cli = find_in_path(agent.cli()).ok_or_else(|| AppError::new("not_found", format!("`{}` isn't on your PATH.", agent.cli())))?;
-        let mut remove = vec!["mcp", "remove"];
-        remove.extend(agent.scope_args());
-        remove.push(server_name());
-        let out = run(&cli, &remove)?;
+        let out = run(&cli, &agent.remove_args(agent.server()))?;
         if !out.status.success() && agent_status(agent).connected {
             return Err(AppError::internal(format!("`{} mcp remove` failed: {}", agent.cli(), String::from_utf8_lossy(&out.stderr).trim())));
         }

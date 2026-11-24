@@ -687,7 +687,7 @@ export interface OpenRequest {
   newWindow: boolean;
 }
 
-export type TerminalAgent = 'claude' | 'codex';
+export type TerminalAgent = 'claude' | 'codex' | 'pi';
 
 export interface TerminalStatus {
   allowed: boolean;

@@ -19,18 +19,39 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(8);
 /// edit freely. Runs always use `build` (see `RunPermissions::acp_mode_id`).
 pub const OPENCODE_CONFIG: &str = r#"{"permission":{"edit":"ask","bash":"ask","webfetch":"ask","task":"deny"},"agent":{"build":{"permission":{"edit":"ask","bash":"ask","webfetch":"ask","task":"deny"}}}}"#;
 
+/// The oldest pi with what Diffity relies on: MCP servers registered by an extension (0.99), `*` patterns in
+/// `--tools` (1.0.4), `--tools +name` and `aborted` on `agent_settled` (1.1.0).
+pub const PI_MIN_VERSION: (u64, u64, u64) = (1, 1, 0);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentKind {
     Claude,
     Codex,
     Gemini,
     OpenCode,
+    Pi,
+}
+
+/// How Diffity talks to an agent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Transport {
+    /// Agent Client Protocol, spoken by the agent or by an adapter in front of it.
+    Acp,
+    /// pi's own JSON-lines RPC mode (`pi --mode rpc`).
+    PiRpc,
 }
 
 impl AgentKind {
-    pub const ALL: [AgentKind; 4] = [AgentKind::Claude, AgentKind::Codex, AgentKind::Gemini, AgentKind::OpenCode];
+    pub const ALL: [AgentKind; 5] = [AgentKind::Claude, AgentKind::Codex, AgentKind::Gemini, AgentKind::OpenCode, AgentKind::Pi];
     /// Agents exposed to the app. Gemini launch code is kept intact — add it here to enable it.
-    pub const ENABLED: [AgentKind; 3] = [AgentKind::Claude, AgentKind::Codex, AgentKind::OpenCode];
+    pub const ENABLED: [AgentKind; 4] = [AgentKind::Claude, AgentKind::Codex, AgentKind::OpenCode, AgentKind::Pi];
+
+    pub fn transport(self) -> Transport {
+        match self {
+            Self::Pi => Transport::PiRpc,
+            _ => Transport::Acp,
+        }
+    }
 
     pub fn is_enabled(self) -> bool {
         Self::ENABLED.contains(&self)
@@ -52,6 +73,7 @@ impl AgentKind {
             "codex" => Some(Self::Codex),
             "gemini" => Some(Self::Gemini),
             "opencode" => Some(Self::OpenCode),
+            "pi" => Some(Self::Pi),
             _ => None,
         }
     }
@@ -62,6 +84,7 @@ impl AgentKind {
             Self::Codex => "codex",
             Self::Gemini => "gemini",
             Self::OpenCode => "opencode",
+            Self::Pi => "pi",
         }
     }
 
@@ -71,6 +94,7 @@ impl AgentKind {
             Self::Codex => "Codex",
             Self::Gemini => "Gemini",
             Self::OpenCode => "OpenCode",
+            Self::Pi => "Pi",
         }
     }
 
@@ -80,6 +104,7 @@ impl AgentKind {
             Self::Codex => "codex",
             Self::Gemini => "gemini",
             Self::OpenCode => "opencode",
+            Self::Pi => "pi",
         }
     }
 
@@ -87,7 +112,7 @@ impl AgentKind {
         match self {
             Self::Claude => Some(("claude-agent-acp", CLAUDE_ACP_PACKAGE)),
             Self::Codex => Some(("codex-acp", CODEX_ACP_PACKAGE)),
-            Self::Gemini | Self::OpenCode => None,
+            Self::Gemini | Self::OpenCode | Self::Pi => None,
         }
     }
 }
@@ -189,6 +214,46 @@ fn opencode_launch(bin: &Path) -> LaunchSpec {
     }
 }
 
+/// pi in RPC mode. Project-local `.pi/` extensions, MCP servers and settings are skipped
+/// (`--no-approve`): pi would otherwise load them for a trusted folder, so a branch under review could
+/// run code before any permission is asked. The user's own extensions and providers still load. The
+/// per-chat flags (session, tools, Diffity's extension) are added when a session starts.
+fn pi_launch(bin: &Path) -> LaunchSpec {
+    LaunchSpec {
+        command: bin.to_path_buf(),
+        args: vec!["--mode".into(), "rpc".into(), "--no-approve".into()],
+        env: vec![("PI_SKIP_VERSION_CHECK".into(), "1".into())],
+    }
+}
+
+fn parse_version(text: &str) -> Option<(u64, u64, u64)> {
+    let word = text
+        .split_whitespace()
+        .map(|w| w.trim_start_matches('v'))
+        .find(|w| w.chars().next().is_some_and(|c| c.is_ascii_digit()))?;
+    let mut parts = word.split(['.', '-', '+']).map(|p| p.parse::<u64>().ok());
+    Some((parts.next()??, parts.next()??, parts.next().flatten().unwrap_or(0)))
+}
+
+/// `pi --version`, checked against `PI_MIN_VERSION`. Another program called `pi` fails here.
+async fn pi_launch_checked(bin: &Path) -> Result<LaunchSpec, String> {
+    let Some(out) = probe(bin, &["--version"]).await.filter(|o| o.success) else {
+        return Err(format!(
+            "`{}` didn't answer `--version`. Is it the pi coding agent? Install it with `npm i -g @earendil-works/pi-coding-agent`.",
+            bin.display()
+        ));
+    };
+    let Some(version) = parse_version(&out.stdout) else {
+        return Err(format!("Couldn't read the pi version from `{}`.", out.stdout.trim()));
+    };
+    if version < PI_MIN_VERSION {
+        let (a, b, c) = version;
+        let (x, y, z) = PI_MIN_VERSION;
+        return Err(format!("Diffity needs pi {x}.{y}.{z} or newer (found {a}.{b}.{c}). Run `pi update`, then click Re-detect."));
+    }
+    Ok(pi_launch(bin))
+}
+
 pub fn adapter_launch(kind: AgentKind, npx: Option<&Path>) -> Result<LaunchSpec, String> {
     let Some((bin, package)) = kind.adapter() else {
         return Err("no adapter".into());
@@ -222,7 +287,7 @@ fn expand_home(path: &str) -> PathBuf {
     PathBuf::from(path)
 }
 
-/// A custom path may point at the agent CLI (`claude`, `codex`, `gemini`, `opencode`) or directly at the ACP
+/// A custom path may point at the agent CLI (`claude`, `codex`, `gemini`, `opencode`, `pi`) or directly at the ACP
 /// adapter (`claude-agent-acp`, `codex-acp`).
 fn is_adapter_path(kind: AgentKind, path: &Path) -> bool {
     let Some((adapter, _)) = kind.adapter() else {
@@ -278,12 +343,13 @@ pub async fn detect_with(kind: AgentKind, custom_path: Option<&str>) -> Detected
         }),
         AgentKind::Claude => adapter_launch(kind, find_in_path("npx").as_deref()),
         AgentKind::OpenCode => Ok(opencode_launch(&cli)),
+        AgentKind::Pi => pi_launch_checked(&cli).await,
     };
     info.authenticated = match kind {
         AgentKind::Claude => claude_authenticated(&cli).await,
         AgentKind::Codex => codex_authenticated(&cli).await,
-        // Works without signing in (OpenCode's free models), and providers are signed in one by one.
-        AgentKind::Gemini | AgentKind::OpenCode => None,
+        // Providers are signed in one by one (OpenCode also has free models); the model list shows which.
+        AgentKind::Gemini | AgentKind::OpenCode | AgentKind::Pi => None,
     };
 
     let launch = match launch {
@@ -298,16 +364,30 @@ pub async fn detect_with(kind: AgentKind, custom_path: Option<&str>) -> Detected
         }
     };
     info.installed = true;
+    note_sign_in(kind, &mut info);
+    DetectedAgent {
+        kind,
+        info,
+        launch: Some(launch),
+    }
+}
+
+/// What to tell the user about signing in. pi signs in per provider, so it is never marked logged out: a run
+/// without a usable model fails with pi's own reason.
+fn note_sign_in(kind: AgentKind, info: &mut AgentInfo) {
+    if kind == AgentKind::Pi {
+        if crate::agents::pi::has_credentials() {
+            info.authenticated = Some(true);
+        } else {
+            info.note = Some("No provider found yet. Run `pi` in a terminal and use /login, or set a provider API key such as ANTHROPIC_API_KEY.".into());
+        }
+        return;
+    }
     if info.authenticated == Some(false) {
         info.note = Some(format!(
             "Run `{} login` in a terminal to sign in",
             kind.cli_binary()
         ));
-    }
-    DetectedAgent {
-        kind,
-        info,
-        launch: Some(launch),
     }
 }
 
@@ -354,6 +434,7 @@ async fn detect_custom(kind: AgentKind, custom: PathBuf) -> DetectedAgent {
                 spec
             }),
             AgentKind::OpenCode => Ok(opencode_launch(&custom)),
+            AgentKind::Pi => pi_launch_checked(&custom).await,
         };
         (launch, Some(custom.clone()))
     };
@@ -375,12 +456,7 @@ async fn detect_custom(kind: AgentKind, custom: PathBuf) -> DetectedAgent {
         }
     };
     info.installed = true;
-    if info.authenticated == Some(false) {
-        info.note = Some(format!(
-            "Run `{} login` in a terminal to sign in",
-            kind.cli_binary()
-        ));
-    }
+    note_sign_in(kind, &mut info);
     DetectedAgent {
         kind,
         info,
@@ -425,10 +501,29 @@ mod tests {
     }
 
     #[test]
-    fn claude_codex_and_opencode_enabled() {
+    fn reads_pi_versions() {
+        assert_eq!(parse_version("1.6.0\n"), Some((1, 6, 0)));
+        assert_eq!(parse_version("pi v0.99.3"), Some((0, 99, 3)));
+        assert_eq!(parse_version("1.2"), Some((1, 2, 0)));
+        assert_eq!(parse_version("2.0.0-beta.1"), Some((2, 0, 0)));
+        assert_eq!(parse_version("usage: pi"), None);
+        assert!((0, 99, 3) < PI_MIN_VERSION);
+    }
+
+    #[test]
+    fn pi_runs_rpc_mode_without_project_resources() {
+        let spec = pi_launch(Path::new("/usr/local/bin/pi"));
+        assert_eq!(spec.args, vec!["--mode", "rpc", "--no-approve"]);
+        assert_eq!(AgentKind::Pi.transport(), Transport::PiRpc);
+        assert_eq!(AgentKind::Claude.transport(), Transport::Acp);
+    }
+
+    #[test]
+    fn claude_codex_opencode_and_pi_enabled() {
         assert!(AgentKind::Claude.is_enabled());
         assert!(AgentKind::Codex.is_enabled());
         assert!(AgentKind::OpenCode.is_enabled());
+        assert!(AgentKind::Pi.is_enabled());
         assert!(!AgentKind::Gemini.is_enabled());
         assert_eq!(AgentKind::Claude.path_setting_key(), "agent.claude.path");
     }

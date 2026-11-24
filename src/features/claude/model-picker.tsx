@@ -5,7 +5,7 @@ import type { ConfigChoice, ModelCatalog, ModelChoice } from '../../lib/types';
 import { Popover, useMenu } from '../../components/ui/popover';
 import { CheckIcon, ChevronDownIcon, RefreshIcon, SearchIcon } from '../../components/ui/icon';
 import { Spinner } from '../../components/icons/spinner';
-import { findModel, hasManyProviders, modelName, modelProvider, refreshModelCatalog, runModelLabel, useModelCatalog, useModelCatalogs, withModel, type RunPick } from './model-setting';
+import { findModel, hasManyProviders, modelName, modelProvider, providerLabel, refreshModelCatalog, runModelLabel, useModelCatalog, useModelCatalogs, withModel, type RunPick } from './model-setting';
 import { agentMeta, useInstalledAgents, type AgentMeta } from './agents';
 
 interface ModelMenuProps {
@@ -120,16 +120,20 @@ function buildSection(agent: AgentMeta, query: { data?: ModelCatalog | null; isL
   }
   const showProvider = hasManyProviders(catalog);
   const models = catalog.models.filter((model) => !isDefaultEntry(model));
+  const provider = (model: ModelChoice) => {
+    const id = modelProvider(model);
+    return id ? providerLabel(id) : undefined;
+  };
   const toRow = (model: ModelChoice): Row => ({
     key: `${agent.id}:${model.value}`,
     agent,
     model: model.value,
     label: modelName(model),
-    hint: showProvider ? modelProvider(model) ?? undefined : undefined,
+    hint: showProvider ? provider(model) : undefined,
   });
 
   if (needle) {
-    const hits = models.filter((model) => model.name.toLowerCase().includes(needle));
+    const hits = models.filter((model) => `${model.name} ${provider(model) ?? ''}`.toLowerCase().includes(needle));
     return { ...empty, rows: hits.map(toRow) };
   }
 
@@ -328,10 +332,18 @@ export function ModelMenu(props: ModelMenuProps) {
   );
 }
 
-/** Short label like "Opus 5.5 · High"; names the agent when its own model is unknown. */
+/** Short label like "Opus 5.5 · High". A model an agent reaches through a provider (Pi, OpenCode) leads with the agent
+ * when several are installed, since another agent may offer the same model: "Pi · Claude Opus 5.5". */
 export function usePickLabel(value: RunPick): string {
   const { data: catalog } = useModelCatalog(value.agent);
-  return runModelLabel(catalog, value, `${agentMeta(value.agent).short} default`);
+  const several = useInstalledAgents().length > 1;
+  const agent = agentMeta(value.agent).short;
+  const label = runModelLabel(catalog, value, `${agent} default`);
+  const model = findModel(catalog, value.model) ?? findModel(catalog, catalog?.currentModel);
+  if (!several || !model || !modelProvider(model)) {
+    return label;
+  }
+  return `${agent} · ${label}`;
 }
 
 interface ModelPickerProps extends ModelMenuProps {

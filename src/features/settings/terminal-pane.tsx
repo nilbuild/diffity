@@ -16,7 +16,7 @@ import { PreferencesGroup, PreferencesPane, PreferencesRow, SegmentedControl, Se
 const STATUS_KEY = ['terminal-status'];
 const TRY_PROMPT = 'address my Diffity review';
 
-const AGENT_NAMES: Record<TerminalAgent, string> = { claude: 'Claude Code', codex: 'Codex' };
+const AGENT_NAMES: Record<TerminalAgent, string> = { claude: 'Claude Code', codex: 'Codex', pi: 'Pi' };
 
 const chip = 'rounded bg-bg-tertiary px-1.5 py-0.5 font-mono text-[11px] text-text-secondary';
 
@@ -113,7 +113,7 @@ export function TerminalPane() {
       >
         <p className="pt-1 pb-0.5 text-[11.5px] leading-snug text-text-muted">Agents you run in a terminal can read and answer the comments you leave here.</p>
         <div className={cn('transition-opacity', status && !allowed && 'opacity-55')}>
-          {(['claude', 'codex'] as TerminalAgent[]).map((agent) => {
+          {(['claude', 'codex', 'pi'] as TerminalAgent[]).map((agent) => {
             const info = status?.agents.find((item) => item.agent === agent);
             return (
               <PreferencesRow

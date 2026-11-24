@@ -10,7 +10,7 @@ export type ModelPurpose = 'review' | 'fix';
 
 export const MODEL_PURPOSES: { value: ModelPurpose; label: string; hint: string }[] = [
   { value: 'review', label: 'Reviews', hint: 'Ask to review' },
-  { value: 'fix', label: 'Fixes and replies', hint: 'Send comments, Ask on a thread, @mentions' },
+  { value: 'fix', label: 'Fixes, replies and @mentions', hint: 'Send comments, Ask on a thread, @mentions' },
 ];
 
 const STALE_MS = 24 * 60 * 60 * 1000;
@@ -123,6 +123,44 @@ export function findModel(catalog: ModelCatalog | null | undefined, value: strin
 export function modelProvider(model: ModelChoice): string | null {
   const slash = model.name.indexOf('/');
   return slash > 0 ? model.name.slice(0, slash) : null;
+}
+
+const PROVIDER_NAMES: Record<string, string> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  'openai-codex': 'OpenAI Codex',
+  'azure-openai': 'Azure OpenAI',
+  google: 'Google',
+  'google-vertex': 'Vertex AI',
+  'amazon-bedrock': 'Bedrock',
+  openrouter: 'OpenRouter',
+  opencode: 'OpenCode',
+  'github-copilot': 'GitHub Copilot',
+  xai: 'xAI',
+  deepseek: 'DeepSeek',
+  mistral: 'Mistral',
+  groq: 'Groq',
+  cerebras: 'Cerebras',
+  fireworks: 'Fireworks',
+  together: 'Together',
+  huggingface: 'Hugging Face',
+  moonshot: 'Moonshot',
+  zai: 'Z.ai',
+  minimax: 'MiniMax',
+  nvidia: 'NVIDIA',
+  'vercel-ai-gateway': 'Vercel AI Gateway',
+  'llama.cpp': 'llama.cpp',
+  ollama: 'Ollama',
+  lmstudio: 'LM Studio',
+};
+
+/** How a provider id reads in the picker: "OpenAI" for `openai`, else the id with its first letter raised. */
+export function providerLabel(provider: string): string {
+  const known = PROVIDER_NAMES[provider.toLowerCase()];
+  if (known) {
+    return known;
+  }
+  return provider.charAt(0).toUpperCase() + provider.slice(1);
 }
 
 /** A model's name without its provider: "Big Pickle" for "opencode/Big Pickle". */

@@ -39,6 +39,8 @@ const NAMED_TOOLS: Record<string, string> = {
   Agent: 'Started a subagent',
   WebSearch: 'Searched the web',
   WebFetch: 'Fetched a page',
+  codemode: 'Ran a tool script',
+  tool_search: 'Loaded tools',
 };
 
 const PLACEHOLDERS: Record<string, string> = {
@@ -49,7 +51,7 @@ const PLACEHOLDERS: Record<string, string> = {
   Write: 'Writing a file',
 };
 
-const PATH_VERBS = ['Read', 'Write', 'Edit', 'Delete', 'Move', 'View', 'Create'];
+const PATH_VERBS = ['Read', 'Write', 'Edit', 'Delete', 'Move', 'View', 'Create', 'List'];
 
 function humanize(name: string) {
   const words = name.replace(/[_-]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim().toLowerCase();

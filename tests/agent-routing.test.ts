@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { agentOfComments } from '../src/features/claude/claude-runner';
-import { hasManyProviders, modelName, modelProvider, pickForAgent, resolvePick, runModelLabel } from '../src/features/claude/model-setting';
+import { hasManyProviders, modelName, modelProvider, pickForAgent, providerLabel, resolvePick, runModelLabel } from '../src/features/claude/model-setting';
 
 const user = (body: string) => ({ authorType: 'user', authorName: 'You', body });
 const agent = (name: string) => ({ authorType: 'agent', authorName: name, body: 'Done.' });
@@ -43,6 +43,16 @@ describe('model names', () => {
     expect(modelName(choice('opus', 'Opus 5.5'))).toBe('Opus 5.5');
     expect(modelProvider(choice('opus', 'Opus 5.5'))).toBe(null);
     expect(runModelLabel(catalog(choice('opencode/big-pickle', 'opencode/Big Pickle')), { model: 'opencode/big-pickle' })).toBe('Big Pickle');
+  });
+
+  it('reads pi model names the same way and names providers properly', () => {
+    const opus = choice('anthropic/claude-opus-5-5', 'anthropic/Claude Opus 5.5');
+    expect(modelName(opus)).toBe('Claude Opus 5.5');
+    expect(providerLabel(modelProvider(opus)!)).toBe('Anthropic');
+    expect(providerLabel('openai')).toBe('OpenAI');
+    expect(providerLabel('openrouter')).toBe('OpenRouter');
+    expect(providerLabel('my-proxy')).toBe('My-proxy');
+    expect(modelName(choice('openrouter/deepseek/deepseek-v4', 'openrouter/DeepSeek V4'))).toBe('DeepSeek V4');
   });
 
   it('needs providers shown only when a list mixes them', () => {

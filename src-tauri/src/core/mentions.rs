@@ -1,7 +1,7 @@
-//! Agent mention detection (`@claude`, `@codex`, `@opencode`) for review comments.
+//! Agent mention detection (`@claude`, `@codex`, `@opencode`, `@pi`) for review comments.
 
 /// Mention handles, one per agent id. The first mentioned handle decides which agent answers.
-pub const AGENT_HANDLES: [&str; 3] = ["claude", "codex", "opencode"];
+pub const AGENT_HANDLES: [&str; 4] = ["claude", "codex", "opencode", "pi"];
 
 /// True when `body` mentions an agent (case-insensitive, whole word) outside fenced code blocks and inline code spans.
 pub fn mentions_agent(body: &str) -> bool {
@@ -173,5 +173,7 @@ mod tests {
         assert_eq!(mentioned_agent("`@claude` but @codex"), Some("codex"));
         assert_eq!(mentioned_agent("@codexx"), None);
         assert_eq!(mentioned_agent("thoughts, @OpenCode?"), Some("opencode"));
+        assert_eq!(mentioned_agent("@pi can you fix this"), Some("pi"));
+        assert_eq!(mentioned_agent("@pipeline and mail@pi.dev"), None);
     }
 }

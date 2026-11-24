@@ -46,6 +46,15 @@ export const AGENTS: AgentMeta[] = [
     login: 'Run `opencode auth login` in a terminal to sign in to a provider.',
     pathHint: 'Point to the opencode CLI.',
   },
+  {
+    id: 'pi',
+    name: 'Pi',
+    short: 'Pi',
+    handle: 'pi',
+    install: 'npm i -g @earendil-works/pi-coding-agent',
+    login: 'Run `pi` in a terminal and use /login, or set a provider API key such as ANTHROPIC_API_KEY.',
+    pathHint: 'Point to the pi CLI.',
+  },
 ];
 
 const AGENTS_KEY = ['agents'];

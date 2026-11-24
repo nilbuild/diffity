@@ -149,10 +149,12 @@ interface AskClaudePanelProps {
   /** Set by a host that picks the task itself (its own tabs); the panel then drops its header. */
   task?: Task;
   onTaskChange?: (task: Task) => void;
+  /** Told which agent the run will go to, so a host can name it. */
+  onAgentChange?: (agentId: string) => void;
 }
 
 export function AskClaudePanel(props: AskClaudePanelProps) {
-  const { diffRef, sessionId, focusedFile, onStarted, onClose, task: hostTask, onTaskChange } = props;
+  const { diffRef, sessionId, focusedFile, onStarted, onClose, task: hostTask, onTaskChange, onAgentChange } = props;
   const repoPath = getRepoPath();
   const queued = !!useActiveRun(repoPath);
   const textKey = draftKey('instructions', repoPath, diffRef);
@@ -189,6 +191,10 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
   useEffect(() => {
     setPicked(null);
   }, [task]);
+
+  useEffect(() => {
+    onAgentChange?.(pick.agent);
+  }, [pick.agent, onAgentChange]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => requestAnimationFrame(() => textRef.current?.focus()));

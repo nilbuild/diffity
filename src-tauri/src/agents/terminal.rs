@@ -41,6 +41,8 @@ pub fn display_name(client: &str) -> String {
         "OpenCode"
     } else if lower.contains("cursor") {
         "Cursor"
+    } else if lower.trim() == "pi" {
+        "Pi"
     } else if client.trim().is_empty() {
         "Agent"
     } else {
@@ -144,6 +146,8 @@ mod tests {
         assert_eq!(display_name("claude-code"), "Claude Code (terminal)");
         assert_eq!(display_name("codex-mcp-client"), "Codex (terminal)");
         assert_eq!(display_name("zed"), "zed (terminal)");
+        assert_eq!(display_name("pi"), "Pi (terminal)");
+        assert_eq!(display_name("copilot"), "copilot (terminal)");
         assert_eq!(display_name(""), "Agent (terminal)");
     }
 

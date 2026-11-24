@@ -9,6 +9,7 @@ import type {
   Guide,
   NewThread,
   InboxPullRequest,
+  ModelCatalog,
   PrInbox,
   PullRequest,
   ReviewSession,
@@ -29,6 +30,40 @@ export interface AgentMockDeps {
   /** Fingerprint of the mock diff for a ref. */
   fingerprintFor: (ref: string) => string;
 }
+
+const efforts = (levels: [string, string][]) => levels.map(([value, name]) => ({ value, name }));
+const CLAUDE_EFFORTS = efforts([['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['max', 'Max']]);
+const PI_EFFORTS = efforts([['off', 'Off'], ['minimal', 'Minimal'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']]);
+const PI_XHIGH = efforts([['off', 'Off'], ['minimal', 'Minimal'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['xhigh', 'Extra high']]);
+
+/** Model lists as the agents report them. Pi's models carry their provider (`provider/Name`), as `pi.rs` sends them. */
+const MODEL_CATALOGS: Record<string, ModelCatalog> = {
+  claude: {
+    models: [
+      { value: 'default', name: 'Default (Opus 5.5)', efforts: CLAUDE_EFFORTS },
+      { value: 'sonnet', name: 'Sonnet 5.5', efforts: CLAUDE_EFFORTS },
+      { value: 'haiku', name: 'Haiku 5.5', efforts: [] },
+    ],
+    currentModel: 'default',
+    fetchedAt: new Date().toISOString(),
+  },
+  pi: {
+    models: [
+      { value: 'anthropic/claude-opus-5-5', name: 'anthropic/Claude Opus 5.5', efforts: PI_XHIGH },
+      { value: 'anthropic/claude-sonnet-5-5', name: 'anthropic/Claude Sonnet 5.5', efforts: PI_EFFORTS },
+      { value: 'anthropic/claude-haiku-5-5', name: 'anthropic/Claude Haiku 5.5', efforts: PI_EFFORTS },
+      { value: 'openai/gpt-6.2-sol', name: 'openai/GPT-6.2 Sol', efforts: PI_XHIGH },
+      { value: 'openai/gpt-5.5', name: 'openai/GPT-5.5', efforts: PI_EFFORTS },
+      { value: 'openai/gpt-4.1', name: 'openai/GPT-4.1', efforts: [] },
+      { value: 'google/gemini-3-pro', name: 'google/Gemini 3 Pro', efforts: PI_EFFORTS },
+      { value: 'openrouter/deepseek/deepseek-v4', name: 'openrouter/DeepSeek V4', efforts: PI_EFFORTS },
+    ],
+    currentModel: 'anthropic/claude-sonnet-5-5',
+    fetchedAt: new Date().toISOString(),
+  },
+};
+
+const AGENT_NAMES: Record<string, string> = { claude: 'Claude Code', codex: 'Codex', opencode: 'OpenCode', pi: 'Pi' };
 
 /** What the mock agent writes for the fixture diff (tiny-serve gains an in-memory cache). */
 function fixtureGuide(sessionId: string, ref: string, fingerprint: string): Guide {
@@ -266,6 +301,10 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
   async function script(chatId: string, text: string, action: AgentAction, emit: (event: AgentEvent) => void) {
     const chat = chats.get(chatId);
     const mode = chat?.mode ?? 'ask';
+    const agentName = AGENT_NAMES[chat?.agentId ?? 'claude'] ?? 'Claude Code';
+    if (chat?.agentId === 'pi') {
+      return piScript(chatId, text, action, emit);
+    }
     const abs = (path: string) => `${deps.repoPath}/${path}`;
     const stop = () => cancelled.has(chatId);
     const streamText = async (messageId: string, body: string) => {
@@ -375,7 +414,7 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
           locations: [abs(`${comment.filePath}:${comment.startLine}`)],
         });
         await wait(350);
-        deps.touch(deps.insertThread({ ...comment, sessionId: session, authorType: 'agent', authorName: 'Claude Code' }));
+        deps.touch(deps.insertThread({ ...comment, sessionId: session, authorType: 'agent', authorName: agentName }));
         emit({ type: 'toolCallUpdate', id, status: 'completed' });
       }
     }
@@ -398,7 +437,7 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
           id: deps.newId(),
           threadId: thread.id,
           authorType: 'agent',
-          authorName: 'Claude Code',
+          authorName: agentName,
           body: 'Mocked answer: I looked at the code around this comment and it behaves as intended.',
           createdAt: deps.now(),
           githubCommentId: null,
@@ -454,11 +493,85 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
     return stop() ? 'cancelled' : 'end_turn';
   }
 
+  /** A run as pi reports it through `pi.rs`: no plan, ACP-style titles built from pi's tool calls, Diffity's tools
+   * as `mcp__diffity__*`, and approvals that show the whole file. */
+  async function piScript(chatId: string, text: string, action: AgentAction, emit: (event: AgentEvent) => void) {
+    const chat = chats.get(chatId);
+    const mode = chat?.mode ?? 'ask';
+    const abs = (path: string) => `${deps.repoPath}/${path}`;
+    const stop = () => cancelled.has(chatId);
+    const tool = async (id: string, title: string, kind: string, locations: string[] = [], status = 'completed', ms = 260) => {
+      emit({ type: 'toolCall', id, title, kind, status: 'in_progress', locations });
+      await wait(ms);
+      emit({ type: 'toolCallUpdate', id, status });
+    };
+    for (const chunk of ['The diff adds a cache to the file server. ', 'I should check eviction and invalidation.']) {
+      emit({ type: 'thought', delta: chunk });
+      await wait(160);
+    }
+    await tool('p1', 'mcp__diffity__get_diff', 'other', [], 'completed', 450);
+    await tool('p2', `Read ${abs('src/cache.ts')}`, 'read', [abs('src/cache.ts')]);
+    await tool('p3', `Read ${abs('src/server.ts')}`, 'read', [abs('src/server.ts')]);
+    await tool('p4', 'setCached', 'search');
+    await tool('p5', `List ${abs('src')}`, 'search', [abs('src')]);
+    if (stop()) {
+      return 'cancelled';
+    }
+    if (action.kind === 'review') {
+      const session = chat ? chat.sessionId : deps.sessionFor(deps.repoPath, 'work').id;
+      const comments: Omit<NewThread, 'sessionId'>[] = [
+        { filePath: 'src/cache.ts', side: 'new', startLine: 9, endLine: 14, body: 'Eviction removes the oldest *inserted* key, so this is FIFO rather than LRU. Re-insert on read to keep hot files.', severity: 'suggestion' },
+        { filePath: 'src/server.ts', side: 'new', startLine: 45, endLine: 45, body: 'Cached bodies outlive edits on disk. Key the cache on `mtime` or drop the entry when the file changes.', severity: 'must-fix' },
+      ];
+      for (const [index, comment] of comments.entries()) {
+        emit({ type: 'toolCall', id: `pc${index}`, title: 'mcp__diffity__add_comment', kind: 'other', status: 'in_progress', locations: [] });
+        await wait(320);
+        deps.touch(deps.insertThread({ ...comment, sessionId: session, authorType: 'agent', authorName: 'Pi' }));
+        emit({ type: 'toolCallUpdate', id: `pc${index}`, status: 'completed' });
+      }
+    }
+    if (mode === 'edit' || mode === 'resolve') {
+      const requestId = deps.newId();
+      emit({ type: 'toolCall', id: 'pe', title: `Edit ${abs('src/utils/format.ts')}`, kind: 'edit', status: 'in_progress', locations: [abs('src/utils/format.ts')] });
+      emit({
+        type: 'permissionRequest',
+        requestId,
+        title: `Edit ${abs('src/utils/format.ts')}`,
+        options: [
+          { id: 'allow', name: 'Allow', kind: 'allow_once' },
+          { id: 'reject', name: 'Reject', kind: 'reject_once' },
+        ],
+        diff: { path: abs('src/utils/format.ts'), oldText: OLD_FORMAT, newText: NEW_FORMAT },
+      });
+      const choice = await new Promise<string | null>((resolve) => permissionWaiters.set(requestId, resolve));
+      if (stop()) {
+        return 'cancelled';
+      }
+      emit({ type: 'toolCallUpdate', id: 'pe', status: choice === 'allow' ? 'completed' : 'failed' });
+      await tool('pt', 'npm test -- format', 'execute', [], 'completed', 500);
+    }
+    const summary =
+      action.kind === 'review'
+        ? 'Left **2 comments**: the cache evicts in insertion order (`src/cache.ts`), and cached files go stale after edits (`src/server.ts:45`, **must-fix**). The rest of the change reads well.'
+        : `Looked into it${text ? ` (“${text.slice(0, 60)}”)` : ''}: the cache sits in \`src/cache.ts\` and \`handle()\` reads it before touching the disk. Nothing else needs to change.`;
+    const messageId = `msg-${deps.newId()}`;
+    for (let i = 0; i < summary.length; i += 40) {
+      if (stop()) {
+        return 'cancelled';
+      }
+      emit({ type: 'text', messageId, delta: summary.slice(i, i + 40) });
+      await wait(18);
+    }
+    return stop() ? 'cancelled' : 'end_turn';
+  }
+
   return {
+    agent_models: (args) => MODEL_CATALOGS[String(args.agentId)] ?? null,
     list_agents: () => [
       { id: 'claude', name: 'Claude Code', installed: true, binaryPath: '/usr/local/bin/claude', authenticated: true, note: null },
       { id: 'codex', name: 'Codex', installed: false, binaryPath: null, authenticated: null, note: '`codex` not found on PATH' },
       { id: 'opencode', name: 'OpenCode', installed: false, binaryPath: null, authenticated: null, note: '`opencode` not found on PATH' },
+      { id: 'pi', name: 'Pi', installed: true, binaryPath: '/opt/homebrew/bin/pi', authenticated: true, note: null },
     ],
     list_chats: (args) =>
       [...chats.values()]

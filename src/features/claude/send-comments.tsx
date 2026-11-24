@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { create } from 'zustand';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -129,11 +129,13 @@ interface SendCommentsPanelProps {
   /** The view the comments are in; the note is kept per view until it is sent. */
   diffRef: string | null;
   onClose: () => void;
+  /** Told which agent the run will go to, so a host can name it. */
+  onAgentChange?: (agentId: string) => void;
 }
 
 /** Pick open comments and send them to an agent, which edits your code to address them and replies on each thread. */
 export function SendCommentsPanel(props: SendCommentsPanelProps) {
-  const { candidates, diffRef, onClose } = props;
+  const { candidates, diffRef, onClose, onAgentChange } = props;
   const queued = !!useActiveRun(getRepoPath());
   const { local, remote, fromClaude, pendingCount } = candidates;
   const { sessionId, pendingReview } = useReviewState();
@@ -144,6 +146,10 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
   const [picked, setPicked] = useState<RunPick | null>(null);
   const pick = picked ?? fallbackPick;
   const agent = agentMeta(pick.agent);
+
+  useEffect(() => {
+    onAgentChange?.(pick.agent);
+  }, [pick.agent, onAgentChange]);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [claudePicked, setClaudePicked] = useState<Set<string> | null>(null);
   const [postReplies, setPostReplies] = useState(false);

@@ -24,7 +24,7 @@ Diffity is a desktop app for Mac and Linux for reviewing code changes, yours or 
 
   The GitHub token is kept in your system keyring (GNOME Keyring or KWallet); without one, sign in with the GitHub CLI instead.
 
-The AI features need [Claude Code](https://docs.claude.com/en/docs/claude-code) (logged in) and Node.js. Shortcuts below are written for macOS; on Linux, use `Ctrl` wherever you see `⌘`.
+The AI features need one of [Claude Code](https://docs.claude.com/en/docs/claude-code), [Codex](https://github.com/openai/codex), [OpenCode](https://opencode.ai) or [Pi](https://pi.dev), signed in. Claude Code and Codex also need Node.js. Shortcuts below are written for macOS; on Linux, use `Ctrl` wherever you see `⌘`.
 
 | What can you do? | Description |
 |---|---|
@@ -129,7 +129,7 @@ diffity -n                                     # in a new window
 
 > The agent that wrote the change is the one with the context to fix your comments. Let it read and answer them.
 
-In **Settings → Terminal**, click **Connect** next to Claude Code or Codex. That registers Diffity with the agent for every project and allows terminal agents; for OpenCode, Cursor or any other MCP client, copy the setup from the same place.
+In **Settings → Terminal**, click **Connect** next to Claude Code, Codex or Pi. That registers Diffity with the agent for every project and allows terminal agents; for OpenCode, Cursor or any other MCP client, copy the setup from the same place.
 
 Then, after you review and comment, tell the agent in its session:
 

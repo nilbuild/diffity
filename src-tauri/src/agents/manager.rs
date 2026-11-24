@@ -43,6 +43,7 @@ struct DetectCache {
 
 pub struct AgentManager {
     store: Arc<Store>,
+    data_dir: PathBuf,
     mcp_binary: PathBuf,
     backend: Arc<dyn ReviewBackend>,
     bridge: Arc<McpBridge>,
@@ -71,6 +72,7 @@ impl AgentManager {
         let bridge = McpBridge::new(bridge::socket_path_for(data_dir), backend.clone());
         Self {
             store,
+            data_dir: data_dir.to_path_buf(),
             mcp_binary,
             backend,
             bridge,
@@ -198,7 +200,7 @@ impl AgentManager {
                 format!("{} is not signed in", kind.display_name()),
             ));
         }
-        let Some(catalog) = session::probe_models(launch, std::env::temp_dir()).await? else {
+        let Some(catalog) = session::probe_models(kind, launch, std::env::temp_dir()).await? else {
             return Ok(None);
         };
         let (store, json) = (
@@ -466,6 +468,7 @@ impl AgentManager {
             broker: self.broker.clone(),
             edit_rejected: edit_rejected.clone(),
             additional_dirs: dirs.clone(),
+            data_dir: self.data_dir.clone(),
         })
         .await;
         let session = match started {
@@ -478,11 +481,11 @@ impl AgentManager {
                 return Err(e);
             }
         };
-        if rec.acp_session_id.as_deref() != Some(session.acp_session_id.as_str()) {
+        if rec.acp_session_id.as_deref() != Some(session.session_id()) {
             let (store, chat_id, acp) = (
                 self.store.clone(),
                 rec.chat.id.clone(),
-                session.acp_session_id.clone(),
+                session.session_id().to_string(),
             );
             blocking(move || chats::set_acp_session(&store, &chat_id, &acp)).await?;
         }

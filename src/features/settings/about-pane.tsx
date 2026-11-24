@@ -72,7 +72,7 @@ export function AboutPane() {
         <BrandLogo className="h-10 w-10 shrink-0" />
         <div>
           <div className="text-[15px] font-semibold text-text">{isDevBuild ? 'Diffity Dev' : 'Diffity'}</div>
-          <div className="text-xs text-text-muted">Review code changes with Claude Code or Codex, locally.</div>
+          <div className="text-xs text-text-muted">Review code changes with Claude Code, Codex, OpenCode or Pi, locally.</div>
         </div>
       </div>
       <PreferencesGroup label="Version">

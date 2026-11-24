@@ -197,12 +197,21 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
   const count = commentsEnabled ? candidates.count : 0;
   const tabs: Tab[] = [...(commentsEnabled ? ['fix' as const] : []), ...(reviewRef ? ['review' as const, 'change' as const] : [])];
   const defaultTab: Tab = count > 0 || !reviewRef ? 'fix' : 'review';
-  const agent = agentMeta(useRunPick(defaultTab === 'fix' ? 'fix' : 'review', repoPath).agent);
+  const buttonAgent = agentMeta(useRunPick(defaultTab === 'fix' ? 'fix' : 'review', repoPath).agent);
+  const tabAgent = useRunPick(tab === 'review' ? 'review' : 'fix', repoPath).agent;
+  /** The agent the open panel will run, which its model picker can change. */
+  const [panelAgent, setPanelAgent] = useState<string | null>(null);
+  const agent = open ? agentMeta(panelAgent ?? tabAgent) : buttonAgent;
+
+  const switchTab = useCallback((next: Tab) => {
+    setTab(next);
+    setPanelAgent(null);
+  }, []);
 
   const openAt = useCallback((next: Tab) => {
-    setTab(next);
+    switchTab(next);
     setOpen(true);
-  }, []);
+  }, [switchTab]);
 
   useEffect(() => {
     if (!requested || requested !== reviewRef) {
@@ -238,7 +247,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
       void navigator.clipboard.writeText(text).then(() => toast.success('Copied open comments'));
     }
     : undefined;
-  const toReview = reviewRef ? () => setTab('review') : undefined;
+  const toReview = reviewRef ? () => switchTab('review') : undefined;
 
   const body = () => {
     if (tab === 'fix') {
@@ -248,7 +257,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
       if (count === 0) {
         return <NoComments agent={agent.short} onReview={toReview} />;
       }
-      return <SendCommentsPanel candidates={candidates} diffRef={diffRef} onClose={close} />;
+      return <SendCommentsPanel candidates={candidates} diffRef={diffRef} onClose={close} onAgentChange={setPanelAgent} />;
     }
     if (!reviewRef) {
       return null;
@@ -256,7 +265,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
     if (tab === 'change' && !editable) {
       return <NotCheckedOut agent={agent.short} onReview={toReview} />;
     }
-    return <AskClaudePanel diffRef={reviewRef} sessionId={sessionId} focusedFile={focusedFile} task={tab} onTaskChange={setTab} onClose={close} />;
+    return <AskClaudePanel diffRef={reviewRef} sessionId={sessionId} focusedFile={focusedFile} task={tab} onTaskChange={switchTab} onClose={close} onAgentChange={setPanelAgent} />;
   };
 
   const title = count > 0
@@ -274,7 +283,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
         {tabs.length > 1 && (
           <SegmentedToggle<Tab>
             value={tab}
-            onChange={setTab}
+            onChange={switchTab}
             options={tabs.map((value) => ({ value, label: TAB_LABELS[value] }))}
           />
         )}
