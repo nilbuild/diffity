@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import * as tauri from '../lib/tauri';
 import { queryClient } from '../lib/query-client';
 import { lastViewLocationFor } from '../lib/repo-locations';
+import { setSidebarCollapsed } from '../lib/ui-store';
 
 export function useRepoPath(): string {
   const params = useParams();
@@ -29,9 +30,10 @@ export function useRepoNav() {
     navigate(view ? `${location}${location.includes('?') ? '&' : '?'}view=${view}` : location);
   }, [navigate, repoPath, base]);
 
-  /** Without a path, Files opens where you left it; `line` scrolls a file to that line and marks it. */
+  /** Without a path, Files opens where you left it, with the sidebar showing; `line` scrolls a file to that line and marks it. */
   const toTree = useCallback((path?: string, type?: 'file' | 'dir', line?: number) => {
     if (path === undefined) {
+      setSidebarCollapsed(false);
       const last = lastViewLocationFor(repoPath, 'tree');
       if (last) {
         navigate(last);

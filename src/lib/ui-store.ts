@@ -54,14 +54,17 @@ function readSidebarCollapsed() {
   }
 }
 
-export function toggleSidebar() {
-  const next = !useUi.getState().sidebarCollapsed;
-  useUi.setState({ sidebarCollapsed: next });
+export function setSidebarCollapsed(collapsed: boolean) {
+  useUi.setState({ sidebarCollapsed: collapsed });
   try {
-    localStorage.setItem(SIDEBAR_KEY, next ? '1' : '0');
+    localStorage.setItem(SIDEBAR_KEY, collapsed ? '1' : '0');
   } catch {
     return;
   }
+}
+
+export function toggleSidebar() {
+  setSidebarCollapsed(!useUi.getState().sidebarCollapsed);
 }
 
 export function openSettings() {
