@@ -536,3 +536,15 @@ fn in_checkout_covers_head_and_its_history_only() {
     assert!(diff::in_checkout(&repo.path, &range(&old)).unwrap());
     assert!(!diff::in_checkout(&repo.path, &range(&side)).unwrap());
 }
+
+#[test]
+fn diff_is_empty_sees_changes_new_files_and_gone_refs() {
+    let repo = Repo::with_commit();
+    assert!(diff::diff_is_empty(&repo.path, "work").unwrap());
+    repo.write("new.txt", "hi\n");
+    assert!(!diff::diff_is_empty(&repo.path, "work").unwrap());
+    let head = repo.commit("add new");
+    assert!(diff::diff_is_empty(&repo.path, "work").unwrap());
+    assert!(!diff::diff_is_empty(&repo.path, &format!("{head}~1..{head}")).unwrap());
+    assert!(diff::diff_is_empty(&repo.path, "no-such-branch...HEAD").is_err());
+}

@@ -6,6 +6,7 @@ import { isTauri } from './platform';
 import { beginOpening, endOpening } from './opening';
 import { lastProjectLocation } from './repo-locations';
 import { isShownProject } from '../features/welcome/recent-repos';
+import { resumeLocation } from '../features/welcome/resume';
 
 /** The main window opened on the welcome route with nothing asked of it: a fresh launch, not a link or a new window. */
 export function isBareLaunch(): boolean {
@@ -35,8 +36,9 @@ export async function resumeLastProject(navigate: NavigateFunction): Promise<boo
     return false;
   }
   beginOpening(last.repoPath, 'Opening');
+  const to = await resumeLocation(last.repoPath).catch(() => null);
   try {
-    navigate(last.location, { replace: true });
+    navigate(to ?? last.location, { replace: true });
   } catch {
     endOpening();
     return false;

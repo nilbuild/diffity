@@ -324,6 +324,7 @@ pub fn run() {
             commands::repo::set_setting,
             commands::diff::resolve_ref,
             commands::diff::ref_in_checkout,
+            commands::diff::diff_is_empty,
             commands::diff::get_diff,
             commands::diff::get_file_patch,
             commands::diff::get_file_versions,

@@ -15,8 +15,8 @@ import { useProjectEmoji } from '../../features/welcome/project-emojis';
 import { openProjectEditorAt, ProjectEditorHost, useProjectEditorPath } from '../../features/welcome/project-editor';
 import { useBusyRepoPaths, useClaude } from '../../features/claude/claude-runner';
 import { parentPathOf, useAllTasks } from '../../features/tasks/tasks';
-import { lastLocationFor } from '../../lib/repo-locations';
-import { beginOpening, useOpening } from '../../lib/opening';
+import { useOpening } from '../../lib/opening';
+import { switchToProject } from '../../features/welcome/resume';
 import { ArrowDownIcon, ArrowUpIcon, CopyIcon, EditorIcon, ExternalLinkIcon, FoldIcon, FolderOpenIcon, LinkIcon, PencilIcon, PlusIcon, RevealIcon, SettingsIcon, TerminalIcon, UnfoldIcon, XIcon } from '../ui/icon';
 import { ContextMenu, MenuItem, MenuLabel, MenuSeparator } from '../ui/popover';
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
@@ -445,13 +445,7 @@ function ActivityRail() {
       void openRepoAt(path, navigate, { newWindow });
       return;
     }
-    const last = lastLocationFor(path);
-    if (last) {
-      beginOpening(path, 'Switching');
-      navigate(last);
-      return;
-    }
-    void openRepoAt(path, navigate);
+    void switchToProject(path, navigate);
   }, [currentPath, navigate]);
 
   useEffect(() => {

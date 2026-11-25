@@ -143,6 +143,7 @@ export const getFilePatch = (repoPath: string, ref: string, path: string, oldPat
   invoke<string>('get_file_patch', { repoPath, ref, path, oldPath, ignoreWhitespace });
 export const getFileVersions = (repoPath: string, ref: string, path: string, oldPath?: string | null) =>
   invoke<FileVersions>('get_file_versions', { repoPath, ref, path, oldPath: oldPath ?? null });
+export const diffIsEmpty = (repoPath: string, ref: string) => invoke<boolean>('diff_is_empty', { repoPath, ref });
 export const diffFingerprint = (repoPath: string, ref: string, showIgnored = false) =>
   invoke<string>('diff_fingerprint', { repoPath, ref, showIgnored });
 export const revertFile = (repoPath: string, path: string) => invoke<void>('revert_file', { repoPath, path });

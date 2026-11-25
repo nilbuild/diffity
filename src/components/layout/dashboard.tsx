@@ -33,11 +33,14 @@ import { isOpenThread, useRepoThreads } from '../../hooks/use-repo-threads';
 import { openSettingsAt } from '../../lib/ui-store';
 import { cn } from '../../lib/cn';
 import { buttonClaude, buttonGhost, buttonOutline, buttonPrimary, inputField } from '../ui/button-styles';
-import { ChangesIcon, CheckCircleIcon, ChevronDownIcon, CommentIcon, EllipsisIcon, GitCommitIcon, EditorIcon, FilesIcon, GitCompareIcon, GitHubIcon, GitPullRequestIcon, SearchIcon, SparkleIcon, XIcon } from '../ui/icon';
+import { ArrowLeftIcon, ChangesIcon, CheckCircleIcon, ChevronDownIcon, CommentIcon, EllipsisIcon, GitCommitIcon, EditorIcon, FilesIcon, GitCompareIcon, GitHubIcon, GitPullRequestIcon, SearchIcon, SparkleIcon, XIcon } from '../ui/icon';
 import { MenuItem, Popover, useMenu } from '../ui/popover';
 import { Panel } from '../ui/panel';
 import { CompareForm } from './compare-form';
 import { useRestoredScroll, useViewState } from '../../lib/view-state';
+import { useNavigate } from 'react-router';
+import { clearSkippedView, diffRefOf, useSkippedView } from '../../features/welcome/resume';
+import { runViewLabel } from '../../features/claude/claude-runner';
 
 interface DashboardProps {
   onNavigate: (ref: string) => void;
@@ -229,6 +232,31 @@ function HomeActions(props: { editorName: string }) {
         }} />
       </Popover>
     </>
+  );
+}
+
+/** When switching here skipped the view you had open (stale and nothing unfinished), a way back to it. */
+function ContinueView(props: { repoPath: string }) {
+  const { repoPath } = props;
+  const navigate = useNavigate();
+  const location = useSkippedView((state) => state.byRepo[repoPath] ?? null);
+
+  const ref = location ? diffRefOf(repoPath, location) : null;
+  if (!location || !ref) {
+    return null;
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        clearSkippedView(repoPath);
+        navigate(location);
+      }}
+      className="mt-2 inline-flex items-center gap-1.5 h-6 px-2 -ml-2 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer"
+    >
+      <ArrowLeftIcon size="xs" />
+      Continue where you left off: <span className="text-text">{runViewLabel(repoPath, ref)}</span>
+    </button>
   );
 }
 
@@ -437,6 +465,7 @@ export function Dashboard(props: DashboardProps) {
               <NewTaskButton repoPath={nav.repoPath} />
               <HomeActions editorName={editor.loading ? 'editor' : editor.name} />
             </header>
+            <ContinueView repoPath={nav.repoPath} />
             {!ready && (
               <HomeSkeletonBody />
             )}

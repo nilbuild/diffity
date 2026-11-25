@@ -21,8 +21,8 @@ import { isOpenThread, useRepoThreads } from '../../hooks/use-repo-threads';
 import { openComments, openSettings, openShortcuts, openWhatsNew, toggleSidebar } from '../../lib/ui-store';
 import { goToThread } from '../../lib/thread-location';
 import { treePathsOptions } from '../../queries/tree';
-import { openRepoAt, shortPath, useRecentRepos } from '../welcome/recent-repos';
-import { lastLocationFor } from '../../lib/repo-locations';
+import { shortPath, useRecentRepos } from '../welcome/recent-repos';
+import { switchToProject } from '../welcome/resume';
 import { usePullRequests } from '../pr/pull-requests-dialog';
 import { checkoutPullRequest } from '../pr/pr-checkout';
 import { prDiffRef } from '../../components/layout/ref-menu';
@@ -203,14 +203,7 @@ function PaletteBody(props: { mode: PaletteMode }) {
           group: 'Projects',
           icon: <span className="inline-flex items-center justify-center w-4 h-4 rounded bg-fill text-[8px] font-semibold text-text-secondary">{repo.name.slice(0, 2).toUpperCase()}</span>,
           detail: <span className="font-mono text-[11px] text-text-muted">{shortPath(repo.path)}</span>,
-          run: () => {
-            const last = lastLocationFor(repo.path);
-            if (last) {
-              navigate(last);
-              return;
-            }
-            void openRepoAt(repo.path, navigate);
-          },
+          run: () => void switchToProject(repo.path, navigate),
         }, `${repo.name} ${repo.path}`);
       }
       if (details) {
