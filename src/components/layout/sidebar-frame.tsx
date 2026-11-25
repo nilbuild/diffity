@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { forwardRef, useEffect, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 import { buttonIconOutline, inputField } from '../ui/button-styles';
 import { ViewTabs, type RepoView } from './view-tabs';
@@ -8,42 +8,11 @@ import { Popover, useMenu } from '../ui/popover';
 import { useRepoPath } from '../../hooks/use-repo';
 import { requestSearchFocus } from '../../features/code-search/code-search';
 import { KeyLabel } from '../ui/key-label';
+import { ResizeHandle } from '../ui/resize-handle';
+import { useResizableWidth } from '../../hooks/use-resizable-width';
 
 const WIDTH_KEY = 'diffity-sidebar-width';
 const DEFAULT_WIDTH = 300;
-const MIN_WIDTH = 220;
-
-function maxWidth() {
-  return Math.max(MIN_WIDTH, Math.floor(window.innerWidth * 0.5));
-}
-
-function clampWidth(width: number) {
-  return Math.min(maxWidth(), Math.max(MIN_WIDTH, Math.round(width)));
-}
-
-function readStoredWidth(key: string, fallback: number) {
-  try {
-    const stored = Number(localStorage.getItem(key));
-    if (!stored) {
-      return clampWidth(fallback);
-    }
-    return clampWidth(stored);
-  } catch {
-    return fallback;
-  }
-}
-
-function storeWidth(key: string, width: number | null) {
-  try {
-    if (width === null) {
-      localStorage.removeItem(key);
-      return;
-    }
-    localStorage.setItem(key, String(width));
-  } catch {
-    return;
-  }
-}
 
 interface SidebarFrameProps {
   view: RepoView;
@@ -59,9 +28,7 @@ export function SidebarFrame(props: SidebarFrameProps) {
   const { view, collapsible = true, storageKey = WIDTH_KEY, defaultWidth = DEFAULT_WIDTH, disabledViews, children } = props;
   const collapsedSetting = useUi((state) => state.sidebarCollapsed);
   const collapsed = collapsible && collapsedSetting;
-  const [width, setWidth] = useState(() => readStoredWidth(storageKey, defaultWidth));
-  const [dragging, setDragging] = useState(false);
-  const drag = useRef<{ startX: number; startWidth: number } | null>(null);
+  const resize = useResizableWidth({ storageKey, defaultWidth, minWidth: 220, maxFraction: 0.5, edge: 'right' });
   const repoPath = useRepoPath();
 
   useEffect(() => {
@@ -82,47 +49,6 @@ export function SidebarFrame(props: SidebarFrameProps) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [view, repoPath]);
 
-  useEffect(() => {
-    const onResize = () => setWidth((current) => clampWidth(current));
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) {
-      return;
-    }
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { startX: event.clientX, startWidth: width };
-    setDragging(true);
-  }, [width]);
-
-  const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (!drag.current) {
-      return;
-    }
-    setWidth(clampWidth(drag.current.startWidth + event.clientX - drag.current.startX));
-  }, []);
-
-  const handlePointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    if (!drag.current) {
-      return;
-    }
-    event.currentTarget.releasePointerCapture(event.pointerId);
-    drag.current = null;
-    setDragging(false);
-    setWidth((current) => {
-      storeWidth(storageKey, current);
-      return current;
-    });
-  }, [storageKey]);
-
-  const handleReset = useCallback(() => {
-    storeWidth(storageKey, null);
-    setWidth(clampWidth(defaultWidth));
-  }, [storageKey, defaultWidth]);
-
   if (collapsed) {
     return (
       <div className="w-12 min-w-12 shrink-0 border-r border-border bg-sidebar flex flex-col items-center pt-2">
@@ -134,32 +60,13 @@ export function SidebarFrame(props: SidebarFrameProps) {
   return (
     <aside
       className="relative shrink-0 bg-sidebar flex border-r border-border"
-      style={{ width }}
+      style={{ width: resize.width }}
     >
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         <ViewTabs current={view} disabled={disabledViews} />
         {children}
       </div>
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-valuenow={width}
-        title="Drag to resize, double-click to reset"
-        className="group absolute top-0 -right-[4px] bottom-0 w-[7px] z-20 cursor-col-resize"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onDoubleClick={handleReset}
-      >
-        <span
-          className={cn(
-            'absolute top-0 bottom-0 left-[2px] w-[2px] transition-colors',
-            dragging ? 'bg-text-muted/60' : 'bg-transparent group-hover:bg-text-muted/35',
-          )}
-        />
-      </div>
-      {dragging && <div className="fixed inset-0 z-50 cursor-col-resize" />}
+      <ResizeHandle edge="right" resize={resize} />
     </aside>
   );
 }
