@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { useLocation } from 'react-router';
 import { cn } from '../../lib/cn';
 import { fileManagerName, isLinux, isMac, isTauri, modKey } from '../../lib/platform';
 import { chord } from '../../lib/shortcuts';
@@ -175,6 +176,30 @@ function Slash() {
   return <span aria-hidden className="shrink-0 px-0.5 text-text-muted/60 select-none">/</span>;
 }
 
+/** The project's home, right before its name; shown selected while you're on it. */
+function HomeButton(props: { homePath: string }) {
+  const { homePath } = props;
+  const nav = useRepoNav();
+  const location = useLocation();
+  const home = `${repoBase(homePath)}/overview`;
+  const here = location.pathname === home;
+
+  return (
+    <button
+      onClick={() => nav.navigate(home)}
+      title={`Home (${chord('H', { shift: true })})`}
+      aria-label="Home"
+      aria-current={here ? 'page' : undefined}
+      className={cn(
+        'w-7 h-7 shrink-0 inline-flex items-center justify-center rounded-md transition-colors cursor-pointer',
+        here ? 'bg-hover text-text' : 'text-text-secondary hover:text-text hover:bg-hover',
+      )}
+    >
+      <HomeIcon size="md" />
+    </button>
+  );
+}
+
 export function Breadcrumb(props: { name: string | null | undefined; path?: string; children?: ReactNode }) {
   const { name, path, children } = props;
   const nav = useRepoNav();
@@ -187,6 +212,7 @@ export function Breadcrumb(props: { name: string | null | undefined; path?: stri
   }
   return (
     <nav aria-label="Breadcrumb" data-tauri-drag-region className="flex items-center gap-1 min-w-0 shrink">
+      <HomeButton homePath={homePath} />
       <RepoCrumb name={shownName} path={task ? homePath : path} homePath={homePath} compact={!!task} />
       <TaskCrumb repoPath={nav.repoPath} />
       {children && (
