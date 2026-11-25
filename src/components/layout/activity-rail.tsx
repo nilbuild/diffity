@@ -173,8 +173,8 @@ function ProjectTile(props: ProjectTileProps) {
           tileBase,
           'text-[12px] font-semibold tracking-wide touch-none',
           !showLogo && !emoji && (current ? 'project-solid' : 'project-tint hover:project-tint-strong'),
-          (showLogo || emoji) && !filled && (current ? 'project-tint-strong ring-2 ring-inset ring-(--project)' : 'project-tint hover:project-tint-strong'),
-          filled && current && 'outline-2 outline-offset-2 outline-(--project)',
+          // Logo and emoji tiles show they're current by the bar at the left edge, like every tile, not by an outline.
+          (showLogo || emoji) && !filled && (current ? 'project-tint-strong' : 'project-tint hover:project-tint-strong'),
           dragging ? 'cursor-grabbing ring-1 ring-control-border opacity-90 shadow-lg' : 'cursor-pointer',
           dragging && dropOnto && 'scale-75 opacity-100 shadow-lg',
           menuTarget && 'ring-2 ring-focus ring-offset-2 ring-offset-frame',
