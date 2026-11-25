@@ -311,6 +311,8 @@ export interface DirSuggestion {
 export interface DirSuggestions {
   dir: string;
   segment: string;
+  /** `dir` is a repository or inside one, so it can be opened itself. */
+  inRepo: boolean;
   entries: DirSuggestion[];
 }
 

@@ -24,22 +24,44 @@ pub struct DirSuggestions {
     pub dir: String,
     /// The partial last segment the suggestions were filtered by.
     pub segment: String,
+    /// `dir` is a repository or inside one, so it can be opened itself.
+    pub in_repo: bool,
     pub entries: Vec<DirSuggestion>,
 }
 
-/// `~`, `~/x` and paths relative to home become absolute; absolute paths are kept.
+/// `~`, `~/x` and paths relative to home become absolute; absolute paths are kept. `.` and `..` are resolved in the
+/// text, so suggestions and the paths they fill in read `~/Workspace/web`, never `~/Workspace/../Workspace/web`.
 pub fn expand_path(input: &str, home: &Path) -> PathBuf {
     let input = input.trim();
     if input.is_empty() || input == "~" {
         return home.to_path_buf();
     }
-    if let Some(rest) = input.strip_prefix("~/") {
-        return home.join(rest);
+    let joined = if let Some(rest) = input.strip_prefix("~/") {
+        home.join(rest)
+    } else if input.starts_with('/') {
+        PathBuf::from(input)
+    } else {
+        home.join(input)
+    };
+    normalize(&joined)
+}
+
+fn normalize(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for part in path.components() {
+        match part {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            other => out.push(other.as_os_str()),
+        }
     }
-    if input.starts_with('/') {
-        return PathBuf::from(input);
+    if out.as_os_str().is_empty() {
+        PathBuf::from("/")
+    } else {
+        out
     }
-    home.join(input)
 }
 
 /// Splits typed input into the directory to list and the partial segment after the last `/`.
@@ -114,7 +136,8 @@ pub fn list_dir_suggestions(input: &str, home: &Path) -> DirSuggestions {
     }
     entries.sort_by(|a, b| b.is_git.cmp(&a.is_git).then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase())));
     entries.truncate(MAX_SUGGESTIONS);
-    DirSuggestions { dir: dir.to_string_lossy().into_owned(), segment, entries }
+    let in_repo = resolve_repo_root(&dir).is_some();
+    DirSuggestions { dir: dir.to_string_lossy().into_owned(), segment, in_repo, entries }
 }
 
 /// The nearest ancestor (or the folder itself) that is a git work tree.
@@ -132,6 +155,15 @@ pub fn resolve_repo_root(path: &Path) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolves_dot_segments() {
+        let home = Path::new("/Users/me");
+        assert_eq!(expand_path("~/Workspace/../code/./app", home), PathBuf::from("/Users/me/code/app"));
+        assert_eq!(expand_path("~/..", home), PathBuf::from("/Users"));
+        assert_eq!(expand_path("/../../", home), PathBuf::from("/"));
+        assert_eq!(split_prefix("~/Workspace/../web-", home), (PathBuf::from("/Users/me"), "web-".to_string()));
+    }
 
     #[test]
     fn expands_home_and_relative_paths() {

@@ -68,6 +68,22 @@ function tildify(path: string, home: string): string {
   return path;
 }
 
+/** The longest start every name shares, ignoring case (as the folder list matches), in the first name's case. */
+export function sharedPrefix(names: string[]): string {
+  if (names.length === 0) {
+    return '';
+  }
+  let length = names[0].length;
+  for (const name of names.slice(1)) {
+    let index = 0;
+    while (index < length && index < name.length && name[index].toLowerCase() === names[0][index].toLowerCase()) {
+      index += 1;
+    }
+    length = index;
+  }
+  return names[0].slice(0, length);
+}
+
 function repoUrl(input: string): string | null {
   const trimmed = input.trim();
   if (/^https?:\/\/github\.com\/[^/\s]+\/[^/\s]+\/?(\.git)?$/.test(trimmed) || /^git@github\.com:[^/\s]+\/[^/\s]+$/.test(trimmed)) {
@@ -236,8 +252,9 @@ function QuickOpenBody() {
       title: <span className="font-mono text-xs">{entry.name}</span>,
       detail: entry.isGit ? <span className="font-mono text-[11px] text-text-muted">{entry.branch ?? 'repository'}</span> : undefined,
       complete: `${tildify(entry.path, home)}/`,
+      // A repository opens; any other folder is a step on the way to one, so Enter goes inside it.
       run: () => {
-        if (clone) {
+        if (clone || !entry.isGit) {
           setInput(`${tildify(entry.path, home)}/`);
           return;
         }
@@ -283,7 +300,7 @@ function QuickOpenBody() {
       for (const entry of suggestions?.entries ?? []) {
         list.push(folderRow(entry));
       }
-      if (input.endsWith('/') && suggestions?.dir) {
+      if (input.endsWith('/') && suggestions?.inRepo) {
         list.unshift({ key: 'this', icon: <FolderOpenIcon size="sm" className="text-text-secondary" />, title: <>Open <span className="font-mono text-xs">{input}</span></>, run: () => void openPath(input) });
       }
       if (input && !input.endsWith('/') && list.length === 0) {
@@ -433,6 +450,15 @@ function QuickOpenBody() {
               if (event.key === 'ArrowUp') {
                 event.preventDefault();
                 setActive((value) => Math.max(value - 1, 0));
+                return;
+              }
+              if (event.key === 'Tab' && active === 0 && typingPath && suggestions && input.endsWith(suggestions.segment) && suggestions.entries.length > 1) {
+                event.preventDefault();
+                // Like a shell: several folders match, so fill in only what they all share (↓ then Tab picks one).
+                const shared = sharedPrefix(suggestions.entries.map((entry) => entry.name));
+                if (shared.length > suggestions.segment.length) {
+                  setInput(input.slice(0, input.length - suggestions.segment.length) + shared);
+                }
                 return;
               }
               if (event.key === 'Tab' || (event.key === 'ArrowRight' && event.currentTarget.selectionStart === input.length)) {
