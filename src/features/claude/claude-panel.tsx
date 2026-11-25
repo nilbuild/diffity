@@ -21,7 +21,16 @@ import { chipFromSelection } from './selection-chip';
 
 export function ClaudePanel() {
   const open = usePanel((state) => state.open);
+  const viewRef = useCurrentViewRef();
   useChatShortcut();
+
+  // The chat belongs to a view; Home and the other pages have none, so leaving the views closes it.
+  useEffect(() => {
+    if (!viewRef) {
+      closeClaudePanel();
+    }
+  }, [viewRef]);
+
   if (!open) {
     return null;
   }
