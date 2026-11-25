@@ -89,12 +89,9 @@ async function unhideRepo(path: string) {
 }
 
 /** Home when there is nothing uncommitted to review, so the diff doesn't flash before redirecting there. */
-async function landingPage(path: string, extra?: Record<string, string>): Promise<RepoPage> {
-  if (extra && Object.keys(extra).length > 0) {
-    return 'diff';
-  }
-  const status = await tauri.gitStatus(path).catch(() => null);
-  return status && !status.dirty ? 'overview' : 'diff';
+/** A project opens on its home, which leads with its changes; a link to a particular view opens that view. */
+function landingPage(extra?: Record<string, string>): RepoPage {
+  return extra && Object.keys(extra).length > 0 ? 'diff' : 'overview';
 }
 
 export async function openRepoAt(path: string, navigate: NavigateFunction, options?: { newWindow?: boolean; extra?: Record<string, string>; page?: RepoPage }) {
@@ -113,7 +110,7 @@ export async function openRepoAt(path: string, navigate: NavigateFunction, optio
     if (!options?.newWindow) {
       setOpeningStep('Reading changes');
     }
-    const page = options?.page ?? (await landingPage(info.path, options?.extra));
+    const page = options?.page ?? landingPage(options?.extra);
     if (options?.newWindow) {
       await openRepoInNewWindow(info.path, options.extra, page);
       return;
