@@ -195,7 +195,8 @@ export function ContextMenu(props: { position: { x: number; y: number } | null; 
 
   return (
     <>
-      {position && <span ref={anchorRef} aria-hidden className="fixed w-0 h-0 pointer-events-none" style={{ left: position.x, top: position.y }} />}
+      {/* On the page itself: inside a transformed or contained parent, `fixed` would be relative to that parent. */}
+      {position && createPortal(<span ref={anchorRef} aria-hidden className="fixed w-0 h-0 pointer-events-none" style={{ left: position.x, top: position.y }} />, document.body)}
       <Popover open={position !== null} onClose={onClose} anchorRef={anchorRef} width={width} className={className}>
         {children}
       </Popover>

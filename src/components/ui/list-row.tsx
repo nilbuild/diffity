@@ -59,7 +59,7 @@ export function ListRow(props: ListRowProps) {
           setContextAt({ x: event.clientX, y: event.clientY });
         }}
         title={tooltip}
-        className={`${ROW_GRID} w-full min-h-[52px] px-3 py-1.5 rounded-lg text-left hover:bg-hover focus-visible:bg-hover outline-none transition-colors cursor-pointer`}
+        className={`${ROW_GRID} w-full min-h-[52px] px-3 py-1.5 rounded-lg text-left hover:bg-hover focus-visible:bg-hover outline-none transition-colors cursor-pointer ${contextAt ? 'bg-hover' : ''}`}
       >
         <span className="flex justify-center text-text-secondary">{icon}</span>
         <span className="min-w-0">

@@ -140,7 +140,7 @@ function CommitRow(props: { commit: Commit; onOpen: () => void; onCompareFrom: (
           setContextAt({ x: event.clientX, y: event.clientY });
         }}
         title={`${commit.message}\n${commit.author} · ${dayjs(commit.date).format('YYYY-MM-DD HH:mm')}`}
-        className="grid grid-cols-[64px_minmax(0,1fr)_auto_auto_28px] items-center gap-3 h-9 pl-3.5 pr-1.5 text-left hover:bg-hover focus-visible:bg-hover outline-none transition-colors cursor-pointer"
+        className={`grid grid-cols-[64px_minmax(0,1fr)_auto_auto_28px] items-center gap-3 h-9 pl-3.5 pr-1.5 text-left hover:bg-hover focus-visible:bg-hover outline-none transition-colors cursor-pointer ${contextAt ? 'bg-hover' : ''}`}
       >
         <code className="font-mono text-[11px] text-text-muted">{commit.shortHash}</code>
         <span className="truncate text-[13px] text-text">{commit.message}</span>

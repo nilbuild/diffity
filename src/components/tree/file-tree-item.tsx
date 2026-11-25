@@ -193,7 +193,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
     return (
       <>
         <button
-          className={cn(rowClass, 'hover:bg-hover')}
+          className={cn(rowClass, menu ? 'bg-hover' : 'hover:bg-hover')}
           style={{ paddingLeft }}
           onClick={() => onToggleDir(node.path)}
           onContextMenu={openMenu}
@@ -224,7 +224,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
   return (
     <>
       <button
-        className={cn(rowClass, active ? 'bg-selected' : 'hover:bg-hover')}
+        className={cn(rowClass, active ? 'bg-selected' : menu ? 'bg-hover' : 'hover:bg-hover')}
         style={{ paddingLeft: paddingLeft + CHEVRON + 6 }}
         onClick={() => onFileClick(node.path)}
         title={diffIgnored ? `${node.path} (ignored in diffs by .diffityignore)` : node.path}

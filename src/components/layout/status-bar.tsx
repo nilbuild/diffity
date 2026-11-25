@@ -70,7 +70,7 @@ function RepoPathButton(props: { label: string; path: string }) {
           event.preventDefault();
           setMenu({ x: event.clientX, y: event.clientY });
         }}
-        className="hidden lg:inline-flex items-center h-5 min-w-0 px-1.5 rounded font-mono text-[11px] text-text-muted hover:text-text hover:bg-hover transition-colors cursor-pointer"
+        className={`hidden lg:inline-flex items-center h-5 min-w-0 px-1.5 rounded font-mono text-[11px] hover:text-text hover:bg-hover transition-colors cursor-pointer ${menu ? 'bg-hover text-text' : 'text-text-muted'}`}
         title={`${path}\nReveal in ${fileManagerName} (right-click for more)`}
       >
         <span className="truncate">{label}</span>
