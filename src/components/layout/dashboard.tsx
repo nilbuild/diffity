@@ -33,8 +33,8 @@ import { isOpenThread, useRepoThreads } from '../../hooks/use-repo-threads';
 import { openSettingsAt } from '../../lib/ui-store';
 import { cn } from '../../lib/cn';
 import { buttonClaude, buttonGhost, buttonOutline, buttonPrimary, inputField } from '../ui/button-styles';
-import { ArrowLeftIcon, ChangesIcon, CheckCircleIcon, ChevronDownIcon, CommentIcon, EllipsisIcon, GitCommitIcon, EditorIcon, FilesIcon, GitCompareIcon, GitHubIcon, GitPullRequestIcon, SearchIcon, SparkleIcon, XIcon } from '../ui/icon';
-import { MenuItem, Popover, useMenu } from '../ui/popover';
+import { ArrowLeftIcon, ChangesIcon, CheckCircleIcon, ChevronDownIcon, CommentIcon, GitCommitIcon, EditorIcon, FilesIcon, GitCompareIcon, GitHubIcon, GitPullRequestIcon, SearchIcon, SparkleIcon, XIcon } from '../ui/icon';
+import { Popover } from '../ui/popover';
 import { Panel } from '../ui/panel';
 import { CompareForm } from './compare-form';
 import { useRestoredScroll, useViewState } from '../../lib/view-state';
@@ -211,34 +211,24 @@ function writePrRows(repoPath: string, rows: number) {
   }
 }
 
+/** Looking at the code itself, beside reviewing its changes: in the file browser or the editor. */
 function HomeActions(props: { editorName: string }) {
   const { editorName } = props;
   const nav = useRepoNav();
-  const menu = useMenu();
 
   return (
     <>
-      <button
-        ref={menu.anchorRef}
-        onClick={menu.toggle}
-        aria-label="More actions"
-        aria-haspopup="menu"
-        aria-expanded={menu.open}
-        title="Browse files, open in editor"
-        className={cn(buttonOutline, 'h-7 w-7 px-0 justify-center', menu.open && 'bg-control-hover')}
-      >
-        <EllipsisIcon size="md" className="text-text-secondary" />
+      <button onClick={() => nav.toTree()} className={cn(buttonOutline, 'h-7')} title="Browse and comment on any file">
+        <FilesIcon size="sm" className="text-text-secondary" />
+        Browse files
       </button>
-      <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} align="end" width={220}>
-        <MenuItem icon={<FilesIcon size="sm" />} label="Browse files" onSelect={() => {
-          menu.close();
-          nav.toTree();
-        }} />
-        <MenuItem icon={<EditorIcon size="sm" />} label={`Open in ${editorName}`} onSelect={() => {
-          menu.close();
-          openInEditor('').catch((error) => toast.error('Could not open the editor', { description: errorMessage(error) }));
-        }} />
-      </Popover>
+      <button
+        onClick={() => openInEditor('').catch((error) => toast.error('Could not open the editor', { description: errorMessage(error) }))}
+        className={cn(buttonOutline, 'h-7')}
+      >
+        <EditorIcon size="sm" className="text-text-secondary" />
+        Open in {editorName}
+      </button>
     </>
   );
 }
@@ -492,8 +482,8 @@ export function Dashboard(props: DashboardProps) {
                 <BranchSwitcher branch={branch} className="inline-flex items-center gap-1.5 h-7 px-2 rounded-md text-xs text-text-secondary" />
               )}
               <span className="flex-1" />
-              <NewTaskButton repoPath={nav.repoPath} />
               <HomeActions editorName={editor.loading ? 'editor' : editor.name} />
+              <NewTaskButton repoPath={nav.repoPath} />
             </header>
             <ContinueView repoPath={nav.repoPath} />
             {!ready && (

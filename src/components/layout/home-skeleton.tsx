@@ -1,7 +1,7 @@
 import { ListRowSkeleton } from '../ui/list-row';
 import { Skeleton } from '../ui/skeleton';
 import { buttonOutline } from '../ui/button-styles';
-import { EllipsisIcon } from '../ui/icon';
+import { EditorIcon, FilesIcon } from '../ui/icon';
 import { cn } from '../../lib/cn';
 import { useRepoPath } from '../../hooks/use-repo';
 import { NewTaskButton } from '../../features/tasks/task-list';
@@ -73,11 +73,16 @@ export function HomeSkeletonMain(props: { repoName: string }) {
           <h1 className="text-[18px] leading-6 font-semibold text-text truncate">{repoName}</h1>
           <Skeleton className="w-28 h-3" />
           <span className="flex-1" />
-          <NewTaskButton repoPath={repoPath} />
-          {/* Home's ⋯ menu, inert until the page is up; same box so nothing moves when it is. */}
-          <span aria-hidden className={cn(buttonOutline, 'h-7 w-7 px-0 justify-center cursor-default')}>
-            <EllipsisIcon size="md" className="text-text-secondary" />
+          {/* Home's buttons, inert until the page is up; same boxes so nothing moves when it is. */}
+          <span aria-hidden className={cn(buttonOutline, 'h-7 cursor-default')}>
+            <FilesIcon size="sm" className="text-text-secondary" />
+            Browse files
           </span>
+          <span aria-hidden className={cn(buttonOutline, 'h-7 cursor-default')}>
+            <EditorIcon size="sm" className="text-text-secondary" />
+            Open in editor
+          </span>
+          <NewTaskButton repoPath={repoPath} />
         </header>
         <HomeSkeletonBody />
       </div>
