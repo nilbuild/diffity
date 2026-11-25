@@ -1,8 +1,9 @@
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '../../lib/cn';
 import { splitMentions } from '../../lib/mentions';
 import { getRepoPathOrNull } from '../../lib/api';
-import { FolderOpenIcon, SparkleIcon } from '../ui/icon';
+import { FileTextIcon, FolderOpenIcon, SparkleIcon } from '../ui/icon';
 import { AGENTS, useInstalledAgents, type AgentMeta } from '../../features/claude/agents';
 import { knownProjects, rememberFolder, splitProjectMentions, useProjectDirectory, type KnownProject } from '../../features/groups/project-directory';
 import { groupOf, projectName, useGroups } from '../../features/groups/groups';
@@ -23,6 +24,12 @@ interface MentionTextareaProps {
   spellCheck?: boolean;
   /** Open the suggestions above the box, for a box at the bottom of the window. */
   menuAbove?: boolean;
+  /** Files @ can mention, best first (e.g. the diff's own files, then the rest of the repo). */
+  files?: string[];
+  /** Whether @ offers agents; off where asking another agent means nothing, like the chat with one. */
+  agents?: boolean;
+  /** Grows with its text up to this many pixels, then scrolls. */
+  growTo?: number;
 }
 
 interface MentionQuery {
@@ -33,15 +40,42 @@ interface MentionQuery {
 
 type Suggestion =
   | { kind: 'agent'; key: string; agent: AgentMeta }
+  | { kind: 'file'; key: string; path: string }
   | { kind: 'project'; key: string; project: KnownProject; inGroup: boolean }
   | { kind: 'folder'; key: string };
 
 const MAX_PROJECTS = 8;
+const MENU_GAP = 4;
+const MENU_MARGIN = 8;
+const MENU_WIDTH = 288;
 
-const BACKDROP_RESET = 'absolute inset-0 m-0 overflow-hidden whitespace-pre-wrap break-words pointer-events-none select-none text-transparent resize-none placeholder:text-transparent';
+interface MenuPosition {
+  left: number;
+  top?: number;
+  bottom?: number;
+  maxHeight: number;
+}
 
-function MentionBackdrop(props: { value: string; projects: KnownProject[]; className?: string; backdropRef: React.RefObject<HTMLDivElement | null> }) {
-  const { value, projects, className, backdropRef } = props;
+/** Where the menu goes: on the preferred side of the box when it fits, else on whichever side has more room. */
+function menuPosition(box: DOMRect, menuHeight: number, above: boolean): MenuPosition {
+  const left = Math.max(MENU_MARGIN, Math.min(box.left, window.innerWidth - MENU_WIDTH - MENU_MARGIN));
+  const roomBelow = window.innerHeight - box.bottom - MENU_GAP - MENU_MARGIN;
+  const roomAbove = box.top - MENU_GAP - MENU_MARGIN;
+  const fitsPreferred = (above ? roomAbove : roomBelow) >= menuHeight;
+  const goAbove = fitsPreferred ? above : roomAbove > roomBelow;
+  if (goAbove) {
+    return { left, bottom: window.innerHeight - box.top + MENU_GAP, maxHeight: roomAbove };
+  }
+  return { left, top: box.bottom + MENU_GAP, maxHeight: roomBelow };
+}
+const MAX_FILES = 6;
+const NO_FILES: string[] = [];
+
+// Its border stays for spacing but isn't drawn: the textarea on top draws the only one.
+const BACKDROP_RESET = 'absolute inset-0 m-0 border-transparent hover:border-transparent overflow-hidden whitespace-pre-wrap break-words pointer-events-none select-none text-transparent resize-none placeholder:text-transparent';
+
+function MentionBackdrop(props: { value: string; projects: KnownProject[]; files: Set<string>; className?: string; backdropRef: React.RefObject<HTMLDivElement | null> }) {
+  const { value, projects, files, className, backdropRef } = props;
 
   return (
     <div ref={backdropRef} aria-hidden className={cn(className, BACKDROP_RESET)}>
@@ -55,7 +89,7 @@ function MentionBackdrop(props: { value: string; projects: KnownProject[]; class
         }
         return splitProjectMentions(part.text, projects).map((piece, pieceIndex) => {
           if (!piece.project) {
-            return <span key={`${index}-${pieceIndex}`}>{piece.text}</span>;
+            return <FileMentions key={`${index}-${pieceIndex}`} text={piece.text} files={files} />;
           }
           return (
             <mark key={`${index}-${pieceIndex}`} className="rounded bg-fill text-transparent ring-1 ring-control-border">
@@ -69,9 +103,50 @@ function MentionBackdrop(props: { value: string; projects: KnownProject[]; class
   );
 }
 
+/** Text with each `@path` of a known file marked. */
+function FileMentions(props: { text: string; files: Set<string> }) {
+  const { text, files } = props;
+
+  if (files.size === 0) {
+    return <span>{text}</span>;
+  }
+  return (
+    <span>
+      {text.split(/(@[\w./-]+)/).map((piece, index) =>
+        piece.startsWith('@') && files.has(piece.slice(1)) ? (
+          <mark key={index} className="rounded bg-fill text-transparent ring-1 ring-control-border">{piece}</mark>
+        ) : (
+          piece
+        ),
+      )}
+    </span>
+  );
+}
+
+/** The files whose name or path has `typed`, names that start with it first, keeping the given order otherwise. */
+function matchFiles(files: string[], typed: string): string[] {
+  if (typed === '') {
+    return files.slice(0, MAX_FILES);
+  }
+  const named: string[] = [];
+  const inPath: string[] = [];
+  for (const path of files) {
+    const name = path.slice(path.lastIndexOf('/') + 1).toLowerCase();
+    if (name.startsWith(typed)) {
+      named.push(path);
+    } else if (path.toLowerCase().includes(typed)) {
+      inPath.push(path);
+    }
+    if (named.length >= MAX_FILES) {
+      break;
+    }
+  }
+  return [...named, ...inPath].slice(0, MAX_FILES);
+}
+
 function findMentionQuery(value: string, caret: number): MentionQuery | null {
   const before = value.slice(0, caret);
-  const match = /(^|[\s(])@([\w.-]*)$/.exec(before);
+  const match = /(^|[\s(])@([\w./-]*)$/.exec(before);
   if (!match) {
     return null;
   }
@@ -85,11 +160,15 @@ function suggestionsFor(
   projects: KnownProject[],
   repoPath: string | null,
   groupPaths: string[],
+  files: string[],
 ): Suggestion[] {
   if (!query) {
     return [];
   }
   const { typed } = query;
+  const fileItems: Suggestion[] = matchFiles(files, typed)
+    .filter((path) => path.toLowerCase() !== typed)
+    .map((path) => ({ kind: 'file', key: `file:${path}`, path }));
   const agentItems: Suggestion[] = agents
     .filter((agent) => agent.handle.startsWith(typed) && agent.handle !== typed)
     .map((agent) => ({ kind: 'agent', key: `agent:${agent.id}`, agent }));
@@ -103,11 +182,14 @@ function suggestionsFor(
     .slice(0, MAX_PROJECTS)
     .map((project) => ({ kind: 'project', key: `project:${project.path}`, project, inGroup: groupPaths.includes(project.path) }));
   const folder: Suggestion[] = 'choose a folder'.includes(typed) || typed === '' || projectItems.length === 0 ? [{ kind: 'folder', key: 'folder' }] : [];
-  return [...agentItems, ...projectItems, ...folder];
+  if (files.length > 0 && typed.includes('/')) {
+    return [...agentItems, ...fileItems];
+  }
+  return [...agentItems, ...fileItems, ...projectItems, ...folder];
 }
 
 export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaProps>(function MentionTextarea(props, ref) {
-  const { value, onChange, onKeyDown, placeholder, rows, className, autoFocus, id, spellCheck, menuAbove } = props;
+  const { value, onChange, onKeyDown, placeholder, rows, className, autoFocus, id, spellCheck, menuAbove, files = NO_FILES, agents = true, growTo } = props;
   const innerRef = useRef<HTMLTextAreaElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState<MentionQuery | null>(null);
@@ -121,11 +203,54 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaPr
   const repoPath = repoPathOrTask ? parentPathOf(tasks, repoPathOrTask) : null;
   const groups = useGroups((state) => state.groups);
   const groupPaths = repoPath ? groupOf(groups, repoPath)?.paths ?? [] : [];
-  const suggestions = suggestionsFor(query, installed.length > 0 ? installed : AGENTS, projects, repoPath, groupPaths);
+  const mentionable = agents ? (installed.length > 0 ? installed : AGENTS) : [];
+  const suggestions = suggestionsFor(query, mentionable, projects, repoPath, groupPaths, files);
   const selected = suggestions[Math.min(active, suggestions.length - 1)] ?? null;
-  const firstProject = suggestions.findIndex((item) => item.kind !== 'agent');
+  const firstFile = suggestions.findIndex((item) => item.kind === 'file');
+  const firstProject = suggestions.findIndex((item) => item.kind === 'project');
+  const fileSet = useMemo(() => new Set(files), [files]);
 
   useImperativeHandle(ref, () => innerRef.current as HTMLTextAreaElement);
+
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuAt, setMenuAt] = useState<MenuPosition | null>(null);
+  const menuOpen = suggestions.length > 0;
+  useLayoutEffect(() => {
+    if (!menuOpen) {
+      setMenuAt(null);
+      return;
+    }
+    const place = () => {
+      const box = innerRef.current?.getBoundingClientRect();
+      if (!box) {
+        return;
+      }
+      setMenuAt(menuPosition(box, menuRef.current?.scrollHeight ?? 0, !!menuAbove));
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [menuOpen, suggestions.length, menuAbove]);
+  useEffect(() => {
+    if (!menuOpen) {
+      return;
+    }
+    menuRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+  }, [menuOpen, selected]);
+
+  useLayoutEffect(() => {
+    const el = innerRef.current;
+    if (!el || !growTo) {
+      return;
+    }
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight + el.offsetHeight - el.clientHeight, growTo)}px`;
+    el.style.overflowY = el.scrollHeight > el.clientHeight ? 'auto' : 'hidden';
+  }, [value, growTo]);
 
   const refreshQuery = (next: string, caret: number) => {
     setQuery(findMentionQuery(next, caret));
@@ -159,6 +284,10 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaPr
     }
     if (item.kind === 'project') {
       insert(at, item.project.name);
+      return;
+    }
+    if (item.kind === 'file') {
+      insert(at, item.path);
       return;
     }
     const path = await pickFolder('Mention a folder');
@@ -202,7 +331,7 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaPr
 
   return (
     <div className="relative">
-      <MentionBackdrop value={value} projects={projects} className={className} backdropRef={backdropRef} />
+      <MentionBackdrop value={value} projects={projects} files={fileSet} className={className} backdropRef={backdropRef} />
       <textarea
         ref={innerRef}
         value={value}
@@ -219,22 +348,30 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaPr
         autoFocus={autoFocus}
         id={id}
         spellCheck={spellCheck}
-        className={cn(className, 'relative bg-transparent')}
+        className={cn(className, 'relative block bg-transparent')}
       />
-      {suggestions.length > 0 && (
-        <div role="listbox" aria-label="Mention" className={cn('absolute left-2 z-30 w-72 py-1 bg-overlay rounded-lg ring-1 ring-overlay-border', menuAbove ? 'bottom-full mb-1' : 'top-full -mt-1')}>
+      {menuOpen && createPortal(
+        <div
+          ref={menuRef}
+          role="listbox"
+          aria-label="Mention"
+          onMouseDown={(e) => e.preventDefault()}
+          style={{ left: menuAt?.left, top: menuAt?.top, bottom: menuAt?.bottom, maxHeight: menuAt?.maxHeight, width: MENU_WIDTH, visibility: menuAt ? 'visible' : 'hidden' }}
+          className="fixed z-50 overflow-y-auto py-1 bg-overlay rounded-lg border border-overlay-border font-sans"
+        >
           {suggestions.map((item, index) => (
             <SuggestionRow
               key={item.key}
               item={item}
               selected={item === selected}
-              heading={index === firstProject && item.kind === 'project' ? 'Projects Claude can read' : null}
-              separated={item.kind === 'folder' && index > 0}
+              heading={index === firstFile ? 'Files' : index === firstProject ? 'Projects Claude can read' : null}
+              separated={(item.kind === 'folder' && index > 0) || (index === firstProject && firstFile !== -1)}
               onPick={() => void accept(item)}
               onHover={() => setActive(index)}
             />
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -246,8 +383,8 @@ function SuggestionRow(props: { item: Suggestion; selected: boolean; heading: st
 
   return (
     <>
-      {heading && <div className="px-3 pt-1.5 pb-0.5 text-[11px] text-text-muted">{heading}</div>}
       {separated && <div className="my-1 border-t border-overlay-border" />}
+      {heading && <div className="px-3 pt-1.5 pb-0.5 text-[11px] text-text-muted">{heading}</div>}
       <button
         type="button"
         role="option"
@@ -274,6 +411,16 @@ function SuggestionContent(props: { item: Suggestion }) {
         <SparkleIcon className="w-3.5 h-3.5 text-claude" />
         <span className="font-semibold">@{item.agent.handle}</span>
         <span className="text-text-muted truncate">Ask {item.agent.name}</span>
+      </>
+    );
+  }
+  if (item.kind === 'file') {
+    const slash = item.path.lastIndexOf('/');
+    return (
+      <>
+        <FileTextIcon size="sm" className="shrink-0 text-text-secondary" />
+        <span className="font-medium truncate">{item.path.slice(slash + 1)}</span>
+        <span className="flex-1 min-w-0 text-right text-text-muted truncate">{slash > 0 ? item.path.slice(0, slash) : ''}</span>
       </>
     );
   }

@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '../../lib/cn';
+import { getFilePath } from '../../lib/diff-utils';
+import { diffOptions } from '../../queries/diff';
+import { treePathsOptions } from '../../queries/tree';
 import { modKey } from '../../lib/platform';
-import { goToThread } from '../../lib/thread-location';
 import { MentionTextarea } from '../../components/comments/mention-textarea';
 import { buttonIcon, buttonOutline } from '../../components/ui/button-styles';
-import { ArrowUpIcon, EyeOffIcon, GitBranchIcon, HistoryIcon, PencilIcon, StopIcon } from '../../components/ui/icon';
+import { ArrowUpIcon, CommentIcon, GitBranchIcon, HistoryIcon, PencilIcon, StopIcon } from '../../components/ui/icon';
 import { Spinner } from '../../components/icons/spinner';
 import { plural } from '../review/review-candidates';
 import { agentMeta } from './agents';
@@ -14,11 +17,26 @@ import { canSteer, runViewLabel, stopRun, useClaude, useRunInTheWay, useRunningR
 import { messageToEdit, sendChatMessage } from './chat-send';
 import { ChipTag } from './chat-stream';
 import { removeChip, setChips, setEditing, useChips, useComposer, useEditing, type Editing } from './composer-state';
-import { useEditTarget, whereEditsShow, type EditTarget } from './edit-target';
+import { useEditTarget, type EditTarget } from './edit-target';
 import { sameView, viewKey } from './conversation';
 import { ModelPicker } from './model-picker';
 import { useRunPick, writeRepoPick, type RunPick } from './model-setting';
 import { setCardSlot, toggleClaudeCard, usePanel, type ClaudeCard } from './panel-store';
+import { KeyLabel } from '../../components/ui/key-label';
+
+/** About ten lines; longer messages scroll. */
+const GROW_TO = 216;
+
+/** Files @ offers: the view's changed files first, then the rest of the checked-out code. */
+function useMentionFiles(viewRef: string): string[] {
+  const { data: diff } = useQuery({ ...diffOptions(false, viewRef), staleTime: 30_000 });
+  const { data: tree } = useQuery(treePathsOptions());
+  return useMemo(() => {
+    const changed = (diff?.files ?? []).map(getFilePath);
+    const seen = new Set(changed);
+    return [...changed, ...(tree?.paths ?? []).filter((path) => !seen.has(path))];
+  }, [diff, tree]);
+}
 
 function editingLabel(kind: Editing['kind'], agent: string): string {
   if (kind === 'queued') {
@@ -40,6 +58,7 @@ export function ChatComposer(props: { repoPath: string; viewRef: string }) {
   const editing = useEditing(repoPath, viewRef);
   const hasLastSent = useComposer((state) => !!state.lastSent[viewKey(repoPath, viewRef)]);
   const target = useEditTarget(repoPath, viewRef);
+  const files = useMentionFiles(viewRef);
   const inTheWay = useRunInTheWay(repoPath, 'edit', target !== 'none');
   const steerable = useClaude(() => canSteer(repoPath, viewRef));
   const viewRuns = useRunningRuns(repoPath).filter((run) => sameView(run.ref, viewRef));
@@ -113,19 +132,19 @@ export function ChatComposer(props: { repoPath: string; viewRef: string }) {
       <QuickActions viewRef={viewRef} card={card} />
       {!card && (
         <div className="flex flex-col">
-          {!editing && <Notices repoPath={repoPath} viewRef={viewRef} agent={agent.short} target={target} waitsFor={waitsFor} steerable={steerable} />}
+          {!editing && <Notices repoPath={repoPath} viewRef={viewRef} agent={agent.short} target={target} waitsFor={waitsFor} steerable={steerable} typing={text.trim().length > 0} />}
           <form
             onSubmit={(event) => {
               event.preventDefault();
               void send(false);
             }}
             className={cn(
-              'flex flex-col gap-2 px-2.5 pt-2 pb-2 rounded-xl border bg-raised overflow-hidden',
+              'relative flex flex-col gap-2 px-2.5 pt-2 pb-2 rounded-xl border bg-raised',
               editing ? 'border-claude/60' : 'border-control-border focus-within:border-claude/50',
             )}
           >
             {editing && (
-              <div className="flex items-center gap-1.5 -mx-2.5 -mt-2 px-2.5 py-1.5 bg-claude/10 border-b border-claude/25 text-[11.5px] leading-4 text-claude">
+              <div className="flex items-center gap-1.5 -mx-2.5 -mt-2 px-2.5 py-1.5 rounded-t-[11px] bg-claude/10 border-b border-claude/25 text-[11.5px] leading-4 text-claude">
                 <PencilIcon size="xs" className="shrink-0" />
                 <span className="flex-1 min-w-0">{editingLabel(editing.kind, agent.short)}</span>
                 <button type="button" onClick={stopEditing} className="shrink-0 text-text-secondary hover:text-text cursor-pointer">
@@ -143,6 +162,9 @@ export function ChatComposer(props: { repoPath: string; viewRef: string }) {
               value={text}
               onChange={setText}
               rows={2}
+              growTo={GROW_TO}
+              files={files}
+              agents={false}
               placeholder={placeholder}
               spellCheck={false}
               menuAbove
@@ -166,7 +188,7 @@ export function ChatComposer(props: { repoPath: string; viewRef: string }) {
                   void send(event.metaKey || event.ctrlKey);
                 }
               }}
-              className="w-full max-h-48 resize-none bg-transparent border-0 outline-none text-[13px] leading-5 text-text placeholder:text-text-muted"
+              className="w-full resize-none bg-transparent border-0 outline-none text-[13px] leading-5 text-text placeholder:text-text-muted"
             />
             <div className="flex items-center gap-1.5">
               <ModelPicker value={pick} onChange={setPicked} className="-ml-1.5 mr-auto" />
@@ -217,7 +239,6 @@ interface Notice {
   text: string;
   /** The longer explanation, on hover. */
   detail?: string;
-  action?: { label: string; onClick: () => void };
   /** Shortcuts shown as keys, e.g. ↵ send now. */
   keys?: { key: string; label: string }[];
 }
@@ -229,13 +250,14 @@ interface NoticesProps {
   target: EditTarget;
   waitsFor: ClaudeRun | null;
   steerable: boolean;
+  /** Whether there is a message in the box; how Enter sends only matters then. */
+  typing: boolean;
 }
 
-/** What to know before sending, as a tab on top of the message box: where edits go, and when the message sends. */
+/** What to know before sending, as a tab on top of the message box: what the agent can't do here, and when the message sends. */
 function Notices(props: NoticesProps) {
-  const { repoPath, viewRef, agent, target, waitsFor, steerable } = props;
+  const { repoPath, viewRef, agent, target, waitsFor, steerable, typing } = props;
   const notices: Notice[] = [];
-  const seeEdits = whereEditsShow(viewRef);
 
   if (target === 'none') {
     notices.push({
@@ -245,22 +267,11 @@ function Notices(props: NoticesProps) {
       detail: `${agent} can’t edit this code because it isn’t checked out. Check out the branch to let it edit.`,
     });
   }
-  if (target === 'working-copy') {
-    notices.push({
-      key: 'where',
-      icon: <EyeOffIcon size="xs" />,
-      text: seeEdits.allChanges ? 'Edits won’t show in this view' : 'Edits go to your working copy',
-      detail: seeEdits.allChanges
-        ? `This view shows committed changes only. ${agent}’s edits are uncommitted, so they show in All changes.`
-        : `This view compares commits. ${agent}’s edits go to your working copy, next to any changes of your own.`,
-      action: { label: seeEdits.allChanges ? 'Show all changes' : 'View uncommitted', onClick: () => goToThread(repoPath, { ref: seeEdits.ref, threadId: null }) },
-    });
-  }
   if (waitsFor) {
     const where = sameView(waitsFor.ref, viewRef) ? 'here' : `in ${runViewLabel(repoPath, waitsFor.ref ?? 'work')}`;
     notices.push({ key: 'wait', icon: <HistoryIcon size="xs" />, text: `Sends after ${waitLabel(waitsFor)} ${where}` });
   }
-  if (steerable) {
+  if (steerable && typing) {
     notices.push({
       key: 'steer',
       icon: <Spinner className="text-claude" />,
@@ -284,20 +295,11 @@ function Notices(props: NoticesProps) {
           {notice.keys?.map((item) => (
             <span key={item.key} className="flex items-center gap-1 shrink-0 text-text-muted">
               <kbd className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded border border-control-border bg-raised font-sans text-[10.5px] text-text-secondary">
-                {item.key}
+                <KeyLabel keys={item.key} size={10} />
               </kbd>
               {item.label}
             </span>
           ))}
-          {notice.action && (
-            <button
-              type="button"
-              onClick={notice.action.onClick}
-              className="shrink-0 h-6 px-2 rounded-md border border-control-border bg-raised text-text whitespace-nowrap hover:bg-control-hover cursor-pointer"
-            >
-              {notice.action.label}
-            </button>
-          )}
         </div>
       ))}
     </div>
@@ -311,23 +313,27 @@ function QuickActions(props: { viewRef: string; card: ClaudeCard | null }) {
   if (!actions || (!actions.reviewable && actions.fixCount === 0)) {
     return null;
   }
-  const chip = (value: ClaudeCard, label: string) => (
+  const chip = (value: ClaudeCard, label: string, pending = false) => (
     <button
       type="button"
       onClick={() => toggleClaudeCard(value)}
       aria-pressed={card === value}
       className={cn(
-        'h-6 px-2.5 rounded-full border text-xs cursor-pointer transition-colors',
-        card === value ? 'border-claude/50 bg-claude/12 text-claude' : 'border-control-border text-text-secondary hover:text-text hover:bg-hover',
+        'flex items-center gap-1.5 h-6 px-2.5 rounded-full border text-xs cursor-pointer transition-colors',
+        card === value && 'border-claude/60 bg-claude/16 text-claude',
+        card !== value && pending && 'border-claude/40 bg-claude/8 text-claude hover:bg-claude/14',
+        card !== value && !pending && 'border-control-border text-text-secondary hover:text-text hover:bg-hover',
       )}
     >
+      {pending && <CommentIcon size="xs" />}
       {label}
     </button>
   );
+  // Open comments are work waiting on you, so their chip stands out from the plain actions.
   return (
     <div className="flex flex-wrap gap-1.5">
+      {actions.fixCount > 0 && chip('fix', `Fix ${plural(actions.fixCount, 'open comment')}`, true)}
       {actions.reviewable && chip('review', 'Review changes')}
-      {actions.fixCount > 0 && chip('fix', `Fix ${plural(actions.fixCount, 'open comment')}`)}
     </div>
   );
 }

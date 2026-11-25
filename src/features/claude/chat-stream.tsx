@@ -18,6 +18,7 @@ import { Timeline, ToolRow, actionTitle, ago, chatTitle, formatElapsed, useNow }
 import { applyEvents, logFromMessages, projectActivities, toolCount, useRunActivity, wrapUp, type ActivityLog, type RunActivity } from './run-activity';
 import { chipLabel } from './selection-chip';
 import { describeTool } from './tool-label';
+import { KeyLabel } from '../../components/ui/key-label';
 
 /** One message you sent and the agent's reply to it, as saved. */
 interface Turn {
@@ -152,13 +153,11 @@ export function ChatStream(props: { repoPath: string; viewRef: string; chats: Ch
 
   if (entries.length === 0 && queued.length === 0) {
     return (
-      <div className="flex-1 flex flex-col justify-end gap-2 px-5 pb-6 text-[13px] leading-5">
-        <span className="font-semibold text-text">Chat about these changes</span>
-        <span className="text-text-secondary">
-          Ask where something is or why it changed, or tell {agentName} what to do. It answers, edits your code or leaves comments, depending on what you ask.
+      <div className="flex-1 flex flex-col justify-end gap-1 px-5 pb-5 text-[13px] leading-5">
+        <span className="text-text-secondary">Ask about these changes, or tell {agentName} what to change.</span>
+        <span className="text-xs text-text-muted">
+          Select lines and press <kbd className="font-sans"><KeyLabel keys={`${modKey}L`} /></kbd> to ask about them · <kbd className="font-sans">@</kbd> mentions a file
         </span>
-        <span className="text-text-muted">Select lines in the diff and press {modKey}L to ask about them.</span>
-        <span className="text-text-muted">Each view (uncommitted changes, a commit, a pull request) has its own chat. Earlier chats are in History.</span>
       </div>
     );
   }
