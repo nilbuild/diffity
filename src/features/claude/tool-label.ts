@@ -98,7 +98,8 @@ export function describeTool(tool: Pick<ToolItem, 'title' | 'toolKind'>, repoPat
     return { verb: placeholder, subject: null, subjectKind: 'text', source: null, category };
   }
 
-  const mcp = title.match(/^mcp__(.+?)__(.+)$/);
+  // Claude names MCP tools `mcp__server__tool`; Codex uses `mcp.server.tool`.
+  const mcp = title.match(/^mcp__(.+?)__(.+)$/) ?? title.match(/^mcp\.([^.\s]+)\.(\S+)$/);
   if (mcp) {
     const [, server, name] = mcp;
     const known = server === 'diffity' ? DIFFITY_TOOLS[name] : undefined;

@@ -26,6 +26,7 @@ describe('tool labels', () => {
     expect(describeTool({ title: 'setCached', toolKind: 'search' }, repo)).toMatchObject({ verb: 'Searched', subject: 'setCached' });
     expect(describeTool({ title: 'codemode', toolKind: 'other' }, repo)).toMatchObject({ verb: 'Ran a tool script' });
     expect(describeTool({ title: 'mcp__diffity__add_comment', toolKind: 'other' }, repo)).toMatchObject({ verb: 'Added a comment' });
+    expect(describeTool({ title: 'mcp.diffity.add_comment', toolKind: 'execute' }, repo)).toMatchObject({ verb: 'Added a comment', category: 'comment' });
   });
 
   it('summarizes a run of calls', () => {
