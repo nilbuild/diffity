@@ -430,6 +430,12 @@ export interface LinkedProject {
   reason: 'group' | 'mentioned';
 }
 
+/** A review, fix or guide that ran in the chat's view since your last message, with the reply it ended on. */
+export interface EarlierRun {
+  title: string;
+  summary: string;
+}
+
 export interface ContextChip {
   filePath: string;
   side?: Side;

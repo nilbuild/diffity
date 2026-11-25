@@ -136,7 +136,7 @@ async fn pi_reviews_without_changing_anything_then_edits_with_approval() {
     let sink = events.clone();
     let model = RunModel { model: Some("faux/faux-1".into()), effort: Some("low".into()) };
     s.manager
-        .send_prompt(&review, "REVIEW this".into(), vec![], None, AgentAction::Chat, model, vec![], Box::new(move |e| sink.lock().unwrap().push(e)))
+        .send_prompt(&review, "REVIEW this".into(), vec![], None, vec![], AgentAction::Chat, model, vec![], Box::new(move |e| sink.lock().unwrap().push(e)))
         .await
         .unwrap();
     let events = events.lock().unwrap().clone();
@@ -167,7 +167,9 @@ async fn pi_reviews_without_changing_anything_then_edits_with_approval() {
             &fix,
             "FIX it".into(),
             vec![],
-            None, AgentAction::Chat,
+            None,
+            vec![],
+            AgentAction::Chat,
             RunModel { model: Some("faux/faux-1".into()), effort: None },
             vec![],
             Box::new(move |e| {
@@ -203,7 +205,7 @@ async fn pi_reviews_without_changing_anything_then_edits_with_approval() {
     let sink = events.clone();
     let started = std::time::Instant::now();
     s.manager
-        .send_prompt(&ask, "SLOW please".into(), vec![], None, AgentAction::Chat, model_faux(), vec![], Box::new(move |e| sink.lock().unwrap().push(e)))
+        .send_prompt(&ask, "SLOW please".into(), vec![], None, vec![], AgentAction::Chat, model_faux(), vec![], Box::new(move |e| sink.lock().unwrap().push(e)))
         .await
         .unwrap();
     assert!(started.elapsed() < std::time::Duration::from_secs(8), "cancel stops the run");
@@ -212,7 +214,7 @@ async fn pi_reviews_without_changing_anything_then_edits_with_approval() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let sink = events.clone();
     s.manager
-        .send_prompt(&ask, "and now?".into(), vec![], None, AgentAction::Chat, model_faux(), vec![], Box::new(move |e| sink.lock().unwrap().push(e)))
+        .send_prompt(&ask, "and now?".into(), vec![], None, vec![], AgentAction::Chat, model_faux(), vec![], Box::new(move |e| sink.lock().unwrap().push(e)))
         .await
         .unwrap();
     let events = events.lock().unwrap().clone();

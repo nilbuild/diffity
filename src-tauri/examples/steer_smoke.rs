@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
     });
-    let result = tokio::time::timeout(Duration::from_secs(240), manager.send_prompt(&chat.id, text.into(), vec![], None, AgentAction::Chat, model.clone(), vec![], sink)).await;
+    let result = tokio::time::timeout(Duration::from_secs(240), manager.send_prompt(&chat.id, text.into(), vec![], None, vec![], AgentAction::Chat, model.clone(), vec![], sink)).await;
     println!("\n  [turn 1 ended: {:?}]", result.as_ref().map(|r| r.as_ref().map(|_| "ok").map_err(|e| e.message.clone())));
 
     println!("===== turn 2 (the steer, with nothing repeated)");
@@ -77,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
     let steer = "Stop that, no essay. Answer in one line: what codeword did my previous message give you, and what is the alpha secret? Don't use any tools.";
-    let _ = tokio::time::timeout(Duration::from_secs(240), manager.send_prompt(&chat.id, steer.into(), vec![], Some(SentAs::Steer), AgentAction::Chat, model, vec![], sink)).await;
+    let _ = tokio::time::timeout(Duration::from_secs(240), manager.send_prompt(&chat.id, steer.into(), vec![], Some(SentAs::Steer), vec![], AgentAction::Chat, model, vec![], sink)).await;
     let reply = reply.lock().map(|text| text.to_uppercase()).unwrap_or_default();
     manager.shutdown().await;
     println!("\n\n[remembers previous message] {}", reply.contains("PELICAN"));

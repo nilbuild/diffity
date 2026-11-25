@@ -1,5 +1,5 @@
 use crate::agents::{
-    AgentAction, AgentEvent, AgentInfo, Chat, ChatMessage, ContextChip, LinkedProject, ModelCatalog,
+    AgentAction, AgentEvent, AgentInfo, Chat, ChatMessage, ContextChip, EarlierRun, LinkedProject, ModelCatalog,
     RunModel, SentAs, StartChat,
 };
 use crate::core::AppError;
@@ -56,6 +56,7 @@ pub async fn send_prompt(
     text: String,
     context: Vec<ContextChip>,
     sent_as: Option<SentAs>,
+    earlier: Option<Vec<EarlierRun>>,
     action: AgentAction,
     model: Option<RunModel>,
     projects: Option<Vec<LinkedProject>>,
@@ -73,6 +74,7 @@ pub async fn send_prompt(
             text,
             context,
             sent_as,
+            earlier.unwrap_or_default(),
             action,
             model.unwrap_or_default(),
             projects.unwrap_or_default(),

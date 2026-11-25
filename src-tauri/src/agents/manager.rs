@@ -524,6 +524,7 @@ impl AgentManager {
         text: String,
         context: Vec<ContextChip>,
         sent_as: Option<SentAs>,
+        earlier: Vec<EarlierRun>,
         action: AgentAction,
         model: RunModel,
         projects: Vec<LinkedProject>,
@@ -591,6 +592,10 @@ impl AgentManager {
         }
         let prompt = match sent_as {
             Some(sent_as) => format!("{}\n\n{prompt}", prompts::sent_as_note(sent_as)),
+            None => prompt,
+        };
+        let prompt = match prompts::earlier_runs_note(&earlier) {
+            Some(note) => format!("{note}\n\n{prompt}"),
             None => prompt,
         };
         let prompt = match extras {

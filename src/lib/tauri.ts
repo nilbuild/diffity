@@ -1,6 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
+  EarlierRun,
   LinkedProject,
   TerminalAgent,
   TerminalStatus,
@@ -211,6 +212,7 @@ export function sendPrompt(
   text: string,
   context: ContextChip[],
   sentAs: SentAs | null,
+  earlier: EarlierRun[],
   action: AgentAction,
   model: RunModel,
   projects: LinkedProject[],
@@ -218,7 +220,7 @@ export function sendPrompt(
 ) {
   const channel = new Channel<AgentEvent>();
   channel.onmessage = onEvent;
-  return invoke<void>('send_prompt', { chatId, text, context, sentAs, action, model, projects, onEvent: channel });
+  return invoke<void>('send_prompt', { chatId, text, context, sentAs, earlier, action, model, projects, onEvent: channel });
 }
 export const cancelPrompt = (chatId: string) => invoke<void>('cancel_prompt', { chatId });
 export const respondPermission = (requestId: string, optionId: string | null, forRun = false, skipPrompts = false) =>

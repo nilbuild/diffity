@@ -74,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
     let first = "Rename the function `average` to `mean` everywhere: math.js, a.js, b.js, c.js and d.js. Edit one file at a time.";
-    let _ = tokio::time::timeout(Duration::from_secs(240), manager.send_prompt(&chat.id, first.into(), vec![], None, AgentAction::Chat, model.clone(), vec![], sink)).await;
+    let _ = tokio::time::timeout(Duration::from_secs(240), manager.send_prompt(&chat.id, first.into(), vec![], None, vec![], AgentAction::Chat, model.clone(), vec![], sink)).await;
     let mut midway = 0;
     for name in FILES {
         if has_word(&std::fs::read_to_string(repo.join(name))?, "mean") {
@@ -89,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
         AgentEvent::ToolCall { title, kind, .. } => println!("\n  [tool] {kind}: {title}"),
         _ => {}
     });
-    let _ = tokio::time::timeout(Duration::from_secs(300), manager.send_prompt(&chat.id, steer, vec![], Some(SentAs::Steer), AgentAction::Chat, model, vec![], sink)).await;
+    let _ = tokio::time::timeout(Duration::from_secs(300), manager.send_prompt(&chat.id, steer, vec![], Some(SentAs::Steer), vec![], AgentAction::Chat, model, vec![], sink)).await;
     manager.shutdown().await;
 
     let mut all = String::new();

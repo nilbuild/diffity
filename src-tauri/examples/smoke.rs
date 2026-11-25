@@ -225,7 +225,7 @@ async fn main() -> anyhow::Result<()> {
             reason: diffity_desktop_lib::agents::LinkReason::Mentioned,
         })
         .collect();
-    let run = manager.send_prompt(&chat.id, text, vec![], None, action, model, linked, sink);
+    let run = manager.send_prompt(&chat.id, text, vec![], None, vec![], action, model, linked, sink);
     let timeout = std::env::var("SMOKE_TIMEOUT").ok().and_then(|t| t.parse().ok()).unwrap_or(170);
     let outcome = tokio::time::timeout(Duration::from_secs(timeout), run).await;
     match outcome {

@@ -81,6 +81,14 @@ pub struct LinkedProject {
     pub reason: LinkReason,
 }
 
+/// A review, fix or guide that ran in the chat's view since the user's last message, with the reply it ended on.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct EarlierRun {
+    pub title: String,
+    pub summary: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextChip {

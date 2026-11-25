@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import { queryClient } from '../../lib/query-client';
 import { openComments, openSettingsAt } from '../../lib/ui-store';
-import type { AgentAction, AgentInfo, AgentMode, ContextChip, LinkedProject, SentAs, PermissionDiff, PermissionOption, RepoThread, RunModel, Thread } from '../../lib/types';
+import type { AgentAction, AgentInfo, AgentMode, ContextChip, EarlierRun, LinkedProject, SentAs, PermissionDiff, PermissionOption, RepoThread, RunModel, Thread } from '../../lib/types';
 import { refForSession } from '../../lib/api';
 import { TREE_REF } from '../../lib/types';
 import { goToGuide, goToThread, viewLabel } from '../../lib/thread-location';
@@ -41,10 +41,11 @@ export interface ClaudeRunContext {
   pick?: RunPick;
   /** A message typed in the Claude panel: it goes to the view's chat, which remembers what was said before. */
   conversation?: boolean;
-  /** Lines or files the message is about. */
   chips?: ContextChip[];
   /** Sent while the agent was still working on the conversation, which is stopped for it. */
   sentAs?: SentAs;
+  /** What ran in the view since the last message, which the chat's agent didn't see. */
+  earlier?: EarlierRun[];
 }
 
 export interface ClaudeRun {
@@ -348,7 +349,7 @@ function againAction(runId: string) {
 }
 
 /** Drops a run that has not started yet; a running one keeps going. */
-/** Changes what a queued message says; false when it has already started. */
+/** False when it has already started. */
 export function updateQueuedMessage(runId: string, text: string, chips: ContextChip[]): boolean {
   const run = useClaude.getState().runs.find((item) => item.id === runId);
   if (!run || run.state !== 'queued') {
@@ -410,7 +411,6 @@ async function cancelRunning(run: ClaudeRun) {
   await tauri.cancelPrompt(run.chatId).catch(() => undefined);
 }
 
-/** Stops a run, or drops it if it hasn't started. */
 export async function stopRun(runId: string) {
   const run = useClaude.getState().runs.find((item) => item.id === runId);
   if (!run) {
@@ -437,7 +437,6 @@ export function cancelQueuedRun(runId: string) {
   useClaude.setState((state) => ({ runs: state.runs.filter((run) => run.id !== runId || run.state !== 'queued') }));
 }
 
-/** Stops everything the project's agents are doing and drops what's queued. */
 export async function stopProject(repoPath: string) {
   const running = useClaude.getState().runs.filter((run) => run.state === 'running' && run.context.repoPath === repoPath);
   useClaude.setState((state) => ({ runs: state.runs.filter((run) => run.context.repoPath !== repoPath || run.state === 'running') }));
@@ -800,7 +799,7 @@ async function execute(run: ClaudeRun) {
   let failed: ClaudeFailure | null = null;
   let cancelled = false;
   try {
-    await tauri.sendPrompt(chat.id, run.context.text ?? '', run.context.chips ?? [], run.context.sentAs ?? null, run.action, model, projects, (event) => {
+    await tauri.sendPrompt(chat.id, run.context.text ?? '', run.context.chips ?? [], run.context.sentAs ?? null, run.context.earlier ?? [], run.action, model, projects, (event) => {
       if (event.type === 'permissionRequest') {
         const permission: ClaudePermission = {
           runId: run.id,
@@ -914,7 +913,6 @@ async function execute(run: ClaudeRun) {
   }
 }
 
-/** Opens the Claude panel on the view a reply came from. */
 function openReply(repoPath: string, ref: string | null) {
   if (ref && ref !== TREE_REF && !viewOnScreen(repoPath, ref)) {
     goToThread(repoPath, { ref, threadId: null });
@@ -1018,13 +1016,12 @@ export function useBusyThreadIds(): Set<string> {
   return new Set(runs.flatMap((run) => run.threadIds));
 }
 
-/** The project's runs that are going, oldest first. */
+/** Oldest first. */
 export function useRunningRuns(repoPath: string): ClaudeRun[] {
   const runs = useClaude((state) => state.runs);
   return useMemo(() => runs.filter((run) => run.state === 'running' && run.context.repoPath === repoPath), [runs, repoPath]);
 }
 
-/** The running run a new one in the project would wait for (see `runInTheWay`). */
 export function useRunInTheWay(repoPath: string, lane: Lane, onCheckout = true): ClaudeRun | null {
   return useClaude((state) => runInTheWay(state.runs, repoPath, lane, onCheckout));
 }

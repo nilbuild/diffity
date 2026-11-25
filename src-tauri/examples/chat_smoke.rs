@@ -183,7 +183,7 @@ async fn run_turn(manager: &Arc<AgentManager>, chat_id: &str, text: &str, chips:
         AgentEvent::Error { message, .. } => println!("\n  [error] {message}"),
         _ => {}
     });
-    let run = manager.send_prompt(chat_id, text.to_string(), chips, None, AgentAction::Chat, model, vec![], sink);
+    let run = manager.send_prompt(chat_id, text.to_string(), chips, None, vec![], AgentAction::Chat, model, vec![], sink);
     match tokio::time::timeout(Duration::from_secs(240), run).await {
         Ok(Ok(())) => {}
         Ok(Err(error)) => println!("\n  [turn error] {error}"),

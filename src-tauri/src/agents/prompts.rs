@@ -1,5 +1,5 @@
 use crate::agents::policy;
-use crate::agents::types::{AgentAction, AgentMode, ContextChip, LinkReason, LinkedProject, SentAs};
+use crate::agents::types::{AgentAction, AgentMode, ContextChip, EarlierRun, LinkReason, LinkedProject, SentAs};
 use crate::core::types::{ReviewVerdict, Side};
 
 const REVIEW: &str = include_str!("../../prompts/review.md");
@@ -299,7 +299,18 @@ fn render_chip(chip: &ContextChip) -> String {
 
 const EDITS_FROM_COMMIT: &str = "## Where your edits go\n\nThis view (`{{ref}}`) compares commits (or shows what is staged), not your working copy. Your file edits change the current code on disk and show up as uncommitted changes, not in this view; say so when you finish. The code may differ from what the view shows, so read the current file and apply the change there; line numbers in the diff and in comments refer to this view.";
 
-/// Put before a message sent while the agent was still working on the conversation, which was stopped for it.
+/// What else ran in the view since the last message (reviews, fixes), which happened outside this chat's session.
+pub fn earlier_runs_note(runs: &[EarlierRun]) -> Option<String> {
+    if runs.is_empty() {
+        return None;
+    }
+    let mut note = String::from("## Since your last reply\n\nThese also ran in this view, outside this chat. What each ended with, for context:");
+    for run in runs {
+        note.push_str(&format!("\n\n### {}\n\n{}", run.title.trim(), run.summary.trim()));
+    }
+    Some(note)
+}
+
 pub fn sent_as_note(sent_as: SentAs) -> &'static str {
     match sent_as {
         SentAs::Steer => "(I stopped your last turn to send this. Carry on with what I asked before, updated by this message; where they conflict, this message wins. Check any edits you already made.)",
@@ -632,6 +643,13 @@ mod tests {
         let section = project_instructions(&long);
         assert!(section.contains("the rest was left out"));
         assert!(section.len() < PROJECT_INSTRUCTIONS_LIMIT + 400);
+    }
+
+    #[test]
+    fn earlier_runs_note_lists_each_run_or_nothing() {
+        assert!(earlier_runs_note(&[]).is_none());
+        let note = earlier_runs_note(&[EarlierRun { title: "Review · work".into(), summary: "Found 1 must-fix.".into() }]).unwrap();
+        assert!(note.contains("### Review · work\n\nFound 1 must-fix."));
     }
 
     #[test]
