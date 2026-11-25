@@ -190,7 +190,7 @@ export function ToolRow(props: { tool: ToolItem; startedAt: number; repoPath: st
         {label.source && <span className="shrink-0 px-1.5 rounded bg-fill text-[10.5px] leading-4 text-text-muted">{label.source}</span>}
         {failed && <span className="shrink-0 px-1.5 rounded bg-deleted/12 text-[10.5px] leading-4 text-deleted">failed</span>}
       </span>
-      {tool.at && <span className="shrink-0 leading-[18px] text-[11px] text-text-muted tabular-nums">{formatElapsed(tool.at - startedAt)}</span>}
+      {tool.at && startedAt > 0 && <span className="shrink-0 leading-[18px] text-[11px] text-text-muted tabular-nums">{formatElapsed(tool.at - startedAt)}</span>}
     </>
   );
 
@@ -512,7 +512,6 @@ function useShownRun(repoPath: string, selected: string | null): ShownRun | null
   return null;
 }
 
-/** One run on its own: live while it goes, then its outcome, wrap-up and steps. */
 export function RunView(props: { repoPath: string; selected: string | null }) {
   const { repoPath, selected } = props;
   const shown = useShownRun(repoPath, selected);

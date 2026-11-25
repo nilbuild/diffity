@@ -7,20 +7,18 @@ import { goToThread } from '../../lib/thread-location';
 import { TREE_REF, type Chat, type ChatMessage, type ContextChip, type SentAs } from '../../lib/types';
 import { MarkdownContent } from '../../components/layout/markdown-content';
 import { Spinner } from '../../components/icons/spinner';
-import { AlertCircleIcon, CheckIcon, ChevronRightIcon, CommentIcon, PencilIcon, XIcon } from '../../components/ui/icon';
+import { AlertCircleIcon, ChevronRightIcon, CommentIcon, PencilIcon, XIcon } from '../../components/ui/icon';
 import { plural } from '../review/review-candidates';
-import { blockerOf, cancelQueuedRun, isCommentChat, openRunResult, stopRun, useClaude, waitLabel, type ClaudeRun } from './claude-runner';
+import { blockerOf, cancelQueuedRun, isCommentChat, openRunResult, useClaude, waitLabel, type ClaudeRun } from './claude-runner';
 import { isConversation, sameView, useConversation } from './conversation';
 import { setLastSent, useEditing } from './composer-state';
 import { useEditTarget, whereEditsShow } from './edit-target';
-import { showRunDetails } from './panel-store';
-import { Timeline, ToolRow, actionTitle, ago, chatTitle, formatElapsed, useNow } from './run-details';
+import { Timeline, ToolRow, actionTitle, useNow } from './run-details';
 import { applyEvents, logFromMessages, projectActivities, toolCount, useRunActivity, wrapUp, type ActivityLog, type RunActivity } from './run-activity';
 import { chipLabel } from './selection-chip';
 import { describeTool } from './tool-label';
 import { KeyLabel } from '../../components/ui/key-label';
 
-/** One message you sent and the agent's reply to it, as saved. */
 interface Turn {
   key: string;
   at: number;
@@ -172,6 +170,8 @@ export function ChatStream(props: { repoPath: string; viewRef: string; chats: Ch
       }}
       className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden flex flex-col gap-4 px-3.5 py-4"
     >
+      {/* Takes the free space, so a short chat sits by the message box; it shrinks to nothing once the chat scrolls. */}
+      <div aria-hidden className="flex-1 -mb-4" />
       {entries.map((entry) => {
         if (entry.kind === 'turn') {
           const copying = editing?.kind === 'copy' && editing.id === entry.key;
@@ -203,7 +203,7 @@ export function ChatStream(props: { repoPath: string; viewRef: string; chats: Ch
             />
           );
         }
-        return <RunCard key={entry.key} repoPath={repoPath} chat={entry.chat} live={entry.live} />;
+        return <RunTurn key={entry.key} repoPath={repoPath} viewRef={viewRef} chat={entry.chat} live={entry.live} editsElsewhere={editsElsewhere} />;
       })}
       {queued.map((run) => {
         const changing = editing?.kind === 'queued' && editing.id === run.id;
@@ -391,68 +391,66 @@ function SavedReply(props: SavedReplyProps) {
   );
 }
 
-/** A review, fix or other run in this view, folded to its outcome; Details opens all of it. */
-function RunCard(props: { repoPath: string; chat: Chat | null; live: RunActivity | null }) {
-  const { repoPath, chat, live } = props;
-  const running = live?.outcome === 'running';
+/** What a run was asked to do, as the message it stands for: "Review these changes · Security". */
+function requestText(chat: Chat | null, actionKind: string): string {
+  const title = chat?.title ?? '';
+  const review = title.match(/^Review(?: \((.*)\))? · /);
+  if (review || (!chat && actionKind === 'review')) {
+    return review?.[1] ? `Review these changes · ${review[1]}` : 'Review these changes';
+  }
+  if (title.startsWith('Guide · ') || (!chat && actionKind === 'guide')) {
+    return 'Write a guide';
+  }
+  if (title === 'Resolve all comments' || (!chat && actionKind === 'resolve')) {
+    return 'Answer or fix the open comments';
+  }
+  if (title === 'Address review' || (!chat && actionKind === 'reviewFeedback')) {
+    return 'Address my review';
+  }
+  return title || actionTitle(actionKind);
+}
+
+function RunTurn(props: { repoPath: string; viewRef: string; chat: Chat | null; live: RunActivity | null; editsElsewhere: boolean }) {
+  const { repoPath, viewRef, chat, live, editsElsewhere } = props;
   const { data: messages } = useQuery({
     queryKey: ['chat-messages', chat?.id],
     queryFn: () => tauri.getChatMessages(chat!.id),
     enabled: !!chat && !live,
   });
-  const log = useMemo(() => live ?? logFromMessages(messages ?? []), [live, messages]);
-  const now = useNow(running);
-  const closing = running ? null : wrapUp(log);
-  const title = chat ? chatTitle(chat, repoPath) : actionTitle(live?.actionKind ?? 'review');
-  const at = chat ? Date.parse(chat.createdAt) : live?.startedAt ?? Date.now();
-  const failed = live?.outcome === 'failed';
-  const commentIds = running ? [] : log.items.filter((item) => item.kind === 'comment').map((item) => item.id);
+  const saved = useMemo(() => (messages ? logFromMessages(messages) : null), [messages]);
+  const running = live?.outcome === 'running';
+  const commentIds = !live || running ? [] : live.items.filter((item) => item.kind === 'comment').map((item) => item.id);
   const ref = live?.ref ?? chat?.ref ?? null;
+  const reply = live ? (
+    <LiveReply repoPath={repoPath} viewRef={viewRef} live={live} editsElsewhere={editsElsewhere} />
+  ) : (
+    <SavedReply repoPath={repoPath} viewRef={viewRef} log={saved} stopped={false} editsElsewhere={editsElsewhere} />
+  );
 
   return (
-    <div className="flex flex-col gap-2 px-3 py-2.5 rounded-lg border border-border bg-bg-secondary">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="flex items-center justify-center w-4 h-4 shrink-0">
-          {running && <Spinner className="text-claude" />}
-          {!running && failed && <AlertCircleIcon size="sm" className="text-deleted" />}
-          {!running && !failed && <CheckIcon size="sm" className="text-added" />}
-        </span>
-        <span className="min-w-0 truncate font-medium text-text" title={title}>{title}</span>
-        <span className="ml-auto shrink-0 text-text-muted tabular-nums">{running ? formatElapsed(now - at) : ago(at)}</span>
-        {running && live && (
-          <button type="button" onClick={() => void stopRun(live.runId)} className="shrink-0 text-text-secondary hover:text-text hover:underline cursor-pointer">
-            Stop
-          </button>
-        )}
-        {chat && (
-          <button type="button" onClick={() => showRunDetails(chat.id)} className="shrink-0 text-text-secondary hover:text-text hover:underline cursor-pointer">
-            Details
-          </button>
-        )}
-      </div>
-      {running && live && (
-        <div className="flex flex-col gap-3 pl-6 pt-1">
-          {live.items.length === 0 && <span className="text-text-muted">{live.waiting ? WAITING_LABEL : 'Starting…'}</span>}
-          <Timeline items={live.items} running startedAt={live.startedAt} now={now} repoPath={repoPath} runRef={live.ref} />
-        </div>
-      )}
-      {closing && (
-        <div className="relative max-h-40 overflow-hidden pl-6 text-[12.5px] leading-5 text-text-secondary">
-          <MarkdownContent content={closing.text} />
-          <span className="absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-bg-secondary to-transparent pointer-events-none" />
-        </div>
-      )}
-      {commentIds.length > 0 && ref && (
-        <button
-          type="button"
-          onClick={() => openRunResult(repoPath, ref, commentIds)}
-          className="self-start flex items-center gap-1.5 ml-6 h-6 px-2 rounded-md border border-control-border bg-raised text-text hover:bg-control-hover cursor-pointer"
-        >
-          <CommentIcon size="xs" className="text-text-muted" />
-          {commentIds.length === 1 ? 'Show comment' : `Show ${commentIds.length} comments`}
-        </button>
-      )}
-    </div>
+    <ChatTurn
+      repoPath={repoPath}
+      viewRef={viewRef}
+      text={requestText(chat, live?.actionKind ?? 'review')}
+      chips={[]}
+      sentAs={null}
+      editing={null}
+      reply={
+        <>
+          {reply}
+          {commentIds.length > 0 && ref && (
+            <button
+              type="button"
+              onClick={() => openRunResult(repoPath, ref, commentIds)}
+              className="self-start flex items-center gap-1.5 h-6 px-2 rounded-md border border-control-border bg-raised text-text hover:bg-control-hover cursor-pointer"
+            >
+              <CommentIcon size="xs" className="text-text-muted" />
+              {commentIds.length === 1 ? 'Show comment' : `Show ${commentIds.length} comments`}
+            </button>
+          )}
+        </>
+      }
+    />
   );
 }
 
@@ -460,7 +458,6 @@ function queuedNote(blocker: ClaudeRun | null): string {
   return blocker ? `Queued · sends after ${waitLabel(blocker)}` : 'Queued';
 }
 
-/** What a queued run will do, in the place of a message's text. */
 function queuedTitle(run: ClaudeRun): string {
   const comments = run.threadIds.length;
   switch (run.action.kind) {
