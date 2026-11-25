@@ -16,6 +16,14 @@ describe('reviewRequest', () => {
     });
   });
 
+  it('sends an edited built-in chip’s instructions, named once', () => {
+    const security: CustomFocus = { id: '3', name: 'Security', instructions: 'Check the auth middleware.', repoPath: null, builtIn: true };
+    expect(reviewRequest(['Security'], [security, perf], '')).toEqual({
+      focus: 'Security',
+      instructions: 'Security: Check the auth middleware.',
+    });
+  });
+
   it('ignores a picked name whose focus was deleted', () => {
     expect(reviewRequest(['Gone'], [perf], '')).toEqual({ focus: undefined, instructions: undefined });
   });
@@ -32,6 +40,7 @@ describe('custom focuses', () => {
     expect(nameProblem('security', [perf], null)).toBe('A focus with this name already exists');
     expect(nameProblem('perf REVIEW', [perf], null)).toBe('A focus with this name already exists');
     expect(nameProblem('Perf review', [perf], perf.id)).toBeNull();
+    expect(nameProblem('Mine', [{ ...perf, name: 'Security', builtIn: true }], null)).toBeNull();
   });
 
   it('reads only well-formed entries', () => {
