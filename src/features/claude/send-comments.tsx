@@ -9,6 +9,7 @@ import { getRepoPath } from '../../lib/api';
 import { openSettingsAt } from '../../lib/ui-store';
 import { buttonClaudeSolid, buttonGhost } from '../../components/ui/button-styles';
 import { GitHubIcon, SendIcon, SparkleIcon } from '../../components/ui/icon';
+import { InlineMarkdown } from '../../components/comments/inline-markdown';
 import { MentionTextarea } from '../../components/comments/mention-textarea';
 import { GENERAL_THREAD_FILE_PATH, type CommentThread } from '../../components/comments/types';
 import { useReviewActions, useReviewState } from '../review/review-state';
@@ -137,7 +138,7 @@ function ThreadRow(props: { thread: CommentThread; diffRef: string | null; check
           <ThreadLink thread={thread} diffRef={diffRef} label={threadPlace(thread)} />
           {showAuthor && last && <span className="shrink-0">· {last.author.name}</span>}
         </div>
-        <p className="mt-0.5 text-[13px] leading-5 text-text line-clamp-2 break-words">{last?.body}</p>
+        <InlineMarkdown text={last?.body ?? ''} className="mt-0.5 text-[13px] leading-5 text-text line-clamp-2 break-words" />
       </div>
     </label>
   );

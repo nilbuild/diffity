@@ -6,6 +6,7 @@ import { useRepoPath } from '../../hooks/use-repo';
 import { useCurrentViewRef } from '../../hooks/use-current-view';
 import { goToThread } from '../../lib/thread-location';
 import { MarkdownContent } from '../../components/layout/markdown-content';
+import { InlineMarkdown } from '../../components/comments/inline-markdown';
 import { Spinner } from '../../components/icons/spinner';
 import { buttonClaudeSolid, buttonIcon, buttonOutline } from '../../components/ui/button-styles';
 import {
@@ -273,8 +274,8 @@ function ThoughtRow(props: { item: Extract<ActivityItem, { kind: 'thought' }>; l
           <span className="font-medium">Thinking…</span>
           <span className="ml-auto text-text-muted tabular-nums">{item.startedAt ? formatElapsed(now - item.startedAt) : null}</span>
         </div>
-        <div ref={textRef} className="max-h-48 overflow-y-auto whitespace-pre-wrap italic leading-[18px] text-text-secondary">
-          {item.text.trim()}
+        <div ref={textRef} className="max-h-48 overflow-y-auto italic leading-[18px] text-text-secondary">
+          <MarkdownContent content={item.text.trim()} />
         </div>
       </div>
     );
@@ -288,9 +289,9 @@ function ThoughtRow(props: { item: Extract<ActivityItem, { kind: 'thought' }>; l
         <span className="font-medium">{seconds ? `Thought for ${seconds}s` : 'Thought'}</span>
       </button>
       {open ? (
-        <div className="pl-4 whitespace-pre-wrap italic leading-[18px] text-text-secondary">{item.text.trim()}</div>
+        <div className="pl-4 italic leading-[18px] text-text-secondary"><MarkdownContent content={item.text.trim()} /></div>
       ) : (
-        <div className="pl-4 truncate italic text-text-muted">{firstLine(item.text)}</div>
+        <InlineMarkdown text={firstLine(item.text)} className="pl-4 truncate italic text-text-muted" />
       )}
     </div>
   );
@@ -301,16 +302,21 @@ function CommentRow(props: { item: CommentItem; repoPath: string; runRef: string
 
   return (
     <div className="flex flex-col gap-1 px-2.5 py-2 rounded-lg border border-diff-comment-gutter bg-diff-comment-bg">
-      <div className="flex items-center gap-1.5 font-medium">
-        <CommentIcon size="sm" className="text-modified" />
-        Left a comment
+      <div className="flex items-center gap-1.5 min-w-0 font-medium">
+        <CommentIcon size="sm" className="shrink-0 text-modified" />
+        <span className="shrink-0 whitespace-nowrap">Left a comment</span>
         {runRef && (
-          <button type="button" onClick={() => goToThread(repoPath, { ref: runRef, threadId: item.id })} className="ml-auto font-mono text-[11px] font-normal text-accent hover:underline cursor-pointer">
+          <button
+            type="button"
+            onClick={() => goToThread(repoPath, { ref: runRef, threadId: item.id })}
+            title={commentLabel(item)}
+            className="ml-auto min-w-0 truncate font-mono text-[11px] font-normal text-accent hover:underline cursor-pointer"
+          >
             {commentLabel(item)}
           </button>
         )}
       </div>
-      <div className="line-clamp-3 leading-[17px] text-text-secondary">{item.body}</div>
+      <InlineMarkdown text={item.body} className="line-clamp-3 leading-[17px] text-text-secondary" />
     </div>
   );
 }
@@ -703,7 +709,7 @@ function FinishedRun(props: { shown: ShownRun; repoPath: string }) {
             >
               <CommentIcon size="sm" className="shrink-0 text-modified" />
               <span className="shrink-0 font-mono text-[11px] text-accent">{commentLabel(comment)}</span>
-              <span className="truncate text-text-secondary">{firstLine(comment.body)}</span>
+              <InlineMarkdown text={firstLine(comment.body)} className="min-w-0 truncate text-text-secondary" />
             </button>
           ))}
           <button type="button" className={cn(buttonClaudeSolid, 'self-start mt-1')} onClick={() => openRunResult(repoPath, activity.ref, comments.map((item) => item.id))}>
@@ -896,7 +902,7 @@ export function ActivityPeek(props: { runId: string; onOpen: () => void }) {
                   {commentLabel(comment)}
                 </button>
               )}
-              <span className="truncate text-text-secondary">{firstLine(comment.body)}</span>
+              <InlineMarkdown text={firstLine(comment.body)} className="min-w-0 truncate text-text-secondary" />
             </div>
           ))}
         </div>
