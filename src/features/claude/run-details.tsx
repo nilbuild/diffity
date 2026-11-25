@@ -10,7 +10,6 @@ import { Spinner } from '../../components/icons/spinner';
 import { buttonClaudeSolid, buttonIcon, buttonOutline } from '../../components/ui/button-styles';
 import {
   AlertCircleIcon,
-  ArrowLeftIcon,
   CheckCircleIcon,
   CheckIcon,
   ChevronRightIcon,
@@ -27,22 +26,19 @@ import {
   SparkleIcon,
   StopIcon,
   TerminalIcon,
-  XIcon,
 } from '../../components/ui/icon';
 import type { AgentMode, Chat } from '../../lib/types';
 import { agentMeta } from './agents';
 import { runModelLabel, useModelCatalog } from './model-setting';
-import { canRunAgain, openRunResult, runAgain, runViewLabel } from './claude-runner';
+import { canRunAgain, openRunResult, runAgain, runLabel, runViewLabel, useRunningRuns } from './claude-runner';
 import { showApprovals, useWaitingApprovals } from './claude-approval-modal';
 import {
-  closeActivity,
   currentFile,
   filesRead,
+  latestActivity,
+  projectActivities,
   logFromMessages,
   modelFromMessages,
-  openActivity,
-  openActivityHistory,
-  showRun,
   toolCount,
   useRunActivity,
   wrapUp,
@@ -51,6 +47,7 @@ import {
   type RunActivity,
 } from './run-activity';
 import { describeTool, summarizeTools, type ToolLabel } from './tool-label';
+import { openClaudeHistory, openClaudePanel, showRunDetails } from './panel-store';
 import { splitShell } from './shell-label';
 import { plural } from '../review/review-candidates';
 
@@ -71,7 +68,7 @@ function formatDuration(ms: number) {
   return seconds ? `${minutes}m ${seconds}s` : `${minutes}m`;
 }
 
-function ago(at: number) {
+export function ago(at: number) {
   const minutes = Math.floor((Date.now() - at) / 60_000);
   if (minutes < 1) {
     return 'just now';
@@ -168,7 +165,7 @@ function CommandBlock(props: { command: string }) {
   );
 }
 
-function ToolRow(props: { tool: ToolItem; startedAt: number; repoPath: string; fresh: boolean }) {
+export function ToolRow(props: { tool: ToolItem; startedAt: number; repoPath: string; fresh: boolean }) {
   const { tool, startedAt, repoPath, fresh } = props;
   const [open, setOpen] = useState(false);
   const label = describeTool(tool, repoPath);
@@ -337,7 +334,7 @@ function toBlocks(items: ActivityItem[]): Block[] {
   return blocks;
 }
 
-function Timeline(props: { items: ActivityItem[]; running: boolean; startedAt: number; now: number; repoPath: string; runRef: string | null }) {
+export function Timeline(props: { items: ActivityItem[]; running: boolean; startedAt: number; now: number; repoPath: string; runRef: string | null }) {
   const { items, running, startedAt, now, repoPath, runRef } = props;
   const blocks = useMemo(() => toBlocks(items), [items]);
   const [initial] = useState(() => new Set(items.map((item) => item.id)));
@@ -394,12 +391,12 @@ function PlanCard(props: { plan: ActivityLog['plan'] }) {
 interface ShownRun {
   key: string;
   title: string | null;
-  activity: Pick<RunActivity, 'items' | 'plan' | 'agentId' | 'model' | 'actionKind' | 'startedAt' | 'endedAt' | 'outcome' | 'ref'>;
+  activity: Pick<RunActivity, 'items' | 'plan' | 'agentId' | 'model' | 'actionKind' | 'startedAt' | 'endedAt' | 'outcome' | 'ref'> & { waiting?: boolean };
   /** Comments are only tracked for runs this window watched. */
   live: RunActivity | null;
 }
 
-function actionTitle(kind: string) {
+export function actionTitle(kind: string) {
   if (kind === 'review') {
     return 'Review activity';
   }
@@ -445,7 +442,7 @@ function toMarkdown(activity: ShownRun['activity'], repoPath: string) {
 }
 
 /** Stored titles end in the raw ref ("Review · work"); show the view's name instead. */
-function chatTitle(chat: Chat, repoPath: string) {
+export function chatTitle(chat: Chat, repoPath: string) {
   const match = chat.title.match(/^(Review(?: \(.*\))?|Guide) · (.+)$/);
   if (!match) {
     return chat.title || 'Agent run';
@@ -453,7 +450,7 @@ function chatTitle(chat: Chat, repoPath: string) {
   return `${match[1]} · ${runViewLabel(repoPath, match[2])}`;
 }
 
-function useRepoChats(repoPath: string) {
+export function useRepoChats(repoPath: string) {
   return useQuery({
     queryKey: ['chats', repoPath, null],
     queryFn: () => tauri.listChats(repoPath),
@@ -461,7 +458,9 @@ function useRepoChats(repoPath: string) {
 }
 
 function useShownRun(repoPath: string, selected: string | null): ShownRun | null {
-  const live = useRunActivity((state) => state.byRepo[repoPath] ?? null);
+  const live = useRunActivity((state) =>
+    selected ? Object.values(state.byRun).find((activity) => activity.chatId === selected) ?? null : latestActivity(state.byRun, repoPath),
+  );
   const viewRef = useCurrentViewRef();
   const ref = live?.ref ?? viewRef;
   const queryClient = useQueryClient();
@@ -513,61 +512,28 @@ function useShownRun(repoPath: string, selected: string | null): ShownRun | null
   return null;
 }
 
-/** Docked beside the page: what the agent is doing (or did) for the run in this project. */
-export function ActivityPanel() {
-  const open = useRunActivity((state) => state.open);
-  if (!open) {
-    return null;
-  }
-  return <ActivityPanelBody />;
-}
-
-function ActivityPanelBody() {
-  const repoPath = useRepoPath();
-  const selected = useRunActivity((state) => state.selected);
-  const showHistory = useRunActivity((state) => state.showHistory);
+/** One run on its own: live while it goes, then its outcome, wrap-up and steps. */
+export function RunView(props: { repoPath: string; selected: string | null }) {
+  const { repoPath, selected } = props;
   const shown = useShownRun(repoPath, selected);
   const running = shown?.activity.outcome === 'running';
-  const title = showHistory ? 'Agent history' : actionTitle(shown?.activity.actionKind ?? 'review');
 
-  return (
-    <aside className="flex flex-col w-[400px] max-w-[45vw] shrink-0 h-screen bg-bg border-l border-frame-border font-sans text-xs text-text animate-slide-in-right" aria-label={title}>
-      <div data-tauri-drag-region className="flex items-center gap-1 h-[45px] shrink-0 pl-2 pr-2 bg-frame border-b border-frame-border">
-        {showHistory && shown ? (
-          <button type="button" onClick={() => showRun(selected)} className={buttonIcon} aria-label="Back to run" title="Back">
-            <ArrowLeftIcon size="sm" />
-          </button>
-        ) : (
-          <span className="flex items-center justify-center w-7 h-7">
-            <SparkleIcon size="md" className="text-claude" />
-          </span>
-        )}
-        <span className="text-[13px] font-semibold">{title}</span>
-        <span data-tauri-drag-region className="flex-1 self-stretch" />
-        {!showHistory && (
-          <button type="button" onClick={openActivityHistory} className={buttonIcon} aria-label="Past runs" title="Past runs">
-            <HistoryIcon size="sm" />
-          </button>
-        )}
-        <button type="button" onClick={closeActivity} className={buttonIcon} aria-label="Close activity" title="Close">
-          <XIcon size="sm" />
+  if (!shown) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8 text-center text-[13px] leading-5 text-text-muted">
+        Open a diff to chat with an agent about it. Past runs are in History.
+        <button type="button" onClick={openClaudeHistory} className={buttonOutline}>
+          <HistoryIcon size="sm" />
+          History
         </button>
       </div>
-
-      {showHistory && <HistoryList repoPath={repoPath} currentKey={shown?.key ?? null} />}
-      {!showHistory && !shown && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 px-8 text-center text-[13px] leading-5 text-text-muted">
-          Ask an agent to review and you can follow what it reads and thinks here.
-          <button type="button" onClick={openActivityHistory} className={buttonOutline}>
-            <HistoryIcon size="sm" />
-            Past runs
-          </button>
-        </div>
-      )}
-      {!showHistory && shown && <RunModelLine agentId={shown.activity.agentId} model={shown.activity.model} />}
-      {!showHistory && shown && running && <LiveRun key={shown.key} shown={shown} repoPath={repoPath} />}
-      {!showHistory && shown && !running && <FinishedRun key={shown.key} shown={shown} repoPath={repoPath} />}
-    </aside>
+    );
+  }
+  return (
+    <>
+      <RunModelLine agentId={shown.activity.agentId} model={shown.activity.model} />
+      {running ? <LiveRun key={shown.key} shown={shown} repoPath={repoPath} /> : <FinishedRun key={shown.key} shown={shown} repoPath={repoPath} />}
+    </>
   );
 }
 
@@ -599,7 +565,7 @@ function LiveRun(props: { shown: ShownRun; repoPath: string }) {
         {activity.items.length === 0 && (
           <div className="flex items-center gap-2 text-text-muted">
             <Spinner className="text-claude" />
-            Starting…
+            {activity.waiting ? 'Waiting for the run in another window on this project to finish…' : 'Starting…'}
           </div>
         )}
         <Timeline items={activity.items} running startedAt={activity.startedAt} now={now} repoPath={repoPath} runRef={activity.ref} />
@@ -650,7 +616,7 @@ function RunModelLine(props: { agentId: string; model: RunActivity['model'] }) {
   );
 }
 
-function OutcomeIcon(props: { outcome: RunActivity['outcome'] }) {
+export function OutcomeIcon(props: { outcome: RunActivity['outcome'] }) {
   const { outcome } = props;
   if (outcome === 'failed') {
     return (
@@ -778,11 +744,15 @@ const MODE_ICONS: Record<AgentMode, typeof EyeIcon> = {
   ask: CommentIcon,
 };
 
-function HistoryList(props: { repoPath: string; currentKey: string | null }) {
+export function HistoryList(props: { repoPath: string; currentKey: string | null }) {
   const { repoPath, currentKey } = props;
   const { data: chats, isLoading } = useRepoChats(repoPath);
-  const live = useRunActivity((state) => state.byRepo[repoPath] ?? null);
-  const liveRunning = live?.outcome === 'running' ? live.chatId : null;
+  const running = useRunActivity((state) =>
+    projectActivities(state.byRun, repoPath)
+      .filter((activity) => activity.outcome === 'running')
+      .map((activity) => activity.chatId)
+      .join(' '),
+  );
 
   if (isLoading) {
     return <div className="flex-1 flex items-center justify-center"><Spinner className="text-text-muted" /></div>;
@@ -812,7 +782,14 @@ function HistoryList(props: { repoPath: string; currentKey: string | null }) {
         <Fragment key={group.day}>
           <div className="px-2 pt-2 pb-1 text-[11px] font-medium text-text-muted">{group.day}</div>
           {group.chats.map((chat) => (
-            <HistoryRow key={chat.id} chat={chat} title={chatTitle(chat, repoPath)} current={chat.id === currentKey} running={chat.id === liveRunning} />
+            <HistoryRow
+              key={chat.id}
+              chat={chat}
+              title={chatTitle(chat, repoPath)}
+              view={chat.ref ? runViewLabel(repoPath, chat.ref) : null}
+              current={chat.id === currentKey}
+              running={running.split(' ').includes(chat.id)}
+            />
           ))}
         </Fragment>
       ))}
@@ -834,9 +811,9 @@ function dayLabel(at: number) {
   return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-function HistoryRow(props: { chat: Chat; title: string; current: boolean; running: boolean }) {
-  const { chat, title, current, running } = props;
-  const Icon = MODE_ICONS[chat.mode] ?? SparkleIcon;
+function HistoryRow(props: { chat: Chat; title: string; view: string | null; current: boolean; running: boolean }) {
+  const { chat, title, view, current, running } = props;
+  const Icon = chat.kind === 'conversation' ? CommentIcon : MODE_ICONS[chat.mode] ?? SparkleIcon;
   const startedAt = Date.parse(chat.createdAt);
   const took = Date.parse(chat.updatedAt) - startedAt;
   const time = new Date(startedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -844,7 +821,7 @@ function HistoryRow(props: { chat: Chat; title: string; current: boolean; runnin
   return (
     <button
       type="button"
-      onClick={() => showRun(chat.id)}
+      onClick={() => showRunDetails(chat.id)}
       className={cn('flex items-start gap-2.5 w-full px-2 py-2 rounded-md text-left cursor-pointer', current ? 'bg-selected' : 'hover:bg-hover')}
     >
       <span className="flex items-center justify-center w-4 h-[18px] shrink-0 text-text-muted">
@@ -853,7 +830,7 @@ function HistoryRow(props: { chat: Chat; title: string; current: boolean; runnin
       <span className="flex-1 min-w-0 flex flex-col gap-0.5">
         <span className="truncate leading-[18px] text-text">{title}</span>
         <span className="truncate text-text-muted">
-          {agentMeta(chat.agentId).short} · {time}{running ? ' · running' : took >= 1000 ? ` · ${formatDuration(took)}` : ''}
+          {agentMeta(chat.agentId).short}{view && !title.includes(view) ? ` · ${view}` : ''} · {time}{running ? ' · running' : took >= 1000 ? ` · ${formatDuration(took)}` : ''}
         </span>
       </span>
     </button>
@@ -861,10 +838,10 @@ function HistoryRow(props: { chat: Chat; title: string; current: boolean; runnin
 }
 
 /** Hover card on the status pill: model, progress, the latest step and the comments so far. */
-export function ActivityPeek(props: { onOpen: () => void }) {
-  const { onOpen } = props;
+export function ActivityPeek(props: { runId: string; onOpen: () => void }) {
+  const { runId, onOpen } = props;
   const repoPath = useRepoPath();
-  const activity = useRunActivity((state) => state.byRepo[repoPath] ?? null);
+  const activity = useRunActivity((state) => state.byRun[runId] ?? null);
   const { data: catalog } = useModelCatalog(activity?.agentId ?? 'claude');
   if (!activity) {
     return null;
@@ -928,12 +905,12 @@ export function ActivityPeek(props: { onOpen: () => void }) {
       <button
         type="button"
         onClick={() => {
-          openActivity();
+          openClaudePanel();
           onOpen();
         }}
         className="flex items-center h-9 px-3.5 border-t border-border-muted font-medium text-left hover:bg-hover cursor-pointer"
       >
-        Open activity panel
+        Open the panel
       </button>
     </div>
   );
@@ -943,14 +920,50 @@ export function ActivityPeek(props: { onOpen: () => void }) {
 export function AgentReadingDot(props: { path: string }) {
   const { path } = props;
   const repoPath = useRepoPath();
-  const reading = useRunActivity((state) => {
-    const activity = state.byRepo[repoPath];
-    return !!activity && activity.outcome === 'running' && currentFile(activity, repoPath) === path;
-  });
-  if (!reading) {
+  const reader = useRunActivity((state) =>
+    projectActivities(state.byRun, repoPath).find((activity) => activity.outcome === 'running' && currentFile(activity, repoPath) === path)?.agentId ?? null,
+  );
+  if (!reader) {
     return null;
   }
-  const name = agentMeta(useRunActivity.getState().byRepo[repoPath]?.agentId ?? 'claude').short;
+  const name = agentMeta(reader).short;
   return <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-claude animate-pulse" title={`${name} is reading this file`} aria-label={`${name} is reading this file`} />;
 }
 
+/** Hover card on the status pill when several runs go in the project: each, where it is, and a way there. */
+export function RunningList(props: { repoPath: string; onPick: () => void }) {
+  const { repoPath, onPick } = props;
+  const runs = useRunningRuns(repoPath);
+  const now = useNow(runs.length > 0);
+
+  return (
+    <div className="flex flex-col py-1.5 text-xs">
+      {runs.map((run) => {
+        const name = agentMeta(run.agentId ?? 'claude').short;
+        return (
+          <div key={run.id} className="flex items-center gap-2 min-w-0 px-3.5 py-1.5">
+            <Spinner className="text-claude shrink-0" />
+            <span className="min-w-0 flex-1 truncate">
+              <span className="font-medium">{runLabel(run.action, name, !!run.context.conversation)}</span>
+              {run.ref && <span className="text-text-secondary"> · {runViewLabel(repoPath, run.ref)}</span>}
+            </span>
+            {run.startedAt && <span className="shrink-0 text-text-muted tabular-nums">{formatElapsed(now - run.startedAt)}</span>}
+            {run.ref && (
+              <button
+                type="button"
+                onClick={() => {
+                  goToThread(repoPath, { ref: run.ref!, threadId: null });
+                  openClaudePanel();
+                  onPick();
+                }}
+                className="shrink-0 text-text-secondary hover:text-text hover:underline cursor-pointer"
+              >
+                Go there
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

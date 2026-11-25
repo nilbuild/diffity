@@ -2,7 +2,8 @@ import { cn } from '../../lib/cn';
 import { useRepoPath } from '../../hooks/use-repo';
 import { buttonGhost } from '../../components/ui/button-styles';
 import { Spinner } from '../../components/icons/spinner';
-import { openActivity, useRunActivity, type ActivityItem } from '../claude/run-activity';
+import { latestActivity, useRunActivity, type ActivityItem } from '../claude/run-activity';
+import { openClaudePanel } from '../claude/panel-store';
 import { useSetupLog, useTaskForPath, useTaskStatus } from './tasks';
 
 function fileName(path: string): string {
@@ -43,7 +44,7 @@ export function TaskRunBar() {
   const repoPath = useRepoPath();
   const task = useTaskForPath(repoPath);
   const status = useTaskStatus(task);
-  const activity = useRunActivity((state) => state.byRepo[repoPath] ?? null);
+  const activity = useRunActivity((state) => latestActivity(state.byRun, repoPath));
   const setupLine = useSetupLog((state) => (task ? state.lines[task.id] : undefined));
 
   if (!task || (status !== 'working' && status !== 'queued' && status !== 'settingUp' && status !== 'needsYou')) {
@@ -71,7 +72,7 @@ export function TaskRunBar() {
       {detail && <span className="shrink-0 text-text-muted">{detail}</span>}
       <span className="flex-1" />
       {status === 'working' && (
-        <button onClick={openActivity} className={cn(buttonGhost, 'h-6 px-2 text-xs shrink-0')}>
+        <button onClick={openClaudePanel} className={cn(buttonGhost, 'h-6 px-2 text-xs shrink-0')}>
           Activity
         </button>
       )}

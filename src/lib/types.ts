@@ -451,12 +451,19 @@ export type AgentAction =
   /** Address every thread of a submitted review + its summary. Requires a chat in `resolve` mode. */
   | { kind: 'reviewFeedback'; reviewId: string };
 
+/** A conversation is a chat typed in the agent panel, turn after turn; a run is one review, fix or guide. */
+export type ChatKind = 'run' | 'conversation';
+
+/** How a message reached a conversation the agent was still working on: to steer it, or as an edit of that message. */
+export type SentAs = 'steer' | 'edit';
+
 export interface StartChat {
   repoPath: string;
   agentId: string;
   mode: AgentMode;
   sessionId: string;
   title?: string;
+  kind?: ChatKind;
 }
 
 export interface Chat {
@@ -467,6 +474,9 @@ export interface Chat {
   title: string;
   createdAt: string;
   updatedAt: string;
+  /** The view the chat belongs to. */
+  ref?: string | null;
+  kind: ChatKind;
 }
 
 export interface PlanEntry {
@@ -494,13 +504,16 @@ export type AgentEvent =
   | { type: 'plan'; entries: PlanEntry[] }
   | { type: 'permissionRequest'; requestId: string; title: string; options: PermissionOption[]; diff?: PermissionDiff }
   | { type: 'done'; stopReason: string }
-  | { type: 'error'; code?: string; message: string };
+  | { type: 'error'; code?: string; message: string }
+  /** Another turn holds the project's working tree (from another window); this one starts after it. */
+  | { type: 'waiting' };
 
 export interface UserMessageContent {
   text: string;
   context: ContextChip[];
   /** Model and effort the turn ran with; absent on chats saved before it was recorded. */
   model?: RunModel;
+  sentAs?: SentAs;
 }
 
 export interface ChatMessage {

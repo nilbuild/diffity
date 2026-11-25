@@ -21,6 +21,8 @@ interface MentionTextareaProps {
   autoFocus?: boolean;
   id?: string;
   spellCheck?: boolean;
+  /** Open the suggestions above the box, for a box at the bottom of the window. */
+  menuAbove?: boolean;
 }
 
 interface MentionQuery {
@@ -105,7 +107,7 @@ function suggestionsFor(
 }
 
 export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaProps>(function MentionTextarea(props, ref) {
-  const { value, onChange, onKeyDown, placeholder, rows, className, autoFocus, id, spellCheck } = props;
+  const { value, onChange, onKeyDown, placeholder, rows, className, autoFocus, id, spellCheck, menuAbove } = props;
   const innerRef = useRef<HTMLTextAreaElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState<MentionQuery | null>(null);
@@ -220,7 +222,7 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaPr
         className={cn(className, 'relative bg-transparent')}
       />
       {suggestions.length > 0 && (
-        <div role="listbox" aria-label="Mention" className="absolute left-2 top-full -mt-1 z-30 w-72 py-1 bg-overlay rounded-lg ring-1 ring-overlay-border">
+        <div role="listbox" aria-label="Mention" className={cn('absolute left-2 z-30 w-72 py-1 bg-overlay rounded-lg ring-1 ring-overlay-border', menuAbove ? 'bottom-full mb-1' : 'top-full -mt-1')}>
           {suggestions.map((item, index) => (
             <SuggestionRow
               key={item.key}

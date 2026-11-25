@@ -451,6 +451,7 @@ const handlers: Record<string, (args: Args) => unknown> = {
   watch_repo: () => null,
   unwatch_repo: () => null,
   resolve_ref: (args) => diffFor(String(args.ref)).resolved,
+  ref_in_checkout: () => true,
   get_diff: (args) => (largeFixture ? largeFixture.then((fixture) => fixture.diff) : diffFor(String(args.ref))),
   get_file_patch: (args) => (largeFixture ? largeFixture.then((fixture) => fixture.patches?.[String(args.path)] ?? '') : ''),
   diff_fingerprint: (args) => (largeFixture ? largeFixture.then((fixture) => fixture.diff.fingerprint) : diffFor(String(args.ref)).fingerprint),

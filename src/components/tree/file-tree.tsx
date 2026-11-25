@@ -12,7 +12,7 @@ import {
 } from '../../lib/file-tree';
 import { ChangedSinceViewedDot, CommentCount, FileTreeRow, StatusLetter, TreeItemMenu } from './file-tree-item';
 import { getFilePath } from '../../lib/diff-utils';
-import { AgentReadingDot } from '../../features/claude/activity-panel';
+import { AgentReadingDot } from '../../features/claude/run-details';
 import { cn } from '../../lib/cn';
 import { readViewState, useRestoredScroll, useViewState } from '../../lib/view-state';
 

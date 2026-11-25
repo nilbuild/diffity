@@ -13,7 +13,7 @@ import { MarkdownContent } from '../../components/layout/markdown-content';
 import { Spinner } from '../../components/icons/spinner';
 import { buttonClaude, buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 import { DiffStatBar } from '../../components/ui/diff-stat-bar';
-import { requestAskClaude } from '../claude/ask-claude-review';
+import { requestAskClaude } from '../claude/review-form';
 import { agentMeta } from '../claude/agents';
 import { useRunPick } from '../claude/model-setting';
 import { useCopy } from '../../hooks/use-copy';

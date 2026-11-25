@@ -1,6 +1,6 @@
 use crate::agents::{
     AgentAction, AgentEvent, AgentInfo, Chat, ChatMessage, ContextChip, LinkedProject, ModelCatalog,
-    RunModel, StartChat,
+    RunModel, SentAs, StartChat,
 };
 use crate::core::AppError;
 use tauri::ipc::Channel;
@@ -55,6 +55,7 @@ pub async fn send_prompt(
     chat_id: String,
     text: String,
     context: Vec<ContextChip>,
+    sent_as: Option<SentAs>,
     action: AgentAction,
     model: Option<RunModel>,
     projects: Option<Vec<LinkedProject>>,
@@ -71,6 +72,7 @@ pub async fn send_prompt(
             &chat_id,
             text,
             context,
+            sent_as,
             action,
             model.unwrap_or_default(),
             projects.unwrap_or_default(),

@@ -367,7 +367,22 @@ fn migrate_v10(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-const SCHEMA_VERSION: i64 = 10;
+/// `kind`: `conversation` for chats typed in the agent panel, `run` for reviews, fixes and other one-off runs.
+fn migrate_v11(conn: &Connection) -> Result<()> {
+    let has_table = conn.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'chats'")?.exists([])?;
+    if !has_table {
+        return Ok(());
+    }
+    let has_column = conn
+        .prepare("SELECT 1 FROM pragma_table_info('chats') WHERE name = 'kind'")?
+        .exists([])?;
+    if !has_column {
+        conn.execute_batch("ALTER TABLE chats ADD COLUMN kind TEXT NOT NULL DEFAULT 'run';")?;
+    }
+    Ok(())
+}
+
+const SCHEMA_VERSION: i64 = 11;
 
 pub struct Store {
     conn: Mutex<Connection>,
@@ -435,6 +450,9 @@ impl Store {
             }
             if version < 10 {
                 migrate_v10(conn)?;
+            }
+            if version < 11 {
+                migrate_v11(conn)?;
             }
             conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
             Ok(())

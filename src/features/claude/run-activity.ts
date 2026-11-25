@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AgentEvent, ChatMessage, PlanEntry, RunModel } from '../../lib/types';
+import type { AgentEvent, ChatMessage, ContextChip, PlanEntry, RunModel, SentAs } from '../../lib/types';
 
 export type ActivityItem =
   | { kind: 'thought'; id: string; text: string; startedAt: number | null; endedAt: number | null }
@@ -14,7 +14,7 @@ export interface ActivityLog {
 
 export type RunOutcome = 'running' | 'done' | 'stopped' | 'failed';
 
-/** What an agent run did, kept per project after the run ends so the panel can still show it. */
+/** What an agent run did, kept for a while after it ends so the panel can still show it. */
 export interface RunActivity extends ActivityLog {
   runId: string;
   chatId: string | null;
@@ -26,38 +26,33 @@ export interface RunActivity extends ActivityLog {
   startedAt: number;
   endedAt: number | null;
   outcome: RunOutcome;
+  /** Held back by a run in the same project from another window. */
+  waiting: boolean;
+  /** What was typed, for a message sent from the Claude panel. */
+  prompt: { text: string; chips: ContextChip[]; sentAs: SentAs | null } | null;
 }
 
 interface ActivityState {
-  byRepo: Record<string, RunActivity>;
-  open: boolean;
-  /** The past run picked from history; null follows the current or latest run. */
-  selected: string | null;
-  showHistory: boolean;
+  byRun: Record<string, RunActivity>;
 }
 
-export const useRunActivity = create<ActivityState>(() => ({ byRepo: {}, open: false, selected: null, showHistory: false }));
+/** What agent runs are doing and recently did, by run. Several can run in a project at once (reviews beside an edit). */
+export const useRunActivity = create<ActivityState>(() => ({ byRun: {} }));
 
-export function openActivity() {
-  flushActivity();
-  useRunActivity.setState({ open: true, selected: null, showHistory: false });
+/** Finished runs kept for the panel, besides the ones still running. */
+const KEEP_FINISHED = 20;
+
+/** A project's runs, newest first; with `inView`, only those in the views it accepts. */
+export function projectActivities(byRun: Record<string, RunActivity>, repoPath: string, inView?: (ref: string | null) => boolean): RunActivity[] {
+  return Object.values(byRun)
+    .filter((activity) => activity.repoPath === repoPath && (!inView || inView(activity.ref)))
+    .sort((a, b) => b.startedAt - a.startedAt);
 }
 
-export function openActivityHistory() {
-  useRunActivity.setState({ open: true, showHistory: true });
-}
-
-export function showRun(chatId: string | null) {
-  useRunActivity.setState({ selected: chatId, showHistory: false });
-}
-
-export function closeActivity() {
-  useRunActivity.setState({ open: false });
-}
-
-export function toggleActivity() {
-  flushActivity();
-  useRunActivity.setState((state) => (state.open ? { open: false } : { open: true, selected: null, showHistory: false }));
+/** The project's latest run, running ones first. */
+export function latestActivity(byRun: Record<string, RunActivity>, repoPath: string): RunActivity | null {
+  const all = projectActivities(byRun, repoPath);
+  return all.find((activity) => activity.outcome === 'running') ?? all[0] ?? null;
 }
 
 /** Folds events into the log: streamed thought and text chunks join the item before them, tool updates patch their call. */
@@ -226,17 +221,17 @@ export function wrapUp(log: ActivityLog): { text: string; index: number } | null
   return null;
 }
 
-function patch(repoPath: string, runId: string, change: (activity: RunActivity) => RunActivity) {
+function patch(runId: string, change: (activity: RunActivity) => RunActivity) {
   useRunActivity.setState((state) => {
-    const activity = state.byRepo[repoPath];
-    if (!activity || activity.runId !== runId) {
+    const activity = state.byRun[runId];
+    if (!activity) {
       return state;
     }
-    return { byRepo: { ...state.byRepo, [repoPath]: change(activity) } };
+    return { byRun: { ...state.byRun, [runId]: change(activity) } };
   });
 }
 
-const buffers = new Map<string, { repoPath: string; events: AgentEvent[] }>();
+const buffers = new Map<string, AgentEvent[]>();
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Applies buffered events; thought chunks arrive many times a second, so the store changes at most every 100ms. */
@@ -246,36 +241,47 @@ export function flushActivity() {
     flushTimer = null;
   }
   const now = Date.now();
-  for (const [runId, buffer] of buffers) {
-    patch(buffer.repoPath, runId, (activity) => ({ ...activity, ...applyEvents(activity, buffer.events, now) }));
+  for (const [runId, events] of buffers) {
+    patch(runId, (activity) => ({ ...activity, ...applyEvents(activity, events, now), waiting: false }));
   }
   buffers.clear();
 }
 
-export function startActivity(activity: Omit<RunActivity, 'items' | 'plan' | 'endedAt' | 'outcome'>) {
-  useRunActivity.setState((state) => ({
-    byRepo: { ...state.byRepo, [activity.repoPath]: { ...activity, items: [], plan: [], endedAt: null, outcome: 'running' } },
-  }));
+export function startActivity(activity: Omit<RunActivity, 'items' | 'plan' | 'endedAt' | 'outcome' | 'waiting'>) {
+  useRunActivity.setState((state) => {
+    const dropped = Object.values(state.byRun)
+      .filter((item) => item.outcome !== 'running')
+      .sort((a, b) => b.startedAt - a.startedAt)
+      .slice(KEEP_FINISHED);
+    const byRun = { ...state.byRun };
+    for (const old of dropped) {
+      delete byRun[old.runId];
+    }
+    byRun[activity.runId] = { ...activity, items: [], plan: [], endedAt: null, outcome: 'running', waiting: false };
+    return { byRun };
+  });
 }
 
-export function recordEvent(repoPath: string, runId: string, event: AgentEvent) {
-  const buffer = buffers.get(runId) ?? { repoPath, events: [] };
-  buffer.events.push(event);
-  buffers.set(runId, buffer);
+export function recordEvent(runId: string, event: AgentEvent) {
+  if (event.type === 'waiting') {
+    patch(runId, (activity) => ({ ...activity, waiting: true }));
+    return;
+  }
+  buffers.set(runId, [...(buffers.get(runId) ?? []), event]);
   flushTimer ??= setTimeout(flushActivity, 100);
 }
 
-export function recordComments(repoPath: string, runId: string, comments: Extract<ActivityItem, { kind: 'comment' }>[]) {
+export function recordComments(runId: string, comments: Extract<ActivityItem, { kind: 'comment' }>[]) {
   flushActivity();
-  patch(repoPath, runId, (activity) => {
+  patch(runId, (activity) => {
     const known = new Set(activity.items.filter((item) => item.kind === 'comment').map((item) => item.id));
     const fresh = comments.filter((comment) => !known.has(comment.id));
     return fresh.length > 0 ? { ...activity, items: [...activity.items, ...fresh] } : activity;
   });
 }
 
-export function finishActivity(repoPath: string, runId: string, outcome: Exclude<RunOutcome, 'running'>) {
+export function finishActivity(runId: string, outcome: Exclude<RunOutcome, 'running'>) {
   flushActivity();
   const now = Date.now();
-  patch(repoPath, runId, (activity) => ({ ...activity, ...applyEvents(activity, [{ type: 'done', stopReason: outcome }], now), endedAt: now, outcome }));
+  patch(runId, (activity) => ({ ...activity, ...applyEvents(activity, [{ type: 'done', stopReason: outcome }], now), endedAt: now, outcome }));
 }

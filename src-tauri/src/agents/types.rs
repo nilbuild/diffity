@@ -162,6 +162,24 @@ impl AgentAction {
     }
 }
 
+/// A conversation is a chat you type in, turn after turn; a run is one review, fix or guide.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ChatKind {
+    #[default]
+    Run,
+    Conversation,
+}
+
+/// How a message reached a conversation the agent was still working on: sent to steer it, or an edited version of
+/// the message it was working on. The agent is told it was stopped for it; the saved text stays what was typed.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SentAs {
+    Steer,
+    Edit,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct StartChat {
@@ -171,6 +189,8 @@ pub struct StartChat {
     pub session_id: String,
     #[serde(default)]
     pub title: Option<String>,
+    #[serde(default)]
+    pub kind: ChatKind,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -183,6 +203,11 @@ pub struct Chat {
     pub title: String,
     pub created_at: String,
     pub updated_at: String,
+    /// The view the chat's review session belongs to, when it has one.
+    #[serde(rename = "ref", default, skip_serializing_if = "Option::is_none")]
+    pub r#ref: Option<String>,
+    #[serde(default)]
+    pub kind: ChatKind,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -257,6 +282,8 @@ pub enum AgentEvent {
         code: String,
         message: String,
     },
+    /// The project's working tree is busy with another turn (started in another window); this one starts after it.
+    Waiting,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -274,6 +301,8 @@ pub struct UserMessageContent {
     /// Model and effort the turn ran with; absent on chats saved before it was recorded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<RunModel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sent_as: Option<SentAs>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

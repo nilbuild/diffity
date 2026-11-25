@@ -23,7 +23,7 @@ import type { ThreadSnapshot } from '../../lib/types';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog';
 import { Skeleton, useRevealClass } from '../../components/ui/skeleton';
 import { changeThreadStatus, deletedToast, deleteThreadWithUndo } from '../../hooks/use-comment-actions';
-import { enqueueClaude, useThreadActivity, useThreadRunAgent } from '../claude/claude-runner';
+import { enqueueClaude, useThreadActivity, useThreadRunLabel } from '../claude/claude-runner';
 import { agentByName, agentMeta } from '../claude/agents';
 import { useRunPick } from '../claude/model-setting';
 import { useReviewThreads } from '../../hooks/use-review-threads';
@@ -181,8 +181,7 @@ function ThreadRow(props: ThreadRowProps) {
   const repoPath = useRepoPath();
   const fixPick = useRunPick('fix', repoPath);
   const repoAgent = agentMeta(fixPick.agent);
-  const runAgentId = useThreadRunAgent(thread.id);
-  const runAgentName = runAgentId ? agentMeta(runAgentId).short : null;
+  const runLabel = useThreadRunLabel(thread.id);
   const canAskClaude = isOpen && !thread.unassigned && !thread.pending && thread.anchor !== 'current' && thread.anchor !== 'unknown' && activity === 'idle';
   const open = () => {
     if (thread.anchor === 'current' && !thread.unassigned) {
@@ -295,7 +294,7 @@ function ThreadRow(props: ThreadRowProps) {
         {activity !== 'idle' && (
           <div className="flex items-center gap-1.5 mt-1 text-xs text-text-muted">
             <SparkleIcon className="w-3 h-3 text-claude" />
-            {activity === 'working' ? `${runAgentName ?? 'Agent'} is working…` : runAgentName ? `Queued for ${runAgentName}` : 'Queued'}
+            {runLabel}
           </div>
         )}
         {thread.unassigned && <UnassignedHint thread={thread} keeping={keeping} onKeep={keep} />}

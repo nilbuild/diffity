@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use common::Repo;
-use diffity_desktop_lib::agents::{AgentAction, AgentEvent, AgentManager, AgentMode, RunModel, StartChat};
+use diffity_desktop_lib::agents::{AgentAction, AgentEvent, AgentManager, AgentMode, ChatKind, RunModel, StartChat};
 use diffity_desktop_lib::core::Store;
 use tokio::sync::mpsc;
 
@@ -99,6 +99,7 @@ async fn chat(s: &Setup, mode: AgentMode) -> String {
             mode,
             session_id: session.id,
             title: None,
+            kind: ChatKind::Run,
         })
         .await
         .unwrap();
@@ -135,7 +136,7 @@ async fn pi_reviews_without_changing_anything_then_edits_with_approval() {
     let sink = events.clone();
     let model = RunModel { model: Some("faux/faux-1".into()), effort: Some("low".into()) };
     s.manager
-        .send_prompt(&review, "REVIEW this".into(), vec![], AgentAction::Chat, model, vec![], Box::new(move |e| sink.lock().unwrap().push(e)))
+        .send_prompt(&review, "REVIEW this".into(), vec![], None, AgentAction::Chat, model, vec![], Box::new(move |e| sink.lock().unwrap().push(e)))
         .await
         .unwrap();
     let events = events.lock().unwrap().clone();
@@ -166,7 +167,7 @@ async fn pi_reviews_without_changing_anything_then_edits_with_approval() {
             &fix,
             "FIX it".into(),
             vec![],
-            AgentAction::Chat,
+            None, AgentAction::Chat,
             RunModel { model: Some("faux/faux-1".into()), effort: None },
             vec![],
             Box::new(move |e| {
@@ -202,7 +203,7 @@ async fn pi_reviews_without_changing_anything_then_edits_with_approval() {
     let sink = events.clone();
     let started = std::time::Instant::now();
     s.manager
-        .send_prompt(&ask, "SLOW please".into(), vec![], AgentAction::Chat, model_faux(), vec![], Box::new(move |e| sink.lock().unwrap().push(e)))
+        .send_prompt(&ask, "SLOW please".into(), vec![], None, AgentAction::Chat, model_faux(), vec![], Box::new(move |e| sink.lock().unwrap().push(e)))
         .await
         .unwrap();
     assert!(started.elapsed() < std::time::Duration::from_secs(8), "cancel stops the run");
@@ -211,7 +212,7 @@ async fn pi_reviews_without_changing_anything_then_edits_with_approval() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let sink = events.clone();
     s.manager
-        .send_prompt(&ask, "and now?".into(), vec![], AgentAction::Chat, model_faux(), vec![], Box::new(move |e| sink.lock().unwrap().push(e)))
+        .send_prompt(&ask, "and now?".into(), vec![], None, AgentAction::Chat, model_faux(), vec![], Box::new(move |e| sink.lock().unwrap().push(e)))
         .await
         .unwrap();
     let events = events.lock().unwrap().clone();

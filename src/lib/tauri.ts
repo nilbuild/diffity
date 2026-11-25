@@ -22,6 +22,7 @@ import type {
   ChatMessage,
   Commit,
   ContextChip,
+  SentAs,
   ModelCatalog,
   ProjectData,
   RunModel,
@@ -133,6 +134,7 @@ export const setSetting = (key: string, value: string) => invoke<void>('set_sett
 
 // diff
 export const resolveRef = (repoPath: string, ref: string) => invoke<ResolvedRef>('resolve_ref', { repoPath, ref });
+export const refInCheckout = (repoPath: string, ref: string) => invoke<boolean>('ref_in_checkout', { repoPath, ref });
 export const getDiff = (repoPath: string, ref: string, ignoreWhitespace: boolean, showIgnored = false) =>
   invoke<DiffResult>('get_diff', { repoPath, ref, ignoreWhitespace, showIgnored });
 export const getDiffIgnoreRules = (repoPath: string) => invoke<string>('get_diff_ignore_rules', { repoPath });
@@ -207,6 +209,7 @@ export function sendPrompt(
   chatId: string,
   text: string,
   context: ContextChip[],
+  sentAs: SentAs | null,
   action: AgentAction,
   model: RunModel,
   projects: LinkedProject[],
@@ -214,7 +217,7 @@ export function sendPrompt(
 ) {
   const channel = new Channel<AgentEvent>();
   channel.onmessage = onEvent;
-  return invoke<void>('send_prompt', { chatId, text, context, action, model, projects, onEvent: channel });
+  return invoke<void>('send_prompt', { chatId, text, context, sentAs, action, model, projects, onEvent: channel });
 }
 export const cancelPrompt = (chatId: string) => invoke<void>('cancel_prompt', { chatId });
 export const respondPermission = (requestId: string, optionId: string | null, forRun = false, skipPrompts = false) =>

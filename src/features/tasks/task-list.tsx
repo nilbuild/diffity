@@ -15,7 +15,7 @@ import { AlertCircleIcon, ExternalLinkIcon, SparkleIcon, PlayIcon, PlusIcon, Tra
 import { ConfirmDialog } from '../../components/ui/confirm-dialog';
 import { formatRelativeTime } from '../../components/comments/comment-bubble';
 import { shortPath } from '../welcome/recent-repos';
-import { useRunActivity } from '../claude/run-activity';
+import { latestActivity, useRunActivity } from '../claude/run-activity';
 import { openNewTask } from './new-task-store';
 import { TaskStatusIcon } from './task-status';
 import { openTask } from './task-menu';
@@ -144,7 +144,7 @@ export function TaskSections(props: { repoPath: string; checkoutRow?: ReactNode 
   const tasks = useRepoTasks(repoPath);
   const statuses = useTaskStatuses(tasks);
   const setupLines = useSetupLog((state) => state.lines);
-  const activity = useRunActivity((state) => state.byRepo);
+  const byRun = useRunActivity((state) => state.byRun);
   const [confirming, setConfirming] = useState<Task | null>(null);
   const [cleaningUp, setCleaningUp] = useState(false);
   const [doneOpen, setDoneOpen] = useViewState('home:tasks-done-open', false);
@@ -211,7 +211,7 @@ export function TaskSections(props: { repoPath: string; checkoutRow?: ReactNode 
     if (status === 'queued') {
       return 'Queued until another task finishes';
     }
-    const live = activity[task.path];
+    const live = latestActivity(byRun, task.path);
     return (live && live.outcome === 'running' ? latestStep(live.items) : null) ?? 'Working';
   };
   const time = (task: Task) => <span className="text-xs text-text-muted tabular-nums whitespace-nowrap">{formatRelativeTime(task.updatedAt)}</span>;

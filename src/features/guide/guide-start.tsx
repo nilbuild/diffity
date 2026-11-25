@@ -6,11 +6,12 @@ import { getRepoPath } from '../../lib/api';
 import { useUi } from '../../lib/ui-store';
 import { cn } from '../../lib/cn';
 import { agentMeta } from '../claude/agents';
-import { cancelQueuedRun, stopClaude, useActiveRun } from '../claude/claude-runner';
+import { blockerOf, stopRun, useClaude, waitLabel } from '../claude/claude-runner';
 import { ModelPicker } from '../claude/model-picker';
 import { useRunPick, writeRepoPick, type RunPick } from '../claude/model-setting';
-import { formatElapsed, useNow } from '../claude/activity-panel';
-import { currentFile, openActivity, useRunActivity } from '../claude/run-activity';
+import { formatElapsed, useNow } from '../claude/run-details';
+import { currentFile, useRunActivity } from '../claude/run-activity';
+import { openClaudePanel } from '../claude/panel-store';
 import { startGuide, useGuideRun, type GuidePullRequest } from './use-guide';
 import { isGuideWorthy } from './guide-model';
 
@@ -74,24 +75,23 @@ export function GuideProgress(props: { diffRef: string; className?: string }) {
   const { diffRef, className } = props;
   const repoPath = getRepoPath();
   const run = useGuideRun(repoPath, diffRef);
-  const active = useActiveRun(repoPath);
   const now = useNow(!!run?.startedAt);
-  const activity = useRunActivity((state) => state.byRepo[repoPath]);
+  const activity = useRunActivity((state) => (run ? state.byRun[run.id] ?? null : null));
+  const blocker = useClaude((state) => (run ? blockerOf(state.runs, run) : null));
 
   if (!run) {
     return null;
   }
   const name = run.agentId ? agentMeta(run.agentId).short : 'The agent';
   const queued = run.state === 'queued';
-  const blocker = queued && active?.agentId ? agentMeta(active.agentId).short : null;
-  const reading = !queued && activity?.runId === run.id ? currentFile(activity, repoPath) : null;
+  const reading = !queued && activity ? currentFile(activity, repoPath) : null;
 
   return (
     <div className={cn('flex items-center gap-2 min-w-0 text-[13px] text-text-secondary', className)}>
       <Spinner className="text-claude shrink-0" />
       <span className="truncate">
         {queued
-          ? `Starts when ${blocker ?? 'the current run'} finishes`
+          ? blocker ? `Starts after ${waitLabel(blocker)}` : 'Waiting to start'
           : reading
             ? <>{name} is reading <span className="font-mono text-xs text-text">{reading.split('/').pop()}</span></>
             : `${name} is reading the change`}
@@ -100,11 +100,11 @@ export function GuideProgress(props: { diffRef: string; className?: string }) {
       <span className="text-text-muted shrink-0">·</span>
       {!queued && (
         <>
-          <button onClick={openActivity} className={linkButton}>Activity</button>
+          <button onClick={openClaudePanel} className={linkButton}>Activity</button>
           <span className="text-text-muted shrink-0">·</span>
         </>
       )}
-      <button onClick={() => (queued ? cancelQueuedRun(run.id) : void stopClaude(repoPath))} className={linkButton}>
+      <button onClick={() => void stopRun(run.id)} className={linkButton}>
         {queued ? 'Cancel' : 'Stop'}
       </button>
     </div>

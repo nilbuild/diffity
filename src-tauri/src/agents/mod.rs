@@ -12,6 +12,7 @@ pub mod patch;
 pub mod pi;
 pub mod policy;
 pub mod prompts;
+pub mod repo_lock;
 pub mod run_state;
 pub mod session;
 pub mod terminal;

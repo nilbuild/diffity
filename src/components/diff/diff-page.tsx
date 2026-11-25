@@ -31,7 +31,7 @@ import { orderLikeSidebar } from '../../lib/file-tree';
 import { contentsLabel, copyFileContents, copyFileDiff, copyRelativePath, handleCopyShortcut } from '../../lib/file-copy';
 import { usePageActions, useViewFiles, type PaletteAction } from '../../features/palette/palette-store';
 import { statusLetter } from '../tree/file-tree-item';
-import { requestAskClaude } from '../../features/claude/ask-claude-review';
+import { requestAskClaude } from '../../features/claude/review-form';
 import { requestSendToClaude } from '../../features/claude/send-comments';
 import { openPrInbox } from '../../features/palette/quick-open';
 import { OtherViewThreads, OutsideThreads } from '../comments/outside-threads';

@@ -1,10 +1,11 @@
 use crate::agents::policy;
-use crate::agents::types::{AgentAction, AgentMode, ContextChip, LinkReason, LinkedProject};
+use crate::agents::types::{AgentAction, AgentMode, ContextChip, LinkReason, LinkedProject, SentAs};
 use crate::core::types::{ReviewVerdict, Side};
 
 const REVIEW: &str = include_str!("../../prompts/review.md");
 const RESOLVE: &str = include_str!("../../prompts/resolve.md");
 const ASK: &str = include_str!("../../prompts/ask.md");
+const CHAT: &str = include_str!("../../prompts/chat.md");
 const EXPLAIN: &str = include_str!("../../prompts/explain.md");
 const SUMMARIZE: &str = include_str!("../../prompts/summarize.md");
 const GUIDE: &str = include_str!("../../prompts/guide.md");
@@ -52,9 +53,8 @@ fn render_review_feedback(session_ref: &str, review: &ReviewBrief) -> String {
     )
 }
 
-const EDIT_PREAMBLE: &str = "You are a coding assistant embedded in Diffity, a desktop code-review app, working in the repository at the current working directory. Make the changes the user asks for with your file editing tools; every write is shown to the user for approval. Keep changes minimal and focused. For review comments use only the `diffity` MCP tools (`mcp__diffity__*`); never run a `diffity` CLI or invoke a diffity skill/slash command — those belong to an older tool and are not connected to this app.";
 
-const TASK_PREAMBLE: &str = "You are a coding agent embedded in Diffity, a desktop code-review app, working on a task in a git worktree created for it (the current working directory). Edit files inside this folder freely; shell commands may ask the user for approval. Diffity commits your work when you finish, so never commit, push or switch branches. The user reviews your changes in Diffity and leaves comments; for review comments use only the `diffity` MCP tools (`mcp__diffity__*`); never run a `diffity` CLI or invoke a diffity skill/slash command — those belong to an older tool and are not connected to this app.";
+const TASK_PREAMBLE: &str = "You are a coding agent embedded in Diffity, a desktop code-review app, working on a task in a git worktree created for it (the current working directory). Edit files inside this folder freely; shell commands may ask the user for approval. If the user only asks a question, answer it without changing files. Diffity commits your work when you finish, so never commit, push or switch branches. The user reviews your changes in Diffity and leaves comments; for review comments use only the `diffity` MCP tools (`mcp__diffity__*`); never run a `diffity` CLI or invoke a diffity skill/slash command — those belong to an older tool and are not connected to this app.";
 
 fn review_instructions(instructions: Option<&str>) -> String {
     let Some(text) = instructions.map(str::trim).filter(|t| !t.is_empty()) else {
@@ -191,7 +191,7 @@ fn action_template(
             let mut rendered = render(THREAD, &[("ref", session_ref), ("threadId", thread_id)]);
             if !policy::can_write_files(mode) {
                 rendered.push_str(
-                    "\n\n## Read-only\n\nThis diff is a past commit, so you cannot edit files. If the comment asks for a change, `reply` describing the change you would make instead of editing, and leave the thread open.\n",
+                    "\n\n## Read-only\n\nThis view isn't the code checked out on disk, so you cannot edit files. If the comment asks for a change, `reply` describing the change you would make instead of editing, and leave the thread open.\n",
                 );
             }
             Some(rendered)
@@ -251,7 +251,7 @@ fn action_template(
             }
             match mode {
                 AgentMode::Ask | AgentMode::Review => Some(render(ASK, &[("ref", session_ref)])),
-                AgentMode::Edit | AgentMode::Resolve => Some(EDIT_PREAMBLE.to_string()),
+                AgentMode::Edit | AgentMode::Resolve => Some(render(CHAT, &[("ref", session_ref)])),
                 AgentMode::Task => Some(TASK_PREAMBLE.to_string()),
             }
         }
@@ -289,6 +289,23 @@ fn render_chip(chip: &ContextChip) -> String {
     )
 }
 
+const EDITS_FROM_COMMIT: &str = "## Where your edits go\n\nThis view (`{{ref}}`) compares commits (or shows what is staged), not your working copy. Your file edits change the current code on disk and show up as uncommitted changes, not in this view; say so when you finish. The code may differ from what the view shows, so read the current file and apply the change there; line numbers in the diff and in comments refer to this view.";
+
+/// Put before a message sent while the agent was still working on the conversation, which was stopped for it.
+pub fn sent_as_note(sent_as: SentAs) -> &'static str {
+    match sent_as {
+        SentAs::Steer => "(I stopped your last turn to send this. Carry on with what I asked before, updated by this message; where they conflict, this message wins. Check any edits you already made.)",
+        SentAs::Edit => "(I edited my previous message while you were working on it. This version replaces it: do what it asks instead, and check any edits you already made for the old version.)",
+    }
+}
+
+/// Views whose newer side is the working tree, so edits on disk show up in them: uncommitted and unstaged changes,
+/// the file browser, and a branch compared with your working copy (`main`). Ranges compare commits, so a checked-out
+/// pull request (`main...HEAD`) doesn't show uncommitted edits.
+pub(crate) fn shows_working_copy(session_ref: &str) -> bool {
+    matches!(session_ref, "work" | "unstaged" | "." | "__tree__") || (session_ref != "staged" && !session_ref.contains(".."))
+}
+
 /// `review` is only used by `AgentAction::ReviewFeedback`.
 pub fn build_prompt(
     mode: AgentMode,
@@ -302,6 +319,9 @@ pub fn build_prompt(
     let mut parts: Vec<String> = Vec::new();
     if let Some(template) = action_template(mode, action, session_ref, first_turn, review) {
         parts.push(template.trim_end().to_string());
+        if policy::can_write_files(mode) && policy::action_edits(action) && !shows_working_copy(session_ref) {
+            parts.push(render(EDITS_FROM_COMMIT, &[("ref", session_ref)]));
+        }
     }
     if !context.is_empty() {
         let chips: Vec<String> = context.iter().map(render_chip).collect();
@@ -393,7 +413,7 @@ mod tests {
 
     #[test]
     fn every_template_restricts_agents_to_diffity_mcp_tools() {
-        for template in [REVIEW, RESOLVE, ASK, EXPLAIN, SUMMARIZE, GUIDE, THREAD, REVIEW_FEEDBACK, EDIT_PREAMBLE] {
+        for template in [REVIEW, RESOLVE, ASK, EXPLAIN, SUMMARIZE, GUIDE, THREAD, REVIEW_FEEDBACK, CHAT] {
             assert!(template.contains("mcp__diffity__"), "{template}");
             assert!(template.contains("CLI") || template.contains("command-line"), "{template}");
         }
@@ -497,10 +517,11 @@ mod tests {
     #[test]
     fn chat_first_turn_uses_mode_preamble() {
         let ask = build_prompt(AgentMode::Ask, &AgentAction::Chat, "work", true, "hi", &[], None);
-        assert!(ask.contains("read-only mode"));
+        assert!(ask.contains("cannot edit files"));
         assert!(ask.ends_with("## Request\n\nhi"));
         let edit = build_prompt(AgentMode::Edit, &AgentAction::Chat, "work", true, "hi", &[], None);
-        assert!(edit.contains("approval"));
+        assert!(edit.contains("Do not change anything"));
+        assert!(edit.contains("`work`"));
     }
 
     #[test]
@@ -603,5 +624,22 @@ mod tests {
         let section = project_instructions(&long);
         assert!(section.contains("the rest was left out"));
         assert!(section.len() < PROJECT_INSTRUCTIONS_LIMIT + 400);
+    }
+
+    #[test]
+    fn edits_from_a_commit_view_go_to_the_working_copy() {
+        let commit = build_prompt(AgentMode::Resolve, &AgentAction::Chat, "abc~1..abc", true, "fix it", &[], None);
+        assert!(commit.contains("## Where your edits go"));
+        assert!(commit.contains("`abc~1..abc`"));
+        for r in ["work", "unstaged", "main"] {
+            let here = build_prompt(AgentMode::Resolve, &AgentAction::Chat, r, true, "fix it", &[], None);
+            assert!(!here.contains("## Where your edits go"), "{r}");
+        }
+        for r in ["main...HEAD", "staged"] {
+            let elsewhere = build_prompt(AgentMode::Resolve, &AgentAction::Chat, r, true, "fix it", &[], None);
+            assert!(elsewhere.contains("## Where your edits go"), "{r}");
+        }
+        let readonly = build_prompt(AgentMode::Review, &AgentAction::Chat, "abc~1..abc", true, "fix it", &[], None);
+        assert!(!readonly.contains("## Where your edits go"));
     }
 }

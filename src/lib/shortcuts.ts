@@ -106,6 +106,17 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
     ],
   },
   {
+    title: 'Chat',
+    shortcuts: [
+      { id: 'agent-activity', label: 'Chat with {agent} about this view, bringing the selected lines', keys: [chord('L')] },
+      { label: 'Send the message; while {agent} works on the chat, it stops and reads it', keys: ['↵'] },
+      { label: 'Queue the message for after the current run', keys: [chord('↵')] },
+      { label: 'New line in the message', keys: ['⇧↵'] },
+      { label: 'Edit your last message (in an empty box)', keys: ['↑'] },
+      { label: 'Cancel editing', keys: ['Esc'] },
+    ],
+  },
+  {
     title: 'In the palette',
     shortcuts: [
       { label: 'Move between rows', keys: ['↑', '↓'], join: 'none' },

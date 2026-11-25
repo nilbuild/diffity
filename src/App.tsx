@@ -23,6 +23,7 @@ import { WhatsNewDialog } from './features/whats-new/whats-new-dialog';
 import { useWhatsNew } from './features/whats-new/use-whats-new';
 import { useOpenLinks } from './features/open-links/use-open-links';
 import { useTaskEvents } from './features/tasks/tasks';
+import { usePanel } from './features/claude/panel-store';
 
 function isTyping(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -89,7 +90,11 @@ function QuickOpenHost() {
   return <QuickOpen />;
 }
 
+// Matches the agent panel's width, so toasts sit beside it instead of over the chat.
+const PANEL_OFFSET = 'calc(min(420px, 45vw) + 16px)';
+
 export function App() {
+  const panelOpen = usePanel((state) => state.open);
   useExternalLinks();
   useTaskEvents();
   useGlobalShortcuts();
@@ -127,7 +132,7 @@ export function App() {
       <WindowControls />
       <Toaster
         position="bottom-right"
-        offset={{ bottom: 40, right: 16 }}
+        offset={{ bottom: 40, right: panelOpen ? PANEL_OFFSET : 16 }}
         gap={8}
         swipeDirections={['right']}
         toastOptions={{

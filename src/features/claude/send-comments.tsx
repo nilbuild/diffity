@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { create } from 'zustand';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { cn } from '../../lib/cn';
+import { goToThread } from '../../lib/thread-location';
 import * as tauri from '../../lib/tauri';
 import { getRepoPath } from '../../lib/api';
 import { openSettingsAt } from '../../lib/ui-store';
@@ -11,7 +13,7 @@ import { MentionTextarea } from '../../components/comments/mention-textarea';
 import { GENERAL_THREAD_FILE_PATH, type CommentThread } from '../../components/comments/types';
 import { useReviewActions, useReviewState } from '../review/review-state';
 import { plural } from '../review/review-candidates';
-import { enqueueClaude, useActiveRun, useBusyThreadIds } from './claude-runner';
+import { enqueueClaude, useBusyThreadIds, useRunInTheWay } from './claude-runner';
 import { ModelPicker } from './model-picker';
 import { useRunPick, writeRepoPick, type RunPick } from './model-setting';
 import { agentMeta, type AgentMeta } from './agents';
@@ -107,8 +109,30 @@ function threadsByFile(threads: CommentThread[]): [string, CommentThread[]][] {
   return [...byFile.entries()];
 }
 
-function ThreadGroup(props: { file: string; threads: CommentThread[]; isChecked: (id: string) => boolean; onToggle: (id: string) => void }) {
-  const { file, threads, isChecked, onToggle } = props;
+/** A comment's place, as a link that shows it in the diff without ticking its box. */
+function ThreadLink(props: { thread: CommentThread; diffRef: string | null; className: string; label: string }) {
+  const { thread, diffRef, className, label } = props;
+
+  if (!diffRef) {
+    return <span className={cn(className, 'text-text-muted')}>{label}</span>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.preventDefault();
+        goToThread(getRepoPath(), { ref: diffRef, threadId: thread.id });
+      }}
+      title="Show this comment"
+      className={cn(className, 'text-left text-text-secondary underline decoration-dotted decoration-text-muted underline-offset-2 hover:text-text hover:decoration-solid cursor-pointer')}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ThreadGroup(props: { file: string; threads: CommentThread[]; diffRef: string | null; isChecked: (id: string) => boolean; onToggle: (id: string) => void }) {
+  const { file, threads, diffRef, isChecked, onToggle } = props;
 
   return (
     <div className="pb-1">
@@ -116,7 +140,7 @@ function ThreadGroup(props: { file: string; threads: CommentThread[]; isChecked:
       {threads.map((thread) => (
         <label key={thread.id} className="flex items-start gap-2.5 px-2 py-1.5 rounded-md hover:bg-hover cursor-pointer">
           <input type="checkbox" checked={isChecked(thread.id)} onChange={() => onToggle(thread.id)} className="mt-0.5 accent-claude" />
-          <span className="shrink-0 w-12 pt-px font-mono text-[11px] text-text-muted">{threadLocation(thread)}</span>
+          <ThreadLink thread={thread} diffRef={diffRef} className="shrink-0 w-12 pt-px font-mono text-[11px]" label={threadLocation(thread)} />
           <span className="min-w-0 flex-1 text-xs leading-5 text-text line-clamp-2">{thread.comments[thread.comments.length - 1]?.body}</span>
         </label>
       ))}
@@ -136,7 +160,7 @@ interface SendCommentsPanelProps {
 /** Pick open comments and send them to an agent, which edits your code to address them and replies on each thread. */
 export function SendCommentsPanel(props: SendCommentsPanelProps) {
   const { candidates, diffRef, onClose, onAgentChange } = props;
-  const queued = !!useActiveRun(getRepoPath());
+  const queued = !!useRunInTheWay(getRepoPath(), 'edit');
   const { local, remote, fromClaude, pendingCount } = candidates;
   const { sessionId, pendingReview } = useReviewState();
   const { submit } = useReviewActions(sessionId);
@@ -239,7 +263,7 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
       <div className="max-h-[300px] overflow-y-auto px-2">
         {local.length > 0 && fromClaude.length > 0 && <div className="px-2 pt-2 pb-0.5 text-[11px] font-medium text-text-muted">Your comments</div>}
         {groups.map(([file, items]) => (
-          <ThreadGroup key={file} file={file} threads={items} isChecked={(id) => !excluded.has(id)} onToggle={toggle} />
+          <ThreadGroup key={file} file={file} threads={items} diffRef={diffRef} isChecked={(id) => !excluded.has(id)} onToggle={toggle} />
         ))}
         {fromClaude.length > 0 && (
           <div className="pb-1">
@@ -251,7 +275,7 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
               </button>
             </div>
             {claudeGroups.map(([file, items]) => (
-              <ThreadGroup key={file} file={file} threads={items} isChecked={(id) => pickedClaude.has(id)} onToggle={toggleClaude} />
+              <ThreadGroup key={file} file={file} threads={items} diffRef={diffRef} isChecked={(id) => pickedClaude.has(id)} onToggle={toggleClaude} />
             ))}
           </div>
         )}
@@ -264,7 +288,7 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
             {remote.map((thread) => (
               <label key={thread.id} className="flex items-start gap-2.5 px-2 py-1.5 rounded-md hover:bg-hover cursor-pointer">
                 <input type="checkbox" checked={!excluded.has(thread.id)} onChange={() => toggle(thread.id)} className="mt-0.5 accent-claude" />
-                <span className="shrink-0 w-24 pt-px font-mono text-[11px] text-text-muted truncate" title={thread.filePath}>{thread.filePath.split('/').pop()} {threadLocation(thread)}</span>
+                <ThreadLink thread={thread} diffRef={diffRef} className="shrink-0 w-24 pt-px font-mono text-[11px] truncate" label={`${thread.filePath.split('/').pop()} ${threadLocation(thread)}`} />
                 <span className="min-w-0 flex-1 text-xs leading-5 text-text line-clamp-2">
                   <span className="font-medium">{thread.comments[thread.comments.length - 1]?.author.name}: </span>
                   {thread.comments[thread.comments.length - 1]?.body}

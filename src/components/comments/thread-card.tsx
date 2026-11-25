@@ -3,7 +3,7 @@ import { isThreadResolved } from './types';
 import { CommentBubble } from './comment-bubble';
 import { CommentForm } from './comment-form';
 import { cn } from '../../lib/cn';
-import { enqueueClaude, useThreadActivity, useThreadRunAgent } from '../../features/claude/claude-runner';
+import { enqueueClaude, useThreadActivity, useThreadRunLabel } from '../../features/claude/claude-runner';
 import { agentByName, agentMeta } from '../../features/claude/agents';
 import { pickForAgent, useRunPick } from '../../features/claude/model-setting';
 import { AskClaudeThreadButton } from '../../features/claude/ask-claude-thread';
@@ -175,8 +175,7 @@ export function ThreadCard(props: ThreadCardProps) {
   const fixPick = useRunPick('fix', api.getRepoPath());
   const askPick = pickForAgent(fixPick, (lastByClaude ? agentByName(last.author.name)?.id : null) ?? fixPick.agent);
   const askAgent = agentMeta(askPick.agent);
-  const runAgentId = useThreadRunAgent(thread.id);
-  const runAgentName = runAgentId ? agentMeta(runAgentId).short : null;
+  const runLabel = useThreadRunLabel(thread.id);
   const showAskClaude = canAskClaude && !lastByClaude;
   const addressedBy = !resolved && thread.addressedBy ? agentByName(thread.addressedBy)?.short ?? thread.addressedBy : null;
 
@@ -271,7 +270,7 @@ export function ThreadCard(props: ThreadCardProps) {
               <SparkleIcon className="w-3 h-3 text-claude" />
             )}
           </span>
-          {activity === 'working' ? `${runAgentName ?? 'Agent'} is working…` : runAgentName ? `Queued for ${runAgentName}` : 'Queued'}
+          {runLabel}
         </div>
       )}
       {composingPromote && canPromote && review.sessionId && review.promotePr !== null && (

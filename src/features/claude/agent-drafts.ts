@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 /** Text typed into an agent popover: the "Anything else?" note when sending comments, or review/change instructions. */
-export type DraftField = 'note' | 'instructions';
+export type DraftField = 'note' | 'instructions' | 'chat';
 
 interface DraftState {
   byKey: Record<string, string>;

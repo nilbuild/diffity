@@ -5,7 +5,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { diffOptions } from '../../queries/diff';
-import { AskClaudePopover, requestAskClaude } from '../../features/claude/ask-claude-review';
+import { ReviewPopover, requestAskClaude } from '../../features/claude/review-form';
 import { useRunPick } from '../../features/claude/model-setting';
 import { agentMeta } from '../../features/claude/agents';
 import { usePullRequests } from '../../features/pr/pull-requests-dialog';
@@ -162,7 +162,7 @@ function Hero(props: { item: Candidate; agentName: string; onReview: (ref: strin
         <button onClick={() => (item.run ? item.run() : onReview(item.ref))} className={buttonPrimary}>
           {item.action}
         </button>
-        <AskClaudePopover
+        <ReviewPopover
           open={asking}
           onClose={() => setAsking(false)}
           anchorRef={askRef}

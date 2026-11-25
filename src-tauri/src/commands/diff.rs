@@ -13,6 +13,11 @@ pub async fn resolve_ref(repo_path: String, r#ref: String) -> Result<ResolvedRef
 }
 
 #[tauri::command]
+pub async fn ref_in_checkout(repo_path: String, r#ref: String) -> Result<bool, AppError> {
+    blocking(move || diff::in_checkout(Path::new(&repo_path), &r#ref)).await
+}
+
+#[tauri::command]
 pub async fn get_diff(
     repo_path: String,
     r#ref: String,

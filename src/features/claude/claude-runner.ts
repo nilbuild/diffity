@@ -1,11 +1,11 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
-import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import { queryClient } from '../../lib/query-client';
 import { openComments, openSettingsAt } from '../../lib/ui-store';
-import type { AgentAction, AgentInfo, AgentMode, LinkedProject, PermissionDiff, PermissionOption, RepoThread, RunModel, Thread } from '../../lib/types';
-import { parseCommitRef, refForSession } from '../../lib/api';
+import type { AgentAction, AgentInfo, AgentMode, ContextChip, LinkedProject, SentAs, PermissionDiff, PermissionOption, RepoThread, RunModel, Thread } from '../../lib/types';
+import { refForSession } from '../../lib/api';
 import { TREE_REF } from '../../lib/types';
 import { goToGuide, goToThread, viewLabel } from '../../lib/thread-location';
 import type { CommentThread } from '../../components/comments/types';
@@ -14,6 +14,10 @@ import { getRunPick, pickForAgent, type ModelPurpose, type RunPick } from './mod
 import { agentByName, agentMeta, type AgentMeta } from './agents';
 import { mentionedAgent } from '../../lib/mentions';
 import { finishActivity, recordComments, recordEvent, startActivity } from './run-activity';
+import { conflicts, laneOf, startable, type Lane, type QueueEntry } from './run-queue';
+import { openClaudePanel, usePanel } from './panel-store';
+import { continueConversation, conversationFor, conversationTitle, sameView } from './conversation';
+import { canEditRef, editTarget, showsWorkingTree } from './edit-target';
 import { isGuideOnScreen } from '../guide/guide-on-screen';
 import { repoBase } from '../../hooks/use-repo';
 import { addressedThreadIds, reviewAddressed, reviewFixesLabel } from '../comments/addressed';
@@ -35,6 +39,12 @@ export interface ClaudeRunContext {
   text?: string;
   /** Agent and model picked for this run; unset uses the thread's agent (thread runs), then the repo's last pick, then Settings. */
   pick?: RunPick;
+  /** A message typed in the Claude panel: it goes to the view's chat, which remembers what was said before. */
+  conversation?: boolean;
+  /** Lines or files the message is about. */
+  chips?: ContextChip[];
+  /** Sent while the agent was still working on the conversation, which is stopped for it. */
+  sentAs?: SentAs;
 }
 
 export interface ClaudeRun {
@@ -63,6 +73,10 @@ export interface ClaudeRun {
   model: RunModel | null;
   /** How the run ended; unset when it never got going (no agent, an error before the chat started). */
   outcome?: RunOutcome;
+  /** Stopped so a newer message could go first (a steer or an edit): no "was stopped" toast. */
+  interrupted?: boolean;
+  /** Works on the checked-out code, so it doesn't overlap a run that may change it (see `run-queue`). */
+  onCheckout: boolean;
 }
 
 export type RunOutcome = 'done' | 'failed' | 'stopped';
@@ -105,19 +119,7 @@ export function setParentPathResolver(resolve: (repoPath: string) => string) {
 
 export function setTaskLimit(limit: number) {
   taskLimit = Math.max(1, limit);
-}
-
-function runningTaskRuns(): number {
-  return useClaude.getState().runs.filter((run) => run.state === 'running' && isTaskPath(run.context.repoPath)).length;
-}
-
-function nextRunChange(): Promise<void> {
-  return new Promise<void>((resolve) => {
-    const unsubscribe = useClaude.subscribe(() => {
-      unsubscribe();
-      resolve();
-    });
-  });
+  schedule();
 }
 
 /** Called after every run in any project, once it has left the queue. */
@@ -148,49 +150,6 @@ export const useClaude = create<ClaudeState>(() => ({ runs: [], permissions: [] 
 export type ThreadActivity = 'idle' | 'queued' | 'working';
 
 let counter = 0;
-const pumping = new Set<string>();
-
-/** Where an agent may edit files: it edits the working tree, so not on an old commit or a range away from HEAD. */
-export function canSendToClaude(diffRef: string | null | undefined): boolean {
-  if (!diffRef) {
-    return true;
-  }
-  if (diffRef === 'work' || diffRef === 'staged' || diffRef === 'unstaged' || diffRef === TREE_REF) {
-    return true;
-  }
-  if (parseCommitRef(diffRef)) {
-    return false;
-  }
-  if (diffRef.includes('..')) {
-    const head = diffRef.split(/\.{2,3}/)[1];
-    return !head || head === 'HEAD';
-  }
-  return true;
-}
-
-/** Agents edit the checked-out code, so a commit or range can be worked on only when its newer side is HEAD. */
-export async function canEditRef(repoPath: string, ref: string | null | undefined): Promise<boolean> {
-  if (!ref || canSendToClaude(ref)) {
-    return true;
-  }
-  try {
-    const [view, work] = await Promise.all([tauri.resolveRef(repoPath, ref), tauri.resolveRef(repoPath, 'work')]);
-    return !!view.headSha && view.headSha === work.headSha;
-  } catch {
-    return false;
-  }
-}
-
-export function useCanEditRef(repoPath: string, ref: string | null | undefined): boolean {
-  const quick = !ref || canSendToClaude(ref);
-  const { data } = useQuery({
-    queryKey: ['can-edit-ref', repoPath, ref],
-    queryFn: () => canEditRef(repoPath, ref),
-    enabled: !quick,
-    staleTime: 5_000,
-  });
-  return quick || data === true;
-}
 
 export function modelPurpose(action: ClaudeAction): ModelPurpose {
   return action.kind === 'review' || action.kind === 'guide' ? 'review' : 'fix';
@@ -203,7 +162,10 @@ function modeFor(action: ClaudeAction, editable: boolean, inTask: boolean): Agen
   return inTask ? 'task' : 'resolve';
 }
 
-export function runLabel(action: ClaudeAction, name: string): string {
+export function runLabel(action: ClaudeAction, name: string, conversation = false): string {
+  if (conversation) {
+    return `${name} is working`;
+  }
   switch (action.kind) {
     case 'review':
       return `${name} is reviewing`;
@@ -230,7 +192,7 @@ function chatTitle(action: ClaudeAction): string {
     case 'guide':
       return `Guide · ${action.ref}`;
     case 'chat':
-      return 'Make changes';
+      return 'Task';
     case 'resolve':
       return action.threadId ? `Resolve thread ${action.threadId.slice(0, 8)}` : 'Resolve all comments';
     case 'thread':
@@ -281,7 +243,8 @@ function initialThreadIds(action: ClaudeAction, sessionId: string | null): strin
   return [];
 }
 
-export function enqueueClaude(action: ClaudeAction, context: ClaudeRunContext) {
+/** `first` puts the run ahead of the project's other queued runs: a message sent to steer the agent. */
+export function enqueueClaude(action: ClaudeAction, context: ClaudeRunContext, first = false) {
   const run: ClaudeRun = {
     id: `run-${Date.now()}-${++counter}`,
     action,
@@ -298,9 +261,26 @@ export function enqueueClaude(action: ClaudeAction, context: ClaudeRunContext) {
     skipsPrompts: false,
     editsApproved: false,
     model: null,
+    onCheckout: true,
   };
-  useClaude.setState((state) => ({ runs: [...state.runs, run] }));
-  void pump(context.repoPath);
+  useClaude.setState((state) => {
+    if (!first) {
+      return { runs: [...state.runs, run] };
+    }
+    const at = state.runs.findIndex((item) => item.state === 'queued' && item.context.repoPath === context.repoPath);
+    return { runs: at === -1 ? [...state.runs, run] : [...state.runs.slice(0, at), run, ...state.runs.slice(at)] };
+  });
+  schedule();
+  if (run.ref && !showsWorkingTree(run.ref)) {
+    // Code that isn't checked out is only read, from git. Until this resolves the run counts as on the checkout, which
+    // only ever makes it wait, never overlap.
+    void editTarget(context.repoPath, run.ref).then((target) => {
+      if (target === 'none') {
+        patchRun(run.id, { onCheckout: false });
+        schedule();
+      }
+    });
+  }
 }
 
 const MAX_REPEATS = 20;
@@ -338,29 +318,100 @@ function againAction(runId: string) {
 }
 
 /** Drops a run that has not started yet; a running one keeps going. */
+/** Changes what a queued message says; false when it has already started. */
+export function updateQueuedMessage(runId: string, text: string, chips: ContextChip[]): boolean {
+  const run = useClaude.getState().runs.find((item) => item.id === runId);
+  if (!run || run.state !== 'queued') {
+    return false;
+  }
+  patchRun(runId, { context: { ...run.context, text, chips } });
+  return true;
+}
+
+/** The running turn of the chat open in this view, which a message typed now stops and goes ahead of (a steer). */
+export function steerTarget(repoPath: string, ref: string | null): ClaudeRun | null {
+  const run = useClaude.getState().runs.find((item) => item.state === 'running' && item.context.repoPath === repoPath && !!item.context.conversation && sameView(item.ref, ref));
+  if (!run || isTaskPath(repoPath)) {
+    return null;
+  }
+  // After "New chat" the running turn belongs to the old chat: a message starts the new one instead of stopping it.
+  return run.chatId && run.chatId === conversationFor(repoPath, ref)?.chatId ? run : null;
+}
+
+export function canSteer(repoPath: string, ref: string | null): boolean {
+  return !!steerTarget(repoPath, ref);
+}
+
+function entryOf(run: ClaudeRun): QueueEntry {
+  const repoPath = run.context.repoPath;
+  return { id: run.id, state: run.state, repoPath, lane: laneOf(run.action.kind), onCheckout: run.onCheckout, inTask: isTaskPath(repoPath) };
+}
+
+/** The running run a new one would wait for, given what it does: an edit, or a review of the checked-out code. */
+export function runInTheWay(runs: ClaudeRun[], repoPath: string, lane: Lane, onCheckout = true): ClaudeRun | null {
+  const incoming: QueueEntry = { id: '', state: 'queued', repoPath, lane, onCheckout, inTask: false };
+  return runs.find((run) => run.state === 'running' && conflicts(incoming, entryOf(run))) ?? null;
+}
+
+/** What a queued run is waiting for, when it's another run (not a free task slot). */
+export function blockerOf(runs: ClaudeRun[], run: ClaudeRun): ClaudeRun | null {
+  return runInTheWay(runs, run.context.repoPath, laneOf(run.action.kind), run.onCheckout);
+}
+
+/** "the review", "the chat"…: what a queued run waits for, for "starts after …". */
+export function waitLabel(run: ClaudeRun): string {
+  if (run.action.kind === 'review') {
+    return 'the review';
+  }
+  if (run.action.kind === 'guide') {
+    return 'the guide';
+  }
+  return run.context.conversation ? 'the chat' : 'the current run';
+}
+
+async function cancelRunning(run: ClaudeRun) {
+  if (!run.chatId) {
+    patchRun(run.id, { stopRequested: true });
+    return;
+  }
+  for (const permission of useClaude.getState().permissions.filter((item) => item.runId === run.id)) {
+    await answerClaudePermission(permission.requestId, null);
+  }
+  await tauri.cancelPrompt(run.chatId).catch(() => undefined);
+}
+
+/** Stops a run, or drops it if it hasn't started. */
+export async function stopRun(runId: string) {
+  const run = useClaude.getState().runs.find((item) => item.id === runId);
+  if (!run) {
+    return;
+  }
+  if (run.state === 'queued') {
+    cancelQueuedRun(runId);
+    return;
+  }
+  await cancelRunning(run);
+}
+
+/** Stops a run so a newer message can go next: no "was stopped" toast, and the queue stays. */
+export async function interruptRun(runId: string) {
+  const run = useClaude.getState().runs.find((item) => item.id === runId && item.state === 'running');
+  if (!run) {
+    return;
+  }
+  patchRun(runId, { interrupted: true });
+  await cancelRunning(run);
+}
+
 export function cancelQueuedRun(runId: string) {
   useClaude.setState((state) => ({ runs: state.runs.filter((run) => run.id !== runId || run.state !== 'queued') }));
 }
 
-/** Stops the project's running run and drops the ones queued behind it. */
-export async function stopClaude(repoPath: string) {
-  const { runs, permissions } = useClaude.getState();
-  const running = runs.find((run) => run.state === 'running' && run.context.repoPath === repoPath);
-  useClaude.setState((state) => ({
-    runs: state.runs.filter((run) => run.context.repoPath !== repoPath || run.state === 'running'),
-  }));
-  if (!running) {
-    return;
-  }
-  if (!running.chatId) {
-    patchRun(running.id, { stopRequested: true });
-    return;
-  }
-  const waiting = permissions.filter((permission) => permission.runId === running.id);
-  for (const permission of waiting) {
-    await answerClaudePermission(permission.requestId, null);
-  }
-  await tauri.cancelPrompt(running.chatId).catch(() => undefined);
+/** Stops everything the project's agents are doing and drops what's queued. */
+export async function stopProject(repoPath: string) {
+  const running = useClaude.getState().runs.filter((run) => run.state === 'running' && run.context.repoPath === repoPath);
+  useClaude.setState((state) => ({ runs: state.runs.filter((run) => run.context.repoPath !== repoPath || run.state === 'running') }));
+  await Promise.all(running.map(cancelRunning));
 }
 
 export async function answerClaudePermission(requestId: string, optionId: string | null, forRun = false, skipPrompts = false) {
@@ -558,6 +609,14 @@ function diffOnScreen(repoPath: string, ref: string): boolean {
   return (new URLSearchParams(query).get('ref') || 'work') === ref;
 }
 
+/** Whether the view of `ref` is on screen: the file browser for the tree, else that diff. */
+function viewOnScreen(repoPath: string, ref: string): boolean {
+  if (ref === TREE_REF) {
+    return window.location.hash.replace(/^#/, '').split('?')[0] === `${repoBase(repoPath)}/tree`;
+  }
+  return diffOnScreen(repoPath, ref);
+}
+
 function finishedMessage(run: ClaudeRun, added: number, name: string): string {
   const where = run.ref && !diffOnScreen(run.context.repoPath, run.ref) ? ` on ${runViewLabel(run.context.repoPath, run.ref)}` : '';
   if (run.action.kind === 'review') {
@@ -645,24 +704,32 @@ async function execute(run: ClaudeRun) {
   const ref = run.ref ?? refForSession(sessionId) ?? threadRef(run);
   run = { ...run, ref };
   const inTask = isTaskPath(run.context.repoPath);
-  const mode = modeFor(run.action, await canEditRef(run.context.repoPath, ref), inTask);
-  const chat = await tauri.startChat({
-    repoPath: run.context.repoPath,
-    agentId: agent.id,
-    mode,
-    sessionId,
-    title: chatTitle(run.action),
-  });
+  const editable = await canEditRef(run.context.repoPath, ref);
+  const mode = modeFor(run.action, editable, inTask);
+  const chat = await chatFor(run, { agentId: agent.id, mode, sessionId, ref, editable });
   const skipsPrompts = runSkipsPrompts(mode, run.action, await getPermissionSetting());
   const model: RunModel = { model: pick.model, effort: pick.effort };
   const startedAt = Date.now();
   patchRun(run.id, { chatId: chat.id, sessionId, startedAt, ref, skipsPrompts, model });
   const repoPath = run.context.repoPath;
-  startActivity({ runId: run.id, chatId: chat.id, repoPath, ref, agentId: agent.id, model, actionKind: run.action.kind, startedAt });
+  startActivity({
+    runId: run.id,
+    chatId: chat.id,
+    repoPath,
+    ref,
+    agentId: agent.id,
+    model,
+    actionKind: run.action.kind,
+    startedAt,
+    prompt: run.context.conversation ? { text: run.context.text ?? '', chips: run.context.chips ?? [], sentAs: run.context.sentAs ?? null } : null,
+  });
+  queryClient.invalidateQueries({ queryKey: ['chats', repoPath] });
   if (useClaude.getState().runs.find((item) => item.id === run.id)?.stopRequested) {
     patchRun(run.id, { outcome: 'stopped' });
-    finishActivity(repoPath, run.id, 'stopped');
-    toast.info(`${meta.short} was stopped`, { action: againAction(run.id) });
+    finishActivity(run.id, 'stopped');
+    if (!useClaude.getState().runs.find((item) => item.id === run.id)?.interrupted) {
+      toast.info(`${meta.short} was stopped`, { action: againAction(run.id) });
+    }
     return;
   }
   if (skipsPrompts && !inTask) {
@@ -691,7 +758,6 @@ async function execute(run: ClaudeRun) {
       patchRun(run.id, { commentsAdded: added, newThreadIds });
       const fresh = new Set(newThreadIds);
       recordComments(
-        repoPath,
         run.id,
         threads
           .filter((thread) => fresh.has(thread.id))
@@ -703,7 +769,7 @@ async function execute(run: ClaudeRun) {
   let failed: ClaudeFailure | null = null;
   let cancelled = false;
   try {
-    await tauri.sendPrompt(chat.id, run.context.text ?? '', [], run.action, model, projects, (event) => {
+    await tauri.sendPrompt(chat.id, run.context.text ?? '', run.context.chips ?? [], run.context.sentAs ?? null, run.action, model, projects, (event) => {
       if (event.type === 'permissionRequest') {
         const permission: ClaudePermission = {
           runId: run.id,
@@ -717,7 +783,7 @@ async function execute(run: ClaudeRun) {
         return;
       }
       linkedEdits.record(event);
-      recordEvent(repoPath, run.id, event);
+      recordEvent(run.id, event);
       if (event.type === 'error') {
         failed = { code: event.code ?? '', message: event.message };
         return;
@@ -733,14 +799,29 @@ async function execute(run: ClaudeRun) {
     queryClient.invalidateQueries({ queryKey: ['threads', sessionId] });
     queryClient.invalidateQueries({ queryKey: ['reviews'] });
     queryClient.invalidateQueries({ queryKey: ['guide', sessionId] });
+    queryClient.invalidateQueries({ queryKey: ['chats', repoPath] });
+    queryClient.invalidateQueries({ queryKey: ['chat-messages', chat.id] });
   }
   const outcome: RunOutcome = failed ? 'failed' : cancelled ? 'stopped' : 'done';
   patchRun(run.id, { outcome });
-  finishActivity(repoPath, run.id, outcome);
+  finishActivity(run.id, outcome);
   try {
     await announceRun();
   } finally {
     noteLinkedChanges(linkedEdits.changes(), meta.short);
+  }
+
+  /** The answer is in the panel; a toast only when the panel isn't showing this view. */
+  function announceReply() {
+    const panelOpen = usePanel.getState().open;
+    if (panelOpen && (!ref || viewOnScreen(repoPath, ref))) {
+      return;
+    }
+    const where = ref && !viewOnScreen(repoPath, ref) ? runViewLabel(repoPath, ref) : undefined;
+    toast.success(`${meta.short} replied`, {
+      description: where,
+      action: { label: 'Open', onClick: () => openReply(repoPath, ref) },
+    });
   }
 
   async function announceRun() {
@@ -748,11 +829,18 @@ async function execute(run: ClaudeRun) {
       showFailure(`${meta.short} stopped with an error`, failed, meta, againAction(run.id));
       return;
     }
+    if (cancelled && useClaude.getState().runs.find((item) => item.id === run.id)?.interrupted) {
+      return;
+    }
     if (cancelled) {
       toast.info(`${meta.short} was stopped`, { action: againAction(run.id) });
       return;
     }
     if (inTask && run.action.kind === 'chat') {
+      return;
+    }
+    if (run.context.conversation) {
+      announceReply();
       return;
     }
     if (run.action.kind === 'guide') {
@@ -782,6 +870,10 @@ async function execute(run: ClaudeRun) {
     const postedNote = posted > 0 ? `Posted ${posted} repl${posted === 1 ? 'y' : 'ies'} to GitHub` : null;
     const checkNote = addressed.length > 0 ? `Check ${addressed.length === 1 ? 'it' : 'each'}, then resolve. ] goes to the next.` : null;
     const description = (batch ? [batch.detail, postedNote, checkNote] : [postedNote, checkNote]).filter(Boolean).join(' · ') || undefined;
+    // The panel shows this view: the run's card there has the outcome and its comments, so a toast would only cover it.
+    if (usePanel.getState().open && ref && viewOnScreen(repoPath, ref) && !batch && addressed.length === 0 && !postedNote) {
+      return;
+    }
     const showAction = hasTarget ? { label: needsYou.length === 1 ? 'Show comment' : `Show ${needsYou.length} open`, onClick: () => openRunResult(run.context.repoPath, ref, needsYou) } : undefined;
     toast.success(batch?.title ?? finishedMessage(finished, added, meta.short), {
       description,
@@ -789,6 +881,41 @@ async function execute(run: ClaudeRun) {
       action: ref && addressed.length > 0 ? { label: reviewFixesLabel(addressed.length), onClick: () => reviewAddressed(run.context.repoPath, ref, addressed) } : showAction,
     });
   }
+}
+
+/** Opens the Claude panel on the view a reply came from. */
+function openReply(repoPath: string, ref: string | null) {
+  if (ref && ref !== TREE_REF && !viewOnScreen(repoPath, ref)) {
+    goToThread(repoPath, { ref, threadId: null });
+  }
+  openClaudePanel();
+}
+
+interface ChatSetup {
+  agentId: string;
+  mode: AgentMode;
+  sessionId: string;
+  ref: string | null;
+  editable: boolean;
+}
+
+/** The chat a run talks in: a typed message continues the view's chat when it can, everything else starts its own. */
+async function chatFor(run: ClaudeRun, setup: ChatSetup) {
+  const { agentId, mode, sessionId, ref, editable } = setup;
+  const repoPath = run.context.repoPath;
+  if (!run.context.conversation) {
+    return tauri.startChat({ repoPath, agentId, mode, sessionId, title: chatTitle(run.action) });
+  }
+  const current = conversationFor(repoPath, ref);
+  if (current?.chatId && current.agentId === agentId && current.editable === editable) {
+    const stillThere = await tauri.getChatMessages(current.chatId).then(() => true, () => false);
+    if (stillThere) {
+      return { id: current.chatId };
+    }
+  }
+  const chat = await tauri.startChat({ repoPath, agentId, mode, sessionId, title: conversationTitle(run.context.text ?? ''), kind: 'conversation' });
+  continueConversation(repoPath, ref, chat);
+  return chat;
 }
 
 function threadRef(run: ClaudeRun): string | null {
@@ -799,52 +926,42 @@ function threadRef(run: ClaudeRun): string | null {
   return refForThread(run.context.repoPath, threadId);
 }
 
-/** Runs one at a time per project, since they edit the same working tree; projects run side by side. */
-async function pump(repoPath: string) {
-  if (pumping.has(repoPath)) {
-    return;
-  }
-  pumping.add(repoPath);
-  try {
-    for (;;) {
-      const next = useClaude.getState().runs.find((run) => run.state === 'queued' && run.context.repoPath === repoPath);
-      if (!next) {
-        return;
-      }
-      // Task runs wait for a free slot. The last check and the switch to running happen with no await in between, so
-      // several waiting task folders can't all take the one slot that just opened.
-      let dropped = false;
-      while (isTaskPath(repoPath) && runningTaskRuns() >= taskLimit) {
-        await nextRunChange();
-        if (!useClaude.getState().runs.some((run) => run.id === next.id)) {
-          dropped = true;
-          break;
-        }
-      }
-      if (dropped) {
-        continue;
-      }
-      patchRun(next.id, { state: 'running' });
-      for (const listener of runStartListeners) {
-        listener({ repoPath, actionKind: next.action.kind });
-      }
-      rememberRun(next.id, next.action, next.context);
-      try {
-        await execute(next);
-      } catch (error) {
-        const agentId = useClaude.getState().runs.find((run) => run.id === next.id)?.agentId;
-        const meta = agentId ? agentMeta(agentId) : null;
-        showFailure(`Could not start ${meta?.short ?? 'the agent'}`, toFailure(error), meta, againAction(next.id));
-      } finally {
-        const outcome = useClaude.getState().runs.find((run) => run.id === next.id)?.outcome ?? 'failed';
-        removeRun(next.id);
-        for (const listener of runEndListeners) {
-          listener({ repoPath, outcome, actionKind: next.action.kind });
-        }
-      }
+/** Starts every queued run that may start now (see `startable`). It runs whenever the queue changes or a run ends, and
+ * switches runs to running with no await in between, so a slot that just opened is never taken twice. */
+function schedule() {
+  const runs = useClaude.getState().runs;
+  const ids = startable(
+    runs.map(entryOf),
+    taskLimit,
+  );
+  for (const id of ids) {
+    const run = runs.find((item) => item.id === id);
+    if (!run) {
+      continue;
     }
+    patchRun(id, { state: 'running' });
+    for (const listener of runStartListeners) {
+      listener({ repoPath: run.context.repoPath, actionKind: run.action.kind });
+    }
+    rememberRun(id, run.action, run.context);
+    void runToEnd(run);
+  }
+}
+
+async function runToEnd(run: ClaudeRun) {
+  try {
+    await execute(run);
+  } catch (error) {
+    const agentId = useClaude.getState().runs.find((item) => item.id === run.id)?.agentId;
+    const meta = agentId ? agentMeta(agentId) : null;
+    showFailure(`Could not start ${meta?.short ?? 'the agent'}`, toFailure(error), meta, againAction(run.id));
   } finally {
-    pumping.delete(repoPath);
+    const outcome = useClaude.getState().runs.find((item) => item.id === run.id)?.outcome ?? 'failed';
+    removeRun(run.id);
+    for (const listener of runEndListeners) {
+      listener({ repoPath: run.context.repoPath, outcome, actionKind: run.action.kind });
+    }
+    schedule();
   }
 }
 
@@ -864,19 +981,37 @@ export function useThreadActivity(threadId: string): ThreadActivity {
   });
 }
 
-/** The agent of the run working on (or queued for) a thread, once it is known. */
-export function useThreadRunAgent(threadId: string): string | null {
-  return useClaude((state) => state.runs.find((run) => run.threadIds.includes(threadId))?.agentId ?? null);
-}
-
 /** Threads that are queued or being worked on by any agent run. */
 export function useBusyThreadIds(): Set<string> {
   const runs = useClaude((state) => state.runs);
   return new Set(runs.flatMap((run) => run.threadIds));
 }
 
-export function useActiveRun(repoPath: string): ClaudeRun | null {
-  return useClaude((state) => state.runs.find((run) => run.state === 'running' && run.context.repoPath === repoPath) ?? null);
+/** The project's runs that are going, oldest first. */
+export function useRunningRuns(repoPath: string): ClaudeRun[] {
+  const runs = useClaude((state) => state.runs);
+  return useMemo(() => runs.filter((run) => run.state === 'running' && run.context.repoPath === repoPath), [runs, repoPath]);
+}
+
+/** The running run a new one in the project would wait for (see `runInTheWay`). */
+export function useRunInTheWay(repoPath: string, lane: Lane, onCheckout = true): ClaudeRun | null {
+  return useClaude((state) => runInTheWay(state.runs, repoPath, lane, onCheckout));
+}
+
+/** The line on a thread an agent run is working on or queued for: "Claude is working…", "Queued · starts after the review". */
+export function useThreadRunLabel(threadId: string): string {
+  return useClaude((state) => {
+    const run = state.runs.find((item) => item.threadIds.includes(threadId));
+    const name = run?.agentId ? agentMeta(run.agentId).short : null;
+    if (!run || run.state === 'running') {
+      return `${name ?? 'Agent'} is working…`;
+    }
+    const blocker = blockerOf(state.runs, run);
+    if (blocker) {
+      return `Queued · starts after ${waitLabel(blocker)}`;
+    }
+    return name ? `Queued for ${name}` : 'Queued';
+  });
 }
 
 export function useQueuedCount(repoPath: string): number {

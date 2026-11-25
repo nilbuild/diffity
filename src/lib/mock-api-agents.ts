@@ -13,6 +13,7 @@ import type {
   PrInbox,
   PullRequest,
   ReviewSession,
+  SentAs,
   Thread,
 } from './types';
 
@@ -579,7 +580,7 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
         .filter((chat) => !args.ref || chat.sessionId === deps.sessionFor(String(args.repoPath), String(args.ref)).id)
         .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     start_chat: (args) => {
-      const input = args.input as { repoPath: string; agentId: string; mode: Chat['mode']; sessionId: string; title?: string };
+      const input = args.input as { repoPath: string; agentId: string; mode: Chat['mode']; sessionId: string; title?: string; kind?: Chat['kind'] };
       const chat = {
         id: `chat-${deps.newId()}`,
         repoPath: input.repoPath,
@@ -587,6 +588,7 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
         mode: input.mode,
         sessionId: input.sessionId,
         title: input.title ?? 'New chat',
+        kind: input.kind ?? 'run',
         createdAt: deps.now(),
         updatedAt: deps.now(),
       };
@@ -609,7 +611,7 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
         id: deps.newId(),
         chatId,
         role: 'user',
-        content: { text, context: (args.context as ContextChip[]) ?? [] },
+        content: { text, context: (args.context as ContextChip[]) ?? [], sentAs: (args.sentAs as SentAs | null) ?? undefined },
         createdAt: deps.now(),
       });
       if (text.toLowerCase().includes('fail')) {

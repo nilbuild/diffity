@@ -2,7 +2,7 @@ use crate::core::store::Store;
 use crate::core::{AppError, Result};
 use rusqlite::{params, OptionalExtension, Row};
 
-use crate::agents::types::{AgentMode, Chat, ChatMessage, ChatMessageContent, ChatRole};
+use crate::agents::types::{AgentMode, Chat, ChatKind, ChatMessage, ChatMessageContent, ChatRole};
 
 const EXTRA_SCHEMA: &str = "CREATE TABLE IF NOT EXISTS agent_chat_sessions (
   chat_id TEXT PRIMARY KEY REFERENCES chats(id) ON DELETE CASCADE,
@@ -50,6 +50,7 @@ pub fn insert(
     repo_path: &str,
     agent_id: &str,
     mode: AgentMode,
+    kind: ChatKind,
     title: &str,
     review_session_id: &str,
 ) -> Result<Chat> {
@@ -62,12 +63,14 @@ pub fn insert(
         title: title.into(),
         created_at: ts.clone(),
         updated_at: ts,
+        r#ref: None,
+        kind,
     };
     let mut conn = store.conn()?;
     let tx = conn.transaction()?;
     tx.execute(
-        "INSERT INTO chats(id, repo_path, agent_id, acp_session_id, mode, title, created_at, updated_at) VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7)",
-        params![chat.id, chat.repo_path, chat.agent_id, mode_str(mode), chat.title, chat.created_at, chat.updated_at],
+        "INSERT INTO chats(id, repo_path, agent_id, acp_session_id, mode, kind, title, created_at, updated_at) VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7, ?8)",
+        params![chat.id, chat.repo_path, chat.agent_id, mode_str(mode), kind_str(kind), chat.title, chat.created_at, chat.updated_at],
     )?;
     if !review_session_id.is_empty() {
         tx.execute(
@@ -79,8 +82,16 @@ pub fn insert(
     Ok(chat)
 }
 
+fn kind_str(kind: ChatKind) -> &'static str {
+    match kind {
+        ChatKind::Run => "run",
+        ChatKind::Conversation => "conversation",
+    }
+}
+
 fn chat_from_row(row: &Row<'_>) -> rusqlite::Result<ChatRecord> {
     let mode: String = row.get("mode")?;
+    let kind: String = row.get("kind")?;
     Ok(ChatRecord {
         chat: Chat {
             id: row.get("id")?,
@@ -90,14 +101,17 @@ fn chat_from_row(row: &Row<'_>) -> rusqlite::Result<ChatRecord> {
             title: row.get("title")?,
             created_at: row.get("created_at")?,
             updated_at: row.get("updated_at")?,
+            r#ref: row.get("view_ref")?,
+            kind: if kind == "conversation" { ChatKind::Conversation } else { ChatKind::Run },
         },
         acp_session_id: row.get("acp_session_id")?,
         review_session_id: row.get("session_id")?,
     })
 }
 
-const SELECT: &str = "SELECT c.id, c.repo_path, c.agent_id, c.acp_session_id, c.mode, c.title, c.created_at, c.updated_at, s.session_id
-  FROM chats c LEFT JOIN agent_chat_sessions s ON s.chat_id = c.id";
+const SELECT: &str = "SELECT c.id, c.repo_path, c.agent_id, c.acp_session_id, c.mode, c.title, c.created_at, c.updated_at, c.kind,
+  s.session_id, r.ref AS view_ref
+  FROM chats c LEFT JOIN agent_chat_sessions s ON s.chat_id = c.id LEFT JOIN review_sessions r ON r.id = s.session_id";
 
 pub fn get(store: &Store, chat_id: &str) -> Result<ChatRecord> {
     let conn = store.conn()?;
@@ -182,15 +196,6 @@ pub fn add_message(
     Ok(msg)
 }
 
-pub fn count_messages(store: &Store, chat_id: &str) -> Result<i64> {
-    let conn = store.conn()?;
-    Ok(conn.query_row(
-        "SELECT count(*) FROM chat_messages WHERE chat_id = ?1",
-        params![chat_id],
-        |r| r.get(0),
-    )?)
-}
-
 pub fn messages(store: &Store, chat_id: &str) -> Result<Vec<ChatMessage>> {
     let conn = store.conn()?;
     let mut stmt = conn.prepare(
@@ -236,21 +241,26 @@ mod tests {
         init(&store).unwrap();
         let a = store.get_or_create_session("/r", "work").unwrap();
         let b = store.get_or_create_session("/r", "main..feature").unwrap();
-        let on_a = insert(&store, "/r", "claude", AgentMode::Resolve, "A", &a.id).unwrap();
-        let on_b = insert(&store, "/r", "claude", AgentMode::Resolve, "B", &b.id).unwrap();
+        let on_a = insert(&store, "/r", "claude", AgentMode::Resolve, ChatKind::Conversation, "A", &a.id).unwrap();
+        let on_b = insert(&store, "/r", "claude", AgentMode::Resolve, ChatKind::Run, "B", &b.id).unwrap();
 
         let ids = |chats: Vec<Chat>| chats.into_iter().map(|c| c.id).collect::<Vec<_>>();
         assert_eq!(ids(list(&store, "/r", Some("work")).unwrap()), vec![on_a.id.clone()]);
         assert_eq!(ids(list(&store, "/r", Some("main..feature")).unwrap()), vec![on_b.id.clone()]);
         assert_eq!(list(&store, "/r", None).unwrap().len(), 2);
         assert!(list(&store, "/other", None).unwrap().is_empty());
+        let view = |id: &str| list(&store, "/r", None).unwrap().into_iter().find(|c| c.id == id).and_then(|c| c.r#ref);
+        assert_eq!(view(&on_a.id).as_deref(), Some("work"));
+        assert_eq!(view(&on_b.id).as_deref(), Some("main..feature"));
+        assert_eq!(get(&store, &on_a.id).unwrap().chat.kind, ChatKind::Conversation);
+        assert_eq!(get(&store, &on_b.id).unwrap().chat.kind, ChatKind::Run);
     }
 
     #[test]
     fn chat_crud_and_messages() {
         let store = Store::open_in_memory().unwrap();
         init(&store).unwrap();
-        let chat = insert(&store, "/r", "claude", AgentMode::Review, "Review", "sess").unwrap();
+        let chat = insert(&store, "/r", "claude", AgentMode::Review, ChatKind::Run, "Review", "sess").unwrap();
         let rec = get(&store, &chat.id).unwrap();
         assert_eq!(rec.review_session_id.as_deref(), Some("sess"));
         assert_eq!(rec.chat.mode, AgentMode::Review);
@@ -271,6 +281,7 @@ mod tests {
                     model: Some("opus".into()),
                     effort: Some("high".into()),
                 }),
+                sent_as: None,
             }),
         )
         .unwrap();

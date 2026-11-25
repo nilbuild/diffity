@@ -8,7 +8,7 @@ import { contentsLabel, copyAbsolutePath, copyFileContents, copyRelativePath } f
 import { ContextMenu, MenuItem, MenuSeparator } from '../ui/popover';
 import { errorMessage, openInEditor } from '../../lib/api';
 import { useEditorName } from '../../hooks/use-editor-name';
-import { AgentReadingDot } from '../../features/claude/activity-panel';
+import { AgentReadingDot } from '../../features/claude/run-details';
 import { chord } from '../../lib/shortcuts';
 
 interface FileTreeItemProps {

@@ -329,7 +329,7 @@ fn migrates_v1_database() {
         .unwrap()
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 10);
+    assert_eq!(version, 11);
     let t = store.get_thread("t1").unwrap();
     assert!(!t.pending);
     assert!(t.review_id.is_none());
@@ -382,7 +382,7 @@ fn v2_database_gains_viewed_snapshots() {
     }
     let store = Store::open(&path).unwrap();
     let version: i64 = store.conn().unwrap().pragma_query_value(None, "user_version", |r| r.get(0)).unwrap();
-    assert_eq!(version, 10);
+    assert_eq!(version, 11);
     let old = store.get_viewed("s1", "old.rs").unwrap().unwrap();
     assert_eq!((old.content_hash.as_str(), old.blob_id), ("h0", None));
 

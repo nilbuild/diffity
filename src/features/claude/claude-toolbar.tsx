@@ -1,25 +1,29 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { TREE_REF } from '../../lib/types';
-import { runLabel, runViewLabel, stopClaude, useActiveRun, useCanEditRef, useQueuedCount } from './claude-runner';
+import { runLabel, runViewLabel, stopProject, useQueuedCount, useRunningRuns } from './claude-runner';
+import { sameView } from './conversation';
+import { useCanEditRef } from './edit-target';
 import { useCurrentViewRef } from '../../hooks/use-current-view';
 import { useRepoPath } from '../../hooks/use-repo';
 import { buttonClaude, buttonOutline } from '../../components/ui/button-styles';
-import { AskClaudePanel, useAskClaudeRequest, type Task } from './ask-claude-review';
+import { ReviewForm, useAskClaudeRequest } from './review-form';
 import { SendCommentsPanel, useSendCandidates, useSendRequest } from './send-comments';
-import { SegmentedToggle } from '../../components/ui/segmented-toggle';
 import { plural } from '../review/review-candidates';
 import { useOwnPr } from '../../hooks/use-repo-state';
 import type { CommentThread } from '../../components/comments/types';
 import { cn } from '../../lib/cn';
 import { toast } from 'sonner';
 import { useReviewState } from '../review/review-state';
-import { ChevronDownIcon, CopyIcon, PlusIcon, SparkleIcon, StopIcon } from '../../components/ui/icon';
+import { CopyIcon, SparkleIcon, StopIcon } from '../../components/ui/icon';
+import { modKey } from '../../lib/platform';
+import { closeClaudeCard, openClaudeCard, publishViewActions, toggleClaudePanel, usePanel } from './panel-store';
 import { Popover } from '../../components/ui/popover';
 import { Spinner } from '../../components/icons/spinner';
 import { useRunPick } from './model-setting';
-import { ActivityPeek, formatElapsed, useNow } from './activity-panel';
-import { toggleActivity, useRunActivity } from './run-activity';
+import { ActivityPeek, RunningList, formatElapsed, useNow } from './run-details';
 import { agentMeta } from './agents';
+import { useRunActivity } from './run-activity';
 import { showApprovals, useWaitingApprovals } from './claude-approval-modal';
 
 interface ClaudeToolbarProps {
@@ -31,22 +35,20 @@ interface ClaudeToolbarProps {
   formatForCopy?: () => string;
 }
 
-interface QueueButton {
-  open: boolean;
-  onToggle: () => void;
-  anchorRef: RefObject<HTMLButtonElement | null>;
-}
-
-/** While a run goes: what it does, Stop, a way back to an approval put aside, and (with `queue`) a menu to queue more. */
-export function ClaudeStatus(props: { queue?: QueueButton }) {
-  const { queue } = props;
+/**
+ * While runs go in the project: what the agent is doing (or how many runs), Stop, and a way back to an approval put
+ * aside. Clicking it opens the panel; hovering shows the run, or the list of runs with a way to each.
+ */
+export function ClaudeStatus() {
   const repoPath = useRepoPath();
   const waiting = useWaitingApprovals(repoPath);
-  const run = useActiveRun(repoPath);
+  const runs = useRunningRuns(repoPath);
+  const run = runs[0] ?? null;
   const queued = useQueuedCount(repoPath);
   const now = useNow(run !== null);
   const currentRef = useCurrentViewRef();
-  const activityOpen = useRunActivity((state) => state.open);
+  const panelOpen = usePanel((state) => state.open);
+  const heldBack = useRunActivity((state) => !!run && !!state.byRun[run.id]?.waiting);
   const pillRef = useRef<HTMLDivElement>(null);
   const [peek, setPeek] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -65,34 +67,35 @@ export function ClaudeStatus(props: { queue?: QueueButton }) {
     if (timer.current) {
       clearTimeout(timer.current);
     }
-    timer.current = setTimeout(() => setPeek(open && !useRunActivity.getState().open), open ? 300 : 150);
+    timer.current = setTimeout(() => setPeek(open && !usePanel.getState().open), open ? 300 : 150);
   };
   const name = run.agentId ? agentMeta(run.agentId).short : 'Agent';
-  const elsewhere = !!run.ref && run.ref !== currentRef;
+  const several = runs.length > 1;
+  const elsewhere = !several && !!run.ref && !sameView(run.ref, currentRef);
   const where = run.ref ? runViewLabel(run.context.repoPath, run.ref) : null;
+  const label = several ? `${name} · ${runs.length} running` : heldBack ? `${name} is waiting for another window` : runLabel(run.action, name, !!run.context.conversation);
 
   return (
     <div ref={pillRef} className="flex items-stretch h-7 rounded-md border border-control-border bg-raised overflow-hidden text-xs min-w-0">
       <button
         onClick={() => {
           setPeek(false);
-          toggleActivity();
+          toggleClaudePanel();
         }}
         onMouseEnter={() => hover(true)}
         onMouseLeave={() => hover(false)}
-        aria-pressed={activityOpen}
+        aria-pressed={panelOpen}
         className={cn(
           'flex items-center gap-2 pl-2.5 pr-2 whitespace-nowrap min-w-0 overflow-hidden transition-colors cursor-pointer',
-          activityOpen ? 'bg-claude/12 text-claude' : 'text-text hover:bg-control-hover',
+          panelOpen ? 'bg-claude/12 text-claude' : 'text-text hover:bg-control-hover',
         )}
         title={where && elsewhere ? `Working on ${where} · click to see what ${name} is doing` : `See what ${name} is doing`}
       >
         <Spinner className="text-claude" />
-        <span className="font-medium truncate @max-4xl/titlebar:hidden">{runLabel(run.action, name)}</span>
-        {elsewhere && where && (
-          <span className="text-text-secondary truncate max-w-[180px] @max-4xl/titlebar:hidden">on {where}</span>
-        )}
-        {run.startedAt && <span className="text-text-muted tabular-nums">{formatElapsed(now - run.startedAt)}</span>}
+        <span className="font-medium truncate @max-4xl/titlebar:hidden">{label}</span>
+        {several && <span className="font-medium tabular-nums @min-4xl/titlebar:hidden">{runs.length}</span>}
+        {elsewhere && where && <span className="text-text-secondary truncate max-w-[180px] @max-4xl/titlebar:hidden">on {where}</span>}
+        {!several && run.startedAt && <span className="text-text-muted tabular-nums">{formatElapsed(now - run.startedAt)}</span>}
         {queued > 0 && <span className="text-text-muted @max-3xl/titlebar:hidden">+{queued} queued</span>}
       </button>
       {waiting > 0 && (
@@ -105,41 +108,22 @@ export function ClaudeStatus(props: { queue?: QueueButton }) {
           Approve
         </button>
       )}
-      {queue && (
-        <button
-          ref={queue.anchorRef}
-          onClick={queue.onToggle}
-          aria-expanded={queue.open}
-          className={cn(
-            'flex items-center gap-1 px-2 shrink-0 border-l border-control-border text-text-secondary hover:text-text hover:bg-control-hover transition-colors cursor-pointer',
-            queue.open && 'bg-control-hover text-text',
-          )}
-          title="Queue another job for after this one"
-        >
-          <PlusIcon size="xs" />
-          <span className="@max-3xl/titlebar:hidden">Queue</span>
-        </button>
-      )}
       <button
-        onClick={() => void stopClaude(repoPath)}
+        onClick={() => void stopProject(repoPath)}
         className="flex items-center gap-1 px-2 shrink-0 border-l border-control-border text-text-secondary hover:text-text hover:bg-control-hover transition-colors cursor-pointer"
-        title={`Stop ${name}`}
+        title={several ? `Stop every run in this project${queued > 0 ? ' and clear the queue' : ''}` : `Stop ${name}${queued > 0 ? ' and clear the queue' : ''}`}
       >
         <StopIcon size="xs" />
-        Stop
+        {several ? 'Stop all' : 'Stop'}
       </button>
       <Popover open={peek} onClose={() => setPeek(false)} anchorRef={pillRef} align="end" width={340} className="p-0">
         <div onMouseEnter={() => hover(true)} onMouseLeave={() => hover(false)}>
-          <ActivityPeek onOpen={() => setPeek(false)} />
+          {several ? <RunningList repoPath={repoPath} onPick={() => setPeek(false)} /> : <ActivityPeek runId={run.id} onOpen={() => setPeek(false)} />}
         </div>
       </Popover>
     </div>
   );
 }
-
-type Tab = 'fix' | Task;
-
-const TAB_LABELS: Record<Tab, string> = { fix: 'Fix comments', review: 'Review', change: 'Make changes' };
 
 /** Shown where the agent can't edit: the view isn't the checked-out code. */
 function NotCheckedOut(props: { agent: string; onCopy?: () => void; onReview?: () => void }) {
@@ -175,16 +159,11 @@ function NoComments(props: { agent: string; onReview?: () => void }) {
   );
 }
 
-/** One button for everything an agent can do here: fix open comments, review, or make a change. */
+/** Opens the agent's panel, where you chat about the view; the review and fix forms it offers render here, inside the page. */
 export function ClaudeToolbar(props: ClaudeToolbarProps) {
   const { diffRef, sessionId, hasChanges = true, focusedFile, threads = [], formatForCopy } = props;
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<Tab>('review');
-  const anchorRef = useRef<HTMLButtonElement>(null);
-  const queueRef = useRef<HTMLButtonElement>(null);
-  const close = useCallback(() => setOpen(false), []);
   const repoPath = useRepoPath();
-  const run = useActiveRun(repoPath);
+  const busy = useRunningRuns(repoPath).length > 0;
   const { enabled: commentsEnabled, prMode } = useReviewState();
   const ownPr = useOwnPr();
   const candidates = useSendCandidates(threads, ownPr);
@@ -192,34 +171,29 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
   const requested = useAskClaudeRequest((state) => state.ref);
   const sendRequest = useSendRequest((state) => state.open);
   const seenSendRequest = useRef(sendRequest);
+  const panelOpen = usePanel((state) => state.open);
+  const card = usePanel((state) => state.card);
+  const slot = usePanel((state) => state.slot);
+  const viewRef = useCurrentViewRef();
 
   const reviewRef = diffRef && diffRef !== TREE_REF && hasChanges ? diffRef : null;
   const count = commentsEnabled ? candidates.count : 0;
-  const tabs: Tab[] = [...(commentsEnabled ? ['fix' as const] : []), ...(reviewRef ? ['review' as const, 'change' as const] : [])];
-  const defaultTab: Tab = count > 0 || !reviewRef ? 'fix' : 'review';
-  const buttonAgent = agentMeta(useRunPick(defaultTab === 'fix' ? 'fix' : 'review', repoPath).agent);
-  const tabAgent = useRunPick(tab === 'review' ? 'review' : 'fix', repoPath).agent;
-  /** The agent the open panel will run, which its model picker can change. */
-  const [panelAgent, setPanelAgent] = useState<string | null>(null);
-  const agent = open ? agentMeta(panelAgent ?? tabAgent) : buttonAgent;
+  const agent = agentMeta(useRunPick(count > 0 ? 'fix' : 'review', repoPath).agent);
+  const close = closeClaudeCard;
 
-  const switchTab = useCallback((next: Tab) => {
-    setTab(next);
-    setPanelAgent(null);
-  }, []);
+  useEffect(() => {
+    publishViewActions({ ref: viewRef, reviewable: !!reviewRef, fixCount: editable ? count : 0 });
+  }, [viewRef, reviewRef, editable, count]);
 
-  const openAt = useCallback((next: Tab) => {
-    switchTab(next);
-    setOpen(true);
-  }, [switchTab]);
+  useEffect(() => () => publishViewActions(null), []);
 
   useEffect(() => {
     if (!requested || requested !== reviewRef) {
       return;
     }
     useAskClaudeRequest.setState({ ref: null });
-    openAt('review');
-  }, [requested, reviewRef, openAt]);
+    openClaudeCard('review');
+  }, [requested, reviewRef]);
 
   useEffect(() => {
     if (sendRequest === seenSendRequest.current) {
@@ -229,13 +203,8 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
     if (!commentsEnabled) {
       return;
     }
-    openAt('fix');
-  }, [sendRequest, commentsEnabled, openAt]);
-
-  const usable = tabs.length > 0 && (!!reviewRef || count > 0);
-  if (!usable) {
-    return run ? <ClaudeStatus /> : null;
-  }
+    openClaudeCard('fix');
+  }, [sendRequest, commentsEnabled]);
 
   const copyComments = formatForCopy && count > 0
     ? () => {
@@ -247,61 +216,36 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
       void navigator.clipboard.writeText(text).then(() => toast.success('Copied open comments'));
     }
     : undefined;
-  const toReview = reviewRef ? () => switchTab('review') : undefined;
+  const toReview = reviewRef ? () => openClaudeCard('review') : undefined;
 
-  const body = () => {
-    if (tab === 'fix') {
+  const form = () => {
+    if (card === 'fix') {
       if (!editable) {
         return <NotCheckedOut agent={agent.short} onCopy={copyComments} onReview={toReview} />;
       }
       if (count === 0) {
         return <NoComments agent={agent.short} onReview={toReview} />;
       }
-      return <SendCommentsPanel candidates={candidates} diffRef={diffRef} onClose={close} onAgentChange={setPanelAgent} />;
+      return <SendCommentsPanel candidates={candidates} diffRef={diffRef} onClose={close} />;
     }
-    if (!reviewRef) {
-      return null;
+    if (card === 'review' && reviewRef) {
+      return <ReviewForm diffRef={reviewRef} sessionId={sessionId} focusedFile={focusedFile} onClose={close} embedded />;
     }
-    if (tab === 'change' && !editable) {
-      return <NotCheckedOut agent={agent.short} onReview={toReview} />;
-    }
-    return <AskClaudePanel diffRef={reviewRef} sessionId={sessionId} focusedFile={focusedFile} task={tab} onTaskChange={switchTab} onClose={close} onAgentChange={setPanelAgent} />;
+    return null;
   };
+  const cardNode = panelOpen && card && slot ? createPortal(form(), slot) : null;
 
   const title = count > 0
-    ? `${plural(count, 'open comment')} ${agent.short} can work on. Or ask ${agent.short} to review or make a change.`
+    ? `Chat with ${agent.short} about this view, or have it fix ${plural(count, 'open comment')} (${modKey}L)`
     : prMode
-      ? `${agent.short} reviews this pull request and leaves its comments in Diffity only (marked ${agent.short}). Use “Add to my review” on any you want to post to GitHub.`
-      : `Ask ${agent.short} to review these changes or to make a change for you.`;
+      ? `Chat with ${agent.short} about this pull request, or have it review it (${modKey}L)`
+      : `Chat with ${agent.short} about these changes, or have it review them (${modKey}L)`;
 
-  const popover = (
-    <Popover open={open} onClose={close} anchorRef={run ? queueRef : anchorRef} align="end" width={420} className="p-0 overflow-visible">
-      <div className="flex items-center gap-2 px-4 pt-3.5">
-        <SparkleIcon size="md" className="text-claude" />
-        <h3 className="text-[13px] font-semibold text-text">{run ? 'Queue' : agent.short}</h3>
-        <span className="flex-1" />
-        {tabs.length > 1 && (
-          <SegmentedToggle<Tab>
-            value={tab}
-            onChange={switchTab}
-            options={tabs.map((value) => ({ value, label: TAB_LABELS[value] }))}
-          />
-        )}
-      </div>
-      {run && (
-        <p className="px-4 pt-1.5 text-xs text-text-secondary">
-          {runLabel(run.action, run.agentId ? agentMeta(run.agentId).short : 'The agent')}. This starts when it finishes.
-        </p>
-      )}
-      {body()}
-    </Popover>
-  );
-
-  if (run) {
+  if (busy) {
     return (
       <>
-        <ClaudeStatus queue={{ open, onToggle: () => (open ? close() : openAt(defaultTab)), anchorRef: queueRef }} />
-        {popover}
+        <ClaudeStatus />
+        {cardNode}
       </>
     );
   }
@@ -309,20 +253,18 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
   return (
     <>
       <button
-        ref={anchorRef}
-        onClick={() => (open ? close() : openAt(defaultTab))}
-        className={cn(buttonClaude, 'px-2.5', open && 'bg-claude/16')}
+        onClick={toggleClaudePanel}
+        className={cn(buttonClaude, 'px-2.5', panelOpen && 'bg-claude/16 border-claude/50')}
         title={title}
-        aria-expanded={open}
+        aria-pressed={panelOpen}
       >
         <SparkleIcon size="md" />
         <span className="@max-3xl/titlebar:hidden">{agent.short}</span>
         {count > 0 && (
           <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-claude text-white text-[11px] font-semibold leading-[18px] text-center tabular-nums">{count}</span>
         )}
-        <ChevronDownIcon size="xs" className="opacity-70 @max-3xl/titlebar:hidden" />
       </button>
-      {popover}
+      {cardNode}
     </>
   );
 }

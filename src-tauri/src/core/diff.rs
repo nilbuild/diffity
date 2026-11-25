@@ -214,6 +214,15 @@ pub fn resolve_ref(repo: &Path, r: &str) -> Result<ResolvedRef> {
     Ok(plan(repo, r)?.resolved)
 }
 
+/// Whether the newer side of `r` is part of what's checked out (HEAD or a commit before it), so its files are on disk
+/// and an agent can change them in the working copy. False for a branch or pull request that isn't checked out.
+pub fn in_checkout(repo: &Path, r: &str) -> Result<bool> {
+    let Some(head) = resolve_ref(repo, r)?.head_sha else {
+        return Ok(false);
+    };
+    Ok(git::run_opt(repo, &["merge-base", "--is-ancestor", &head, "HEAD"])?.is_some())
+}
+
 fn diff_args<'a>(plan: &'a DiffPlan, extra: &[&'a str], ignore_whitespace: bool) -> Vec<&'a str> {
     let mut args = vec![
         "diff",

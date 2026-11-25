@@ -10,8 +10,9 @@ import { modKey } from '../../lib/platform';
 import { Popover } from '../../components/ui/popover';
 import { buttonClaudeSolid, buttonGhost, inputField } from '../../components/ui/button-styles';
 import { SparkleIcon } from '../../components/ui/icon';
-import { enqueueClaude, useActiveRun, useCanEditRef } from './claude-runner';
-import { SegmentedToggle } from '../../components/ui/segmented-toggle';
+import { toast } from 'sonner';
+import { enqueueClaude, useClaude, useRunInTheWay, waitLabel } from './claude-runner';
+import { useEditTarget } from './edit-target';
 import { ModelPicker } from './model-picker';
 import { useRunPick, writeRepoPick, type RunPick } from './model-setting';
 import { agentMeta } from './agents';
@@ -19,11 +20,13 @@ import { useGitHubPr } from '../../hooks/use-repo-state';
 import { useRepoNav } from '../../hooks/use-repo';
 import { prBaseFor, prRefFor } from '../../lib/pr-ref';
 import { useCommitDetails } from '../../components/layout/diff-context-bar';
-import { viewLabel } from '../../lib/thread-location';
+import { goToThread, viewLabel } from '../../lib/thread-location';
+import { useCurrentViewRef } from '../../hooks/use-current-view';
+import { askInChat } from './composer-state';
+import { sameView } from './conversation';
 import { FocusChips } from './review-focus-chips';
 import { focusesForRepo, reviewRequest, useCustomFocuses } from './review-focuses';
 import { clearDraft, draftKey, useDraft } from './agent-drafts';
-import { toast } from 'sonner';
 import { MentionTextarea } from '../../components/comments/mention-textarea';
 import { ReadableProjects } from '../groups/readable-projects';
 
@@ -31,21 +34,9 @@ export { REVIEW_FOCUSES } from './review-focuses';
 
 type Scope = 'all' | 'file' | 'glob';
 
-/** A review only leaves comments; changes edit the working tree. */
-export type Task = 'review' | 'change';
-
-/** Instructions that ask for edits rather than a review, e.g. "remove the debug logs". */
+/** Instructions that ask for edits rather than a review, e.g. "remove the debug logs": better sent as a chat message. */
 export function readsAsChangeRequest(text: string): boolean {
   return /^\s*(?:please\s+|can you\s+|could you\s+)?(?:remove|delete|add|rename|fix|change|replace|refactor|update|move|rewrite|convert|implement|make|drop|clean up|extract|inline|format)\b/i.test(text);
-}
-
-/** The agent's message for a change: the request, the files it may touch, and the file on screen ("this file"). */
-export function changeRequest(text: string, paths: string[], diffRef: string, focusedFile?: string | null): string {
-  const scope = paths.length > 0
-    ? `Only change these files: ${paths.map((path) => `\`${path}\``).join(', ')}.`
-    : `Work on the files changed in \`${diffRef}\` unless the request needs others.`;
-  const onScreen = focusedFile ? ` The user is looking at \`${focusedFile}\`, so "this file" means that one.` : '';
-  return `${text.trim()}\n\n${scope}${onScreen}`;
 }
 
 const FOCUS_KEY = 'diffity-claude-focus:';
@@ -140,41 +131,30 @@ function ReviewTarget(props: { diffRef: string; onClose: () => void }) {
   );
 }
 
-interface AskClaudePanelProps {
+interface ReviewFormProps {
   diffRef: string;
   sessionId: string | null;
   focusedFile?: string | null;
   onStarted?: () => void;
   onClose: () => void;
-  /** Set by a host that picks the task itself (its own tabs); the panel then drops its header. */
-  task?: Task;
-  onTaskChange?: (task: Task) => void;
-  /** Told which agent the run will go to, so a host can name it. */
-  onAgentChange?: (agentId: string) => void;
+  /** Shown inside the agent panel, which has its own header. */
+  embedded?: boolean;
 }
 
-export function AskClaudePanel(props: AskClaudePanelProps) {
-  const { diffRef, sessionId, focusedFile, onStarted, onClose, task: hostTask, onTaskChange, onAgentChange } = props;
+/** Asks the agent to review the view: what to focus on, which files, and which model. A review only leaves comments. */
+export function ReviewForm(props: ReviewFormProps) {
+  const { diffRef, sessionId, focusedFile, onStarted, onClose, embedded } = props;
   const repoPath = getRepoPath();
-  const queued = !!useActiveRun(repoPath);
+  const viewRef = useCurrentViewRef();
   const textKey = draftKey('instructions', repoPath, diffRef);
   const [text, setText] = useDraft(textKey);
-  const canChange = useCanEditRef(repoPath, diffRef);
-  const [ownTask, setOwnTask] = useState<Task>('review');
-  const task = hostTask ?? ownTask;
-  const setTask = (value: Task) => {
-    setOwnTask(value);
-    onTaskChange?.(value);
-  };
-  const changing = task === 'change' && canChange;
   const [focus, setFocus] = useState<string[]>(() => readFocus(repoPath));
   const customFocuses = focusesForRepo(useCustomFocuses().all, repoPath);
   const [scope, setScope] = useState<Scope>('all');
   const [glob, setGlob] = useState('');
   const reviewPick = useRunPick('review', repoPath);
-  const fixPick = useRunPick('fix', repoPath);
   const [picked, setPicked] = useState<RunPick | null>(null);
-  const pick = picked ?? (changing ? fixPick : reviewPick);
+  const pick = picked ?? reviewPick;
   const agent = agentMeta(pick.agent);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const { data: diff } = useQuery(diffOptions(false, diffRef));
@@ -189,43 +169,35 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
   }, [glob, files]);
 
   useEffect(() => {
-    setPicked(null);
-  }, [task]);
-
-  useEffect(() => {
-    onAgentChange?.(pick.agent);
-  }, [pick.agent, onAgentChange]);
-
-  useEffect(() => {
     const frame = requestAnimationFrame(() => requestAnimationFrame(() => textRef.current?.focus()));
     return () => cancelAnimationFrame(frame);
-  }, [task]);
+  }, []);
 
   const paths = scope === 'file' && focusedFile ? [focusedFile] : scope === 'glob' ? globMatches : [];
-  const blocked = (scope === 'glob' && globMatches.length === 0) || (changing && !text.trim());
-  const suggestChange = !changing && canChange && readsAsChangeRequest(text);
+  const alreadyReviewing = useClaude((state) =>
+    state.runs.some((run) => run.action.kind === 'review' && run.context.repoPath === repoPath && sameView(run.ref, diffRef)),
+  );
+  const noFiles = scope === 'glob' && globMatches.length === 0;
+  const blocked = noFiles || alreadyReviewing;
+  const waitsFor = useRunInTheWay(repoPath, 'read', useEditTarget(repoPath, diffRef) !== 'none');
+
+  const moveToChat = () => {
+    if (!sameView(diffRef, viewRef)) {
+      goToThread(repoPath, { ref: diffRef, threadId: null });
+    }
+    askInChat(repoPath, diffRef, text);
+    clearDraft(textKey);
+    onClose();
+  };
 
   const start = async () => {
     if (blocked) {
       return;
     }
     if (picked) {
-      writeRepoPick(changing ? 'fix' : 'review', repoPath, picked);
+      writeRepoPick('review', repoPath, picked);
     }
     const session = sessionId ?? (await tauri.getSession(repoPath, diffRef).catch(() => null))?.id ?? null;
-    const started = () => {
-      clearDraft(textKey);
-      onClose();
-      onStarted?.();
-      if (queued) {
-        toast(`Queued for ${agent.short}`, { description: 'It starts when the current run finishes.' });
-      }
-    };
-    if (changing) {
-      enqueueClaude({ kind: 'chat' }, { repoPath, sessionId: session, ref: diffRef, pick, text: changeRequest(text, paths, diffRef, focusedFile) });
-      started();
-      return;
-    }
     writeFocus(repoPath, focus);
     const request = reviewRequest(focus, customFocuses, text);
     enqueueClaude(
@@ -238,7 +210,12 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
       },
       { repoPath, sessionId: session, pick },
     );
-    started();
+    clearDraft(textKey);
+    onClose();
+    onStarted?.();
+    if (waitsFor) {
+      toast(`Review queued`, { description: `It starts after ${waitLabel(waitsFor)}, so it reads the finished code.` });
+    }
   };
 
   const scopeOption = (value: Scope, label: ReactNode, disabled = false) => (
@@ -257,7 +234,7 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
 
   return (
     <form
-      className={cn('flex flex-col gap-3 p-4', hostTask && 'pt-3')}
+      className={cn('flex flex-col gap-3 p-4', embedded && 'pt-3')}
       onSubmit={(event) => {
         event.preventDefault();
         void start();
@@ -269,31 +246,16 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
         }
       }}
     >
-      {!hostTask && (
-      <div className="flex items-center gap-2">
-        <SparkleIcon size="md" className="text-claude" />
-        <h3 className="text-[13px] font-semibold text-text">Ask {agent.short}</h3>
-        <span className="flex-1" />
-        {canChange && (
-          <SegmentedToggle<Task>
-            value={task}
-            onChange={(value) => {
-              setTask(value);
-              setPicked(null);
-              textRef.current?.focus();
-            }}
-            options={[
-              { value: 'review', label: 'Review', title: `${agent.short} reads the changes and leaves comments. It never edits files.` },
-              { value: 'change', label: 'Make changes', title: `${agent.short} edits the files to do what you ask.` },
-            ]}
-          />
-        )}
-      </div>
+      {!embedded && (
+        <div className="flex items-center gap-2">
+          <SparkleIcon size="md" className="text-claude" />
+          <h3 className="text-[13px] font-semibold text-text">Ask {agent.short} to review</h3>
+        </div>
       )}
-      {!changing && <ReviewTarget diffRef={diffRef} onClose={onClose} />}
+      <ReviewTarget diffRef={diffRef} onClose={onClose} />
       <div>
         <label className="block mb-1.5 text-xs font-medium text-text-secondary" htmlFor="claude-instructions">
-          {changing ? `What should ${agent.short} change?` : `What should ${agent.short} focus on?`}
+          What should {agent.short} focus on?
         </label>
         <MentionTextarea
           id="claude-instructions"
@@ -301,24 +263,20 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
           value={text}
           onChange={setText}
           rows={3}
-          placeholder={changing
-            ? 'For example “Remove the code comments from this file” or “Rename getUser to fetchUser everywhere”.'
-            : 'Optional. For example “Check error handling in the new API routes” or “This is a perf refactor, look for regressions”.'}
+          placeholder="Optional. For example “Check error handling in the new API routes” or “This is a perf refactor, look for regressions”."
           spellCheck={false}
           className={cn(inputField, 'h-auto py-2 leading-5 resize-y min-h-[76px]')}
         />
-        {suggestChange && (
+        {readsAsChangeRequest(text) && (
           <p className="mt-1.5 text-xs leading-5 text-text-secondary">
             A review only leaves comments.{' '}
-            <button type="button" onClick={() => setTask('change')} className="text-claude hover:underline cursor-pointer">
-              Make this change instead
+            <button type="button" onClick={moveToChat} className="text-claude hover:underline cursor-pointer">
+              Ask {agent.short} in chat to do this instead
             </button>
           </p>
         )}
       </div>
-      {!changing && (
       <FocusChips repoPath={repoPath} selected={focus} onSelectedChange={setFocus} />
-      )}
       <div className="flex flex-col gap-0.5">
         <span className="text-xs font-medium text-text-secondary mb-0.5">Scope</span>
         {scopeOption('all', `All changes in this view${files.length ? ` (${files.length} file${files.length === 1 ? '' : 's'})` : ''}`)}
@@ -352,10 +310,10 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
           type="submit"
           disabled={blocked}
           className={buttonClaudeSolid}
-          title={blocked ? (changing && !text.trim() ? 'Say what to change' : 'No files match the pattern') : queued ? `Runs after the current one (${modKey}↵)` : `Start (${modKey}↵)`}
+          title={alreadyReviewing ? `${agent.short} is already reviewing this view` : noFiles ? 'No files match the pattern' : waitsFor ? `Starts after ${waitLabel(waitsFor)}, so it reads the finished code (${modKey}↵)` : `Start (${modKey}↵)`}
         >
           <SparkleIcon size="sm" />
-          {changing ? (queued ? 'Queue changes' : 'Make changes') : (queued ? 'Queue review' : 'Start review')}
+          {waitsFor ? 'Queue review' : 'Start review'}
           <kbd className="ml-1 font-sans text-[11px] opacity-75">{modKey}↵</kbd>
         </button>
       </div>
@@ -363,18 +321,18 @@ export function AskClaudePanel(props: AskClaudePanelProps) {
   );
 }
 
-interface AskClaudePopoverProps extends Omit<AskClaudePanelProps, 'onClose'> {
+interface ReviewPopoverProps extends Omit<ReviewFormProps, 'onClose' | 'embedded'> {
   open: boolean;
   onClose: () => void;
   anchorRef: RefObject<HTMLElement | null>;
 }
 
-export function AskClaudePopover(props: AskClaudePopoverProps) {
+export function ReviewPopover(props: ReviewPopoverProps) {
   const { open, onClose, anchorRef, ...rest } = props;
 
   return (
     <Popover open={open} onClose={onClose} anchorRef={anchorRef} align="end" width={400} className="p-0 overflow-visible">
-      <AskClaudePanel {...rest} onClose={onClose} />
+      <ReviewForm {...rest} onClose={onClose} />
     </Popover>
   );
 }

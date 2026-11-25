@@ -14,7 +14,7 @@ import { useTheme } from '../hooks/use-theme';
 import { ClaudeApprovalModal } from '../features/claude/claude-approval-modal';
 import { RouteErrorBoundary } from './route-error-boundary';
 import { CommentsPanel } from '../features/comments/comments-panel';
-import { ActivityPanel } from '../features/claude/activity-panel';
+import { ClaudePanel } from '../features/claude/claude-panel';
 import { NewTaskDialog } from '../features/tasks/new-task-dialog';
 import { markTaskSeen, setTaskOpener, useTaskForPath } from '../features/tasks/tasks';
 import { taskLocation } from '../features/tasks/task-menu';
@@ -248,7 +248,7 @@ export function RepoLayout() {
         </RouteErrorBoundary>
         <NavigationProgress />
         </div>
-        <ActivityPanel />
+        <ClaudePanel />
         </div>
       </RailFrame>
       <ClaudeApprovalModal />

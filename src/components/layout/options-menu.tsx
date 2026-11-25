@@ -5,7 +5,7 @@ import { openSettings, openShortcuts } from '../../lib/ui-store';
 import { modKey } from '../../lib/platform';
 import { buttonIconOutline } from '../ui/button-styles';
 import { EllipsisIcon, FolderOpenIcon, GitHubIcon, HistoryIcon, KeyboardIcon, MoonIcon, SettingsIcon, SunIcon } from '../ui/icon';
-import { openActivityHistory } from '../../features/claude/run-activity';
+import { openClaudeHistory } from '../../features/claude/panel-store';
 
 export const menuItemClass = 'flex items-center gap-2.5 w-full h-8 px-2.5 rounded-md text-[13px] text-text hover:bg-hover transition-colors cursor-pointer text-left [&>svg]:text-text-secondary';
 
@@ -43,7 +43,7 @@ export function OptionsMenu(props: OptionsMenuProps) {
               className={menuItemClass}
               onClick={() => {
                 close();
-                openActivityHistory();
+                openClaudeHistory();
               }}
             >
               <HistoryIcon className="w-3.5 h-3.5" />

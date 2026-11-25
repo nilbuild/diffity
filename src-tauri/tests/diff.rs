@@ -519,3 +519,20 @@ fn only_ranges_ending_at_head_are_editable() {
     assert!(diff::get_diff(&repo.path, &format!("main...{feature}"), false).unwrap().resolved.can_edit);
     assert!(!diff::get_diff(&repo.path, "feature...main", false).unwrap().resolved.can_edit);
 }
+
+#[test]
+fn in_checkout_covers_head_and_its_history_only() {
+    let repo = Repo::with_commit();
+    repo.write("a.txt", "one\n");
+    let old = repo.commit("old");
+    repo.write("a.txt", "two\n");
+    let head = repo.commit("head");
+    repo.git(&["checkout", "-q", "-b", "side", &old]);
+    repo.write("b.txt", "side\n");
+    let side = repo.commit("side");
+    repo.git(&["checkout", "-q", "-"]);
+    let range = |sha: &str| format!("{sha}~1..{sha}");
+    assert!(diff::in_checkout(&repo.path, &range(&head)).unwrap());
+    assert!(diff::in_checkout(&repo.path, &range(&old)).unwrap());
+    assert!(!diff::in_checkout(&repo.path, &range(&side)).unwrap());
+}

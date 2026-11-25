@@ -18,6 +18,7 @@ use crate::agents::detect::{self, AgentKind, DetectedAgent};
 use crate::agents::prompts;
 use crate::agents::session::{self, AgentSession, EventSink, PermissionBroker, SessionConfig};
 use crate::agents::tools::Binding;
+use crate::agents::repo_lock::{Access, RepoLocks};
 use crate::agents::types::*;
 
 pub use crate::agents::bridge::ThreadsChangedHook;
@@ -52,6 +53,7 @@ pub struct AgentManager {
     runtimes: std::sync::Mutex<HashMap<String, Slot>>,
     catalogs: Mutex<HashMap<String, ModelCatalog>>,
     working: Arc<AtomicUsize>,
+    repo_locks: RepoLocks,
 }
 
 impl AgentManager {
@@ -81,6 +83,7 @@ impl AgentManager {
             runtimes: std::sync::Mutex::new(HashMap::new()),
             catalogs: Mutex::new(HashMap::new()),
             working: Arc::new(AtomicUsize::new(0)),
+            repo_locks: RepoLocks::default(),
         }
     }
 
@@ -235,6 +238,7 @@ impl AgentManager {
                 &input.repo_path,
                 kind.id(),
                 input.mode,
+                input.kind,
                 &title,
                 &input.session_id,
             )
@@ -499,12 +503,27 @@ impl AgentManager {
         Ok(rt)
     }
 
+    /// How a turn uses the project's checked-out code (see `repo_lock`): None for a read-only turn on code that isn't
+    /// checked out (another branch or pull request), which can't get in anyone's way.
+    async fn turn_access(&self, rec: &chats::ChatRecord, session_ref: &str) -> Option<Access> {
+        if crate::agents::policy::can_write_files(rec.chat.mode) {
+            return Some(Access::Write);
+        }
+        if prompts::shows_working_copy(session_ref) || session_ref == "staged" {
+            return Some(Access::Read);
+        }
+        let (repo, r) = (rec.chat.repo_path.clone(), session_ref.to_string());
+        let checked_out = blocking(move || crate::core::diff::in_checkout(Path::new(&repo), &r)).await.unwrap_or(true);
+        checked_out.then_some(Access::Read)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn send_prompt(
         &self,
         chat_id: &str,
         text: String,
         context: Vec<ContextChip>,
+        sent_as: Option<SentAs>,
         action: AgentAction,
         model: RunModel,
         projects: Vec<LinkedProject>,
@@ -521,6 +540,25 @@ impl AgentManager {
             ));
         }
         let (session_id, session_ref) = self.binding_session(&rec, &action).await?;
+        let _turn = match self.turn_access(&rec, &session_ref).await {
+            Some(access) => {
+                let Some(turn) = self.repo_locks.acquire(&rec.chat.repo_path, chat_id, access, || on_event(AgentEvent::Waiting)).await else {
+                    // Stopped before the agent saw it: kept in the chat, with a reply that says so.
+                    let (store, id) = (self.store.clone(), chat_id.to_string());
+                    let user = ChatMessageContent::User(UserMessageContent { text, context, model: Some(model), sent_as });
+                    let stopped = ChatMessageContent::Agent(vec![AgentEvent::Done { stop_reason: "cancelled".into() }]);
+                    blocking(move || {
+                        chats::add_message(&store, &id, ChatRole::User, &user)?;
+                        chats::add_message(&store, &id, ChatRole::Agent, &stopped)
+                    })
+                    .await?;
+                    on_event(AgentEvent::Done { stop_reason: "cancelled".into() });
+                    return Ok(());
+                };
+                Some(turn)
+            }
+            None => None,
+        };
         let review = self.review_brief(&action).await?;
         let extras = self.guide_extras(&rec.chat.repo_path, &session_ref, &action).await;
         let paths = self.review_paths(&rec.chat.repo_path, &session_ref, &action).await?;
@@ -537,8 +575,8 @@ impl AgentManager {
             paths,
         };
 
-        let (store, id) = (self.store.clone(), chat_id.to_string());
-        let first_turn = blocking(move || chats::count_messages(&store, &id)).await? == 0;
+        // The agent's session hasn't started yet, so it hasn't been told what it is here.
+        let first_turn = rec.acp_session_id.is_none();
         let prompt = prompts::build_prompt(
             rec.chat.mode,
             &action,
@@ -551,6 +589,10 @@ impl AgentManager {
         if prompt.trim().is_empty() {
             return Err(AppError::invalid("prompt is empty"));
         }
+        let prompt = match sent_as {
+            Some(sent_as) => format!("{}\n\n{prompt}", prompts::sent_as_note(sent_as)),
+            None => prompt,
+        };
         let prompt = match extras {
             Some(section) => format!("{prompt}\n{section}"),
             None => prompt,
@@ -572,6 +614,7 @@ impl AgentManager {
             text: text.clone(),
             context,
             model: Some(model.clone()),
+            sent_as,
         });
         let (store, id) = (self.store.clone(), chat_id.to_string());
         blocking(move || chats::add_message(&store, &id, ChatRole::User, &user)).await?;
@@ -591,6 +634,9 @@ impl AgentManager {
     }
 
     pub async fn cancel_prompt(&self, chat_id: &str) -> Result<()> {
+        if self.repo_locks.cancel_wait(chat_id) {
+            return Ok(());
+        }
         let Some(slot) = self.existing_runtime(chat_id) else {
             return Ok(());
         };
