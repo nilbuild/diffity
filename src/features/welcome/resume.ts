@@ -12,7 +12,6 @@ import { openRepoAt } from './recent-repos';
 export const RECENT_MS = 2 * 60 * 60 * 1000;
 
 interface Return {
-  /** When you were last in the project, or null if never recorded. */
   visitedAt: number | null;
   now: number;
   /** The view has nothing to show any more: no changes, or its branch is gone. */
@@ -21,7 +20,6 @@ interface Return {
   inProgress: boolean;
 }
 
-/** Whether switching to a project reopens its last diff view rather than its home. */
 export function shouldRestore(state: Return): boolean {
   if (state.empty) {
     return false;

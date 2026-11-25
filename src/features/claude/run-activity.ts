@@ -44,7 +44,7 @@ export const useRunActivity = create<ActivityState>(() => ({ byRun: {} }));
 /** Finished runs kept for the panel, besides the ones still running. */
 const KEEP_FINISHED = 20;
 
-/** A project's runs, newest first; with `inView`, only those in the views it accepts. */
+/** Newest first. */
 export function projectActivities(byRun: Record<string, RunActivity>, repoPath: string, inView?: (ref: string | null) => boolean): RunActivity[] {
   return Object.values(byRun)
     .filter((activity) => activity.repoPath === repoPath && (!inView || inView(activity.ref)))

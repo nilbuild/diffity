@@ -35,8 +35,7 @@ impl RepoLocks {
         locks.entry(repo.to_string()).or_default().clone()
     }
 
-    /// The project's lock for a turn of `chat_id`. Calls `on_wait` first when another turn is in the way; None when the
-    /// wait was cancelled.
+    /// Calls `on_wait` first when another turn is in the way; None when the wait was cancelled.
     pub async fn acquire(&self, repo: &str, chat_id: &str, access: Access, on_wait: impl FnOnce()) -> Option<RepoTurn> {
         let lock = self.lock_for(repo);
         let now = match access {
@@ -66,7 +65,7 @@ impl RepoLocks {
         turn
     }
 
-    /// Ends `chat_id`'s wait for a lock; false when it isn't waiting.
+    /// False when `chat_id` isn't waiting.
     pub fn cancel_wait(&self, chat_id: &str) -> bool {
         let waiting = self.waiting.lock().unwrap_or_else(|e| e.into_inner());
         let Some(cancel) = waiting.get(chat_id) else {

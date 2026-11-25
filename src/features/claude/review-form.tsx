@@ -142,7 +142,7 @@ interface ReviewFormProps {
   embedded?: boolean;
 }
 
-/** Asks the agent to review the view: what to focus on, which files, and which model. A review only leaves comments. */
+/** A review only leaves comments. */
 export function ReviewForm(props: ReviewFormProps) {
   const { diffRef, sessionId, focusedFile, onStarted, onClose, embedded } = props;
   const repoPath = getRepoPath();

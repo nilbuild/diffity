@@ -55,7 +55,6 @@ export function focusesForRepo(all: CustomFocus[], repoPath: string): CustomFocu
   return all.filter((focus) => focus.repoPath === null || focus.repoPath === repoPath);
 }
 
-/** The user's instructions for a built-in chip, if they edited it. */
 export function overrideFor(shown: CustomFocus[], name: string): CustomFocus | null {
   return shown.find((focus) => focus.builtIn && focus.name === name) ?? null;
 }

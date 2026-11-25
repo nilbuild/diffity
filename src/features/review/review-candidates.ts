@@ -192,7 +192,6 @@ interface SubmitButton {
   mentions: number;
 }
 
-/** The submit button's label: what posts, and who gets the comments, short enough for one line. */
 export function submitButtonLabel(input: SubmitButton): string {
   const { prNumber, verdict, postCount, postToGitHub, fixer, mentions } = input;
   if (postToGitHub) {

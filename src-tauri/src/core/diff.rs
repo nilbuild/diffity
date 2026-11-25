@@ -603,7 +603,7 @@ fn drop_sections(patch: String, drop: &HashSet<String>) -> String {
 /// Cheap change detector: sha256 of `git diff --stat`, the untracked list, HEAD, working-tree file stats and the
 /// ignore rules. Files hidden by `.diffityignore` do not count.
 /// Matches the `fingerprint` of `get_diff_with` for the same ref and `show_ignored`.
-/// Whether the view has no changes to show (with `.diffityignore` applied). Errors when the ref no longer resolves.
+/// Applies `.diffityignore`. Errors when the ref no longer resolves.
 pub fn diff_is_empty(repo: &Path, r: &str) -> Result<bool> {
     let mut plan = plan(repo, r)?;
     let mut untracked = untracked_for(repo, &plan)?;

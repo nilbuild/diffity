@@ -8,7 +8,6 @@ export function isConversation(chat: Pick<Chat, 'kind'>): boolean {
   return chat.kind === 'conversation';
 }
 
-/** A conversation is listed under its first message. */
 export function conversationTitle(text: string): string {
   const line = text.trim().split('\n')[0] ?? '';
   return line.length > 60 ? `${line.slice(0, 57)}…` : line || 'Chat';
@@ -25,7 +24,6 @@ function sharedRef(ref: string | null): string {
   return `${ref}...HEAD`;
 }
 
-/** Whether two refs are the same view for chatting: equal, or a branch's All changes and Committed only twins. */
 export function sameView(a: string | null | undefined, b: string | null | undefined): boolean {
   return sharedRef(a ?? null) === sharedRef(b ?? null);
 }

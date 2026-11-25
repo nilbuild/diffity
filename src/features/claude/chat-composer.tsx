@@ -59,7 +59,6 @@ function editingLabel(kind: Editing['kind'], agent: string): string {
   return 'Editing a copy · sends as a new message';
 }
 
-/** The message box and what sits above it: approvals, where edits land, the review and fix forms, the steer hint. */
 export function ChatComposer(props: { repoPath: string; viewRef: string }) {
   const { repoPath, viewRef } = props;
   const textKey = draftKey('chat', repoPath, viewRef);
@@ -255,7 +254,6 @@ interface Notice {
   text: string;
   /** The longer explanation, on hover. */
   detail?: string;
-  /** Shortcuts shown as keys, e.g. ↵ send now. */
   keys?: { key: string; label: string }[];
 }
 

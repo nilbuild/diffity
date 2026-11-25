@@ -23,13 +23,11 @@ interface MentionTextareaProps {
   autoFocus?: boolean;
   id?: string;
   spellCheck?: boolean;
-  /** Open the suggestions above the box, for a box at the bottom of the window. */
   menuAbove?: boolean;
   /** Files @ can mention, best first (e.g. the diff's own files, then the rest of the repo). */
   files?: string[];
   /** Whether @ offers agents; off where asking another agent means nothing, like the chat with one. */
   agents?: boolean;
-  /** Grows with its text up to this many pixels, then scrolls. */
   growTo?: number;
 }
 
@@ -57,7 +55,6 @@ interface MenuPosition {
   maxHeight: number;
 }
 
-/** Where the menu goes: on the preferred side of the box when it fits, else on whichever side has more room. */
 function menuPosition(box: DOMRect, menuHeight: number, above: boolean): MenuPosition {
   const left = Math.max(MENU_MARGIN, Math.min(box.left, window.innerWidth - MENU_WIDTH - MENU_MARGIN));
   const roomBelow = window.innerHeight - box.bottom - MENU_GAP - MENU_MARGIN;
@@ -104,7 +101,6 @@ function MentionBackdrop(props: { value: string; projects: KnownProject[]; files
   );
 }
 
-/** Text with each `@path` of a known file marked. */
 function FileMentions(props: { text: string; files: Set<string> }) {
   const { text, files } = props;
 

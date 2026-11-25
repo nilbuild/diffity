@@ -11,7 +11,6 @@ export function chipLabel(chip: ContextChip): string {
   return `${name} L${chip.startLine}${end}${chip.side === 'old' ? ' (old)' : ''}`;
 }
 
-/** The diff lines the user has selected, as a chip, or null when the selection isn't in a diff. */
 export function chipFromSelection(): ContextChip | null {
   const selection = window.getSelection();
   if (!selection || selection.isCollapsed || selection.rangeCount === 0) {

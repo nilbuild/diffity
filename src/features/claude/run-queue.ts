@@ -7,7 +7,6 @@
 
 export type Lane = 'read' | 'edit';
 
-/** Reviews and guides read the code and leave comments; every other run may edit files. */
 export function laneOf(actionKind: string): Lane {
   return actionKind === 'review' || actionKind === 'guide' ? 'read' : 'edit';
 }
@@ -27,7 +26,7 @@ export function conflicts(a: QueueEntry, b: QueueEntry): boolean {
   return a.repoPath === b.repoPath && a.onCheckout && b.onCheckout && (a.lane === 'edit' || b.lane === 'edit');
 }
 
-/** The queued runs that may start now, in queue order. */
+/** In queue order. */
 export function startable(entries: QueueEntry[], taskLimit: number): string[] {
   const going = entries.filter((entry) => entry.state === 'running');
   let taskSlots = taskLimit - going.filter((entry) => entry.inTask).length;

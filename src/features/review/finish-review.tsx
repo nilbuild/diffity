@@ -150,7 +150,6 @@ function RadioRow(props: { checked: boolean; onSelect: () => void; label: ReactN
   );
 }
 
-/** Comment, Approve or Request changes, side by side; what each means is on hover. */
 function VerdictPicker(props: { options: typeof VERDICTS; value: ReviewVerdict; onChange: (value: ReviewVerdict) => void; disabled: boolean }) {
   const { options, value, onChange, disabled } = props;
 
