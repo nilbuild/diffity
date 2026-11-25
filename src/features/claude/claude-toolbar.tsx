@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { TREE_REF } from '../../lib/types';
-import { runLabel, runViewLabel, stopProject, useQueuedCount, useRunningRuns } from './claude-runner';
+import { commentOf, runLabel, runViewLabel, showRun, stopProject, useQueuedCount, useRunningRuns } from './claude-runner';
 import { sameView } from './conversation';
 import { useCanEditRef } from './edit-target';
 import { useCurrentViewRef } from '../../hooks/use-current-view';
@@ -71,6 +71,7 @@ export function ClaudeStatus() {
   };
   const name = run.agentId ? agentMeta(run.agentId).short : 'Agent';
   const several = runs.length > 1;
+  const onComment = !!commentOf(run.action);
   const elsewhere = !several && !!run.ref && !sameView(run.ref, currentRef);
   const where = run.ref ? runViewLabel(run.context.repoPath, run.ref) : null;
   const label = several ? `${name} · ${runs.length} running` : heldBack ? `${name} is waiting for another window` : runLabel(run.action, name, !!run.context.conversation);
@@ -80,6 +81,10 @@ export function ClaudeStatus() {
       <button
         onClick={() => {
           setPeek(false);
+          if (!several && onComment) {
+            showRun(run);
+            return;
+          }
           toggleClaudePanel();
         }}
         onMouseEnter={() => hover(true)}
@@ -89,7 +94,7 @@ export function ClaudeStatus() {
           'flex items-center gap-2 pl-2.5 pr-2 whitespace-nowrap min-w-0 overflow-hidden transition-colors cursor-pointer',
           panelOpen ? 'bg-claude/12 text-claude' : 'text-text hover:bg-control-hover',
         )}
-        title={where && elsewhere ? `Working on ${where} · click to see what ${name} is doing` : `See what ${name} is doing`}
+        title={onComment && !several ? `Go to the comment ${name} is working on` : where && elsewhere ? `Working on ${where} · click to see what ${name} is doing` : `See what ${name} is doing`}
       >
         <Spinner className="text-claude" />
         <span className="font-medium truncate @max-4xl/titlebar:hidden">{label}</span>
@@ -178,7 +183,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
 
   const reviewRef = diffRef && diffRef !== TREE_REF && hasChanges ? diffRef : null;
   const count = commentsEnabled ? candidates.count : 0;
-  const agent = agentMeta(useRunPick(count > 0 ? 'fix' : 'review', repoPath).agent);
+  const agent = agentMeta(useRunPick('fix', repoPath).agent);
   const close = closeClaudeCard;
 
   useEffect(() => {
@@ -235,11 +240,10 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
   };
   const cardNode = panelOpen && card && slot ? createPortal(form(), slot) : null;
 
+  const about = diffRef === TREE_REF ? 'this code' : prMode ? 'this pull request' : 'these changes';
   const title = count > 0
-    ? `Chat with ${agent.short} about this view, or have it work on ${plural(count, 'open comment')} (${modKey}L)`
-    : prMode
-      ? `Chat with ${agent.short} about this pull request, or have it review it (${modKey}L)`
-      : `Chat with ${agent.short} about these changes, or have it review them (${modKey}L)`;
+    ? `Chat with ${agent.short} about ${about}, or have it answer or fix ${plural(count, 'open comment')} (${modKey}L)`
+    : `Chat with ${agent.short} about ${about} (${modKey}L)`;
 
   if (busy) {
     return (
@@ -259,7 +263,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
         aria-pressed={panelOpen}
       >
         <SparkleIcon size="md" />
-        <span className="@max-3xl/titlebar:hidden">{agent.short}</span>
+        <span className="@max-3xl/titlebar:hidden">Chat</span>
         {count > 0 && (
           <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-claude text-white text-[11px] font-semibold leading-[18px] text-center tabular-nums">{count}</span>
         )}

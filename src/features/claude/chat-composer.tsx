@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router';
 import { cn } from '../../lib/cn';
+import { TREE_REF, type ContextChip } from '../../lib/types';
 import { getFilePath } from '../../lib/diff-utils';
 import { diffOptions } from '../../queries/diff';
 import { treePathsOptions } from '../../queries/tree';
@@ -13,7 +15,7 @@ import { plural } from '../review/review-candidates';
 import { agentMeta } from './agents';
 import { clearDraft, draftKey, useDraft } from './agent-drafts';
 import { showApprovals, useWaitingApprovals } from './claude-approval-modal';
-import { canSteer, runViewLabel, stopRun, useClaude, useRunInTheWay, useRunningRuns, waitLabel, type ClaudeRun } from './claude-runner';
+import { canSteer, commentOf, runViewLabel, stopRun, useClaude, useRunInTheWay, useRunningRuns, waitLabel, type ClaudeRun } from './claude-runner';
 import { messageToEdit, sendChatMessage } from './chat-send';
 import { ChipTag } from './chat-stream';
 import { removeChip, setChips, setEditing, useChips, useComposer, useEditing, type Editing } from './composer-state';
@@ -24,12 +26,21 @@ import { useRunPick, writeRepoPick, type RunPick } from './model-setting';
 import { setCardSlot, toggleClaudeCard, usePanel, type ClaudeCard } from './panel-store';
 import { KeyLabel } from '../../components/ui/key-label';
 
+/** The file open in the file browser, which a message there is about unless it says otherwise. */
+function useOpenFile(viewRef: string): string | null {
+  const [params] = useSearchParams();
+  if (viewRef !== TREE_REF || params.get('type') !== 'file') {
+    return null;
+  }
+  return params.get('path') || null;
+}
+
 /** About ten lines; longer messages scroll. */
 const GROW_TO = 216;
 
 /** Files @ offers: the view's changed files first, then the rest of the checked-out code. */
 function useMentionFiles(viewRef: string): string[] {
-  const { data: diff } = useQuery({ ...diffOptions(false, viewRef), staleTime: 30_000 });
+  const { data: diff } = useQuery({ ...diffOptions(false, viewRef), staleTime: 30_000, enabled: viewRef !== TREE_REF });
   const { data: tree } = useQuery(treePathsOptions());
   return useMemo(() => {
     const changed = (diff?.files ?? []).map(getFilePath);
@@ -56,12 +67,18 @@ export function ChatComposer(props: { repoPath: string; viewRef: string }) {
   const chips = useChips(repoPath, viewRef);
   const focus = useComposer((state) => state.focus);
   const editing = useEditing(repoPath, viewRef);
+  const openFile = useOpenFile(viewRef);
+  const [droppedFile, setDroppedFile] = useState<string | null>(null);
+  // In Files, the file on screen goes along with the message unless removed or already attached.
+  const openChip: ContextChip | null =
+    openFile && !editing && droppedFile !== openFile && !chips?.some((chip) => chip.filePath === openFile) ? { filePath: openFile } : null;
+  const sentChips = [...(openChip ? [openChip] : []), ...(chips ?? [])];
   const hasLastSent = useComposer((state) => !!state.lastSent[viewKey(repoPath, viewRef)]);
   const target = useEditTarget(repoPath, viewRef);
   const files = useMentionFiles(viewRef);
   const inTheWay = useRunInTheWay(repoPath, 'edit', target !== 'none');
   const steerable = useClaude(() => canSteer(repoPath, viewRef));
-  const viewRuns = useRunningRuns(repoPath).filter((run) => sameView(run.ref, viewRef));
+  const viewRuns = useRunningRuns(repoPath).filter((run) => sameView(run.ref, viewRef) && !commentOf(run.action));
   const waitsFor = !steerable ? inTheWay : null;
   const savedPick = useRunPick('fix', repoPath);
   const [picked, setPicked] = useState<RunPick | null>(null);
@@ -111,7 +128,7 @@ export function ChatComposer(props: { repoPath: string; viewRef: string }) {
     }
     setSending(true);
     try {
-      await sendChatMessage({ repoPath, ref: viewRef, text: message, chips: chips ?? [], pick, queue, editing });
+      await sendChatMessage({ repoPath, ref: viewRef, text: message, chips: sentChips, pick, queue, editing });
       if (editing) {
         stopEditing();
         return;
@@ -150,9 +167,10 @@ export function ChatComposer(props: { repoPath: string; viewRef: string }) {
                 </button>
               </div>
             )}
-            {chips && chips.length > 0 && (
+            {sentChips.length > 0 && (
               <div className="flex flex-wrap gap-1">
-                {chips.map((chip, index) => <ChipTag key={index} chip={chip} onRemove={() => removeChip(repoPath, viewRef, index)} />)}
+                {openChip && <ChipTag chip={openChip} onRemove={() => setDroppedFile(openChip.filePath)} />}
+                {chips?.map((chip, index) => <ChipTag key={index} chip={chip} onRemove={() => removeChip(repoPath, viewRef, index)} />)}
               </div>
             )}
             <MentionTextarea

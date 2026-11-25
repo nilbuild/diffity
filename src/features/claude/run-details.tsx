@@ -30,7 +30,7 @@ import {
 import type { AgentMode, Chat } from '../../lib/types';
 import { agentMeta } from './agents';
 import { runModelLabel, useModelCatalog } from './model-setting';
-import { canRunAgain, openRunResult, runAgain, runLabel, runViewLabel, useRunningRuns } from './claude-runner';
+import { canRunAgain, openRunResult, runAgain, runLabel, runViewLabel, showRun, useRunningRuns } from './claude-runner';
 import { showApprovals, useWaitingApprovals } from './claude-approval-modal';
 import {
   currentFile,
@@ -952,8 +952,7 @@ export function RunningList(props: { repoPath: string; onPick: () => void }) {
               <button
                 type="button"
                 onClick={() => {
-                  goToThread(repoPath, { ref: run.ref!, threadId: null });
-                  openClaudePanel();
+                  showRun(run);
                   onPick();
                 }}
                 className="shrink-0 text-text-secondary hover:text-text hover:underline cursor-pointer"

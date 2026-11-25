@@ -8,7 +8,7 @@ import { Spinner } from '../../components/icons/spinner';
 import { buttonIcon } from '../../components/ui/button-styles';
 import { ArrowLeftIcon, HistoryIcon, PlusIcon, SparkleIcon, XIcon } from '../../components/ui/icon';
 import { agentMeta } from './agents';
-import { runLabel, runViewLabel, useRunningRuns } from './claude-runner';
+import { runLabel, runViewLabel, showRun, useRunningRuns } from './claude-runner';
 import { ChatComposer } from './chat-composer';
 import { ChatStream } from './chat-stream';
 import { addChip, focusComposer } from './composer-state';
@@ -97,7 +97,7 @@ function ClaudePanelBody() {
   const back = history || showDetails;
 
   return (
-    <aside className="flex flex-col w-[420px] max-w-[45vw] shrink-0 h-screen bg-bg border-l border-frame-border font-sans text-xs text-text animate-slide-in-right" aria-label={`${agent.short} panel`}>
+    <aside className="flex flex-col w-[420px] max-w-[45vw] shrink-0 h-screen bg-bg border-l border-frame-border font-sans text-xs text-text animate-slide-in-right" aria-label="Chat panel">
       <div data-tauri-drag-region className="flex items-center gap-1 h-[45px] shrink-0 pl-2 pr-2 bg-frame border-b border-frame-border">
         {back ? (
           <button type="button" onClick={() => showRunDetails(null)} className={buttonIcon} aria-label="Back to the chat" title="Back">
@@ -108,7 +108,7 @@ function ClaudePanelBody() {
             <SparkleIcon size="md" className="text-claude" />
           </span>
         )}
-        <span className="text-[13px] font-semibold">{history ? 'History' : agent.short}</span>
+        <span className="text-[13px] font-semibold">{history ? 'History' : 'Chat'}</span>
         {!history && viewRef && <span className="min-w-0 truncate text-[13px] text-text-muted">· {runViewLabel(repoPath, viewRef)}</span>}
         <span data-tauri-drag-region className="flex-1 self-stretch" />
         {showChat && viewRef && (
@@ -167,7 +167,7 @@ function ElsewhereBanner(props: { repoPath: string; viewRef: string }) {
             <span className="flex-1 min-w-0 truncate text-text-secondary">
               {runLabel(run.action, agentMeta(run.agentId ?? 'claude').short, !!run.context.conversation)} in {runViewLabel(repoPath, ref)}
             </span>
-            <button type="button" onClick={() => goToThread(repoPath, { ref, threadId: null })} className="shrink-0 text-text hover:underline cursor-pointer">
+            <button type="button" onClick={() => showRun(run)} className="shrink-0 text-text hover:underline cursor-pointer">
               Go there
             </button>
           </div>

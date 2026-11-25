@@ -6,6 +6,10 @@ const REVIEW: &str = include_str!("../../prompts/review.md");
 const RESOLVE: &str = include_str!("../../prompts/resolve.md");
 const ASK: &str = include_str!("../../prompts/ask.md");
 const CHAT: &str = include_str!("../../prompts/chat.md");
+
+/// The file browser's view: the working copy as files, with no diff of its own.
+const TREE_REF: &str = "__tree__";
+const FILES_VIEW_NOTE: &str = "The user is browsing the repository's files in Diffity's file viewer, not a diff: there is no diff under review in this view, so read files directly instead of relying on `get_diff`. A file attached to the message is the one they have open.";
 const EXPLAIN: &str = include_str!("../../prompts/explain.md");
 const SUMMARIZE: &str = include_str!("../../prompts/summarize.md");
 const GUIDE: &str = include_str!("../../prompts/guide.md");
@@ -249,11 +253,15 @@ fn action_template(
             if !first_turn {
                 return None;
             }
-            match mode {
-                AgentMode::Ask | AgentMode::Review => Some(render(ASK, &[("ref", session_ref)])),
-                AgentMode::Edit | AgentMode::Resolve => Some(render(CHAT, &[("ref", session_ref)])),
-                AgentMode::Task => Some(TASK_PREAMBLE.to_string()),
-            }
+            let preamble = match mode {
+                AgentMode::Ask | AgentMode::Review => render(ASK, &[("ref", session_ref)]),
+                AgentMode::Edit | AgentMode::Resolve => render(CHAT, &[("ref", session_ref)]),
+                AgentMode::Task => return Some(TASK_PREAMBLE.to_string()),
+            };
+            Some(match session_ref == TREE_REF {
+                true => format!("{preamble}\n\n{FILES_VIEW_NOTE}"),
+                false => preamble,
+            })
         }
     }
 }
@@ -624,6 +632,15 @@ mod tests {
         let section = project_instructions(&long);
         assert!(section.contains("the rest was left out"));
         assert!(section.len() < PROJECT_INSTRUCTIONS_LIMIT + 400);
+    }
+
+    #[test]
+    fn files_view_chat_says_there_is_no_diff() {
+        let files = build_prompt(AgentMode::Resolve, &AgentAction::Chat, TREE_REF, true, "explain this", &[], None);
+        assert!(files.contains(FILES_VIEW_NOTE));
+        assert!(!files.contains("## Where your edits go"));
+        let diff = build_prompt(AgentMode::Resolve, &AgentAction::Chat, "work", true, "explain this", &[], None);
+        assert!(!diff.contains(FILES_VIEW_NOTE));
     }
 
     #[test]

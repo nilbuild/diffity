@@ -47,6 +47,7 @@ import { useRepoPath } from '../../hooks/use-repo';
 import { requestSearchFocus } from '../../features/code-search/code-search';
 import type { SearchTarget } from '../../features/code-search/sidebar-search';
 import { chord } from '../../lib/shortcuts';
+import { TREE_REF } from '../../lib/types';
 
 function formatTreeThreadsForCopy(threads: CommentThread[]): string {
   const unresolvedThreads = threads.filter(
@@ -459,7 +460,7 @@ export function TreePage() {
             onDeleteAllComments={commentActions.deleteAllThreads}
             formatForCopy={formatForCopy}
           />
-          {threads.length > 0 && <ClaudeToolbar diffRef={null} sessionId={sessionId} threads={threads} formatForCopy={formatForCopy} />}
+          <ClaudeToolbar diffRef={TREE_REF} sessionId={sessionId} threads={threads} formatForCopy={formatForCopy} />
           <OptionsMenu theme={theme} onToggleTheme={toggleTheme} showAgentHistory />
         </div>
       </TitleBar>

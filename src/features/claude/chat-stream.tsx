@@ -4,12 +4,12 @@ import * as tauri from '../../lib/tauri';
 import { cn } from '../../lib/cn';
 import { modKey } from '../../lib/platform';
 import { goToThread } from '../../lib/thread-location';
-import type { Chat, ChatMessage, ContextChip, SentAs } from '../../lib/types';
+import { TREE_REF, type Chat, type ChatMessage, type ContextChip, type SentAs } from '../../lib/types';
 import { MarkdownContent } from '../../components/layout/markdown-content';
 import { Spinner } from '../../components/icons/spinner';
 import { AlertCircleIcon, CheckIcon, ChevronRightIcon, CommentIcon, PencilIcon, XIcon } from '../../components/ui/icon';
 import { plural } from '../review/review-candidates';
-import { blockerOf, cancelQueuedRun, isCommentRun, openRunResult, stopRun, useClaude, waitLabel, type ClaudeRun } from './claude-runner';
+import { blockerOf, cancelQueuedRun, isCommentChat, openRunResult, stopRun, useClaude, waitLabel, type ClaudeRun } from './claude-runner';
 import { isConversation, sameView, useConversation } from './conversation';
 import { setLastSent, useEditing } from './composer-state';
 import { useEditTarget, whereEditsShow } from './edit-target';
@@ -107,7 +107,8 @@ export function ChatStream(props: { repoPath: string; viewRef: string; chats: Ch
   const entries = useMemo(() => {
     const list: Entry[] = [];
     const liveTurns = lives.filter((activity) => activity.prompt);
-    const liveRuns = lives.filter((activity) => !activity.prompt);
+    // A run about one comment shows on that comment, not here.
+    const liveRuns = lives.filter((activity) => !activity.prompt && !activity.commentId);
     const sameTurn = (turn: Turn, activity: RunActivity) =>
       turn.chatId === activity.chatId && turn.at >= activity.startedAt - SAVE_SLACK_MS && turn.text === activity.prompt?.text;
     // A message just sent shows from memory until its reply is saved; then the saved copy takes over.
@@ -122,11 +123,10 @@ export function ChatStream(props: { repoPath: string; viewRef: string; chats: Ch
     for (const activity of liveTurns.filter((item) => !saved(item))) {
       list.push({ kind: 'live', key: `live-${activity.runId}`, at: activity.startedAt, live: activity });
     }
-    for (const chat of shown.filter((item) => !isConversation(item) && !isCommentRun(item))) {
+    for (const chat of shown.filter((item) => !isConversation(item) && !isCommentChat(item))) {
       list.push({ kind: 'run', key: chat.id, at: Date.parse(chat.createdAt), chat, live: liveRuns.find((activity) => activity.chatId === chat.id) ?? null });
     }
-    const commentRun = (activity: RunActivity) => isCommentRun(shown.find((chat) => chat.id === activity.chatId) ?? null, activity.actionKind);
-    for (const activity of liveRuns.filter((item) => item.outcome === 'running' && !commentRun(item) && !shown.some((chat) => chat.id === item.chatId))) {
+    for (const activity of liveRuns.filter((item) => item.outcome === 'running' && !shown.some((chat) => chat.id === item.chatId))) {
       list.push({ kind: 'run', key: `live-${activity.runId}`, at: activity.startedAt, chat: null, live: activity });
     }
     return list.sort((a, b) => a.at - b.at);
@@ -155,7 +155,7 @@ export function ChatStream(props: { repoPath: string; viewRef: string; chats: Ch
   if (entries.length === 0 && queued.length === 0) {
     return (
       <div className="flex-1 flex flex-col justify-end gap-1 px-5 pb-5 text-[13px] leading-5">
-        <span className="text-text-secondary">Ask about these changes, or tell {agentName} what to change.</span>
+        <span className="text-text-secondary">Ask about {viewRef === TREE_REF ? 'this code' : 'these changes'}, or tell {agentName} what to change.</span>
         <span className="text-xs text-text-muted">
           Select lines and press <kbd className="font-sans"><KeyLabel keys={`${modKey}L`} /></kbd> to ask about them · <kbd className="font-sans">@</kbd> mentions a file
         </span>

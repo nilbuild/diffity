@@ -188,12 +188,31 @@ export function runLabel(action: ClaudeAction, name: string, conversation = fals
 const REPLY_TITLE = 'Reply to thread';
 const RESOLVE_THREAD_TITLE = 'Resolve thread';
 
-/** A run about one comment (a reply, or resolving that thread): what it did shows on the comment, not in the chat. */
-export function isCommentRun(chat: { title: string } | null, actionKind?: string): boolean {
-  if (actionKind === 'thread') {
-    return true;
+/**
+ * The comment a run is about (a reply, or resolving that one thread), or null. Such a run's work shows on the
+ * comment; every other run (chat messages, reviews, fixing all comments, guides) shows in the view's chat.
+ */
+export function commentOf(action: ClaudeAction): string | null {
+  if (action.kind === 'thread') {
+    return action.threadId;
   }
-  return !!chat && (chat.title === REPLY_TITLE || chat.title.startsWith(`${RESOLVE_THREAD_TITLE} `));
+  return action.kind === 'resolve' && action.threadId ? action.threadId : null;
+}
+
+/** A saved run about one comment, known by its title (chats don't keep their action). */
+export function isCommentChat(chat: { title: string }): boolean {
+  return chat.title === REPLY_TITLE || chat.title.startsWith(`${RESOLVE_THREAD_TITLE} `);
+}
+
+/** Goes to where a run's work shows: its comment, or its view with the chat open. */
+export function showRun(run: ClaudeRun) {
+  const threadId = commentOf(run.action);
+  if (run.ref && (threadId || !viewOnScreen(run.context.repoPath, run.ref))) {
+    goToThread(run.context.repoPath, { ref: run.ref, threadId });
+  }
+  if (!threadId) {
+    openClaudePanel();
+  }
 }
 
 function chatTitle(action: ClaudeAction): string {
@@ -731,6 +750,7 @@ async function execute(run: ClaudeRun) {
     agentId: agent.id,
     model,
     actionKind: run.action.kind,
+    commentId: commentOf(run.action),
     startedAt,
     prompt: run.context.conversation ? { text: run.context.text ?? '', chips: run.context.chips ?? [], sentAs: run.context.sentAs ?? null } : null,
   });

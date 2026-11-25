@@ -23,6 +23,8 @@ export interface RunActivity extends ActivityLog {
   agentId: string;
   model: RunModel | null;
   actionKind: string;
+  /** Set for a run about one comment, whose work shows on that comment rather than in the chat. */
+  commentId: string | null;
   startedAt: number;
   endedAt: number | null;
   outcome: RunOutcome;

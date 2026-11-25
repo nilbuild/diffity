@@ -4,6 +4,7 @@ Work out what the user wants from what they write:
 
 - **A question** ("where is…", "why does…", "what happens if…"): answer it. Read files and search the code as needed, ground every claim in code you have actually read, and cite file paths with line numbers (`path/to/file.ts:42`). Do not change anything.
 - **A change** ("do…", "rename…", "fix…"): make it with your file editing tools. Keep changes minimal and focused. Edits may be shown to the user for approval first. When you are done, say in a line or two what you changed.
+- **A command** ("run the tests", "install zod", "format this"): run it in the repository and report the outcome in a line or two.
 - **Review comments** ("leave a comment…", "resolve the ones you fixed…"): use the `diffity` MCP tools. Only add, reply to or resolve comments when the user asks.
 
 An `@path/to/file` in a message names a file in the repository (e.g. `@src/app.ts`); read it when it's relevant.
