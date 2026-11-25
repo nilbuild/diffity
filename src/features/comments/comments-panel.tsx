@@ -234,7 +234,7 @@ function ThreadRow(props: ThreadRowProps) {
         }
       }}
       className={cn(
-        'group flex gap-2.5 px-3 py-2.5 rounded-lg bg-bg border transition-colors outline-none focus-visible:border-focus',
+        'group relative flex gap-2.5 px-3 py-2.5 rounded-lg bg-bg border transition-colors outline-none focus-visible:border-focus',
         current ? 'border-claude/60' : 'border-border',
         openable ? 'hover:border-control-border hover:bg-bg-secondary cursor-pointer' : 'cursor-default',
       )}
@@ -249,9 +249,9 @@ function ThreadRow(props: ThreadRowProps) {
         {isAgent ? <SparkleIcon className="w-3 h-3" /> : thread.authorName.charAt(0).toUpperCase()}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0">
           {line && <span className="font-mono text-[11px] text-text-secondary shrink-0">{line}</span>}
-          <span className="text-xs text-text-secondary truncate">{thread.authorName}</span>
+          <span className="text-xs text-text-secondary shrink-0">{thread.authorName}</span>
           {thread.severity && (
             <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-bg-tertiary text-text-secondary shrink-0">
               {SEVERITY_LABELS[thread.severity] ?? thread.severity}
@@ -261,14 +261,17 @@ function ThreadRow(props: ThreadRowProps) {
           {addressedBy && <AddressedBadge agent={addressedBy} />}
           {thread.status !== 'open' && <ThreadBadge variant={thread.status} />}
           {outdated && <ThreadBadge variant="outdated" />}
-          <span className="ml-auto text-xs text-text-muted shrink-0 group-hover:hidden group-focus-within:hidden">{formatRelativeTime(thread.updatedAt)}</span>
+          <span className="ml-auto text-xs text-text-muted shrink-0">{formatRelativeTime(thread.updatedAt)}</span>
+        </div>
+        {/* Floats over the card's corner, so it never pushes the badges or the author out of the row. */}
+        <div className="absolute -top-3 right-2 z-10 hidden group-hover:flex group-focus-within:flex items-center gap-0.5 p-0.5 rounded-md border border-control-border bg-raised shadow-sm">
           {canAskClaude && (
             <button
               onClick={(event) => {
                 event.stopPropagation();
                 enqueueClaude({ kind: 'thread', threadId: thread.id }, { repoPath, sessionId: thread.sessionId, ref: thread.ref, pick: fixPick });
               }}
-              className="ml-auto hidden group-hover:inline-flex group-focus-within:inline-flex items-center gap-1 h-5 -my-0.5 px-1.5 rounded text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer shrink-0"
+              className="inline-flex items-center gap-1 h-6 px-1.5 rounded text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer"
               title={`${repoAgent.short} answers a question or makes the change asked for`}
             >
               <SparkleIcon className="w-3 h-3 text-claude" />
@@ -280,10 +283,7 @@ function ThreadRow(props: ThreadRowProps) {
               event.stopPropagation();
               toggleStatus();
             }}
-            className={cn(
-              'hidden group-hover:inline-flex group-focus-within:inline-flex items-center gap-1 h-5 -my-0.5 px-1.5 rounded text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer shrink-0',
-              !canAskClaude && 'ml-auto',
-            )}
+            className="inline-flex items-center gap-1 h-6 px-1.5 rounded text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer"
           >
             {isOpen ? <CheckIcon size="xs" /> : <UndoIcon size="xs" />}
             {isOpen ? 'Resolve' : 'Reopen'}
@@ -293,7 +293,7 @@ function ThreadRow(props: ThreadRowProps) {
               event.stopPropagation();
               void deleteThreadWithUndo(thread.id);
             }}
-            className="hidden group-hover:inline-flex group-focus-within:inline-flex items-center justify-center w-5 h-5 -my-0.5 rounded text-text-muted hover:text-deleted hover:bg-hover cursor-pointer shrink-0"
+            className="inline-flex items-center justify-center w-6 h-6 rounded text-text-muted hover:text-deleted hover:bg-hover cursor-pointer"
             title="Delete this comment and its replies"
             aria-label="Delete comment"
           >
