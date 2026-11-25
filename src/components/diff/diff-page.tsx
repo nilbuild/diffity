@@ -34,7 +34,7 @@ import { statusLetter } from '../tree/file-tree-item';
 import { requestAskClaude } from '../../features/claude/review-form';
 import { requestSendToClaude } from '../../features/claude/send-comments';
 import { openPrInbox } from '../../features/palette/quick-open';
-import { OtherViewThreads, OutsideThreads } from '../comments/outside-threads';
+import { OtherViewThreads, OutsideThreads, threadsOutside } from '../comments/outside-threads';
 import { splitThreadsByView } from '../../lib/thread-views';
 import { useUncommittedPaths, useUncommittedPathsReady } from '../layout/diff-context-bar';
 import type { CommentThread, LineSelection } from '../comments/types';
@@ -790,7 +790,7 @@ export function DiffPage(props: DiffPageProps) {
             )}
             {reviewsEnabled && (
               <>
-                <OutsideThreads threads={threads} viewEmpty className="mt-8 mb-10 px-6" />
+                <OutsideThreads threads={threadsOutside(threads, null)} viewEmpty className="mt-8 mb-10 px-6" />
                 {twin && <OtherViewThreads threads={otherViewThreads} twin={twin} className="-mt-6 mb-10 px-6" />}
               </>
             )}

@@ -1,4 +1,4 @@
-import type { CommentThread } from './types';
+import { GENERAL_THREAD_FILE_PATH, type CommentThread } from './types';
 import { cn } from '../../lib/cn';
 import { openComments } from '../../lib/ui-store';
 import { CommentIcon } from '../ui/icon';
@@ -9,6 +9,14 @@ interface OutsideThreadsProps {
   threads: CommentThread[];
   viewEmpty?: boolean;
   className?: string;
+}
+
+/**
+ * Open comments on code this view no longer shows: files that aren't changed in it any more (or, with no `paths`,
+ * any code at all, for a view with no changes left). General comments are about the view, not code, so never count.
+ */
+export function threadsOutside(threads: CommentThread[], paths: Set<string> | null): CommentThread[] {
+  return threads.filter((thread) => thread.status === 'open' && thread.filePath !== GENERAL_THREAD_FILE_PATH && !paths?.has(thread.filePath));
 }
 
 /** Points to the Comments panel for threads whose code is no longer part of this view, e.g. after committing. */

@@ -11,8 +11,7 @@ import { deferReason, getRowCount } from '../../lib/diff-utils';
 import { loadAllHeldBackFiles, useLargeDiff } from '../../lib/large-diff';
 import { DiffContextHeader } from '../layout/diff-context-bar';
 import { GeneralComments } from '../comments/general-comments';
-import { OtherViewThreads, OutsideThreads } from '../comments/outside-threads';
-import { GENERAL_THREAD_FILE_PATH } from '../comments/types';
+import { OtherViewThreads, OutsideThreads, threadsOutside } from '../comments/outside-threads';
 import { useHighlighter, type CodeHighlighter } from '../../hooks/use-highlighter';
 import { type ViewMode, getFilePath } from '../../lib/diff-utils';
 import type { DiffFile } from '@/lib/diff-parser';
@@ -138,8 +137,7 @@ export function DiffView(props: DiffViewProps) {
   const scrollElementRef = useRef<HTMLElement>(null);
 
   const outsideThreads = useMemo(() => {
-    const paths = new Set(diff.files.map((file) => getFilePath(file)));
-    return threads.filter((thread) => thread.filePath !== GENERAL_THREAD_FILE_PATH && !paths.has(thread.filePath));
+    return threadsOutside(threads, new Set(diff.files.map((file) => getFilePath(file))));
   }, [diff.files, threads]);
 
   const highlighters = useMemo(() => {
