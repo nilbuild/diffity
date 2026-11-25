@@ -13,6 +13,7 @@ import { openInEditor } from '../../lib/api';
 import { repoBase, useRepoPath } from '../../hooks/use-repo';
 import { shortPath } from '../welcome/recent-repos';
 import { archiveMessage, archiveTask, isBusy, updateFromBase, useArchiveCommand, useTaskBase, useTaskForPath, useTaskStatus } from './tasks';
+import { GrowingTextarea } from '../../components/ui/growing-textarea';
 
 function useEscape(onClose: () => void) {
   useEffect(() => {
@@ -99,14 +100,15 @@ function PullRequestDialog(props: { task: Task; onClose: () => void }) {
       }
     >
       <input id="pr-title" ref={titleRef} value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Title" className={inputField} />
-      <textarea
+      <GrowingTextarea
         id="pr-body"
         value={body}
         onChange={(event) => setBody(event.target.value)}
         rows={8}
+        growTo={360}
         aria-label="Description"
         placeholder="Description"
-        className={cn(inputField, 'h-auto py-2 leading-5 resize-y min-h-[140px]')}
+        className={cn(inputField, 'h-auto py-2 leading-5 min-h-[140px]')}
       />
     </DialogShell>
   );
@@ -145,13 +147,14 @@ function MergeDialog(props: { task: Task; onClose: () => void; onMerged: () => v
         </>
       }
     >
-      <textarea
+      <GrowingTextarea
         id="merge-message"
         value={message}
         onChange={(event) => setMessage(event.target.value)}
         rows={3}
+        growTo={280}
         aria-label="Commit message"
-        className={cn(inputField, 'h-auto py-2 leading-5 resize-y font-mono text-xs')}
+        className={cn(inputField, 'h-auto py-2 leading-5 font-mono text-xs')}
       />
     </DialogShell>
   );

@@ -415,7 +415,8 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
               }}
               placeholder="Summary (optional)"
               rows={2}
-              className="mt-2.5 block w-full px-2.5 py-1.5 text-[13px] bg-raised text-text border border-control-border rounded-md resize-y outline-none focus:border-focus placeholder:text-text-muted min-h-[56px]"
+              growTo={160}
+              className="mt-2.5 block w-full px-2.5 py-1.5 text-[13px] bg-raised text-text border border-control-border rounded-md resize-none outline-none focus:border-focus placeholder:text-text-muted min-h-[56px]"
             />
             {postToGitHub && candidatesQuery.isError && (
               <div className="mt-2 px-2.5 py-1.5 rounded-md bg-deleted/10 text-xs text-deleted">

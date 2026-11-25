@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../../lib/cn';
+import { useAutoGrow } from '../../hooks/use-auto-grow';
 import { splitMentions } from '../../lib/mentions';
 import { getRepoPathOrNull } from '../../lib/api';
 import { FileTextIcon, FolderOpenIcon, SparkleIcon } from '../ui/icon';
@@ -242,15 +243,7 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaPr
     menuRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [menuOpen, selected]);
 
-  useLayoutEffect(() => {
-    const el = innerRef.current;
-    if (!el || !growTo) {
-      return;
-    }
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight + el.offsetHeight - el.clientHeight, growTo)}px`;
-    el.style.overflowY = el.scrollHeight > el.clientHeight ? 'auto' : 'hidden';
-  }, [value, growTo]);
+  useAutoGrow(innerRef, value, growTo);
 
   const refreshQuery = (next: string, caret: number) => {
     setQuery(findMentionQuery(next, caret));

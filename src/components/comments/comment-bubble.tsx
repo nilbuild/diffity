@@ -139,7 +139,8 @@ export function CommentBubble(props: CommentBubbleProps) {
               onChange={setEditBody}
               onKeyDown={handleKeyDown}
               rows={3}
-              className="w-full px-3 py-2 text-[13px] bg-bg text-text resize-y outline-none rounded-md border border-border focus:border-focus min-h-[60px]"
+              growTo={240}
+              className="w-full px-3 py-2 text-[13px] bg-bg text-text resize-none outline-none rounded-md border border-border focus:border-focus min-h-[60px]"
             />
             <div className="flex items-center gap-2 mt-1.5">
               <div className="flex-1" />

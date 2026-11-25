@@ -11,6 +11,7 @@ import { buttonGhost, buttonOutline, buttonPrimary, inputField } from '../../com
 import { cn } from '../../lib/cn';
 import type { CommentThread } from '../../components/comments/types';
 import { chord } from '../../lib/shortcuts';
+import { GrowingTextarea } from '../../components/ui/growing-textarea';
 
 interface CommitRequest {
   prNumber: number | null;
@@ -150,14 +151,15 @@ function CommitDialogBody(props: { prNumber: number | null }) {
           Stages all {changed} changed file{changed === 1 ? '' : 's'} and commits them on <code className="font-mono text-xs text-text">{branch}</code>
           {prNumber ? ', then pushes the branch so the pull request updates.' : '.'} No amending or rebasing.
         </p>
-        <textarea
+        <GrowingTextarea
           ref={textRef}
           value={message}
           onChange={(event) => setMessage(event.target.value)}
           rows={5}
+          growTo={320}
           placeholder="Commit message"
           spellCheck={false}
-          className={cn(inputField, 'mt-3 h-auto py-2 leading-5 font-mono text-xs resize-y')}
+          className={cn(inputField, 'mt-3 h-auto py-2 leading-5 font-mono text-xs')}
         />
         <div className="mt-4 flex items-center justify-end gap-2">
           {reason && <span className="mr-auto text-xs text-text-muted">{reason}</span>}

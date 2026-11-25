@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { getRepoPathOrNull } from '../../lib/api';
 import * as tauri from '../../lib/tauri';
 import { PreferencesRow, SettingsButton } from './preferences';
+import { GrowingTextarea } from '../../components/ui/growing-textarea';
 
 function withoutFinalNewline(text: string) {
   return text.replace(/\n$/, '');
@@ -63,8 +64,9 @@ export function DiffIgnoreRow() {
       label={<>Hide these files from diffs <span className="text-text-muted">· {repoName(repoPath)}</span></>}
       hint={<>Gitignore patterns, one per line, for this repository only. Adds to a <code className="font-mono">.diffityignore</code> file at the repo root, if there is one. Hidden files stay in the Files tab.</>}
     >
-      <textarea
+      <GrowingTextarea
         value={draft}
+        growTo={320}
         onChange={(event) => setDraft(event.target.value)}
         placeholder={'For example:\ndist/\n*.min.js'}
         spellCheck={false}
@@ -73,7 +75,7 @@ export function DiffIgnoreRow() {
         rows={5}
         id="diff-ignore-rules"
         aria-label="Patterns to hide from diffs"
-        className="w-full resize-y rounded-md border border-border bg-bg px-2.5 py-2 font-mono text-xs leading-5 text-text outline-none placeholder:text-text-muted focus:border-focus"
+        className="w-full rounded-md border border-border bg-bg px-2.5 py-2 font-mono text-xs leading-5 text-text outline-none placeholder:text-text-muted focus:border-focus"
       />
       <div className="flex justify-end gap-2">
         {dirty && (

@@ -266,7 +266,8 @@ export function ReviewForm(props: ReviewFormProps) {
           rows={3}
           placeholder="Optional. For example “Check error handling in the new API routes” or “This is a perf refactor, look for regressions”."
           spellCheck={false}
-          className={cn(inputField, 'h-auto py-2 leading-5 resize-y min-h-[76px]')}
+          growTo={200}
+          className={cn(inputField, 'h-auto py-2 leading-5 resize-none min-h-[76px]')}
         />
         {readsAsChangeRequest(text) && (
           <p className="mt-1.5 text-xs leading-5 text-text-secondary">
