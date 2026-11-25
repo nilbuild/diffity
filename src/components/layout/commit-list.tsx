@@ -125,7 +125,7 @@ function CommitRow(props: { commit: Commit; onOpen: () => void; onCompareFrom: (
   );
 
   return (
-    <li className="group relative">
+    <li className="group relative !border-t-0">
       <div
         role="button"
         tabIndex={0}
