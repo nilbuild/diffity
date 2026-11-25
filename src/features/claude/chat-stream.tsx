@@ -215,7 +215,7 @@ export function ChatStream(props: { repoPath: string; viewRef: string; chats: Ch
                 changing ? 'border-claude/70 bg-claude/6' : 'border-control-border',
               )}
             >
-              {run.context.conversation ? run.context.text : actionTitle(run.action.kind)}
+              {run.context.conversation ? run.context.text : queuedTitle(run)}
             </div>
             {changing ? (
               <span className="flex items-center gap-1 text-[11px] text-claude"><PencilIcon size="xs" />Editing below</span>
@@ -458,4 +458,23 @@ function RunCard(props: { repoPath: string; chat: Chat | null; live: RunActivity
 
 function queuedNote(blocker: ClaudeRun | null): string {
   return blocker ? `Queued · sends after ${waitLabel(blocker)}` : 'Queued';
+}
+
+/** What a queued run will do, in the place of a message's text. */
+function queuedTitle(run: ClaudeRun): string {
+  const comments = run.threadIds.length;
+  switch (run.action.kind) {
+    case 'review':
+      return 'Review these changes';
+    case 'guide':
+      return 'Write a guide';
+    case 'resolve':
+      return comments > 0 ? `Fix ${plural(comments, 'comment')}` : 'Fix comments';
+    case 'thread':
+      return 'Answer a comment';
+    case 'reviewFeedback':
+      return 'Address your review';
+    default:
+      return actionTitle(run.action.kind);
+  }
 }
