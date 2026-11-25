@@ -171,14 +171,25 @@ function ChapterList(props: { chapters: ReadingChapter[]; reviewedFiles: Set<str
   );
 }
 
-/** The Guide tab's sidebar before a guide exists, so the tab never shows the diff's file tree. */
+const PLACEHOLDER_WIDTHS = ['w-4/5', 'w-3/5', 'w-2/3', 'w-1/2'];
+
+/** The Guide tab's sidebar before a guide exists: the shape of the chapter list to come, not the diff's file tree. */
 export function GuideSidebarEmpty(props: { writing: boolean }) {
   const { writing } = props;
 
   return (
     <SidebarFrame view="guide">
-      <div className="px-4 pt-2 text-xs leading-5 text-text-muted">
-        {writing ? 'The chapters will show here when the guide is written.' : 'No guide yet. Once one is written, its chapters show here.'}
+      <div className="px-4 pt-2">
+        <div className="text-xs text-text-muted">{writing ? 'Writing the chapters…' : 'Chapters'}</div>
+        <ol className="mt-2 -mx-2 flex flex-col gap-0.5" aria-hidden>
+          {PLACEHOLDER_WIDTHS.map((width, index) => (
+            <li key={width} className="flex items-center gap-2.5 px-2 py-1.5">
+              <span className="w-5 shrink-0 font-mono text-[11px] text-text-muted/60 tabular-nums">{index + 1}</span>
+              <span className={cn('h-2.5 rounded-full bg-fill', width, writing && 'animate-pulse')} />
+            </li>
+          ))}
+        </ol>
+        {!writing && <p className="mt-3 text-xs leading-5 text-text-muted">Write a guide and its chapters show here, the core change first.</p>}
       </div>
     </SidebarFrame>
   );
