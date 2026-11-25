@@ -212,7 +212,7 @@ export async function autoSyncPrComments(repoPath: string, pr: Pick<PullRequest,
 }
 
 /** Checks out a PR in `repoPath`, or opens the worktree that already has its branch checked out. */
-export async function checkoutPullRequest(repoPath: string, input: string, nav: { toDiff: ToDiff; navigate: NavigateFunction }, options?: { stash?: boolean }) {
+export async function checkoutPullRequest(repoPath: string, input: string, nav: { toDiff: ToDiff; navigate: NavigateFunction }) {
   const label = labelFor(input);
   const auth = await tauri.githubAuthStatus().catch(() => null);
   if (!auth?.authenticated) {
@@ -224,20 +224,13 @@ export async function checkoutPullRequest(repoPath: string, input: string, nav: 
   const title = `Opening pull request ${label}`;
   useCheckoutState.setState({ guard: null, busy: label, progress: { repoPath, title, step: 'Checking out its branch…' } });
   const id = toast.loading(`Checking out pull request ${label}…`);
-  let stash: StashResult | null = null;
   try {
     const existing = await loadReturnPoint(repoPath);
     const repo = await tauri.openRepo(repoPath);
-    if (options?.stash) {
-      stash = await tauri.gitStashPush(repoPath, `diffity: before checking out PR ${label}`);
-    }
     const pr = await tauri.checkoutPr(repoPath, input);
     const landed = await tauri.gitStatus(repoPath).catch(() => null);
     const keep = existing?.prBranch && existing.prBranch === repo.branch ? existing : null;
-    const point: ReturnPoint = keep ?? { branch: repo.branch, sha: repo.headSha, stash, prNumber: pr.number };
-    if (keep && stash?.sha && !keep.stash?.sha) {
-      point.stash = stash;
-    }
+    const point: ReturnPoint = keep ?? { branch: repo.branch, sha: repo.headSha, stash: null, prNumber: pr.number };
     point.prNumber = pr.number;
     point.prBranch = landed?.branch ?? null;
     await saveReturnPoint(repoPath, point);
@@ -246,8 +239,7 @@ export async function checkoutPullRequest(repoPath: string, input: string, nav: 
     useCheckoutState.setState({ progress: { repoPath, title: `Opening pull request #${pr.number}`, step: 'Pulling review comments…' } });
     const pulled = await pullPrComments(repoPath, pr).catch((error) => `Could not pull review comments: ${tauri.errorMessage(error)}`);
     nav.toDiff(prRefFor(pr));
-    const details = [pulled ? `${pulled}.` : null, describeStash(stash)].filter(Boolean).join(' ');
-    toast.success(`Checked out #${pr.number}`, { id, description: details || undefined });
+    toast.success(`Checked out #${pr.number}`, { id, description: pulled ? `${pulled}.` : undefined });
   } catch (error) {
     if (tauri.isAppError(error) && error.code === 'dirty') {
       toast.dismiss(id);
@@ -255,19 +247,12 @@ export async function checkoutPullRequest(repoPath: string, input: string, nav: 
       useCheckoutState.setState({ guard: { kind: 'checkout', repoPath, input, label, status: fresh } });
       return;
     }
-    let restored = '';
-    if (stash?.sha) {
-      restored = await tauri
-        .gitStashRestore(repoPath, stash.sha)
-        .then(() => ' Your stashed changes were put back.')
-        .catch(() => ` ${describeStash(stash)}`);
-    }
     if (tauri.isAppError(error) && error.code === 'in_worktree') {
-      toast.info(`Opening the worktree of ${label}`, { id, description: `${shortPath(error.message)}${restored}` });
+      toast.info(`Opening the worktree of ${label}`, { id, description: shortPath(error.message) });
       void openRepoAt(error.message, nav.navigate, { extra: { pr: input } });
       return;
     }
-    toast.error(`Could not check out ${label}`, { id, description: `${tauri.errorMessage(error)}${restored}` });
+    toast.error(`Could not check out ${label}`, { id, description: tauri.errorMessage(error) });
   } finally {
     useCheckoutState.setState({ busy: null, progress: null });
   }
@@ -289,7 +274,7 @@ async function branchExists(repoPath: string, branch: string): Promise<boolean> 
   return branches.some((item) => localNameFor(item.name, item.isRemote) === branch);
 }
 
-export async function returnFromPullRequest(repoPath: string, nav: SwitchNav, options?: { stash?: boolean }) {
+export async function returnFromPullRequest(repoPath: string, nav: SwitchNav) {
   const point = await loadReturnPoint(repoPath);
   if (!point) {
     return;
@@ -307,43 +292,27 @@ export async function returnFromPullRequest(repoPath: string, nav: SwitchNav, op
     return;
   }
   const status = await tauri.gitStatus(repoPath);
-  if (hasTrackedChanges(status) && !options?.stash) {
+  if (hasTrackedChanges(status)) {
     useCheckoutState.setState({ guard: { kind: 'back', repoPath, point, status } });
     return;
   }
   useCheckoutState.setState({ guard: null, busy: label });
   const id = toast.loading(`Switching back to ${label}…`);
-  let stash: StashResult | null = null;
   try {
-    if (options?.stash) {
-      stash = await tauri.gitStashPush(repoPath, `diffity: changes made on PR #${point.prNumber}`);
-    }
     await tauri.gitCheckout(repoPath, target);
     await saveReturnPoint(repoPath, null);
-    const notes: string[] = [];
-    if (point.stash?.sha) {
-      const restored = await tauri
+    // Diffity no longer stashes, but a checkout made by an older version may have; put those changes back.
+    const restored = point.stash?.sha
+      ? await tauri
         .gitStashRestore(repoPath, point.stash.sha)
         .then(() => 'Restored the changes you had before the checkout.')
-        .catch((error) => `Could not restore your earlier changes: ${tauri.errorMessage(error)}`);
-      notes.push(restored);
-    }
-    const saved = describeStash(stash);
-    if (saved) {
-      notes.push(`Changes from the PR branch: ${saved}`);
-    }
+        .catch((error) => `Could not restore your earlier changes: ${tauri.errorMessage(error)}`)
+      : undefined;
     queryClient.invalidateQueries();
     await landAfterSwitch(repoPath, nav);
-    toast.success(`Back on ${label}`, { id, description: notes.join(' ') || undefined });
+    toast.success(`Back on ${label}`, { id, description: restored });
   } catch (error) {
-    let restored = '';
-    if (stash?.sha) {
-      restored = await tauri
-        .gitStashRestore(repoPath, stash.sha)
-        .then(() => ' Your stashed changes were put back.')
-        .catch(() => ` ${describeStash(stash)}`);
-    }
-    toast.error(`Could not switch back to ${label}`, { id, description: `${tauri.errorMessage(error)}${restored}` });
+    toast.error(`Could not switch back to ${label}`, { id, description: tauri.errorMessage(error) });
   } finally {
     useCheckoutState.setState({ busy: null, progress: null });
   }
@@ -358,26 +327,22 @@ export function localNameFor(branch: string, isRemote: boolean): string {
   return slash > 0 ? branch.slice(slash + 1) : branch;
 }
 
-export async function switchBranch(repoPath: string, branch: string, nav: SwitchNav, options?: { stash?: boolean }) {
+export async function switchBranch(repoPath: string, branch: string, nav: SwitchNav) {
   const status = await tauri.gitStatus(repoPath);
   if (status.branch === branch) {
     return;
   }
-  if (hasTrackedChanges(status) && !options?.stash) {
+  if (hasTrackedChanges(status)) {
     useCheckoutState.setState({ guard: { kind: 'branch', repoPath, branch, status } });
     return;
   }
   useCheckoutState.setState({ guard: null, busy: branch });
   const id = toast.loading(`Switching to ${branch}…`);
-  let stash: StashResult | null = null;
   try {
-    if (options?.stash) {
-      stash = await tauri.gitStashPush(repoPath, `diffity: before switching to ${branch}`);
-    }
     await tauri.gitCheckout(repoPath, branch);
     queryClient.invalidateQueries();
     await landAfterSwitch(repoPath, nav);
-    toast.success(`Switched to ${branch}`, { id, description: describeStash(stash) ?? undefined });
+    toast.success(`Switched to ${branch}`, { id });
   } catch (error) {
     if (tauri.isAppError(error) && error.code === 'dirty') {
       toast.dismiss(id);
@@ -385,14 +350,7 @@ export async function switchBranch(repoPath: string, branch: string, nav: Switch
       useCheckoutState.setState({ guard: { kind: 'branch', repoPath, branch, status: fresh } });
       return;
     }
-    let restored = '';
-    if (stash?.sha) {
-      restored = await tauri
-        .gitStashRestore(repoPath, stash.sha)
-        .then(() => ' Your stashed changes were put back.')
-        .catch(() => ` ${describeStash(stash)}`);
-    }
-    toast.error(`Could not switch to ${branch}`, { id, description: `${tauri.errorMessage(error)}${restored}` });
+    toast.error(`Could not switch to ${branch}`, { id, description: tauri.errorMessage(error) });
   } finally {
     useCheckoutState.setState({ busy: null, progress: null });
   }

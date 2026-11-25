@@ -694,10 +694,6 @@ export function createAgentMockHandlers(deps: AgentMockDeps): Record<string, (ar
           "To github.com:demo/tiny-serve.git\n ! [rejected]        feat/cache -> feat/cache (fetch first)\nerror: failed to push some refs to 'github.com:demo/tiny-serve.git'",
       };
     },
-    git_stash_push: async (args) => {
-      await wait(300);
-      return { sha: 'mockstash', message: String(args.message) };
-    },
     git_stash_restore: async () => {
       await wait(300);
     },

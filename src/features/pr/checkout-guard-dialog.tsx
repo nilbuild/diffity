@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useRepoNav } from '../../hooks/use-repo';
 import type { GitStatus } from '../../lib/types';
-import { checkoutPullRequest, dismissGuard, returnFromPullRequest, returnLabel, switchBranch, useCheckoutState } from './pr-checkout';
+import { dismissGuard, returnLabel, useCheckoutState } from './pr-checkout';
 import { buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 import { AlertCircleIcon } from '../../components/ui/icon';
 
@@ -26,13 +26,11 @@ function summary(status: GitStatus): string {
 export function CheckoutGuardDialog() {
   const guard = useCheckoutState((state) => state.guard);
   const nav = useRepoNav();
-  const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!guard) {
       return;
     }
-    cancelRef.current?.focus();
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
@@ -48,21 +46,11 @@ export function CheckoutGuardDialog() {
   }
 
   const branch = guard.status.branch ?? 'this commit';
-  const isBack = guard.kind === 'back' || guard.kind === 'branch';
-  const title = `Uncommitted changes on ${branch}`;
   const target = guard.kind === 'back' ? returnLabel(guard.point) : guard.kind === 'branch' ? guard.branch : `pull request ${guard.label}`;
-  const confirmLabel = guard.kind === 'checkout' ? `Stash and check out ${guard.label}` : `Stash and switch to ${target}`;
-
-  const stashAndContinue = () => {
-    if (guard.kind === 'branch') {
-      void switchBranch(guard.repoPath, guard.branch, nav, { stash: true });
-      return;
-    }
-    if (guard.kind === 'back') {
-      void returnFromPullRequest(guard.repoPath, nav, { stash: true });
-      return;
-    }
-    void checkoutPullRequest(guard.repoPath, guard.input, nav, { stash: true });
+  const title = `Commit or discard your changes first`;
+  const viewChanges = () => {
+    dismissGuard();
+    nav.toDiff('work');
   };
 
   return (
@@ -81,36 +69,17 @@ export function CheckoutGuardDialog() {
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-text">{title}</h3>
             <p className="mt-1 text-xs leading-relaxed text-text-secondary">
-              You have {summary(guard.status)}. Switching to {target} would mix them with {isBack ? 'that branch' : 'the pull request'}, so
-              Diffity won’t switch while they are there.
+              {branch} has {summary(guard.status)} that aren’t committed. Diffity won’t switch to {target} until they’re committed or
+              discarded, so nothing gets mixed up or lost.
             </p>
-            <ul className="mt-3 space-y-1.5 text-xs leading-relaxed text-text-secondary">
-              <li>
-                <span className="font-medium text-text">Stash and {isBack ? 'switch' : 'check out'}</span> runs{' '}
-                <code className="rounded bg-bg-tertiary px-1 font-mono text-[11px]">git stash push --include-untracked</code>.
-                {isBack
-                  ? ' The stash keeps these changes safe; get them back later with git stash pop.'
-                  : ' When you choose “Back to your branch”, Diffity puts the changes back for you.'}
-              </li>
-              <li>
-                <span className="font-medium text-text">Cancel</span> leaves everything as it is, so you can commit or stash yourself.
-              </li>
-            </ul>
           </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">
-          <button
-            ref={cancelRef}
-            onClick={dismissGuard}
-            className={buttonOutline}
-          >
-            Cancel
+          <button onClick={dismissGuard} className={buttonOutline}>
+            OK
           </button>
-          <button
-            onClick={stashAndContinue}
-            className={buttonPrimary}
-          >
-            {confirmLabel}
+          <button onClick={viewChanges} className={buttonPrimary}>
+            View changes
           </button>
         </div>
       </div>

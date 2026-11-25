@@ -54,7 +54,6 @@ import type {
   Review,
   ReviewEvent,
   ReviewSession,
-  StashResult,
   ReviewVerdict,
   StartChat,
   Thread,
@@ -253,8 +252,6 @@ export const checkoutPr = (repoPath: string, urlOrNumber: string) =>
   invoke<PullRequest>('checkout_pr', { repoPath, urlOrNumber });
 export const updatePrBranch = (repoPath: string, prNumber: number, reset: boolean) =>
   invoke<void>('update_pr_branch', { repoPath, prNumber, reset });
-export const gitStashPush = (repoPath: string, message: string) =>
-  invoke<StashResult>('git_stash_push', { repoPath, message });
 export const gitStashRestore = (repoPath: string, sha: string) => invoke<void>('git_stash_restore', { repoPath, sha });
 export const gitCheckout = (repoPath: string, target: string) => invoke<void>('git_checkout', { repoPath, target });
 export const pushReview = (
