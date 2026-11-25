@@ -181,6 +181,33 @@ export function postLabel(prNumber: number, verdict: ReviewVerdict, selectedCoun
   return selectedCount > 0 ? `Post ${plural(selectedCount, 'comment')} to #${prNumber}` : `Post review to #${prNumber}`;
 }
 
+interface SubmitButton {
+  prNumber: number;
+  verdict: ReviewVerdict;
+  postCount: number;
+  postToGitHub: boolean;
+  /** The agent asked to fix every comment, if any. */
+  fixer: string | null;
+  /** Comments that mention an agent, which it answers either way. */
+  mentions: number;
+}
+
+/** The submit button's label: what posts, and who gets the comments, short enough for one line. */
+export function submitButtonLabel(input: SubmitButton): string {
+  const { prNumber, verdict, postCount, postToGitHub, fixer, mentions } = input;
+  if (postToGitHub) {
+    if (!fixer) {
+      return postLabel(prNumber, verdict, postCount);
+    }
+    const posted = verdict === 'approve' ? 'Approve' : verdict === 'requestChanges' ? 'Request changes' : postCount > 0 ? `Post ${plural(postCount, 'comment')}` : 'Post';
+    return `${posted} & send to ${fixer}`;
+  }
+  if (fixer) {
+    return `Send to ${fixer}`;
+  }
+  return mentions > 0 ? `Send ${plural(mentions, 'mention')}` : 'Keep in Diffity';
+}
+
 /** Toast after a push: "Posted 3 comments to #145", plus what was skipped. */
 export function postedToast(prNumber: number, verdict: ReviewVerdict, result: PushResult): { title: string; description?: string } {
   const count = result.dryRun ? result.pushed : result.postedThreadIds?.length ?? result.pushed;

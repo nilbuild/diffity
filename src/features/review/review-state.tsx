@@ -6,6 +6,7 @@ import { getRepoPath } from '../../lib/api';
 import { queryClient } from '../../lib/query-client';
 import type { GithubPendingAction, PushResult, Review, ReviewVerdict } from '../../lib/types';
 import { VERDICT_EVENT } from './review-candidates';
+import { openClaudePanel } from '../claude/panel-store';
 import { enqueueClaude } from '../claude/claude-runner';
 import { agentMeta } from '../claude/agents';
 import { cachedRunAgent } from '../claude/model-setting';
@@ -74,6 +75,7 @@ function successTitle(review: Review, scope: ClaudeScope, sent: boolean): string
   return count > 0 ? `Published ${count} ${count === 1 ? 'comment' : 'comments'}` : 'Note published';
 }
 
+/** Hands the submitted review to agents, and opens the chat panel where their runs show. Says what was sent, or null. */
 export function triggerClaude(review: Review, scope: ClaudeScope): string | null {
   const context = { repoPath: getRepoPath(), sessionId: review.sessionId };
   if (scope === 'skip') {
@@ -81,6 +83,7 @@ export function triggerClaude(review: Review, scope: ClaudeScope): string | null
   }
   if (scope === 'all') {
     enqueueClaude({ kind: 'reviewFeedback', reviewId: review.id }, context);
+    openClaudePanel();
     return `${agentMeta(cachedRunAgent('fix', getRepoPath())).short} is working through it`;
   }
   for (const threadId of review.mentionedThreadIds) {
@@ -89,6 +92,7 @@ export function triggerClaude(review: Review, scope: ClaudeScope): string | null
   if (review.mentionedThreadIds.length === 0) {
     return null;
   }
+  openClaudePanel();
   const count = review.mentionedThreadIds.length;
   return `Answering ${count === 1 ? '1 mention' : `${count} mentions`}`;
 }

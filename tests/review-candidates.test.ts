@@ -6,6 +6,7 @@ import {
   headerLine,
   otherDraftSessions,
   postLabel,
+  submitButtonLabel,
   postedToast,
   selectedItems,
   toCandidateItems,
@@ -149,5 +150,21 @@ describe('posted toast', () => {
     const toast = postedToast(145, 'comment', { pushed: 6, skipped: 1, failed: 0, errors: ['a.ts:9 — outside'], dryRun: true });
     expect(toast.title).toBe('Dry run: 6 comments for #145 not sent');
     expect(toast.description).toContain('a.ts:9 — outside');
+  });
+});
+
+describe('submitButtonLabel', () => {
+  const base = { prNumber: 415, verdict: 'comment' as const, postCount: 1, postToGitHub: true, fixer: null, mentions: 0 };
+
+  it('names what posts, and keeps it short when an agent gets the comments too', () => {
+    expect(submitButtonLabel(base)).toBe('Post 1 comment to #415');
+    expect(submitButtonLabel({ ...base, fixer: 'Codex' })).toBe('Post 1 comment & send to Codex');
+    expect(submitButtonLabel({ ...base, verdict: 'approve', fixer: 'Claude' })).toBe('Approve & send to Claude');
+  });
+
+  it('says what happens when nothing goes to GitHub', () => {
+    expect(submitButtonLabel({ ...base, postToGitHub: false, fixer: 'Claude' })).toBe('Send to Claude');
+    expect(submitButtonLabel({ ...base, postToGitHub: false, mentions: 2 })).toBe('Send 2 mentions');
+    expect(submitButtonLabel({ ...base, postToGitHub: false })).toBe('Keep in Diffity');
   });
 });

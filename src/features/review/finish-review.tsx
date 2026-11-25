@@ -14,9 +14,9 @@ import {
   headerLine,
   otherDraftSessions,
   plural,
-  postLabel,
   postedToast,
   selectedItems,
+  submitButtonLabel,
   toCandidateItems,
   type CandidateItem,
 } from './review-candidates';
@@ -65,30 +65,9 @@ export function FinishReview(props: FinishReviewProps) {
   return <PullRequestReview pr={githubDetails} threads={threads} ownPr={ownPr} />;
 }
 
-interface ReviewItem {
-  threadId: string;
-  location: string;
-  body: string;
-  mentions: boolean;
-}
-
-function reviewItems(threads: CommentThread[]): ReviewItem[] {
-  const items: ReviewItem[] = [];
-  for (const thread of threads) {
-    const drafts = thread.comments.filter((comment) => comment.pending);
-    if (drafts.length === 0) {
-      continue;
-    }
-    const name = thread.filePath.split('/').pop() ?? thread.filePath;
-    const lines = thread.startLine === thread.endLine ? `${thread.startLine}` : `${thread.startLine}–${thread.endLine}`;
-    items.push({
-      threadId: thread.id,
-      location: thread.filePath === GENERAL_THREAD_FILE_PATH ? 'General' : `${name}:${lines}`,
-      body: drafts.map((comment) => comment.body).join(' · '),
-      mentions: drafts.some((comment) => comment.mentionsAgent ?? mentionsAgent(comment.body)),
-    });
-  }
-  return items;
+/** Threads whose draft comments mention an agent, which answers them once the review is submitted. */
+function draftMentions(threads: CommentThread[]): number {
+  return threads.filter((thread) => thread.comments.some((comment) => comment.pending && (comment.mentionsAgent ?? mentionsAgent(comment.body)))).length;
 }
 
 function Checkbox(props: { checked: boolean }) {
@@ -123,7 +102,7 @@ function Radio(props: { checked: boolean }) {
   );
 }
 
-function Section(props: { title: ReactNode; checked: boolean; onToggle: () => void; hint: ReactNode; children?: ReactNode }) {
+function Section(props: { title: ReactNode; checked: boolean; onToggle: () => void; hint?: ReactNode; children?: ReactNode }) {
   const { title, checked, onToggle, hint, children } = props;
 
   return (
@@ -140,7 +119,7 @@ function Section(props: { title: ReactNode; checked: boolean; onToggle: () => vo
         </span>
         <span className="min-w-0">
           <span className="flex items-center gap-1.5 text-[13px] font-medium text-text">{title}</span>
-          <span className="block text-xs text-text-secondary mt-0.5 leading-snug">{hint}</span>
+          {hint && <span className="block text-xs text-text-secondary mt-0.5 leading-snug">{hint}</span>}
         </span>
       </button>
       {children && (
@@ -171,19 +150,31 @@ function RadioRow(props: { checked: boolean; onSelect: () => void; label: ReactN
   );
 }
 
-function ItemList(props: { items: ReviewItem[]; highlightMentions: boolean }) {
-  const { items, highlightMentions } = props;
+/** Comment, Approve or Request changes, side by side; what each means is on hover. */
+function VerdictPicker(props: { options: typeof VERDICTS; value: ReviewVerdict; onChange: (value: ReviewVerdict) => void; disabled: boolean }) {
+  const { options, value, onChange, disabled } = props;
 
   return (
-    <ul className="mt-1 max-h-32 overflow-y-auto rounded-md border border-overlay-border bg-bg divide-y divide-border-muted">
-      {items.map((item) => (
-        <li key={item.threadId} className="flex items-center gap-2 h-7 px-2 text-xs min-w-0">
-          <span className="font-mono text-[11px] text-text-secondary shrink-0 max-w-[140px] truncate">{item.location}</span>
-          <span className="text-text truncate min-w-0 flex-1">{item.body}</span>
-          {highlightMentions && item.mentions && <SparkleIcon size="xs" className="text-claude"  title="Mentions an agent" />}
-        </li>
+    <div role="radiogroup" aria-label="Verdict" className="flex gap-1.5">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          disabled={disabled}
+          onClick={() => onChange(option.value)}
+          title={option.description}
+          className={cn(
+            'flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[12.5px] transition-colors cursor-pointer disabled:cursor-default',
+            value === option.value ? 'border-accent/60 bg-accent/12 text-text' : 'border-control-border text-text-secondary hover:text-text hover:bg-hover',
+          )}
+        >
+          <option.icon size="sm" className={option.tone} />
+          {option.label}
+        </button>
       ))}
-    </ul>
+    </div>
   );
 }
 
@@ -246,7 +237,6 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
   const [verdict, setVerdict] = useState<ReviewVerdict>('comment');
   const [postToGitHub, setPostToGitHub] = useState(true);
   const [sendClaude, setSendClaude] = useState(false);
-  const [scopeChoice, setScopeChoice] = useState<'all' | 'mentions' | null>(null);
   const [toggled, setToggled] = useState<Set<string>>(new Set());
   const [pendingAction, setPendingAction] = useState<GithubPendingAction | null>(null);
   const [postError, setPostError] = useState<PostReviewError | null>(null);
@@ -255,7 +245,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
   const close = useCallback(() => setOpen(false), []);
   useOpenReviewHandler(setOpen);
   const defaultAgent = agentMeta(useRunPick('fix', repoPath).agent);
-  const claudeProblem = useAgentProblem(defaultAgent, open && sendClaude && scopeChoice !== 'mentions');
+  const claudeProblem = useAgentProblem(defaultAgent, open && sendClaude);
 
   const candidatesQuery = useQuery({
     queryKey: ['review-candidates', repoPath, pr.prNumber],
@@ -286,14 +276,12 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
   const githubPending = candidatesQuery.data?.githubPending ?? null;
   const showPendingChoice = postToGitHub && (githubPending !== null || postError?.code === 'pending_review_exists');
 
-  const items = useMemo(() => reviewItems(threads), [threads]);
-  const mentioned = items.filter((item) => item.mentions);
+  const mentions = useMemo(() => draftMentions(threads), [threads]);
   const pendingCount = pendingReview?.pendingCount ?? 0;
   const hasBody = body.trim().length > 0;
-  const scope: 'all' | 'mentions' = scopeChoice ?? (mentioned.length > 0 ? 'mentions' : 'all');
-  const claudeScope: ClaudeScope = sendClaude ? scope : 'none';
-  const claudeCount = scope === 'mentions' ? mentioned.length : pendingCount;
-  const claudeHasWork = sendClaude && (scope === 'all' ? pendingCount > 0 || hasBody : mentioned.length > 0);
+  // Mentioned agents answer their comments whatever is ticked here; this sends every comment on top.
+  const claudeScope: ClaudeScope = sendClaude ? 'all' : 'none';
+  const claudeHasWork = sendClaude && (pendingCount > 0 || hasBody);
   const busy = submit.isPending || post.isPending;
   const badgeCount = candidatesQuery.data ? postableCount : pendingCount;
 
@@ -329,21 +317,19 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
     if (busy) {
       return postToGitHub ? 'Posting…' : 'Submitting…';
     }
-    const claudePart = claudeHasWork ? (scope === 'mentions' ? `send ${plural(claudeCount, 'mention')}` : `send to ${defaultAgent.short}`) : null;
-    if (postToGitHub) {
-      const verb = postLabel(pr.prNumber, verdict, selected.length);
-      return claudePart ? `${verb} & ${claudePart}` : verb;
-    }
-    if (claudePart) {
-      return scope === 'mentions' ? `Send ${plural(claudeCount, 'mention')}` : `Send ${pendingCount > 0 ? plural(pendingCount, 'comment') : 'summary'} to ${defaultAgent.short}`;
-    }
-    return pendingCount > 0 ? `Keep ${plural(pendingCount, 'comment')} in Diffity only` : 'Keep summary in Diffity only';
+    return submitButtonLabel({
+      prNumber: pr.prNumber,
+      verdict,
+      postCount: selected.length,
+      postToGitHub,
+      fixer: claudeHasWork ? defaultAgent.short : null,
+      mentions,
+    });
   };
 
   const reset = () => {
     setBody('');
     setVerdict('comment');
-    setScopeChoice(null);
     setSendClaude(false);
     setToggled(new Set());
     setPendingAction(null);
@@ -449,20 +435,8 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
             checked={postToGitHub}
             onToggle={() => setPostToGitHub(!postToGitHub)}
             title={<><GitHubIcon size="sm" className="text-text-secondary" />Post to GitHub</>}
-            hint={ownPr ? `Posted to your pull request #${pr.prNumber} as review comments.` : `Added to pull request #${pr.prNumber} as your review.`}
           >
-            <div role="radiogroup" aria-label="Verdict">
-              {verdicts.map((option) => (
-                <RadioRow
-                  key={option.value}
-                  checked={verdict === option.value}
-                  onSelect={() => setVerdict(option.value)}
-                  label={<span className="inline-flex items-center gap-1.5"><option.icon size="sm" className={option.tone} />{option.label}</span>}
-                  detail={option.description}
-                  disabled={!postToGitHub}
-                />
-              ))}
-            </div>
+            {verdicts.length > 1 && <VerdictPicker options={verdicts} value={verdict} onChange={setVerdict} disabled={!postToGitHub} />}
           </Section>
 
           {showPendingChoice && (
@@ -481,29 +455,13 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
           <Section
             checked={sendClaude}
             onToggle={() => setSendClaude(!sendClaude)}
-            title={<><SparkleIcon size="sm" className="text-claude" />Send to {scope === 'mentions' ? 'agents' : defaultAgent.short}</>}
-            hint={scope === 'mentions' ? 'Each mentioned agent edits your local checkout of this PR branch.' : `${defaultAgent.short} edits your local checkout of this PR branch.`}
-          >
-            <div role="radiogroup" aria-label="What the agent gets">
-              <RadioRow
-                checked={scope === 'all'}
-                onSelect={() => setScopeChoice('all')}
-                label={pendingCount > 0 ? `All ${plural(pendingCount, 'comment')} in this review` : 'The review summary'}
-                disabled={!sendClaude}
-              />
-              <RadioRow
-                checked={scope === 'mentions'}
-                onSelect={() => setScopeChoice('mentions')}
-                label="Only comments that mention an agent"
-                detail={`${mentioned.length}`}
-                disabled={!sendClaude || mentioned.length === 0}
-              />
-            </div>
-            {sendClaude && scope === 'mentions' && mentioned.length > 0 && <ItemList items={mentioned} highlightMentions={false} />}
-          </Section>
-          {!sendClaude && mentioned.length > 0 && (
-            <div className="px-4 -mt-1 pb-2 text-xs text-text-muted">
-              {plural(mentioned.length, 'comment')} mention an agent. The mentioned agent answers those on its own.
+            title={<><SparkleIcon size="sm" className="text-claude" />{pendingCount > 0 ? `Ask ${defaultAgent.short} to fix ${pendingCount > 1 ? `all ${pendingCount} comments` : 'the comment'}` : `Send the summary to ${defaultAgent.short}`}</>}
+            hint="Edits your local checkout of this branch."
+          />
+          {mentions > 0 && !sendClaude && (
+            <div className="flex items-center gap-2 px-4 pb-3 -mt-1 text-xs text-text-secondary">
+              <SparkleIcon size="xs" className="shrink-0 text-claude" />
+              {mentions === 1 ? 'The agent you mentioned answers after you submit.' : `The agents you mentioned answer ${mentions} comments after you submit.`}
             </div>
           )}
 
@@ -549,11 +507,11 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
             <button
               onClick={handleSubmit}
               disabled={!!blockedReason || busy}
-              className={buttonPrimary}
+              className={cn(buttonPrimary, 'min-w-0')}
               title={blockedReason ?? undefined}
             >
               {busy && <Spinner className="text-white" />}
-              {submitLabel()}
+              <span className="truncate">{submitLabel()}</span>
             </button>
           </div>
           {blockedReason && (
