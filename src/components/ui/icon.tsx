@@ -447,6 +447,21 @@ export const ArrowLeftIcon = softStroke(() => <path d="M19 12H5M11 6l-6 6 6 6" f
 
 export const ArrowUpIcon = softStroke(() => <path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />, 14);
 
+export const ReturnIcon = softStroke(() => <path d="M19 5v6.5a3 3 0 0 1-3 3H5.5M10 10l-4.5 4.5L10 19" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />);
+
+export const CommandIcon = softStroke(() => (
+  <path
+    d="M9 9V7a2 2 0 1 0-2 2h2Zm0 0h6m-6 0v6m6-6V7a2 2 0 1 1 2 2h-2Zm0 0v6m0 0h2a2 2 0 1 1-2 2v-2Zm0 0H9m0 0v2a2 2 0 1 1-2-2h2Z"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2.25"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  />
+));
+
+export const ShiftIcon = softStroke(() => <path d="M12 4.5 4.5 12H9v7.5h6V12h4.5L12 4.5Z" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinejoin="round" />);
+
 export const ArrowDownIcon = softStroke(() => <path d="M12 5v14M6 13l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />, 14);
 
 export const SwapIcon = softStroke(() => <path d="M7.5 4 4 7.5 7.5 11M4 7.5h15M16.5 13l3.5 3.5-3.5 3.5M20 16.5H5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />);

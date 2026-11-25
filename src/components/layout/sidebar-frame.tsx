@@ -7,6 +7,7 @@ import { CommentIcon, EllipsisIcon, SearchIcon, XIcon } from '../ui/icon';
 import { Popover, useMenu } from '../ui/popover';
 import { useRepoPath } from '../../hooks/use-repo';
 import { requestSearchFocus } from '../../features/code-search/code-search';
+import { KeyLabel } from '../ui/key-label';
 
 const WIDTH_KEY = 'diffity-sidebar-width';
 const DEFAULT_WIDTH = 300;
@@ -241,7 +242,7 @@ export const SidebarFilter = forwardRef<HTMLInputElement, SidebarFilterProps>(fu
         />
         {!value && shortcut && (
           <kbd className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded border border-border text-[10px] font-sans text-text-muted pointer-events-none">
-            {shortcut}
+            <KeyLabel keys={shortcut} size={10} />
           </kbd>
         )}
         {value && (

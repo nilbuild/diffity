@@ -29,6 +29,7 @@ import { focusesForRepo, reviewRequest, useCustomFocuses } from './review-focuse
 import { clearDraft, draftKey, useDraft } from './agent-drafts';
 import { MentionTextarea } from '../../components/comments/mention-textarea';
 import { ReadableProjects } from '../groups/readable-projects';
+import { KeyLabel } from '../../components/ui/key-label';
 
 export { REVIEW_FOCUSES } from './review-focuses';
 
@@ -314,7 +315,7 @@ export function ReviewForm(props: ReviewFormProps) {
         >
           <SparkleIcon size="sm" />
           {waitsFor ? 'Queue review' : 'Start review'}
-          <kbd className="ml-1 font-sans text-[11px] opacity-75">{modKey}↵</kbd>
+          <kbd className="ml-1 font-sans text-[11px] opacity-75"><KeyLabel keys={`${modKey}↵`} /></kbd>
         </button>
       </div>
     </form>

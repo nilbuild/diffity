@@ -14,6 +14,7 @@ import { useRunPick, writeRepoPick, type RunPick } from '../claude/model-setting
 import { useClaude } from '../claude/claude-runner';
 import { closeNewTask, useNewTask } from './new-task-store';
 import { branchFromTitle, startTask, titleFromPrompt, useAllTasks } from './tasks';
+import { KeyLabel } from '../../components/ui/key-label';
 
 function localBase(name: string | null, locals: Set<string>): string | null {
   if (!name) {
@@ -220,7 +221,7 @@ function NewTaskForm(props: { repoPath: string }) {
           <button type="button" onClick={closeNewTask} className={buttonGhost}>Cancel</button>
           <button type="submit" disabled={!canStart} className={buttonPrimary}>
             {starting ? 'Starting…' : 'Start task'}
-            <span className="opacity-70 text-xs">{modKey}↵</span>
+            <KeyLabel keys={`${modKey}↵`} className="opacity-70 text-xs" />
           </button>
         </div>
       </form>

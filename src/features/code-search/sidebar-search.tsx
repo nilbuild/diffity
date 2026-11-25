@@ -1,3 +1,4 @@
+import { KeyLabel } from '../../components/ui/key-label';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { DiffFile, DiffLine, FileStatus } from '@/lib/diff-parser';
@@ -575,7 +576,7 @@ export function SidebarSearch(props: SidebarSearchProps) {
             </>
           )}
           <p className="px-2 pt-3 text-xs leading-[18px] text-text-muted">
-            ↓ moves into the results and ↵ opens one. Esc clears the search, then goes back to filtering file names.
+            ↓ moves into the results and <KeyLabel keys="↵" /> opens one. Esc clears the search, then goes back to filtering file names.
           </p>
         </div>
       );

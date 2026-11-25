@@ -1,4 +1,5 @@
 import { cn } from '../../lib/cn';
+import { KeyLabel } from './key-label';
 
 interface KeyCapsProps {
   keys: string[];
@@ -17,7 +18,7 @@ export function KeyCaps(props: KeyCapsProps) {
         <span key={key} className="flex items-center gap-1">
           {index > 0 && join === 'or' && <span>or</span>}
           <kbd className="rounded-[4px] bg-fill px-1.5 py-[3px] font-sans text-[11px] leading-none text-text-secondary">
-            {key}
+            <KeyLabel keys={key} />
           </kbd>
         </span>
       ))}

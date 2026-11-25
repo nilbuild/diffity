@@ -1,3 +1,4 @@
+import { KeyLabel } from '../../components/ui/key-label';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -389,9 +390,15 @@ function PaletteBody(props: { mode: PaletteMode }) {
         </div>
         <div className="flex items-center gap-4 h-8 px-4 border-t border-overlay-border text-[11px] text-text-muted">
           <span>↑↓ to move</span>
-          <span>↵ to open</span>
-          {mode === 'files' && <span>{modKey}↵ open in editor · {shortcutHint('copy-path')} path · {shortcutHint('copy-contents')} contents</span>}
-          <span className="ml-auto">{shortcutHint('palette')} everything · {shortcutHint('go-to-file')} files · {shortcutHint('palette-actions')} actions</span>
+          <span className="inline-flex items-center gap-1"><KeyLabel keys="↵" /> to open</span>
+          {mode === 'files' && (
+            <span className="inline-flex items-center gap-1">
+              <KeyLabel keys={`${modKey}↵`} /> open in editor · <KeyLabel keys={shortcutHint('copy-path')} /> path · <KeyLabel keys={shortcutHint('copy-contents')} /> contents
+            </span>
+          )}
+          <span className="ml-auto inline-flex items-center gap-1">
+            <KeyLabel keys={shortcutHint('palette')} /> everything · <KeyLabel keys={shortcutHint('go-to-file')} /> files · <KeyLabel keys={shortcutHint('palette-actions')} /> actions
+          </span>
         </div>
       </div>
     </div>,

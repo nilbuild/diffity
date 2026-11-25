@@ -30,6 +30,7 @@ import { changeGroups, GroupEditorHost, openGroupEditorAt, useGroupEditorId } fr
 import { RepoBadge } from '../../features/welcome/repo-badge';
 import { setRailProjects } from '../../features/groups/project-directory';
 import { clearLinkedChanges, setProjectOpener, useLinkedChanges } from '../../features/groups/linked-changes';
+import { KeyLabel } from '../ui/key-label';
 
 const RailContext = createContext(false);
 
@@ -71,7 +72,7 @@ function RailTooltip(props: { title: string; detail?: string; shortcut?: string 
     >
       <span className="flex items-center gap-2 text-[13px] font-medium text-text">
         {title}
-        {shortcut && <kbd className="font-sans text-[11px] text-text-muted">{shortcut}</kbd>}
+        {shortcut && <kbd className="font-sans text-[11px] text-text-muted"><KeyLabel keys={shortcut} /></kbd>}
       </span>
       {detail && <span className="text-[11px] text-text-secondary truncate">{detail}</span>}
     </span>
