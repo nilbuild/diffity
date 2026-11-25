@@ -9,7 +9,7 @@ import { MarkdownContent } from '../../components/layout/markdown-content';
 import { Spinner } from '../../components/icons/spinner';
 import { AlertCircleIcon, CheckIcon, ChevronRightIcon, CommentIcon, PencilIcon, XIcon } from '../../components/ui/icon';
 import { plural } from '../review/review-candidates';
-import { blockerOf, cancelQueuedRun, openRunResult, stopRun, useClaude, waitLabel, type ClaudeRun } from './claude-runner';
+import { blockerOf, cancelQueuedRun, isCommentRun, openRunResult, stopRun, useClaude, waitLabel, type ClaudeRun } from './claude-runner';
 import { isConversation, sameView, useConversation } from './conversation';
 import { setLastSent, useEditing } from './composer-state';
 import { useEditTarget, whereEditsShow } from './edit-target';
@@ -122,10 +122,11 @@ export function ChatStream(props: { repoPath: string; viewRef: string; chats: Ch
     for (const activity of liveTurns.filter((item) => !saved(item))) {
       list.push({ kind: 'live', key: `live-${activity.runId}`, at: activity.startedAt, live: activity });
     }
-    for (const chat of shown.filter((item) => !isConversation(item))) {
+    for (const chat of shown.filter((item) => !isConversation(item) && !isCommentRun(item))) {
       list.push({ kind: 'run', key: chat.id, at: Date.parse(chat.createdAt), chat, live: liveRuns.find((activity) => activity.chatId === chat.id) ?? null });
     }
-    for (const activity of liveRuns.filter((item) => item.outcome === 'running' && !shown.some((chat) => chat.id === item.chatId))) {
+    const commentRun = (activity: RunActivity) => isCommentRun(shown.find((chat) => chat.id === activity.chatId) ?? null, activity.actionKind);
+    for (const activity of liveRuns.filter((item) => item.outcome === 'running' && !commentRun(item) && !shown.some((chat) => chat.id === item.chatId))) {
       list.push({ kind: 'run', key: `live-${activity.runId}`, at: activity.startedAt, chat: null, live: activity });
     }
     return list.sort((a, b) => a.at - b.at);
@@ -468,7 +469,7 @@ function queuedTitle(run: ClaudeRun): string {
     case 'guide':
       return 'Write a guide';
     case 'resolve':
-      return comments > 0 ? `Fix ${plural(comments, 'comment')}` : 'Fix comments';
+      return comments > 0 ? `Answer or fix ${plural(comments, 'comment')}` : 'Answer or fix comments';
     case 'thread':
       return 'Answer a comment';
     case 'reviewFeedback':

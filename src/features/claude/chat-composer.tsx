@@ -77,9 +77,7 @@ export function ChatComposer(props: { repoPath: string; viewRef: string }) {
 
   const placeholder = steerable
     ? `Tell ${agent.short} something now…`
-    : waitsFor
-      ? 'Queue a message for after this run…'
-      : hasLastSent
+    : hasLastSent
         ? `Message ${agent.short}… (↑ to edit your last)`
         : `Message ${agent.short}…`;
 
@@ -127,7 +125,7 @@ export function ChatComposer(props: { repoPath: string; viewRef: string }) {
 
   return (
     <div className="flex flex-col gap-2 shrink-0 px-3 pb-3 pt-1">
-      <div ref={setCardSlot} className={cn(!card && 'hidden', 'max-h-[60vh] overflow-y-auto rounded-xl border border-border bg-bg')} />
+      <div ref={setCardSlot} className={cn(!card && 'hidden', 'max-h-[60vh] overflow-y-auto rounded-xl border border-control-border bg-bg-secondary shadow-lg shadow-black/25')} />
       <ApprovalBar repoPath={repoPath} agent={agent.short} />
       <QuickActions viewRef={viewRef} card={card} />
       {!card && (
@@ -267,7 +265,7 @@ function Notices(props: NoticesProps) {
       detail: `${agent} can’t edit this code because it isn’t checked out. Check out the branch to let it edit.`,
     });
   }
-  if (waitsFor) {
+  if (waitsFor && typing) {
     const where = sameView(waitsFor.ref, viewRef) ? 'here' : `in ${runViewLabel(repoPath, waitsFor.ref ?? 'work')}`;
     notices.push({ key: 'wait', icon: <HistoryIcon size="xs" />, text: `Sends after ${waitLabel(waitsFor)} ${where}` });
   }
@@ -332,7 +330,7 @@ function QuickActions(props: { viewRef: string; card: ClaudeCard | null }) {
   // Open comments are work waiting on you, so their chip stands out from the plain actions.
   return (
     <div className="flex flex-wrap gap-1.5">
-      {actions.fixCount > 0 && chip('fix', `Fix ${plural(actions.fixCount, 'open comment')}`, true)}
+      {actions.fixCount > 0 && chip('fix', `Answer or fix ${plural(actions.fixCount, 'comment')}`, true)}
       {actions.reviewable && chip('review', 'Review changes')}
     </div>
   );

@@ -75,7 +75,7 @@ function successTitle(review: Review, scope: ClaudeScope, sent: boolean): string
   return count > 0 ? `Published ${count} ${count === 1 ? 'comment' : 'comments'}` : 'Note published';
 }
 
-/** Hands the submitted review to agents, and opens the chat panel where their runs show. Says what was sent, or null. */
+/** Hands the submitted review to agents; a whole-review run opens the chat panel, where it shows. Says what was sent, or null. */
 export function triggerClaude(review: Review, scope: ClaudeScope): string | null {
   const context = { repoPath: getRepoPath(), sessionId: review.sessionId };
   if (scope === 'skip') {
@@ -92,7 +92,6 @@ export function triggerClaude(review: Review, scope: ClaudeScope): string | null
   if (review.mentionedThreadIds.length === 0) {
     return null;
   }
-  openClaudePanel();
   const count = review.mentionedThreadIds.length;
   return `Answering ${count === 1 ? '1 mention' : `${count} mentions`}`;
 }

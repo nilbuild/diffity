@@ -164,7 +164,7 @@ interface SendCommentsPanelProps {
   onAgentChange?: (agentId: string) => void;
 }
 
-/** Pick open comments and send them to an agent, which edits your code to address them and replies on each thread. */
+/** Pick open comments and send them to an agent, which answers questions, makes requested changes and replies on each thread. */
 export function SendCommentsPanel(props: SendCommentsPanelProps) {
   const { candidates, diffRef, onClose, onAgentChange } = props;
   const queued = !!useRunInTheWay(getRepoPath(), 'edit');
@@ -265,8 +265,8 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
       }}
     >
       <div className="px-4 pt-3.5 pb-2">
-        <h3 className="text-[13px] font-medium leading-5 text-text">{sendCount > 0 ? `Fix ${plural(sendCount, 'comment')}` : 'Fix comments'}</h3>
-        <p className="mt-0.5 text-xs leading-4 text-text-muted">{agent.short} edits the code and replies on each one you tick.</p>
+        <h3 className="text-[13px] font-medium leading-5 text-text">{sendCount > 0 ? `Answer or fix ${plural(sendCount, 'comment')}` : 'Answer or fix comments'}</h3>
+        <p className="mt-0.5 text-xs leading-4 text-text-muted">{agent.short} answers questions, makes the changes asked for, and replies on each one you tick.</p>
       </div>
       <div className="max-h-[320px] overflow-y-auto px-2 pb-2">
         {local.length > 0 && (
@@ -312,8 +312,9 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
           value={note}
           onChange={setNote}
           rows={2}
+          growTo={160}
           placeholder="Anything else? (optional)"
-          className="block w-full min-h-[60px] px-3 py-2 text-[13px] leading-5 bg-raised text-text rounded-md border border-control-border focus:border-focus resize-y outline-none placeholder:text-text-muted"
+          className="block w-full min-h-[60px] px-3 py-2 text-[13px] leading-5 bg-raised text-text rounded-md border border-control-border focus:border-focus resize-none outline-none placeholder:text-text-muted"
         />
         <div className="mt-2">
           <ReadableProjects repoPath={getRepoPath()} text={readableText} agentName={agent.short} edits />

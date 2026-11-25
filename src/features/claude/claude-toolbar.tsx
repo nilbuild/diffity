@@ -236,7 +236,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
   const cardNode = panelOpen && card && slot ? createPortal(form(), slot) : null;
 
   const title = count > 0
-    ? `Chat with ${agent.short} about this view, or have it fix ${plural(count, 'open comment')} (${modKey}L)`
+    ? `Chat with ${agent.short} about this view, or have it work on ${plural(count, 'open comment')} (${modKey}L)`
     : prMode
       ? `Chat with ${agent.short} about this pull request, or have it review it (${modKey}L)`
       : `Chat with ${agent.short} about these changes, or have it review them (${modKey}L)`;

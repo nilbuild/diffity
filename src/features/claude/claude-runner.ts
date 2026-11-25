@@ -185,6 +185,17 @@ export function runLabel(action: ClaudeAction, name: string, conversation = fals
   }
 }
 
+const REPLY_TITLE = 'Reply to thread';
+const RESOLVE_THREAD_TITLE = 'Resolve thread';
+
+/** A run about one comment (a reply, or resolving that thread): what it did shows on the comment, not in the chat. */
+export function isCommentRun(chat: { title: string } | null, actionKind?: string): boolean {
+  if (actionKind === 'thread') {
+    return true;
+  }
+  return !!chat && (chat.title === REPLY_TITLE || chat.title.startsWith(`${RESOLVE_THREAD_TITLE} `));
+}
+
 function chatTitle(action: ClaudeAction): string {
   switch (action.kind) {
     case 'review':
@@ -194,9 +205,9 @@ function chatTitle(action: ClaudeAction): string {
     case 'chat':
       return 'Task';
     case 'resolve':
-      return action.threadId ? `Resolve thread ${action.threadId.slice(0, 8)}` : 'Resolve all comments';
+      return action.threadId ? `${RESOLVE_THREAD_TITLE} ${action.threadId.slice(0, 8)}` : 'Resolve all comments';
     case 'thread':
-      return 'Reply to thread';
+      return REPLY_TITLE;
     case 'reviewFeedback':
       return 'Address review';
   }

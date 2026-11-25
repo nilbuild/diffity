@@ -44,3 +44,5 @@ The user reads your replies and summaries in a small box next to the code. Write
    d. If an edit is rejected, follow **Rejected edits** below: do not retry it and do not `resolve`; `reply` explaining what you would change and leave the thread open.
 5. Always leave exactly one response in the thread (a `reply`, or the `resolve` summary). Follow **How to write comments** above.
 6. Finish with one sentence here saying what you did.
+
+In your final message, refer to comments by file and line (`cart.ts:12`), never by thread id; the user never sees the ids.
