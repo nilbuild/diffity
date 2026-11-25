@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { create } from 'zustand';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -93,28 +93,22 @@ export function useSendCandidates(threads: CommentThread[], includeGitHub: boole
   return { local, remote, fromClaude, pendingCount, count: local.length + remote.length + fromClaude.length + pendingCount };
 }
 
-function threadLocation(thread: CommentThread): string {
+function threadPlace(thread: CommentThread): string {
   if (thread.filePath === GENERAL_THREAD_FILE_PATH) {
     return 'General';
   }
-  return thread.startLine === thread.endLine ? `L${thread.startLine}` : `L${thread.startLine}–${thread.endLine}`;
-}
-
-function threadsByFile(threads: CommentThread[]): [string, CommentThread[]][] {
-  const byFile = new Map<string, CommentThread[]>();
-  for (const thread of threads) {
-    const key = thread.filePath === GENERAL_THREAD_FILE_PATH ? 'General comments' : thread.filePath;
-    byFile.set(key, [...(byFile.get(key) ?? []), thread]);
-  }
-  return [...byFile.entries()];
+  const name = thread.filePath.split('/').pop() ?? thread.filePath;
+  const lines = thread.startLine === thread.endLine ? `${thread.startLine}` : `${thread.startLine}–${thread.endLine}`;
+  return `${name}:${lines}`;
 }
 
 /** A comment's place, as a link that shows it in the diff without ticking its box. */
-function ThreadLink(props: { thread: CommentThread; diffRef: string | null; className: string; label: string }) {
-  const { thread, diffRef, className, label } = props;
+function ThreadLink(props: { thread: CommentThread; diffRef: string | null; label: string }) {
+  const { thread, diffRef, label } = props;
+  const title = thread.filePath === GENERAL_THREAD_FILE_PATH ? undefined : thread.filePath;
 
   if (!diffRef) {
-    return <span className={cn(className, 'text-text-muted')}>{label}</span>;
+    return <span title={title} className="truncate font-mono">{label}</span>;
   }
   return (
     <button
@@ -123,27 +117,40 @@ function ThreadLink(props: { thread: CommentThread; diffRef: string | null; clas
         event.preventDefault();
         goToThread(getRepoPath(), { ref: diffRef, threadId: thread.id });
       }}
-      title="Show this comment"
-      className={cn(className, 'text-left text-text-secondary underline decoration-dotted decoration-text-muted underline-offset-2 hover:text-text hover:decoration-solid cursor-pointer')}
+      title={title ? `Show this comment in ${title}` : 'Show this comment'}
+      className="truncate font-mono text-left hover:text-text hover:underline underline-offset-2 cursor-pointer"
     >
       {label}
     </button>
   );
 }
 
-function ThreadGroup(props: { file: string; threads: CommentThread[]; diffRef: string | null; isChecked: (id: string) => boolean; onToggle: (id: string) => void }) {
-  const { file, threads, diffRef, isChecked, onToggle } = props;
+function ThreadRow(props: { thread: CommentThread; diffRef: string | null; checked: boolean; onToggle: () => void; showAuthor?: boolean }) {
+  const { thread, diffRef, checked, onToggle, showAuthor } = props;
+  const last = thread.comments[thread.comments.length - 1];
 
   return (
-    <div className="pb-1">
-      <div className="px-2 pt-1.5 pb-1 font-mono text-[11px] text-text-muted truncate">{file}</div>
-      {threads.map((thread) => (
-        <label key={thread.id} className="flex items-start gap-2.5 px-2 py-1.5 rounded-md hover:bg-hover cursor-pointer">
-          <input type="checkbox" checked={isChecked(thread.id)} onChange={() => onToggle(thread.id)} className="mt-0.5 accent-claude" />
-          <ThreadLink thread={thread} diffRef={diffRef} className="shrink-0 w-12 pt-px font-mono text-[11px]" label={threadLocation(thread)} />
-          <span className="min-w-0 flex-1 text-xs leading-5 text-text line-clamp-2">{thread.comments[thread.comments.length - 1]?.body}</span>
-        </label>
-      ))}
+    <label className="flex items-start gap-3 px-2 py-2 rounded-md hover:bg-hover cursor-pointer">
+      <input type="checkbox" checked={checked} onChange={onToggle} className="mt-[3px] shrink-0 accent-claude" />
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-text-muted">
+          <ThreadLink thread={thread} diffRef={diffRef} label={threadPlace(thread)} />
+          {showAuthor && last && <span className="shrink-0">· {last.author.name}</span>}
+        </div>
+        <p className="mt-0.5 text-[13px] leading-5 text-text line-clamp-2 break-words">{last?.body}</p>
+      </div>
+    </label>
+  );
+}
+
+function SectionHeader(props: { icon?: ReactNode; label: string; action?: ReactNode }) {
+  const { icon, label, action } = props;
+
+  return (
+    <div className="flex h-7 items-center gap-1.5 px-2 text-[11px] font-medium text-text-muted">
+      {icon}
+      <span className="flex-1">{label}</span>
+      {action}
     </div>
   );
 }
@@ -185,8 +192,6 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
   const sendCount = selected.length + pendingCount;
   const claudeProblem = useAgentProblem(agent, true);
 
-  const groups = useMemo(() => threadsByFile(local), [local]);
-  const claudeGroups = useMemo(() => threadsByFile(fromClaude), [fromClaude]);
   const readableText = [note, ...selected.flatMap((thread) => thread.comments.map((comment) => comment.body))].join('\n');
 
   const send = async () => {
@@ -259,63 +264,62 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
         }
       }}
     >
-      <p className="px-4 pt-2.5 pb-1 text-xs text-text-secondary">{agent.short} fixes these and replies on each one.</p>
-      <div className="max-h-[300px] overflow-y-auto px-2">
-        {local.length > 0 && fromClaude.length > 0 && <div className="px-2 pt-2 pb-0.5 text-[11px] font-medium text-text-muted">Your comments</div>}
-        {groups.map(([file, items]) => (
-          <ThreadGroup key={file} file={file} threads={items} diffRef={diffRef} isChecked={(id) => !excluded.has(id)} onToggle={toggle} />
-        ))}
-        {fromClaude.length > 0 && (
-          <div className="pb-1">
-            <div className="flex items-center gap-1.5 px-2 pt-2 pb-0.5 text-[11px] font-medium text-text-muted">
-              <SparkleIcon size="xs" className="text-claude" />
-              <span className="flex-1">Agent comments</span>
-              <button type="button" onClick={toggleAllClaude} className="text-text-secondary hover:text-text cursor-pointer">
-                {allClaudePicked ? 'Select none' : 'Select all'}
-              </button>
-            </div>
-            {claudeGroups.map(([file, items]) => (
-              <ThreadGroup key={file} file={file} threads={items} diffRef={diffRef} isChecked={(id) => pickedClaude.has(id)} onToggle={toggleClaude} />
+      <div className="px-4 pt-3.5 pb-2">
+        <h3 className="text-[13px] font-medium leading-5 text-text">{sendCount > 0 ? `Fix ${plural(sendCount, 'comment')}` : 'Fix comments'}</h3>
+        <p className="mt-0.5 text-xs leading-4 text-text-muted">{agent.short} edits the code and replies on each one you tick.</p>
+      </div>
+      <div className="max-h-[320px] overflow-y-auto px-2 pb-2">
+        {local.length > 0 && (
+          <section>
+            {(fromClaude.length > 0 || remote.length > 0) && <SectionHeader label="Your comments" />}
+            {local.map((thread) => (
+              <ThreadRow key={thread.id} thread={thread} diffRef={diffRef} checked={!excluded.has(thread.id)} onToggle={() => toggle(thread.id)} />
             ))}
-          </div>
+          </section>
+        )}
+        {fromClaude.length > 0 && (
+          <section className={cn(local.length > 0 && 'mt-2')}>
+            <SectionHeader
+              icon={<SparkleIcon size="xs" className="text-claude" />}
+              label="Agent comments"
+              action={(
+                <button type="button" onClick={toggleAllClaude} className="font-normal text-text-secondary hover:text-text cursor-pointer">
+                  {allClaudePicked ? 'Select none' : 'Select all'}
+                </button>
+              )}
+            />
+            {fromClaude.map((thread) => (
+              <ThreadRow key={thread.id} thread={thread} diffRef={diffRef} checked={pickedClaude.has(thread.id)} onToggle={() => toggleClaude(thread.id)} />
+            ))}
+          </section>
         )}
         {remote.length > 0 && (
-          <div className="pb-1">
-            <div className="flex items-center gap-1.5 px-2 pt-2 pb-1 text-[11px] font-medium text-text-muted">
-              <GitHubIcon size={11} />
-              Reviewer comments from GitHub
-            </div>
+          <section className={cn((local.length > 0 || fromClaude.length > 0) && 'mt-2')}>
+            <SectionHeader icon={<GitHubIcon size={11} />} label="Reviewer comments from GitHub" />
             {remote.map((thread) => (
-              <label key={thread.id} className="flex items-start gap-2.5 px-2 py-1.5 rounded-md hover:bg-hover cursor-pointer">
-                <input type="checkbox" checked={!excluded.has(thread.id)} onChange={() => toggle(thread.id)} className="mt-0.5 accent-claude" />
-                <ThreadLink thread={thread} diffRef={diffRef} className="shrink-0 w-24 pt-px font-mono text-[11px] truncate" label={`${thread.filePath.split('/').pop()} ${threadLocation(thread)}`} />
-                <span className="min-w-0 flex-1 text-xs leading-5 text-text line-clamp-2">
-                  <span className="font-medium">{thread.comments[thread.comments.length - 1]?.author.name}: </span>
-                  {thread.comments[thread.comments.length - 1]?.body}
-                </span>
-              </label>
+              <ThreadRow key={thread.id} thread={thread} diffRef={diffRef} checked={!excluded.has(thread.id)} onToggle={() => toggle(thread.id)} showAuthor />
             ))}
-            <label className="flex items-center gap-2 px-2 pt-1.5 text-xs text-text-secondary cursor-pointer">
-              <input type="checkbox" checked={postReplies} onChange={() => setPostReplies(!postReplies)} className="accent-claude" disabled={remoteSelected.length === 0} />
+            <label className="flex items-center gap-3 px-2 py-2 text-xs text-text-secondary cursor-pointer">
+              <input type="checkbox" checked={postReplies} onChange={() => setPostReplies(!postReplies)} className="shrink-0 accent-claude" disabled={remoteSelected.length === 0} />
               Post {agent.short}’s replies to these GitHub threads
             </label>
-          </div>
+          </section>
         )}
-        {pendingCount > 0 && <div className="px-2 py-1 text-xs text-text-secondary">+ {plural(pendingCount, 'draft comment')} (submitted first)</div>}
+        {pendingCount > 0 && <div className="px-2 py-2 text-xs text-text-secondary">+ {plural(pendingCount, 'draft comment')} (submitted first)</div>}
       </div>
-      <div className="px-4 pt-2 pb-3 border-t border-overlay-border">
+      <div className="px-4 pt-3 pb-4 border-t border-border">
         <MentionTextarea
           value={note}
           onChange={setNote}
           rows={2}
           placeholder="Anything else? (optional)"
-          className="block w-full px-2.5 py-1.5 text-[13px] leading-5 bg-raised text-text rounded-md border border-control-border focus:border-focus resize-y outline-none placeholder:text-text-muted"
+          className="block w-full min-h-[60px] px-3 py-2 text-[13px] leading-5 bg-raised text-text rounded-md border border-control-border focus:border-focus resize-y outline-none placeholder:text-text-muted"
         />
-        <div className="mt-2.5">
+        <div className="mt-2">
           <ReadableProjects repoPath={getRepoPath()} text={readableText} agentName={agent.short} edits />
         </div>
         {claudeProblem && <div className="mt-2 px-2.5 py-1.5 rounded-md bg-deleted/10 text-xs text-deleted">{claudeProblem}</div>}
-        <div className="mt-2.5 flex items-center gap-2">
+        <div className="mt-3 flex items-center gap-2">
           <ModelPicker value={pick} onChange={setPicked} className="-ml-1.5 mr-auto" />
           <button type="button" onClick={onClose} className={buttonGhost}>Cancel</button>
           <button
