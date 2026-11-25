@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import dayjs from 'dayjs';
-import { Skeleton, useElapsed, useLatch } from '../ui/skeleton';
+import { Skeleton, useLatch } from '../ui/skeleton';
 import { SegmentedToggle } from '../ui/segmented-toggle';
 import { buttonGhost } from '../ui/button-styles';
 import { fetchCommit, fetchDiff, parseCommitRef } from '../../lib/api';
@@ -17,11 +17,10 @@ import { useCopy } from '../../hooks/use-copy';
 import { useRepoNav } from '../../hooks/use-repo';
 import { gitStatusOptions, useGitHubPr, useGitStatus, useRepoMeta } from '../../hooks/use-repo-state';
 import { AuthorAvatar } from './commit-list';
-import { PR_LOOKUP_BUDGET, isAllChangesRef, isPrShapedRef, prDiffRef, rangeParts, shortBase, uncommittedTwin } from './ref-menu';
+import { isAllChangesRef, isPrShapedRef, prDiffRef, rangeParts, shortBase, uncommittedTwin } from './ref-menu';
 import { CheckIcon, ChevronDownIcon, CopyIcon, GitCompareIcon } from '../ui/icon';
 import { Popover } from '../ui/popover';
 import { CompareForm } from './compare-form';
-import { prBaseFor } from '../../lib/pr-ref';
 import { TaskRoundBar, useShowsRoundBar } from '../../features/tasks/round-bar';
 
 export function useCommitDetails(sha: string | null) {
@@ -145,31 +144,6 @@ function useUncommittedFiles(): number {
 }
 
 /** The PR view shows commits only, since its comments must sit on lines GitHub has. */
-function PrUncommittedNotice(props: { base: string }) {
-  const { base } = props;
-  const nav = useRepoNav();
-  const files = useUncommittedFiles();
-
-  if (files === 0) {
-    return null;
-  }
-  return (
-    <div className="flex items-center gap-2 h-9 px-3 rounded-lg border border-border bg-bg-secondary text-[13px] text-text-secondary">
-      <span className="w-1.5 h-1.5 rounded-full bg-modified shrink-0" aria-hidden />
-      <span className="min-w-0 flex-1 truncate">
-        {plural(files, 'uncommitted file')} {files === 1 ? 'isn’t' : 'aren’t'} in this pull request yet
-      </span>
-      <button
-        onClick={() => nav.toDiff(base)}
-        className={cn(buttonGhost, 'h-6 px-2 text-xs text-text')}
-        title="Everything on this branch plus your uncommitted changes. Comments there on uncommitted lines can’t be posted to GitHub until you push"
-      >
-        Show them
-      </button>
-    </div>
-  );
-}
-
 /** The checked-out copy of the PR isn't at its latest commit (new pushes, or a rebase), so the diff is old. */
 function PrBehindNotice(props: { pr: PullRequest }) {
   const { pr } = props;
@@ -236,13 +210,12 @@ export function ChangesModeSwitch(props: { diffRef: string }) {
   const { diffRef } = props;
   const nav = useRepoNav();
   const files = useUncommittedFiles();
-  const { details, loading: prLoading } = useGitHubPr();
-  const budgetSpent = useElapsed(PR_LOOKUP_BUDGET);
+  const { details } = useGitHubPr();
   const twin = uncommittedTwin(diffRef);
   const including = isAllChangesRef(diffRef);
+  const forPr = !!details && (diffRef === prDiffRef(details) || twin === prDiffRef(details));
 
-  // A PR range shows no switch once its PR is known; while the lookup runs it stays hidden rather than flashing.
-  if (!twin || files === 0 || (details && diffRef === prDiffRef(details)) || (prLoading && !budgetSpent && isPrShapedRef(diffRef))) {
+  if (!twin || files === 0) {
     return null;
   }
   const count = plural(files, 'uncommitted file');
@@ -262,7 +235,13 @@ export function ChangesModeSwitch(props: { diffRef: string }) {
           icon: <span className="w-1.5 h-1.5 rounded-full bg-modified" aria-hidden />,
           title: `Commits on this branch plus ${count}`,
         },
-        { value: 'committed', label: 'Committed only', title: 'Only what is committed, like the pull request will see it. Comments and Viewed marks are shared with All changes' },
+        {
+          value: 'committed',
+          label: 'Committed only',
+          title: forPr
+            ? `What the pull request has: ${count} ${files === 1 ? 'isn’t' : 'aren’t'} in it yet. Comments and Viewed marks are shared with All changes`
+            : 'Only what is committed, like the pull request will see it. Comments and Viewed marks are shared with All changes',
+        },
       ]}
     />
   );
@@ -327,7 +306,6 @@ export function DiffContextHeader(props: { diffRef: string }) {
     return (
       <>
         <PrBehindNotice pr={details.pr} />
-        <PrUncommittedNotice base={prBaseFor(details.pr)} />
       </>
     );
   }
