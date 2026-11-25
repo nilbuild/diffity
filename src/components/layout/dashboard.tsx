@@ -40,7 +40,8 @@ import { CompareForm } from './compare-form';
 import { useRestoredScroll, useViewState } from '../../lib/view-state';
 import { useNavigate } from 'react-router';
 import { clearSkippedView, diffRefOf, useSkippedView } from '../../features/welcome/resume';
-import { runViewLabel } from '../../features/claude/claude-runner';
+import { commentOf, runLabel, runViewLabel, showRun, useRunningRuns } from '../../features/claude/claude-runner';
+import { sameView } from '../../features/claude/conversation';
 
 interface DashboardProps {
   onNavigate: (ref: string) => void;
@@ -128,8 +129,8 @@ interface Candidate {
 }
 
 /** What to look at first, as one bar: what it is and its size on the left, the actions on the right. */
-function Hero(props: { item: Candidate; agentName: string; onReview: (ref: string) => void; className?: string }) {
-  const { item, agentName, onReview, className } = props;
+function Hero(props: { item: Candidate; agentName: string; working: { label: string; open: () => void } | null; onReview: (ref: string) => void; className?: string }) {
+  const { item, agentName, working, onReview, className } = props;
   const [asking, setAsking] = useState(false);
   const askRef = useRef<HTMLButtonElement>(null);
 
@@ -158,10 +159,17 @@ function Hero(props: { item: Candidate; agentName: string; onReview: (ref: strin
             <GitHubIcon size="sm" />
           </button>
         )}
-        <button ref={askRef} onClick={() => setAsking(!asking)} className={buttonClaude} aria-expanded={asking}>
-          <SparkleIcon size="sm" />
-          Ask {agentName} to review
-        </button>
+        {working ? (
+          <button onClick={working.open} className={buttonClaude} title="See what it's doing">
+            <Spinner className="w-3.5 h-3.5" />
+            {working.label}
+          </button>
+        ) : (
+          <button ref={askRef} onClick={() => setAsking(!asking)} className={buttonClaude} aria-expanded={asking}>
+            <SparkleIcon size="sm" />
+            Ask {agentName} to review
+          </button>
+        )}
         <button onClick={() => (item.run ? item.run() : onReview(item.ref))} className={buttonPrimary}>
           {item.action}
         </button>
@@ -260,6 +268,18 @@ function ContinueView(props: { repoPath: string }) {
   );
 }
 
+/** An agent at work on this item: the same words as the status pill, with its spinner. */
+function Working(props: { label: string }) {
+  const { label } = props;
+
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-claude">
+      <Spinner className="w-3 h-3" />
+      {label}
+    </span>
+  );
+}
+
 export function Dashboard(props: DashboardProps) {
   const { onNavigate } = props;
   const nav = useRepoNav();
@@ -291,6 +311,16 @@ export function Dashboard(props: DashboardProps) {
   const localBudgetSpent = useElapsed(3000);
   const hasTasks = useRepoTasks(nav.repoPath).length > 0;
   const reviewAgent = agentMeta(useRunPick('review', nav.repoPath).agent).short;
+  const runs = useRunningRuns(nav.repoPath);
+  const runOn = (ref: string) => runs.find((item) => sameView(item.ref, ref) && !commentOf(item.action)) ?? null;
+  const workingOn = (ref: string) => {
+    const run = runOn(ref);
+    return run ? runLabel(run.action, agentMeta(run.agentId ?? 'claude').short, !!run.context.conversation) : null;
+  };
+  const heroWorking = (ref: string) => {
+    const run = runOn(ref);
+    return run ? { label: workingOn(ref)!, open: () => showRun(run) } : null;
+  };
   const [historyOpen, setHistoryOpen] = useViewState<boolean | null>('home:history-open', null);
   const showHistory = historyOpen ?? !hasTasks;
 
@@ -483,7 +513,7 @@ export function Dashboard(props: DashboardProps) {
                 <TaskSections repoPath={nav.repoPath} checkoutRow={checkoutRow} />
 
                 {hasTasks ? null : hero ? (
-                  <Hero key={hero.key} item={hero} agentName={reviewAgent} onReview={onNavigate} className={heroUpgraded ? 'reveal' : undefined} />
+                  <Hero key={hero.key} item={hero} agentName={reviewAgent} working={heroWorking(hero.ref)} onReview={onNavigate} className={heroUpgraded ? 'reveal' : undefined} />
                 ) : (
                   <div className="mt-6 flex items-center gap-3 px-4 py-3 rounded-lg border border-added/25 bg-added/[0.06]">
                     <span className="flex items-center justify-center w-7 h-7 rounded-full bg-added/15 text-added shrink-0">
@@ -513,7 +543,15 @@ export function Dashboard(props: DashboardProps) {
                           key={item.key}
                           icon={item.icon}
                           title={item.title}
-                          meta={threadGroups.has(item.ref) ? `${item.eyebrow} · ${threadGroups.get(item.ref)?.count} open comment${threadGroups.get(item.ref)?.count === 1 ? '' : 's'}` : item.eyebrow}
+                          meta={
+                            workingOn(item.ref) ? (
+                              <Working label={workingOn(item.ref)!} />
+                            ) : threadGroups.has(item.ref) ? (
+                              `${item.eyebrow} · ${threadGroups.get(item.ref)?.count} open comment${threadGroups.get(item.ref)?.count === 1 ? '' : 's'}`
+                            ) : (
+                              item.eyebrow
+                            )
+                          }
                           stats={item.summary ? <StatCell additions={item.summary.additions} deletions={item.summary.deletions} bar={<DiffStatBar additions={item.summary.additions} deletions={item.summary.deletions} />} /> : item.summaryLoading && <Skeleton className="w-24 h-3" />}
                           onClick={() => onNavigate(item.ref)}
                           tooltip={item.action}

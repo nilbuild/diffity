@@ -81,7 +81,8 @@ export function ClaudeStatus() {
       <button
         onClick={() => {
           setPeek(false);
-          if (!several && onComment) {
+          // Outside a view (Home) there's no chat to open here, so go where the run is.
+          if (!currentRef || (!several && onComment)) {
             showRun(run);
             return;
           }
