@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { isOpenThread, useRepoThreads } from '../../hooks/use-repo-threads';
+import { inView, isOpenThread, useRepoThreads } from '../../hooks/use-repo-threads';
+import { useCurrentViewRef } from '../../hooks/use-current-view';
 import { Skeleton } from '../../components/ui/skeleton';
 import { toggleComments, useUi } from '../../lib/ui-store';
 import { cn } from '../../lib/cn';
@@ -7,11 +8,12 @@ import { buttonOutline } from '../../components/ui/button-styles';
 import { CommentIcon } from '../../components/ui/icon';
 import { clearFreshComments, useCommentSync } from '../pr/pr-checkout';
 
-/** The project's open comments, as a count beside Chat; it only shows once there are comments (C opens the panel anyway). */
+/** This view's open comments; only the icon when just other views have some, and hidden when the project has none. */
 export function CommentsButton() {
   const { data, isPending, isError } = useRepoThreads();
+  const viewRef = useCurrentViewRef();
   const threads = data ?? [];
-  const count = threads.filter(isOpenThread).length;
+  const count = threads.filter((thread) => isOpenThread(thread) && inView(thread, viewRef)).length;
   const loading = isPending && !isError;
   const open = useUi((state) => state.commentsOpen);
   const fresh = useCommentSync((state) => state.fresh);
@@ -29,7 +31,7 @@ export function CommentsButton() {
     <button
       onClick={toggleComments}
       className={cn(buttonOutline, 'relative px-2.5', open && 'bg-selected hover:bg-selected')}
-      title={`Comments (C)${count > 0 ? ` · ${count} open` : ''}${fresh > 0 ? ` · ${fresh} new from GitHub` : ''}`}
+      title={`Comments (C)${count > 0 ? ` · ${count} open here` : ''}${fresh > 0 ? ` · ${fresh} new from GitHub` : ''}`}
       aria-pressed={open}
     >
       <CommentIcon size="md" className="text-text-secondary" />

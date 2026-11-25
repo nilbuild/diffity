@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router';
 import { useCurrentViewRef } from '../../hooks/use-current-view';
 import { create } from 'zustand';
 import { useRepoNav, useRepoPath } from '../../hooks/use-repo';
-import { useRepoThreads } from '../../hooks/use-repo-threads';
+import { inView, useRepoThreads } from '../../hooks/use-repo-threads';
 import { closeComments, useUi } from '../../lib/ui-store';
 import { threadPath } from '../../lib/thread-location';
-import { groupThreads, isCurrentGroup } from '../../lib/repo-thread-groups';
+import { groupThreads, isCurrentGroup, type ViewGroup } from '../../lib/repo-thread-groups';
 import { TREE_REF, type RepoThread } from '../../lib/types';
 import { cn } from '../../lib/cn';
 import { ThreadBadge } from '../../components/ui/thread-badge';
@@ -31,6 +31,7 @@ import { agentByName, agentMeta } from '../claude/agents';
 import { useRunPick } from '../claude/model-setting';
 import { useReviewThreads } from '../../hooks/use-review-threads';
 import { MarkdownContent } from '../../components/layout/markdown-content';
+import { plural } from '../review/review-candidates';
 import { SidePanel } from '../../components/layout/side-panel';
 
 type StatusFilter = 'open' | 'resolved' | 'all';
@@ -39,9 +40,11 @@ type AuthorFilter = 'all' | 'user' | 'github' | 'agent';
 interface PanelFilters {
   status: StatusFilter;
   author: AuthorFilter;
+  /** Comments from other views and branches, kept out of the way until asked for. */
+  others: boolean;
 }
 
-const useFilters = create<PanelFilters>(() => ({ status: 'open', author: 'all' }));
+const useFilters = create<PanelFilters>(() => ({ status: 'open', author: 'all', others: false }));
 
 const AUTHOR_LABELS: Record<AuthorFilter, string> = { all: 'Everyone', user: 'You', github: 'Reviewers', agent: 'Agents' };
 
@@ -429,8 +432,9 @@ function CommentsPanelBody() {
   const currentRef = useCurrentViewRef();
   const { data, isLoading, error } = useRepoThreads();
   const filters = useFilters();
-  const threads = useMemo(() => data ?? [], [data]);
-  const hasReviewers = threads.some((thread) => thread.authorType === 'github');
+  const all = useMemo(() => data ?? [], [data]);
+  const threads = useMemo(() => (filters.others ? all : all.filter((thread) => inView(thread, currentRef))), [all, filters.others, currentRef]);
+  const hasReviewers = all.some((thread) => thread.authorType === 'github');
   const author: AuthorFilter = filters.author === 'github' && !hasReviewers ? 'all' : filters.author;
   const reveal = useRevealClass(isLoading);
   const filterMenu = useMenu();
@@ -449,7 +453,13 @@ function CommentsPanelBody() {
     () => threads.filter((thread) => matchesStatus(thread, filters.status) && matchesAuthor(thread, author)),
     [threads, filters.status, author],
   );
-  const groups = useMemo(() => groupThreads(visible, currentRef), [visible, currentRef]);
+  const here = useMemo(() => groupThreads(visible.filter((thread) => inView(thread, currentRef)), currentRef), [visible, currentRef]);
+  const elsewhere = useMemo(() => groupThreads(visible.filter((thread) => !inView(thread, currentRef)), currentRef), [visible, currentRef]);
+  const hidden = useMemo(
+    () => all.filter((thread) => !inView(thread, currentRef) && matchesStatus(thread, filters.status) && matchesAuthor(thread, author)),
+    [all, currentRef, filters.status, author],
+  );
+  const hiddenViews = useMemo(() => groupThreads(hidden, currentRef).length, [hidden, currentRef]);
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -484,20 +494,20 @@ function CommentsPanelBody() {
 
   const [groupState, setGroupState] = useState(readGroupState);
   // This view (or, away from any view, the first group) starts open; the rest start folded.
-  const isGroupOpen = (group: (typeof groups)[number], index: number) => {
+  const isGroupOpen = (group: ViewGroup, index: number) => {
     const stored = groupState[`${repoPath}\n${group.key}`];
     if (stored !== undefined) {
       return stored;
     }
-    return currentRef ? isCurrentGroup(group, currentRef) : index === 0;
+    return !currentRef ? index === 0 : isCurrentGroup(group, currentRef) || here.includes(group);
   };
-  const toggleGroup = (group: (typeof groups)[number], index: number) => {
+  const toggleGroup = (group: ViewGroup, index: number) => {
     const next = { ...groupState, [`${repoPath}\n${group.key}`]: !isGroupOpen(group, index) };
     setGroupState(next);
     writeGroupState(next);
   };
 
-  const groupAction = (group: (typeof groups)[number]) => {
+  const groupAction = (group: ViewGroup) => {
     if (group.otherBranch) {
       const branch = group.otherBranch;
       return { label: 'Check out', title: `Switch to ${branch} to see these comments in place`, run: () => void switchBranch(repoPath, branch, nav) };
@@ -506,6 +516,52 @@ function CommentsPanelBody() {
       return null;
     }
     return { label: 'Open', title: group.ref === TREE_REF ? 'Open in Files' : 'Open this view', run: () => navigate(threadPath(repoPath, { ref: group.ref })) };
+  };
+
+  const renderGroup = (group: ViewGroup, index: number) => {
+          const expanded = isGroupOpen(group, index);
+          const action = groupAction(group);
+          return (
+            <section key={group.key} className="mb-2">
+              <div className="sticky top-0 z-10 flex items-center gap-2 pl-2 pr-4 h-9 bg-sidebar">
+                <button
+                  onClick={() => toggleGroup(group, index)}
+                  aria-expanded={expanded}
+                  className="flex items-center gap-2 min-w-0 flex-1 h-7 px-2 rounded-md hover:bg-hover cursor-pointer text-left"
+                  title={expanded ? 'Collapse' : 'Expand'}
+                >
+                  <ChevronIcon expanded={expanded} />
+                  <ViewIcon viewRef={group.ref} />
+                  <span className="text-xs font-medium text-text truncate" title={group.ref}>{group.label}</span>
+                  {isCurrentGroup(group, currentRef) && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-fill text-text-secondary shrink-0">This view</span>
+                  )}
+                  <span className="text-xs text-text-muted shrink-0 tabular-nums">{group.count}</span>
+                </button>
+                {action && (
+                  <button
+                    onClick={action.run}
+                    title={action.title}
+                    className="h-6 px-2 -mr-1 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer shrink-0"
+                  >
+                    {action.label}
+                  </button>
+                )}
+              </div>
+              {expanded && group.files.map((file) => (
+                <div key={file.path} className="px-3">
+                  <div className="px-1 pt-2 pb-1.5 font-mono text-[11px] text-text-secondary truncate" title={file.path}>
+                    {fileLabel(file.path)}
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {file.threads.map((thread) => (
+                      <ThreadRow key={thread.id} thread={thread} onOpen={openThread} onOpenCommit={openCommit} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </section>
+          );
   };
 
   return (
@@ -586,54 +642,27 @@ function CommentsPanelBody() {
           </div>
         )}
         {error && <div className="px-4 py-6 text-xs text-deleted">Could not load comments: {String((error as { message?: string }).message ?? error)}</div>}
-        {!isLoading && !error && groups.length === 0 && (
-          <div className="px-6 py-10 text-center text-xs text-text-muted leading-relaxed">{emptyMessage(filters.status, threads.length)}</div>
+        {!isLoading && !error && here.length === 0 && (
+          <div className="px-6 py-10 text-center text-xs text-text-muted leading-relaxed">
+            {hidden.length > 0 && currentRef ? `No ${filters.status === 'all' ? '' : `${filters.status} `}comments in this view.` : emptyMessage(filters.status, all.length)}
+          </div>
         )}
-        {groups.map((group, index) => {
-          const expanded = isGroupOpen(group, index);
-          const action = groupAction(group);
-          return (
-            <section key={group.key} className="mb-2">
-              <div className="sticky top-0 z-10 flex items-center gap-2 pl-2 pr-4 h-9 bg-sidebar">
-                <button
-                  onClick={() => toggleGroup(group, index)}
-                  aria-expanded={expanded}
-                  className="flex items-center gap-2 min-w-0 flex-1 h-7 px-2 rounded-md hover:bg-hover cursor-pointer text-left"
-                  title={expanded ? 'Collapse' : 'Expand'}
-                >
-                  <ChevronIcon expanded={expanded} />
-                  <ViewIcon viewRef={group.ref} />
-                  <span className="text-xs font-medium text-text truncate" title={group.ref}>{group.label}</span>
-                  {isCurrentGroup(group, currentRef) && (
-                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-fill text-text-secondary shrink-0">This view</span>
-                  )}
-                  <span className="text-xs text-text-muted shrink-0 tabular-nums">{group.count}</span>
-                </button>
-                {action && (
-                  <button
-                    onClick={action.run}
-                    title={action.title}
-                    className="h-6 px-2 -mr-1 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer shrink-0"
-                  >
-                    {action.label}
-                  </button>
-                )}
-              </div>
-              {expanded && group.files.map((file) => (
-                <div key={file.path} className="px-3">
-                  <div className="px-1 pt-2 pb-1.5 font-mono text-[11px] text-text-secondary truncate" title={file.path}>
-                    {fileLabel(file.path)}
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {file.threads.map((thread) => (
-                      <ThreadRow key={thread.id} thread={thread} onOpen={openThread} onOpenCommit={openCommit} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </section>
-          );
-        })}
+        {here.map((group, index) => renderGroup(group, index))}
+        {currentRef && hidden.length > 0 && (
+          <div className="flex items-center gap-2 px-5 py-2 text-xs text-text-muted">
+            <span>
+              {plural(hidden.length, 'comment')} in {hiddenViews === 1 ? 'another view' : `${hiddenViews} other views`}
+            </span>
+            <button
+              type="button"
+              onClick={() => useFilters.setState({ others: !filters.others })}
+              className="text-text-secondary hover:text-text underline decoration-text-muted/40 underline-offset-2 cursor-pointer"
+            >
+              {filters.others ? 'Hide' : 'Show'}
+            </button>
+          </div>
+        )}
+        {filters.others && elsewhere.map((group, index) => renderGroup(group, here.length + index))}
       </div>
       {confirmDelete && (
         <ConfirmDialog
