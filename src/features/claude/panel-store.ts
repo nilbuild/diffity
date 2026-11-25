@@ -1,13 +1,13 @@
 import { create } from 'zustand';
+import { closeComments, useUi } from '../../lib/ui-store';
 import { flushActivity } from './run-activity';
 
 export type ClaudeCard = 'review' | 'fix';
 
 interface ViewActions {
   ref: string | null;
-  /** The view has changes an agent can review. */
   reviewable: boolean;
-  /** Open comments an agent can fix here; 0 where it can't edit. */
+  /** 0 where the agent can't edit. */
   fixCount: number;
 }
 
@@ -16,7 +16,6 @@ interface PanelState {
   /** A run picked to see in full (from History or a run's Details); null shows the view's chat. */
   details: string | null;
   history: boolean;
-  /** The review or fix form open above the message box. */
   card: ClaudeCard | null;
   /** Where the panel shows that form; the page renders it there, inside its own providers. */
   slot: HTMLElement | null;
@@ -24,13 +23,20 @@ interface PanelState {
   actions: ViewActions | null;
 }
 
-/** The agent panel docked beside the page: whether it shows, and what it shows. */
 export const usePanel = create<PanelState>(() => ({ open: false, details: null, history: false, card: null, slot: null, actions: null }));
 
 export function openClaudePanel() {
   flushActivity();
+  closeComments();
   usePanel.setState({ open: true, details: null, history: false });
 }
+
+// Chat and Comments share the right side of the window, so opening Comments closes the chat.
+useUi.subscribe((state, previous) => {
+  if (state.commentsOpen && !previous.commentsOpen && usePanel.getState().open) {
+    closeClaudePanel();
+  }
+});
 
 export function closeClaudePanel() {
   usePanel.setState({ open: false });
@@ -45,10 +51,11 @@ export function toggleClaudePanel() {
 }
 
 export function openClaudeHistory() {
+  closeComments();
   usePanel.setState({ open: true, history: true });
 }
 
-/** Shows one run in full; null goes back to the view's chat. */
+/** Null goes back to the view's chat. */
 export function showRunDetails(chatId: string | null) {
   usePanel.setState({ details: chatId, history: false });
 }

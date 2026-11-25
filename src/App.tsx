@@ -24,6 +24,8 @@ import { useWhatsNew } from './features/whats-new/use-whats-new';
 import { useOpenLinks } from './features/open-links/use-open-links';
 import { useTaskEvents } from './features/tasks/tasks';
 import { usePanel } from './features/claude/panel-store';
+import { usePanelWidths } from './hooks/use-resizable-width';
+import { SIDE_PANEL_WIDTH } from './components/layout/side-panel';
 
 function isTyping(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -90,11 +92,12 @@ function QuickOpenHost() {
   return <QuickOpen />;
 }
 
-// Matches the agent panel's width, so toasts sit beside it instead of over the chat.
-const PANEL_OFFSET = 'calc(min(420px, 45vw) + 16px)';
 
 export function App() {
   const panelOpen = usePanel((state) => state.open);
+  const commentsOpen = useUi((state) => state.commentsOpen);
+  // Toasts sit beside the chat or comments panel, not over it, at whatever width it's dragged to.
+  const sidePanelWidth = usePanelWidths((state) => state[SIDE_PANEL_WIDTH.storageKey]) ?? SIDE_PANEL_WIDTH.defaultWidth;
   useExternalLinks();
   useTaskEvents();
   useGlobalShortcuts();
@@ -132,7 +135,7 @@ export function App() {
       <WindowControls />
       <Toaster
         position="bottom-right"
-        offset={{ bottom: 40, right: panelOpen ? PANEL_OFFSET : 16 }}
+        offset={{ bottom: 40, right: panelOpen || commentsOpen ? sidePanelWidth + 16 : 16 }}
         gap={8}
         swipeDirections={['right']}
         toastOptions={{

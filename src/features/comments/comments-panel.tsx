@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useCurrentViewRef } from '../../hooks/use-current-view';
 import { create } from 'zustand';
-import { useRepoPath } from '../../hooks/use-repo';
-import { inView, useRepoThreads } from '../../hooks/use-repo-threads';
+import { useRepoNav, useRepoPath } from '../../hooks/use-repo';
+import { useRepoThreads } from '../../hooks/use-repo-threads';
 import { closeComments, useUi } from '../../lib/ui-store';
 import { threadPath } from '../../lib/thread-location';
 import { groupThreads, isCurrentGroup } from '../../lib/repo-thread-groups';
@@ -15,7 +15,10 @@ import { formatRelativeTime } from '../../components/comments/comment-bubble';
 import { GENERAL_THREAD_FILE_PATH, SEVERITY_LABELS } from '../../components/comments/types';
 import { InlineMarkdown } from '../../components/comments/inline-markdown';
 import { AddressedBadge } from '../../components/comments/addressed-badge';
-import { CheckIcon, ChevronIcon, CommentIcon, FileIcon, GitCommitIcon, GitCompareIcon, PencilIcon, SparkleIcon, TrashIcon, UndoIcon, XIcon } from '../../components/ui/icon';
+import { CheckIcon, ChevronIcon, CommentIcon, EllipsisIcon, FileIcon, GitCommitIcon, GitCompareIcon, PencilIcon, SparkleIcon, TrashIcon, UndoIcon, XIcon } from '../../components/ui/icon';
+import { MenuItem, Popover, useMenu } from '../../components/ui/popover';
+import { setCurrentThread, useCurrentThread } from '../../lib/current-thread';
+import { switchBranch } from '../pr/pr-checkout';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { deleteThread, errorMessage, keepThreadOnBranch } from '../../lib/api';
@@ -28,18 +31,19 @@ import { agentByName, agentMeta } from '../claude/agents';
 import { useRunPick } from '../claude/model-setting';
 import { useReviewThreads } from '../../hooks/use-review-threads';
 import { MarkdownContent } from '../../components/layout/markdown-content';
+import { SidePanel } from '../../components/layout/side-panel';
 
 type StatusFilter = 'open' | 'resolved' | 'all';
 type AuthorFilter = 'all' | 'user' | 'github' | 'agent';
-type ScopeFilter = 'view' | 'all';
 
 interface PanelFilters {
   status: StatusFilter;
   author: AuthorFilter;
-  scope: ScopeFilter;
 }
 
-const useFilters = create<PanelFilters>(() => ({ status: 'open', author: 'all', scope: 'view' }));
+const useFilters = create<PanelFilters>(() => ({ status: 'open', author: 'all' }));
+
+const AUTHOR_LABELS: Record<AuthorFilter, string> = { all: 'Everyone', user: 'You', github: 'Reviewers', agent: 'Agents' };
 
 const PATH_PREFIX = '__path__:';
 const GROUPS_KEY = 'diffity-comment-groups';
@@ -171,9 +175,12 @@ function ThreadRow(props: ThreadRowProps) {
   const { thread, onOpen, onOpenCommit } = props;
   const queryClient = useQueryClient();
   const line = lineLabel(thread);
-  const note = anchorNote(thread);
-  const outdated = !thread.unassigned && thread.anchor !== 'current' && thread.anchor !== 'unknown';
-  const openable = thread.unassigned || thread.anchor === 'current' || outdated;
+  const note = thread.otherBranch ? 'On another branch' : anchorNote(thread);
+  const outdated = !thread.unassigned && !thread.otherBranch && thread.anchor !== 'current' && thread.anchor !== 'unknown';
+  // Its code is in its view: open it there. Otherwise (outdated, another branch) read it here.
+  const inPlace = thread.anchor === 'current' && !thread.unassigned && !thread.otherBranch;
+  const openable = inPlace || thread.unassigned || outdated || !!thread.otherBranch;
+  const current = useCurrentThread((state) => state.id === thread.id);
   const [expanded, setExpanded] = useState(false);
   const isAgent = thread.authorType === 'agent';
   const isOpen = thread.status === 'open';
@@ -182,9 +189,9 @@ function ThreadRow(props: ThreadRowProps) {
   const fixPick = useRunPick('fix', repoPath);
   const repoAgent = agentMeta(fixPick.agent);
   const runLabel = useThreadRunLabel(thread.id);
-  const canAskClaude = isOpen && !thread.unassigned && !thread.pending && thread.anchor !== 'current' && thread.anchor !== 'unknown' && activity === 'idle';
+  const canAskClaude = isOpen && !thread.unassigned && !thread.otherBranch && !thread.pending && thread.anchor !== 'unknown' && activity === 'idle';
   const open = () => {
-    if (thread.anchor === 'current' && !thread.unassigned) {
+    if (inPlace) {
       onOpen(thread);
       return;
     }
@@ -224,10 +231,11 @@ function ThreadRow(props: ThreadRowProps) {
         }
       }}
       className={cn(
-        'group flex gap-2.5 px-3 py-2.5 rounded-lg bg-bg border border-border transition-colors outline-none focus-visible:border-focus',
+        'group flex gap-2.5 px-3 py-2.5 rounded-lg bg-bg border transition-colors outline-none focus-visible:border-focus',
+        current ? 'border-claude/60' : 'border-border',
         openable ? 'hover:border-control-border hover:bg-bg-secondary cursor-pointer' : 'cursor-default',
       )}
-      title={openable ? (thread.anchor === 'current' && !thread.unassigned ? 'Open this comment' : expanded ? 'Hide the conversation' : 'Show the whole conversation') : undefined}
+      title={openable ? (inPlace ? 'Open this comment' : expanded ? 'Hide the conversation' : 'Show the whole conversation') : undefined}
     >
       <span
         className={cn(
@@ -249,7 +257,7 @@ function ThreadRow(props: ThreadRowProps) {
           {thread.pending && <ThreadBadge variant="pending" />}
           {addressedBy && <AddressedBadge agent={addressedBy} />}
           {thread.status !== 'open' && <ThreadBadge variant={thread.status} />}
-          {thread.anchor !== 'current' && !thread.unassigned && <ThreadBadge variant="outdated" />}
+          {outdated && <ThreadBadge variant="outdated" />}
           <span className="ml-auto text-xs text-text-muted shrink-0 group-hover:hidden group-focus-within:hidden">{formatRelativeTime(thread.updatedAt)}</span>
           {canAskClaude && (
             <button
@@ -258,10 +266,10 @@ function ThreadRow(props: ThreadRowProps) {
                 enqueueClaude({ kind: 'thread', threadId: thread.id }, { repoPath, sessionId: thread.sessionId, ref: thread.ref, pick: fixPick });
               }}
               className="ml-auto hidden group-hover:inline-flex group-focus-within:inline-flex items-center gap-1 h-5 -my-0.5 px-1.5 rounded text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer shrink-0"
-              title={`${repoAgent.short} answers or makes the change for this comment`}
+              title={`${repoAgent.short} answers a question or makes the change asked for`}
             >
               <SparkleIcon className="w-3 h-3 text-claude" />
-              Ask {repoAgent.short}
+              Answer or fix
             </button>
           )}
           <button
@@ -358,39 +366,38 @@ function UnassignedHint(props: { thread: RepoThread; keeping: boolean; onKeep: (
   );
 }
 
-function deleteMessage(filters: PanelFilters, count: number, viewOnly: boolean): string {
+function deleteMessage(filters: PanelFilters, count: number): string {
   const status = filters.status === 'open' ? 'open ' : filters.status === 'resolved' ? 'resolved ' : '';
   const author = { all: '', user: ' from you', github: ' from reviewers', agent: ' from agents' }[filters.author];
   const noun = count === 1 ? 'comment' : 'comments';
-  return `Delete ${count === 1 ? 'the' : `all ${count}`} ${status}${noun}${author} ${viewOnly ? 'in this view' : 'across every view in this repository'}?`;
+  return `Delete ${count === 1 ? 'the' : `all ${count}`} ${status}${noun}${author}, across every view in this project? You can undo it right after.`;
 }
 
-function emptyMessage(filters: PanelFilters, total: number, viewOnly: boolean): string {
-  if (total === 0 && viewOnly) {
-    return 'No comments in this view yet. Switch to All views to see comments from other diffs.';
-  }
+function emptyMessage(status: StatusFilter, total: number): string {
   if (total === 0) {
-    return 'No comments in this repository yet. Comments you or an agent leave in any view show up here.';
+    return 'No comments in this project yet. Comments you, an agent or a reviewer leave in any view show up here.';
   }
-  if (filters.status === 'open') {
+  if (status === 'open') {
     return 'No open comments. Everything has been resolved.';
   }
-  if (filters.status === 'resolved') {
+  if (status === 'resolved') {
     return 'No resolved comments.';
   }
-  return 'No comments match these filters.';
+  return 'No comments match this filter.';
 }
 
+/** Docked beside the page like the chat (one of the two at a time): every comment in the project, by view. */
 export function CommentsPanel() {
   const open = useUi((state) => state.commentsOpen);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!open) {
       return;
     }
+    // Esc closes it only from inside, so Esc in the diff (closing an editor) leaves it open.
     const handler = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && panelRef.current?.contains(document.activeElement)) {
         closeComments();
       }
     };
@@ -409,33 +416,25 @@ export function CommentsPanel() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) {
-        closeComments();
-      }
-    }}>
-      <div
-        ref={panelRef}
-        tabIndex={-1}
-        className="h-full w-[460px] max-w-[92vw] bg-sidebar border-l border-frame-border flex flex-col outline-none animate-slide-in-right"
-      >
-        <CommentsPanelBody />
-      </div>
-    </div>
+    <SidePanel ref={panelRef} label="Comments panel" className="bg-sidebar">
+      <CommentsPanelBody />
+    </SidePanel>
   );
 }
 
 function CommentsPanelBody() {
   const repoPath = useRepoPath();
+  const nav = useRepoNav();
   const navigate = useNavigate();
   const currentRef = useCurrentViewRef();
   const { data, isLoading, error } = useRepoThreads();
   const filters = useFilters();
-  const scopeRef = filters.scope === 'view' ? currentRef : null;
-  const threads = useMemo(() => (data ?? []).filter((thread) => inView(thread, scopeRef)), [data, scopeRef]);
+  const threads = useMemo(() => data ?? [], [data]);
   const hasReviewers = threads.some((thread) => thread.authorType === 'github');
   const author: AuthorFilter = filters.author === 'github' && !hasReviewers ? 'all' : filters.author;
   const reveal = useRevealClass(isLoading);
+  const filterMenu = useMenu();
+  const moreMenu = useMenu();
 
   const counts = useMemo(() => {
     const byAuthor = threads.filter((thread) => matchesAuthor(thread, author));
@@ -469,8 +468,9 @@ function CommentsPanelBody() {
     deletedToast(snapshots);
   };
 
+  // The panel stays open: the comment opens beside it and is outlined in the list.
   const openThread = (thread: RepoThread) => {
-    closeComments();
+    setCurrentThread(thread.id);
     navigate(threadPath(repoPath, { ref: thread.ref, threadId: thread.id }));
   };
 
@@ -478,61 +478,72 @@ function CommentsPanelBody() {
     if (!thread.movedTo) {
       return;
     }
-    closeComments();
     const params = new URLSearchParams({ ref: thread.movedTo.ref, file: thread.filePath });
     navigate(`/r/${encodeURIComponent(repoPath)}/diff?${params.toString()}`);
   };
 
   const [groupState, setGroupState] = useState(readGroupState);
-  const isGroupOpen = (group: (typeof groups)[number]) => {
+  // This view (or, away from any view, the first group) starts open; the rest start folded.
+  const isGroupOpen = (group: (typeof groups)[number], index: number) => {
     const stored = groupState[`${repoPath}\n${group.key}`];
     if (stored !== undefined) {
       return stored;
     }
-    if (isCurrentGroup(group, currentRef) || group.unassigned) {
-      return true;
-    }
-    return group.files.some((file) => file.threads.some((thread) => thread.status === 'open' && thread.authorType === 'agent'));
+    return currentRef ? isCurrentGroup(group, currentRef) : index === 0;
   };
-  const toggleGroup = (group: (typeof groups)[number]) => {
-    const next = { ...groupState, [`${repoPath}\n${group.key}`]: !isGroupOpen(group) };
+  const toggleGroup = (group: (typeof groups)[number], index: number) => {
+    const next = { ...groupState, [`${repoPath}\n${group.key}`]: !isGroupOpen(group, index) };
     setGroupState(next);
     writeGroupState(next);
   };
 
-  const openView = (ref: string) => {
-    closeComments();
-    navigate(threadPath(repoPath, { ref }));
+  const groupAction = (group: (typeof groups)[number]) => {
+    if (group.otherBranch) {
+      const branch = group.otherBranch;
+      return { label: 'Check out', title: `Switch to ${branch} to see these comments in place`, run: () => void switchBranch(repoPath, branch, nav) };
+    }
+    if (group.ref === currentRef || group.unassigned) {
+      return null;
+    }
+    return { label: 'Open', title: group.ref === TREE_REF ? 'Open in Files' : 'Open this view', run: () => navigate(threadPath(repoPath, { ref: group.ref })) };
   };
 
   return (
     <>
-      <div className="flex items-center justify-between h-12 px-4" data-tauri-drag-region>
-        <div className="flex items-center gap-2">
-          <CommentIcon size="md" className="text-text-secondary" />
-          <h2 className="text-[15px] font-semibold text-text">Comments</h2>
-          {currentRef ? (
-            <SegmentedToggle<ScopeFilter>
-              value={filters.scope}
-              onChange={(scope) => useFilters.setState({ scope })}
-              options={[
-                { value: 'view', label: 'This view' },
-                { value: 'all', label: 'All views' },
-              ]}
-            />
-          ) : (
-            <span className="text-xs text-text-secondary">across this repository</span>
-          )}
-        </div>
+      <div className="flex items-center gap-2 h-12 shrink-0 pl-4 pr-2" data-tauri-drag-region>
+        <CommentIcon size="md" className="text-text-secondary" />
+        <h2 className="text-[14px] font-semibold text-text">Comments</h2>
+        <span className="flex-1" data-tauri-drag-region />
+        <button
+          ref={moreMenu.anchorRef}
+          onClick={moreMenu.toggle}
+          className="w-7 h-7 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover cursor-pointer"
+          aria-label="More"
+          title="More"
+        >
+          <EllipsisIcon size="sm" />
+        </button>
+        <Popover open={moreMenu.open} onClose={moreMenu.close} anchorRef={moreMenu.anchorRef} align="end" width={240}>
+          <MenuItem
+            icon={<TrashIcon size="sm" />}
+            label={visible.length > 0 ? `Delete ${visible.length === 1 ? 'this comment' : `these ${visible.length} comments`}…` : 'Nothing to delete'}
+            disabled={visible.length === 0}
+            onSelect={() => {
+              moreMenu.close();
+              setConfirmDelete(true);
+            }}
+          />
+        </Popover>
         <button
           onClick={closeComments}
           className="w-7 h-7 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover cursor-pointer"
-          title="Close (Esc)"
+          aria-label="Close"
+          title="Close (C)"
         >
-          <XIcon size="md" />
+          <XIcon size="sm" />
         </button>
       </div>
-      <div className="flex items-center gap-2 px-4 pb-3 border-b border-border-muted">
+      <div className="flex items-center gap-2 shrink-0 pl-4 pr-2 pb-3 border-b border-border-muted">
         <SegmentedToggle<StatusFilter>
           value={filters.status}
           onChange={(status) => useFilters.setState({ status })}
@@ -542,18 +553,29 @@ function CommentsPanelBody() {
             { value: 'all', label: isLoading ? 'All' : `All ${counts.all}` },
           ]}
         />
-        <div className="ml-auto">
-          <SegmentedToggle<AuthorFilter>
-            value={author}
-            onChange={(next) => useFilters.setState({ author: next })}
-            options={[
-              { value: 'all', label: 'Everyone' },
-              { value: 'user', label: 'You' },
-              ...(hasReviewers ? [{ value: 'github' as const, label: 'Reviewers' }] : []),
-              { value: 'agent', label: 'Agents' },
-            ]}
-          />
-        </div>
+        <span className="flex-1" />
+        <button
+          ref={filterMenu.anchorRef}
+          onClick={filterMenu.toggle}
+          className={cn('relative inline-flex items-center gap-1 h-7 px-2 rounded-md text-xs cursor-pointer hover:bg-hover', author !== 'all' ? 'text-text' : 'text-text-secondary')}
+          title="Show comments from…"
+        >
+          {author === 'all' ? 'Filter' : AUTHOR_LABELS[author]}
+          <ChevronIcon expanded />
+        </button>
+        <Popover open={filterMenu.open} onClose={filterMenu.close} anchorRef={filterMenu.anchorRef} align="end" width={180}>
+          {(['all', 'user', ...(hasReviewers ? ['github' as const] : []), 'agent'] as AuthorFilter[]).map((value) => (
+            <MenuItem
+              key={value}
+              label={value === 'all' ? 'Everyone' : `From ${AUTHOR_LABELS[value].toLowerCase()}`}
+              checked={author === value}
+              onSelect={() => {
+                useFilters.setState({ author: value });
+                filterMenu.close();
+              }}
+            />
+          ))}
+        </Popover>
       </div>
       <div className={cn('flex-1 overflow-y-auto py-2', reveal)}>
         {isLoading && (
@@ -565,15 +587,16 @@ function CommentsPanelBody() {
         )}
         {error && <div className="px-4 py-6 text-xs text-deleted">Could not load comments: {String((error as { message?: string }).message ?? error)}</div>}
         {!isLoading && !error && groups.length === 0 && (
-          <div className="px-6 py-10 text-center text-xs text-text-muted leading-relaxed">{emptyMessage(filters, threads.length, !!scopeRef)}</div>
+          <div className="px-6 py-10 text-center text-xs text-text-muted leading-relaxed">{emptyMessage(filters.status, threads.length)}</div>
         )}
-        {groups.map((group) => {
-          const expanded = isGroupOpen(group);
+        {groups.map((group, index) => {
+          const expanded = isGroupOpen(group, index);
+          const action = groupAction(group);
           return (
             <section key={group.key} className="mb-2">
               <div className="sticky top-0 z-10 flex items-center gap-2 pl-2 pr-4 h-9 bg-sidebar">
                 <button
-                  onClick={() => toggleGroup(group)}
+                  onClick={() => toggleGroup(group, index)}
                   aria-expanded={expanded}
                   className="flex items-center gap-2 min-w-0 flex-1 h-7 px-2 rounded-md hover:bg-hover cursor-pointer text-left"
                   title={expanded ? 'Collapse' : 'Expand'}
@@ -586,12 +609,13 @@ function CommentsPanelBody() {
                   )}
                   <span className="text-xs text-text-muted shrink-0 tabular-nums">{group.count}</span>
                 </button>
-                {group.ref !== currentRef && !group.otherBranch && !group.unassigned && (
+                {action && (
                   <button
-                    onClick={() => openView(group.ref)}
+                    onClick={action.run}
+                    title={action.title}
                     className="h-6 px-2 -mr-1 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer shrink-0"
                   >
-                    {group.ref === TREE_REF ? 'Open in Files' : 'Open diff'}
+                    {action.label}
                   </button>
                 )}
               </div>
@@ -611,23 +635,10 @@ function CommentsPanelBody() {
           );
         })}
       </div>
-      <div className="px-4 h-9 flex items-center gap-1 border-t border-border-muted text-xs text-text-muted">
-        Press <kbd className="px-1 py-0.5 bg-raised border border-control-border rounded font-sans text-[11px]">C</kbd> to toggle this panel
-        {visible.length > 0 && (
-          <button
-            onClick={() => setConfirmDelete(true)}
-            className="ml-auto -mr-2 inline-flex items-center gap-1 h-6 px-2 rounded-md text-text-muted hover:text-deleted hover:bg-hover cursor-pointer"
-            title="Delete the comments shown above"
-          >
-            <TrashIcon size="xs" />
-            Delete all
-          </button>
-        )}
-      </div>
       {confirmDelete && (
         <ConfirmDialog
           title={`Delete ${visible.length} comment${visible.length === 1 ? '' : 's'}`}
-          message={deleteMessage(filters, visible.length, !!scopeRef)}
+          message={deleteMessage(filters, visible.length)}
           confirmLabel="Delete"
           onConfirm={() => void deleteVisible()}
           onCancel={() => setConfirmDelete(false)}

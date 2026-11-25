@@ -164,7 +164,7 @@ function NoComments(props: { agent: string; onReview?: () => void }) {
   );
 }
 
-/** Opens the agent's panel, where you chat about the view; the review and fix forms it offers render here, inside the page. */
+/** The review and fix forms the panel offers render here, inside the page. */
 export function ClaudeToolbar(props: ClaudeToolbarProps) {
   const { diffRef, sessionId, hasChanges = true, focusedFile, threads = [], formatForCopy } = props;
   const repoPath = useRepoPath();
@@ -264,9 +264,6 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
       >
         <SparkleIcon size="md" />
         <span className="@max-3xl/titlebar:hidden">Chat</span>
-        {count > 0 && (
-          <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-claude text-white text-[11px] font-semibold leading-[18px] text-center tabular-nums">{count}</span>
-        )}
       </button>
       {cardNode}
     </>

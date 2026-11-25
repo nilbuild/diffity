@@ -249,10 +249,10 @@ export function RepoLayout() {
         <NavigationProgress />
         </div>
         <ClaudePanel />
+        <CommentsPanel />
         </div>
       </RailFrame>
       <ClaudeApprovalModal />
-      <CommentsPanel />
       <PullRequestsDialog />
       <CheckoutGuardDialog />
       <CommitDialog />

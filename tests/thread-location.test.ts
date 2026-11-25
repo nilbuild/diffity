@@ -55,8 +55,14 @@ describe('groupThreads', () => {
     const groups = groupThreads([thread({ id: '1' }), thread({ id: '2', unassigned: true })], 'work');
     expect(groups.map((group) => [group.label, group.unassigned ?? false, group.count])).toEqual([
       ['Uncommitted changes', false, 1],
-      ['Uncommitted changes · from before comments were per branch', true, 1],
+      ['Older comments · branch unknown', true, 1],
     ]);
+  });
+
+  it('names a group left on another branch by that branch', () => {
+    const groups = groupThreads([thread({ id: '1', ref: 'main...HEAD', refLabel: 'Harden login sessions', otherBranch: 'feature/auth' })], 'work');
+    expect(groups[0].label).toBe('On feature/auth · Harden login sessions');
+    expect(groups[0].otherBranch).toBe('feature/auth');
   });
 
   it('puts the current view first, then the most recent, files sorted with general first', () => {

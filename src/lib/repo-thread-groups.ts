@@ -37,7 +37,11 @@ export function groupThreads(threads: RepoThread[], currentRef: string | null): 
     const key = groupKey(thread);
     const group = byRef.get(key);
     if (!group) {
-      const label = thread.unassigned ? `${thread.refLabel} · from before comments were per branch` : thread.refLabel;
+      const label = thread.otherBranch
+        ? `On ${thread.otherBranch} · ${thread.refLabel}`
+        : thread.unassigned
+          ? 'Older comments · branch unknown'
+          : thread.refLabel;
       byRef.set(key, { ref: thread.ref, otherBranch: thread.otherBranch, unassigned: thread.unassigned, label, latest: thread.updatedAt, threads: [thread] });
       continue;
     }

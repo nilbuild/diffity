@@ -20,14 +20,3 @@ export function useRepoThreads() {
 export function isOpenThread(thread: RepoThread): boolean {
   return thread.status === 'open';
 }
-
-/** Threads of the view on screen, plus those that moved to it when their changes were committed. Null ref: every thread. */
-export function inView(thread: RepoThread, viewRef: string | null): boolean {
-  if (!viewRef) {
-    return true;
-  }
-  if (thread.otherBranch) {
-    return false;
-  }
-  return thread.ref === viewRef || thread.movedTo?.ref === viewRef;
-}

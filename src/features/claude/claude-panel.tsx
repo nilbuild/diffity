@@ -5,6 +5,7 @@ import { goToThread } from '../../lib/thread-location';
 import { useRepoPath } from '../../hooks/use-repo';
 import { useCurrentViewRef } from '../../hooks/use-current-view';
 import { Spinner } from '../../components/icons/spinner';
+import { SidePanel } from '../../components/layout/side-panel';
 import { buttonIcon } from '../../components/ui/button-styles';
 import { ArrowLeftIcon, HistoryIcon, PlusIcon, SparkleIcon, XIcon } from '../../components/ui/icon';
 import { agentMeta } from './agents';
@@ -18,7 +19,6 @@ import { closeClaudeCard, closeClaudePanel, openClaudeHistory, openClaudePanel, 
 import { HistoryList, RunView, useRepoChats } from './run-details';
 import { chipFromSelection } from './selection-chip';
 
-/** Docked beside the page: chat with the agent about the view, and what its runs here did. */
 export function ClaudePanel() {
   const open = usePanel((state) => state.open);
   useChatShortcut();
@@ -97,7 +97,7 @@ function ClaudePanelBody() {
   const back = history || showDetails;
 
   return (
-    <aside className="flex flex-col w-[420px] max-w-[45vw] shrink-0 h-screen bg-bg border-l border-frame-border font-sans text-xs text-text animate-slide-in-right" aria-label="Chat panel">
+    <SidePanel label="Chat panel" className="bg-bg text-xs text-text">
       <div data-tauri-drag-region className="flex items-center gap-1 h-[45px] shrink-0 pl-2 pr-2 bg-frame border-b border-frame-border">
         {back ? (
           <button type="button" onClick={() => showRunDetails(null)} className={buttonIcon} aria-label="Back to the chat" title="Back">
@@ -145,7 +145,7 @@ function ClaudePanelBody() {
           <ChatComposer repoPath={repoPath} viewRef={viewRef} />
         </>
       )}
-    </aside>
+    </SidePanel>
   );
 }
 
