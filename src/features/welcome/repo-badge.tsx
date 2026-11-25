@@ -35,11 +35,11 @@ export function RepoBadge(props: { name: string; path?: string; solid?: boolean;
   const { name, path, solid, className } = props;
   const initials = useProjectInitials(name);
   const color = useProjectColors((state) => (path ? projectColor(path, state.byPath) : null));
-  const { logo, shown } = useProjectLogo(path);
+  const { logo, fill, shown } = useProjectLogo(path);
   const emoji = useProjectEmoji(path);
 
   if (logo && shown && !emoji) {
-    return <img aria-hidden alt="" src={logo} decoding="sync" draggable={false} className={cn('shrink-0 object-contain', className)} />;
+    return <img aria-hidden alt="" src={logo} decoding="sync" draggable={false} className={cn('shrink-0', fill ? 'object-cover' : 'object-contain', className)} />;
   }
 
   return (

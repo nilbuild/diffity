@@ -75,8 +75,9 @@ function ProjectLook(props: { path: string; name: string }) {
   const emoji = useProjectEmoji(path);
   const color = useProjectColor(path);
   const initials = useProjectInitials(name);
-  const { logo, shown } = useProjectLogo(path);
+  const { logo, fill, shown } = useProjectLogo(path);
   const showLogo = !!logo && shown && !emoji;
+  const filled = showLogo && fill;
 
   const pick = (look: { emoji: string; logo?: boolean }) => {
     setProjectEmoji(path, look.emoji);
@@ -92,7 +93,7 @@ function ProjectLook(props: { path: string; name: string }) {
   if (logo) {
     choices.push({
       key: 'logo',
-      label: <img alt="" src={logo} decoding="sync" className="w-[18px] h-[18px] object-contain" />,
+      label: <img alt="" src={logo} decoding="sync" className={cn('w-[18px] h-[18px]', fill ? 'rounded-[5px] object-cover' : 'object-contain')} />,
       title: 'Project logo',
       selected: showLogo,
       onPick: () => pick({ emoji: '', logo: true }),
@@ -110,10 +111,10 @@ function ProjectLook(props: { path: string; name: string }) {
           aria-label="Choose an icon"
           title="Choose an icon"
           style={colorStyle(color)}
-          className={cn('w-9 h-9 shrink-0 rounded-[10px] flex items-center justify-center project-tint hover:project-tint-strong cursor-pointer', picking && 'ring-2 ring-focus')}
+          className={cn('relative w-9 h-9 shrink-0 rounded-[10px] flex items-center justify-center cursor-pointer', !filled && 'project-tint hover:project-tint-strong', picking && 'ring-2 ring-focus')}
         >
           {emoji && <span className="text-[18px] leading-none">{emoji}</span>}
-          {showLogo && <img alt="" src={logo} decoding="sync" className="w-6 h-6 object-contain" />}
+          {showLogo && <img alt="" src={logo} decoding="sync" className={filled ? 'absolute inset-0 w-full h-full rounded-[inherit] object-cover' : 'w-6 h-6 object-contain'} />}
           {!emoji && !showLogo && <span className="text-[12px] font-semibold">{initials}</span>}
         </button>
         <ColorSwatches value={color.id} onPick={(id) => setProjectColor(path, id)} className="flex-1" />

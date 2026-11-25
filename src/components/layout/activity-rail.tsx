@@ -140,8 +140,9 @@ function ProjectTile(props: ProjectTileProps) {
   const initials = useProjectInitials(name);
   const color = useProjectColor(path);
   const emoji = useProjectEmoji(path);
-  const { logo, shown: logoShown } = useProjectLogo(path);
+  const { logo, fill, shown: logoShown } = useProjectLogo(path);
   const showLogo = logoShown && !emoji;
+  const filled = showLogo && fill;
   const shortcut = index < 9 ? `${modKey}${index + 1}` : null;
 
   return (
@@ -171,7 +172,8 @@ function ProjectTile(props: ProjectTileProps) {
           tileBase,
           'text-[12px] font-semibold tracking-wide touch-none',
           !showLogo && !emoji && (current ? 'project-solid' : 'project-tint hover:project-tint-strong'),
-          (showLogo || emoji) && (current ? 'project-tint-strong ring-2 ring-inset ring-(--project)' : 'project-tint hover:project-tint-strong'),
+          (showLogo || emoji) && !filled && (current ? 'project-tint-strong ring-2 ring-inset ring-(--project)' : 'project-tint hover:project-tint-strong'),
+          filled && current && 'outline-2 outline-offset-2 outline-(--project)',
           dragging ? 'cursor-grabbing ring-1 ring-control-border opacity-90 shadow-lg' : 'cursor-pointer',
           dragging && dropOnto && 'scale-75 opacity-100 shadow-lg',
           menuTarget && 'ring-2 ring-focus ring-offset-2 ring-offset-frame',
@@ -179,7 +181,7 @@ function ProjectTile(props: ProjectTileProps) {
           dropTarget && 'ring-2 ring-focus ring-offset-2 ring-offset-frame scale-110',
         )}
       >
-        {showLogo && logo && <img alt="" src={logo} decoding="sync" draggable={false} className={cn('w-6 h-6 object-contain pointer-events-none transition-opacity', spinning && 'opacity-30')} />}
+        {showLogo && logo && <img alt="" src={logo} decoding="sync" draggable={false} className={cn('pointer-events-none transition-opacity', filled ? 'absolute inset-0 w-full h-full rounded-[inherit] object-cover' : 'w-6 h-6 object-contain', spinning && 'opacity-30')} />}
         {emoji && <span className={cn('text-[18px] leading-none transition-opacity', spinning && 'opacity-30')}>{emoji}</span>}
         {!(showLogo && logo) && !emoji && !spinning && initials}
         {spinning && <Spinner className={cn('w-3.5 h-3.5 text-current', ((showLogo && logo) || emoji) && 'absolute')} label="Opening" />}
