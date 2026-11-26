@@ -16,7 +16,7 @@ import { mentionedAgent } from '../../lib/mentions';
 import { finishActivity, recordComments, recordEvent, startActivity } from './run-activity';
 import { conflicts, laneOf, startable, type Lane, type QueueEntry } from './run-queue';
 import { openClaudePanel, usePanel } from './panel-store';
-import { continueConversation, conversationFor, conversationTitle, sameView } from './conversation';
+import { continueConversation, conversationFor, conversationTitle, defaultSince, sameView } from './conversation';
 import { canEditRef, editTarget, showsWorkingTree } from './edit-target';
 import { isGuideOnScreen } from '../guide/guide-on-screen';
 import { repoBase } from '../../hooks/use-repo';
@@ -942,8 +942,9 @@ async function chatFor(run: ClaudeRun, setup: ChatSetup) {
       return { id: current.chatId };
     }
   }
+  const shownSince = current ? undefined : defaultSince(await tauri.listChats(repoPath, ref ?? undefined).catch(() => []));
   const chat = await tauri.startChat({ repoPath, agentId, mode, sessionId, title: conversationTitle(run.context.text ?? ''), kind: 'conversation' });
-  continueConversation(repoPath, ref, chat);
+  continueConversation(repoPath, ref, chat, shownSince);
   return chat;
 }
 

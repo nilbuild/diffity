@@ -10,7 +10,7 @@ import { Spinner } from '../../components/icons/spinner';
 import { AlertCircleIcon, ChevronRightIcon, CommentIcon, PencilIcon, XIcon } from '../../components/ui/icon';
 import { plural } from '../review/review-candidates';
 import { blockerOf, cancelQueuedRun, isCommentChat, openRunResult, useClaude, waitLabel, type ClaudeRun } from './claude-runner';
-import { isConversation, sameView, useConversation } from './conversation';
+import { defaultSince, isConversation, sameView, useConversation } from './conversation';
 import { setLastSent, useEditing } from './composer-state';
 import { useEditTarget, whereEditsShow } from './edit-target';
 import { Timeline, ToolRow, actionTitle, useNow } from './run-details';
@@ -71,11 +71,6 @@ type Entry =
 const SAVE_SLACK_MS = 2000;
 
 /** Where the panel starts for a view with no chat picked: the latest conversation, or the latest run. */
-function defaultSince(chats: Chat[]): number {
-  const latest = chats.find(isConversation) ?? chats[0];
-  return latest ? Date.parse(latest.createdAt) : Date.now();
-}
-
 /** Everything the agent did in the view since the chat started, oldest first: your messages and its replies, and runs. */
 export function ChatStream(props: { repoPath: string; viewRef: string; chats: Chat[]; agentName: string }) {
   const { repoPath, viewRef, chats, agentName } = props;

@@ -79,10 +79,16 @@ function setConversation(repoPath: string, ref: string | null, value: ViewConver
   write(byView);
 }
 
-/** Messages now go to `chat`; what the panel already shows stays. */
-export function continueConversation(repoPath: string, ref: string | null, chat: Pick<Chat, 'id' | 'agentId' | 'mode' | 'createdAt'>) {
+/** Where the panel starts when the view has no conversation yet: the latest chat, so the run you just watched stays. */
+export function defaultSince(chats: Chat[]): number {
+  const latest = chats.find(isConversation) ?? chats[0];
+  return latest ? Date.parse(latest.createdAt) : Date.now();
+}
+
+/** Messages now go to `chat`; what the panel already shows (from `shownSince` when the view had no conversation) stays. */
+export function continueConversation(repoPath: string, ref: string | null, chat: Pick<Chat, 'id' | 'agentId' | 'mode' | 'createdAt'>, shownSince?: number) {
   const current = conversationFor(repoPath, ref);
-  const since = Math.min(current?.since ?? Infinity, Date.parse(chat.createdAt) || Date.now());
+  const since = Math.min(current?.since ?? shownSince ?? Infinity, Date.parse(chat.createdAt) || Date.now());
   setConversation(repoPath, ref, { chatId: chat.id, agentId: chat.agentId, editable: chat.mode !== 'review' && chat.mode !== 'ask', since });
 }
 
