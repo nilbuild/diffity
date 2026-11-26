@@ -1118,6 +1118,16 @@ impl GithubService {
         Ok(GitOpResult { ok: out.ok, output: out.output })
     }
 
+    /// Commits only the picked files (no amend, no hooks bypass); other staged changes stay staged.
+    pub async fn git_commit_paths(&self, repo_path: &str, message: &str, paths: &[String]) -> Result<GitOpResult> {
+        let message = message.trim();
+        if message.is_empty() {
+            return Err(AppError::invalid("a commit message is required"));
+        }
+        let out = gitcli::commit_paths(repo_path, message, paths).await?;
+        Ok(GitOpResult { ok: out.ok, output: out.output })
+    }
+
     /// Resolves or reopens a review thread on GitHub only.
     pub async fn push_resolved(&self, github_thread_id: &str, resolved: bool) -> Result<()> {
         let token = self.require_token().await?;

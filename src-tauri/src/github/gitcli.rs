@@ -33,6 +33,22 @@ pub async fn run(repo: &str, args: &[&str]) -> Result<GitOutput> {
     })
 }
 
+/// Stages exactly `paths` (new, changed or deleted) and commits only them; anything else already staged stays staged.
+pub async fn commit_paths(repo: &str, message: &str, paths: &[String]) -> Result<GitOutput> {
+    if paths.is_empty() {
+        return Err(AppError::invalid("pick at least one file to commit"));
+    }
+    let mut add: Vec<&str> = vec!["--literal-pathspecs", "add", "-A", "--"];
+    add.extend(paths.iter().map(String::as_str));
+    let added = run(repo, &add).await?;
+    if !added.ok {
+        return Ok(added);
+    }
+    let mut commit: Vec<&str> = vec!["--literal-pathspecs", "commit", "-m", message, "--"];
+    commit.extend(paths.iter().map(String::as_str));
+    run(repo, &commit).await
+}
+
 pub async fn run_ok(repo: &str, args: &[&str]) -> Result<String> {
     let out = run(repo, args).await?;
     if !out.ok {
@@ -284,6 +300,35 @@ mod tests {
         let staged = run_ok(repo, &["diff", "--cached", "--name-only"]).await.unwrap();
         assert_eq!(staged, "a.txt");
         assert_eq!(stash_restore(repo, &sha).await.unwrap_err().code, "not_found");
+    }
+
+    #[tokio::test]
+    async fn commit_paths_commits_only_the_picked_files() {
+        let dir = scratch();
+        let repo = dir.path().to_str().unwrap();
+        git(dir.path(), &["config", "user.name", "t"]);
+        git(dir.path(), &["config", "user.email", "t@t"]);
+        std::fs::write(dir.path().join("gone.txt"), "g\n").unwrap();
+        git(dir.path(), &["add", "gone.txt"]);
+        git(dir.path(), &["commit", "-qm", "add gone"]);
+        std::fs::write(dir.path().join("a.txt"), "two\n").unwrap();
+        std::fs::write(dir.path().join("new [1].txt"), "n\n").unwrap();
+        std::fs::remove_file(dir.path().join("gone.txt")).unwrap();
+        std::fs::write(dir.path().join("keep.txt"), "k\n").unwrap();
+        git(dir.path(), &["add", "keep.txt"]);
+
+        let picked = vec!["a.txt".to_string(), "new [1].txt".to_string(), "gone.txt".to_string()];
+        let out = commit_paths(repo, "picked", &picked).await.unwrap();
+        assert!(out.ok, "{}", out.output);
+
+        let committed = run_ok(repo, &["show", "--name-status", "--format=", "HEAD"]).await.unwrap();
+        assert!(committed.contains("M\ta.txt"), "{committed}");
+        assert!(committed.contains("A\tnew [1].txt"), "{committed}");
+        assert!(committed.contains("D\tgone.txt"), "{committed}");
+        assert!(!committed.contains("keep.txt"), "{committed}");
+        let staged = run_ok(repo, &["diff", "--cached", "--name-only"]).await.unwrap();
+        assert_eq!(staged, "keep.txt");
+        assert_eq!(commit_paths(repo, "none", &[]).await.err().map(|e| e.code), Some("invalid".to_string()));
     }
 
     #[tokio::test]

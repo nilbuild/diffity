@@ -72,6 +72,19 @@ pub async fn git_commit_all(app: AppHandle, state: State<'_, AppState>, repo_pat
 }
 
 #[tauri::command]
+pub async fn git_commit_paths(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    repo_path: String,
+    message: String,
+    paths: Vec<String>,
+) -> Result<GitOpResult, AppError> {
+    let result = state.github.git_commit_paths(&repo_path, &message, &paths).await?;
+    let _ = app.emit("repo-changed", json!({ "repoPath": repo_path }));
+    Ok(result)
+}
+
+#[tauri::command]
 pub async fn github_post_comment(app: AppHandle, state: State<'_, AppState>, comment_id: String) -> Result<Thread, AppError> {
     let thread = state.github.post_comment_to_github(&comment_id).await?;
     emit_threads_changed(&app, &thread.session_id);
