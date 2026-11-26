@@ -47,15 +47,9 @@ interface DashboardProps {
   onNavigate: (ref: string) => void;
 }
 
-function ComparePopover(props: { onNavigate: (ref: string) => void; defaultBase: string | null; openSignal?: number }) {
-  const { onNavigate, defaultBase, openSignal = 0 } = props;
+function ComparePopover(props: { onNavigate: (ref: string) => void; defaultBase: string | null; label?: string; className?: string }) {
+  const { onNavigate, defaultBase, label, className } = props;
   const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (openSignal > 0) {
-      setOpen(true);
-    }
-  }, [openSignal]);
   const ref = useRef<HTMLDivElement>(null);
   const close = useCallback(() => setOpen(false), []);
 
@@ -63,12 +57,14 @@ function ComparePopover(props: { onNavigate: (ref: string) => void; defaultBase:
     <div className="relative shrink-0" ref={ref}>
       <button
         onClick={() => setOpen(!open)}
-        className={cn(buttonOutline, open && 'bg-fill-hover')}
+        className={cn(buttonOutline, className, open && 'bg-fill-hover')}
         title="Compare two branches, tags or commits"
       >
         <GitCompareIcon className="w-3.5 h-3.5 text-text-secondary" />
-        Compare
-        <ChevronDownIcon className="w-3 h-3 text-text-secondary" />
+        {label ?? 'Compare'}
+        {!label && (
+          <ChevronDownIcon className="w-3 h-3 text-text-secondary" />
+        )}
       </button>
       <Popover open={open} onClose={close} anchorRef={ref} align="end" width={340} className="p-3 overflow-visible">
         <CompareForm
@@ -289,7 +285,6 @@ export function Dashboard(props: DashboardProps) {
   const [searching, setSearching] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   useRestoredScroll(mainRef, 'home:scroll');
-  const [compareSignal, setCompareSignal] = useState(0);
   const recentQuery = useRecentCommits(1);
   const recent = recentQuery.data;
   const historyQuery = useInfiniteQuery(commitListOptions(''));
@@ -518,10 +513,7 @@ export function Dashboard(props: DashboardProps) {
                         Latest commit <code className="font-mono text-[11px]">{last.shortHash}</code>
                       </button>
                     )}
-                    <button onClick={() => setCompareSignal((value) => value + 1)} className={cn(buttonOutline, 'h-7 px-2.5 text-xs shrink-0')}>
-                      <GitCompareIcon size="xs" className="text-text-secondary" />
-                      Compare branches
-                    </button>
+                    <ComparePopover onNavigate={onNavigate} defaultBase={base} label="Compare branches" className="h-7 px-2.5 text-xs" />
                   </div>
                 )}
 
@@ -642,7 +634,7 @@ export function Dashboard(props: DashboardProps) {
                           )}
                         </div>
                       )}
-                      <ComparePopover onNavigate={onNavigate} defaultBase={base} openSignal={compareSignal} />
+                      <ComparePopover onNavigate={onNavigate} defaultBase={base} />
                     </>
                   }
                 >
