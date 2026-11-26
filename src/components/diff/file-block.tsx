@@ -37,6 +37,7 @@ import { Badge } from '../ui/badge';
 import { IconButton } from '../ui/icon-button';
 import { StatusBadge } from '../ui/status-badge';
 import { PathLabel } from '../ui/path-label';
+import { CopyPathButton } from '../ui/copy-path-button';
 import { HunkWithGap } from './hunk-with-gap';
 import { ThreadBadge } from '../ui/thread-badge';
 import { buildExpansionSyntaxMap, renderExpansionRows } from './render-expansion-rows';
@@ -751,6 +752,7 @@ function FileCard(props: FileCardProps) {
             <PathLabel path={filePath} nameClassName="font-medium" />
           )}
         </button>
+        <CopyPathButton path={filePath} className="-ml-1" />
         {file.status !== 'modified' && <StatusBadge status={file.status} title={similarityTitle(file)} />}
         {file.isBinary && <Badge className="bg-bg-tertiary text-text-muted">Binary</Badge>}
         {sinceViewed && (

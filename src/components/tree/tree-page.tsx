@@ -49,6 +49,7 @@ import { useRepoPath } from '../../hooks/use-repo';
 import { requestSearchFocus } from '../../features/code-search/code-search';
 import type { SearchTarget } from '../../features/code-search/sidebar-search';
 import { chord } from '../../lib/shortcuts';
+import { CopyPathButton } from '../ui/copy-path-button';
 import { TREE_REF } from '../../lib/types';
 
 function formatTreeThreadsForCopy(threads: CommentThread[]): string {
@@ -524,6 +525,7 @@ export function TreePage() {
                 )}
               </span>
             ))}
+            {navPath && <CopyPathButton path={navPath} className='ml-0.5' />}
             {isFileMode && fileContent && isRenderableFile(navPath) && (
               <div className='ml-3'>
                 <SegmentedToggle
