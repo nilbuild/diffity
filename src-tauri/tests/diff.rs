@@ -292,6 +292,139 @@ fn revert_file_variants() {
     assert_eq!(diff::revert_file(&repo.path, "../x").unwrap_err().code, "invalid");
 }
 
+/// The shape the UI sends: `---`/`+++` headers and one hunk, no `diff --git` line.
+fn ui_hunk_patch(file_patch: &str, hunk: usize) -> String {
+    let header_start = file_patch.find("\n--- ").expect("--- header") + 1;
+    let first_hunk = file_patch.find("\n@@").expect("hunk") + 1;
+    let starts: Vec<usize> = file_patch.match_indices("\n@@").map(|(i, _)| i + 1).collect();
+    let start = starts[hunk];
+    let end = starts.get(hunk + 1).copied().unwrap_or(file_patch.len());
+    format!("{}{}", &file_patch[header_start..first_hunk], &file_patch[start..end])
+}
+
+fn forty_lines(repo: &Repo) -> Vec<String> {
+    let lines: Vec<String> = (1..=40).map(|i| format!("line {i}")).collect();
+    repo.write("f.txt", &(lines.join("\n") + "\n"));
+    repo.commit("init");
+    let mut changed = lines.clone();
+    changed[1] = "CHANGED 2".into();
+    changed[35] = "CHANGED 36".into();
+    repo.write("f.txt", &(changed.join("\n") + "\n"));
+    changed
+}
+
+#[test]
+fn stage_hunk_stages_only_that_hunk() {
+    let repo = Repo::empty();
+    forty_lines(&repo);
+    let res = diff::get_diff(&repo.path, "unstaged", false).unwrap();
+    diff::stage_hunk(&repo.path, &ui_hunk_patch(&file_patch(&res.patch, "f.txt"), 0)).unwrap();
+
+    let cached = repo.git(&["diff", "--cached"]);
+    assert!(cached.contains("+CHANGED 2"));
+    assert!(!cached.contains("CHANGED 36"));
+    let unstaged = repo.git(&["diff"]);
+    assert!(unstaged.contains("+CHANGED 36"));
+    assert!(!unstaged.contains("CHANGED 2"));
+    assert!(repo.read("f.txt").contains("CHANGED 2"));
+}
+
+#[test]
+fn stage_hunk_adds_a_new_file() {
+    let repo = Repo::with_commit();
+    repo.write("new.txt", "one\ntwo\n");
+    diff::stage_hunk(&repo.path, "--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1,2 @@\n+one\n+two\n").unwrap();
+    assert_eq!(repo.git(&["status", "--porcelain"]), "A  new.txt");
+}
+
+#[test]
+fn unstage_hunk_keeps_the_working_tree() {
+    let repo = Repo::empty();
+    forty_lines(&repo);
+    repo.git(&["add", "f.txt"]);
+    let res = diff::get_diff(&repo.path, "staged", false).unwrap();
+    diff::unstage_hunk(&repo.path, &ui_hunk_patch(&file_patch(&res.patch, "f.txt"), 1)).unwrap();
+
+    let cached = repo.git(&["diff", "--cached"]);
+    assert!(cached.contains("+CHANGED 2"));
+    assert!(!cached.contains("CHANGED 36"));
+    assert!(repo.git(&["diff"]).contains("+CHANGED 36"));
+    let now = repo.read("f.txt");
+    assert!(now.contains("CHANGED 2") && now.contains("CHANGED 36"));
+}
+
+#[test]
+fn discarding_unstaged_changes_keeps_staged_ones() {
+    let repo = Repo::with_commit();
+    repo.write("README.md", "staged\n");
+    repo.git(&["add", "README.md"]);
+    repo.write("README.md", "staged and more\n");
+    repo.write("untracked.txt", "u\n");
+
+    diff::revert_file_for(&repo.path, "README.md", "unstaged").unwrap();
+    assert_eq!(repo.read("README.md"), "staged\n");
+    assert!(repo.git(&["diff", "--cached"]).contains("+staged"));
+    assert!(repo.git(&["diff"]).is_empty());
+
+    diff::revert_file_for(&repo.path, "untracked.txt", "unstaged").unwrap();
+    assert!(!repo.path.join("untracked.txt").exists());
+
+    assert_eq!(diff::revert_file_for(&repo.path, "README.md", "staged").unwrap_err().code, "invalid");
+    diff::revert_file_for(&repo.path, "README.md", "work").unwrap();
+    assert_eq!(repo.read("README.md"), "hello\n");
+    assert!(repo.git(&["status", "--porcelain"]).is_empty());
+}
+
+#[test]
+fn discarding_an_unstaged_hunk_keeps_staged_lines() {
+    let repo = Repo::empty();
+    let changed = forty_lines(&repo);
+    repo.git(&["add", "f.txt"]);
+    let mut more = changed.clone();
+    more[1] = "MORE 2".into();
+    repo.write("f.txt", &(more.join("\n") + "\n"));
+
+    let res = diff::get_diff(&repo.path, "unstaged", false).unwrap();
+    diff::revert_hunk(&repo.path, &ui_hunk_patch(&file_patch(&res.patch, "f.txt"), 0)).unwrap();
+    assert_eq!(repo.read("f.txt"), changed.join("\n") + "\n");
+    assert!(repo.git(&["diff", "--cached"]).contains("+CHANGED 36"));
+}
+
+#[test]
+fn stage_and_unstage_whole_files() {
+    let repo = Repo::with_commit();
+    repo.write("README.md", "changed\n");
+    repo.write("new.txt", "n\n");
+    std::fs::remove_file(repo.path.join("src/lib.rs")).unwrap();
+
+    diff::stage_file(&repo.path, &["README.md"]).unwrap();
+    diff::stage_file(&repo.path, &["new.txt"]).unwrap();
+    diff::stage_file(&repo.path, &["src/lib.rs"]).unwrap();
+    assert_eq!(repo.git(&["diff", "--cached", "--name-status"]), "M\tREADME.md\nA\tnew.txt\nD\tsrc/lib.rs");
+
+    diff::unstage_file(&repo.path, &["README.md", "new.txt", "src/lib.rs"]).unwrap();
+    assert!(repo.git(&["diff", "--cached"]).is_empty());
+    assert_eq!(repo.read("README.md"), "changed\n");
+    assert!(repo.path.join("new.txt").exists());
+    assert_eq!(diff::stage_file(&repo.path, &["../x"]).unwrap_err().code, "invalid");
+}
+
+#[test]
+fn rename_stages_with_its_old_path_and_unstages_before_first_commit() {
+    let repo = Repo::with_commit();
+    repo.git(&["mv", "README.md", "README2.md"]);
+    repo.git(&["reset", "-q"]);
+    diff::stage_file(&repo.path, &["README2.md", "README.md"]).unwrap();
+    assert!(repo.git(&["diff", "--cached", "-M", "--name-status"]).starts_with("R"));
+    diff::stage_file(&repo.path, &["README2.md", "README.md"]).unwrap();
+
+    let empty = Repo::empty();
+    empty.write("a.txt", "a\n");
+    diff::stage_file(&empty.path, &["a.txt"]).unwrap();
+    diff::unstage_file(&empty.path, &["a.txt"]).unwrap();
+    assert_eq!(empty.git(&["status", "--porcelain"]), "?? a.txt");
+}
+
 #[test]
 fn old_line_counts_cover_every_old_side_file() {
     let repo = Repo::with_commit();

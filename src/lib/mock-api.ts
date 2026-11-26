@@ -23,6 +23,7 @@ import type {
 import { createTaskMockHandlers } from './mock-api-tasks';
 import { FIXTURE_CONTENTS, FIXTURE_FILES, FIXTURE_PATCH, FIXTURE_VERSIONS } from './mock-fixtures';
 import { createAgentMockHandlers } from './mock-api-agents';
+import { createStagingMock } from './mock-api-staging';
 import { mentionsAgent } from './mentions';
 
 type Args = Record<string, unknown>;
@@ -268,7 +269,7 @@ function fileContents(path: string): string {
 
 /** Like `core/search.rs`: JS regex instead of Rust's, same caps and shapes. */
 function mockSearch(options: SearchOptions): SearchResult {
-  const empty: SearchResult = { files: [], total: 0, truncated: false, cancelled: false };
+  const empty: SearchResult = { files: [], total: 0, truncated: false, cancelled: false, tooLarge: 0 };
   if (!options.query) {
     return empty;
   }
@@ -285,10 +286,11 @@ function mockSearch(options: SearchOptions): SearchResult {
   }
   const only = options.paths ? new Set(options.paths) : null;
   const paths = buildTree().filter((entry) => entry.kind === 'file' && !entry.path.endsWith('.png') && (!only || only.has(entry.path))).map((entry) => entry.path);
-  const result: SearchResult = { files: [], total: 0, truncated: false, cancelled: false };
+  const result: SearchResult = { files: [], total: 0, truncated: false, cancelled: false, tooLarge: 0 };
   for (const path of paths) {
     const text = fileContents(path);
     if (text.length > 1024 * 1024) {
+      result.tooLarge = (result.tooLarge ?? 0) + 1;
       continue;
     }
     const matches: SearchMatch[] = [];
@@ -324,9 +326,13 @@ function mockHeadSha(ref: string): string | null {
   return ref.includes('..') ? null : commits[0].sha;
 }
 
+const staging = createStagingMock(() => {
+  void emit('repo-changed', { repoPath: REPO_PATH });
+});
+
 function diffFor(ref: string): DiffResult {
-  const staged = ref === 'staged';
-  const files: DiffFileSummary[] = FIXTURE_FILES.map((file) => ({ ...file }));
+  const working = ['work', '.', 'staged', 'unstaged'].includes(ref);
+  const view = staging.view(working ? ref : 'work');
   return {
     resolved: {
       ref,
@@ -336,9 +342,9 @@ function diffFor(ref: string): DiffResult {
       baseSha: 'a1b2c3d',
       headSha: mockHeadSha(ref),
     },
-    files: staged ? files.slice(0, 2) : files,
-    patch: staged ? FIXTURE_PATCH.split('diff --git a/docs')[0] : FIXTURE_PATCH,
-    fingerprint: `fp-${ref}-${fingerprintBump}`,
+    files: working ? view.files : FIXTURE_FILES.map((file): DiffFileSummary => ({ ...file })),
+    patch: working ? view.patch : FIXTURE_PATCH,
+    fingerprint: `fp-${ref}-${fingerprintBump}-${view.version}`,
   };
 }
 
@@ -470,15 +476,17 @@ const handlers: Record<string, (args: Args) => unknown> = {
   },
   list_branches: () => branches,
   parent_branch: () => null,
-  git_status: () => ({ branch: 'feat/cache', upstream: 'origin/feat/cache', ahead: 2, behind: 0, staged: 1, unstaged: 4, untracked: 2, dirty: true }),
+  git_status: () => {
+    const counts = staging.counts();
+    return { branch: 'feat/cache', upstream: 'origin/feat/cache', ahead: 2, behind: 0, ...counts, dirty: counts.staged + counts.unstaged + counts.untracked > 0 };
+  },
   repo_overview: () => [
     { path: 'src/cache.ts', status: 'staged' },
     { path: 'src/server.ts', status: 'modified' },
     { path: 'src/utils/format.ts', status: 'modified' },
     { path: 'docs/notes.md', status: 'added' },
   ],
-  revert_file: () => null,
-  revert_hunk: () => null,
+  ...staging.handlers,
   open_in_editor: () => null,
   terminal_status: () => ({ ...terminalMock, agents: terminalMock.agents.map((agent) => ({ ...agent })), cli: { ...terminalMock.cli } }),
   terminal_set_allowed: (args: Args) => {
@@ -732,6 +740,8 @@ const handlers: Record<string, (args: Args) => unknown> = {
   git_fetch: () => ({ ok: true, output: 'Fetched' }),
   git_pull: () => ({ ok: true, output: 'Already up to date.' }),
   git_push: () => ({ ok: true, output: 'Pushed' }),
+  git_commit_all: () => ({ ok: true, output: 'Committed' }),
+  git_commit_paths: (args) => ({ ok: true, output: `Committed ${(args.paths as string[]).length} files` }),
   find_pr: () => null,
   list_prs: () => [],
   'plugin:dialog|open': () => REPO_PATH,

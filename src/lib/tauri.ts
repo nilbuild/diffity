@@ -146,8 +146,13 @@ export const getFileVersions = (repoPath: string, ref: string, path: string, old
 export const diffIsEmpty = (repoPath: string, ref: string) => invoke<boolean>('diff_is_empty', { repoPath, ref });
 export const diffFingerprint = (repoPath: string, ref: string, showIgnored = false) =>
   invoke<string>('diff_fingerprint', { repoPath, ref, showIgnored });
-export const revertFile = (repoPath: string, path: string) => invoke<void>('revert_file', { repoPath, path });
+export const revertFile = (repoPath: string, path: string, ref: string) => invoke<void>('revert_file', { repoPath, path, ref });
 export const revertHunk = (repoPath: string, patch: string) => invoke<void>('revert_hunk', { repoPath, patch });
+export const stageHunk = (repoPath: string, patch: string) => invoke<void>('stage_hunk', { repoPath, patch });
+export const unstageHunk = (repoPath: string, patch: string) => invoke<void>('unstage_hunk', { repoPath, patch });
+export const stageFile = (repoPath: string, path: string, oldPath: string | null) => invoke<void>('stage_file', { repoPath, path, oldPath });
+export const unstageFile = (repoPath: string, path: string, oldPath: string | null) =>
+  invoke<void>('unstage_file', { repoPath, path, oldPath });
 export const applySuggestion = (repoPath: string, path: string, startLine: number, endLine: number, expected: string, replacement: string) =>
   invoke<{ startLine: number; endLine: number }>('apply_suggestion', { repoPath, path, startLine, endLine, expected, replacement });
 
@@ -244,6 +249,8 @@ export const gitFetch = (repoPath: string) => invoke<GitOpResult>('git_fetch', {
 export const gitPull = (repoPath: string) => invoke<GitOpResult>('git_pull', { repoPath });
 export const gitPush = (repoPath: string) => invoke<GitOpResult>('git_push', { repoPath });
 export const gitCommitAll = (repoPath: string, message: string) => invoke<GitOpResult>('git_commit_all', { repoPath, message });
+export const gitCommitPaths = (repoPath: string, message: string, paths: string[]) =>
+  invoke<GitOpResult>('git_commit_paths', { repoPath, message, paths });
 export const githubPostComment = (commentId: string) => invoke<Thread>('github_post_comment', { commentId });
 export const findPr = (repoPath: string) => invoke<PullRequest | null>('find_pr', { repoPath });
 export const listPrs = (repoPath: string) => invoke<PullRequest[]>('list_prs', { repoPath });

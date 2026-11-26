@@ -39,7 +39,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-sm font-semibold text-text mb-1">{title}</h3>
-        <p className="text-[13px] text-text-secondary mb-5 leading-relaxed">{message}</p>
+        <p className="text-[13px] text-text-secondary mb-5 leading-relaxed [overflow-wrap:anywhere]">{message}</p>
         <div className="flex justify-end gap-2">
           <button
             type="button"

@@ -368,12 +368,29 @@ export function deleteComment(commentId: string): Promise<void> {
   return tauri.deleteComment(commentId);
 }
 
-export function revertFile(filePath: string): Promise<void> {
-  return tauri.revertFile(getRepoPath(), filePath);
+/** `ref` is the view: Unstaged restores the file from the index, keeping staged edits; the others from HEAD. */
+export function revertFile(filePath: string, ref: string): Promise<void> {
+  return tauri.revertFile(getRepoPath(), filePath, ref);
 }
 
 export function revertHunk(patch: string): Promise<void> {
   return tauri.revertHunk(getRepoPath(), patch);
+}
+
+export function stageHunk(patch: string): Promise<void> {
+  return tauri.stageHunk(getRepoPath(), patch);
+}
+
+export function unstageHunk(patch: string): Promise<void> {
+  return tauri.unstageHunk(getRepoPath(), patch);
+}
+
+export function stageFile(filePath: string, oldPath?: string | null): Promise<void> {
+  return tauri.stageFile(getRepoPath(), filePath, oldPath ?? null);
+}
+
+export function unstageFile(filePath: string, oldPath?: string | null): Promise<void> {
+  return tauri.unstageFile(getRepoPath(), filePath, oldPath ?? null);
 }
 
 function splitLines(contents: string): string[] {

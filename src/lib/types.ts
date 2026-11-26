@@ -210,6 +210,8 @@ export interface SearchResult {
   total: number;
   truncated: boolean;
   cancelled: boolean;
+  /** Files skipped for being over 1 MB. */
+  tooLarge?: number;
 }
 
 export interface FileContent {

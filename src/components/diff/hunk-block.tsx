@@ -7,7 +7,7 @@ import { DiffLine } from './diff-line';
 import { HunkHeader, type ExpandControls } from './hunk-header';
 import { CommentThread } from '../comments/comment-thread';
 import { CommentFormRow } from '../comments/comment-form-row';
-import { UndoIcon } from '../ui/icon';
+import { ChangeActionsRow, type ChangeActionsConfig } from './change-actions';
 import { GuideLineNotes } from '../../features/guide/guide-notes';
 
 interface HunkBlockProps extends LineRenderProps {
@@ -17,7 +17,7 @@ interface HunkBlockProps extends LineRenderProps {
   topExpansionLines?: DiffLineType[];
   bottomExpansionLines?: DiffLineType[];
   expansionSyntaxMap?: Map<string, SyntaxToken[]>;
-  onRevertChange?: (hunk: DiffHunk, startIndex: number, endIndex: number) => void;
+  changeActions?: ChangeActionsConfig;
 }
 
 export function renderLineWithComments(
@@ -96,17 +96,17 @@ export function renderLineWithComments(
 
 export function HunkBlock(props: HunkBlockProps) {
   const {
-    hunk, syntaxMap, expandControls, topExpansionLines, bottomExpansionLines, expansionSyntaxMap, onRevertChange,
+    hunk, syntaxMap, expandControls, topExpansionLines, bottomExpansionLines, expansionSyntaxMap, changeActions,
   } = props;
 
   const commentProps: LineRenderProps = props;
 
   const changeGroups = useMemo(() => {
-    if (!onRevertChange) {
+    if (!changeActions) {
       return [];
     }
     return getChangeGroups(hunk.lines);
-  }, [hunk.lines, onRevertChange]);
+  }, [hunk.lines, changeActions]);
 
   const changeGroupForLine = useMemo(() => {
     const map = new Map<number, number>();
@@ -140,24 +140,11 @@ export function HunkBlock(props: HunkBlockProps) {
     if (currentRows.length === 0) {
       return;
     }
-    if (isChangeGroup && onRevertChange) {
+    if (isChangeGroup && changeActions) {
       const group = changeGroups[groupIdx];
       sections.push(
         <tbody key={`change-${groupIdx}`} className="group/undo">
-          <tr className="relative z-10" aria-hidden={false}>
-            <td colSpan={4} className="relative h-0 p-0">
-              <div className="absolute right-2 top-0.5 z-10 opacity-0 group-hover/undo:opacity-100 focus-within:opacity-100 pointer-events-none group-hover/undo:pointer-events-auto">
-                <button
-                  onClick={() => onRevertChange(hunk, group.startIndex, group.endIndex)}
-                  className="flex items-center gap-1 h-5 px-1.5 text-[11px] rounded border border-control-border bg-raised text-text-secondary hover:text-deleted hover:border-deleted/40 transition-colors cursor-pointer"
-                  title="Discard this change (restores these lines from the base)"
-                >
-                  <UndoIcon className="w-3 h-3" />
-                  Discard change
-                </button>
-              </div>
-            </td>
-          </tr>
+          <ChangeActionsRow config={changeActions} hunk={hunk} startIndex={group.startIndex} endIndex={group.endIndex} />
           {currentRows}
         </tbody>
       );

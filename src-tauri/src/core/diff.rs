@@ -856,32 +856,65 @@ pub fn side_line_count(repo: &Path, r: &str, path: &str, old_path: Option<&str>,
     Ok(data.map(|d| count_lines(&d)))
 }
 
-/// Discards working-tree changes to `path`: restores it from HEAD, or deletes it when HEAD does not have it.
-pub fn revert_file(repo: &Path, path: &str) -> Result<()> {
-    git::require_repo(repo)?;
-    let full = resolve_in_repo(repo, path).or_else(|e| {
+/// The on-disk path of `path`, which may already be gone; rejects paths that leave the repository.
+fn target_path(repo: &Path, path: &str) -> Result<std::path::PathBuf> {
+    resolve_in_repo(repo, path).or_else(|e| {
         if e.code == "not_found" {
             return Ok(repo.join(path));
         }
         Err(e)
-    })?;
+    })
+}
+
+fn in_index(repo: &Path, path: &str) -> Result<bool> {
+    Ok(git::run_opt(repo, &["ls-files", "--error-unmatch", "--", path])?.is_some())
+}
+
+fn remove_from_disk(full: &Path) -> Result<()> {
+    if full.is_file() || full.is_symlink() {
+        std::fs::remove_file(full)?;
+    }
+    Ok(())
+}
+
+/// Discards working-tree changes to `path`: restores it from HEAD, or deletes it when HEAD does not have it.
+/// Staged changes to the file are discarded too.
+pub fn revert_file(repo: &Path, path: &str) -> Result<()> {
+    git::require_repo(repo)?;
+    let full = target_path(repo, path)?;
     let spec = format!("HEAD:{path}");
     if git::run_opt(repo, &["cat-file", "-e", &spec])?.is_some() {
         git::run(repo, &["checkout", "HEAD", "--", path])?;
         return Ok(());
     }
-    let in_index = git::run_opt(repo, &["ls-files", "--error-unmatch", "--", path])?.is_some();
-    if in_index {
+    if in_index(repo, path)? {
         git::run(repo, &["rm", "--cached", "--quiet", "--", path])?;
     }
-    if full.is_file() || full.is_symlink() {
-        std::fs::remove_file(&full)?;
-    }
-    Ok(())
+    remove_from_disk(&full)
 }
 
-/// Reverse-applies a zero-context-tolerant patch to the working tree.
-pub fn revert_hunk(repo: &Path, patch: &str) -> Result<()> {
+/// Discards only the unstaged changes to `path`: restores it from the index, keeping staged edits, or deletes it
+/// when it is untracked.
+pub fn discard_unstaged_file(repo: &Path, path: &str) -> Result<()> {
+    git::require_repo(repo)?;
+    let full = target_path(repo, path)?;
+    if in_index(repo, path)? {
+        git::run(repo, &["checkout", "--", path])?;
+        return Ok(());
+    }
+    remove_from_disk(&full)
+}
+
+/// "Revert file" for the view `r`: Unstaged restores from the index, the other working-tree views from HEAD.
+pub fn revert_file_for(repo: &Path, path: &str, r: &str) -> Result<()> {
+    match r.trim() {
+        "unstaged" => discard_unstaged_file(repo, path),
+        "staged" => Err(AppError::invalid("staged changes are unstaged, not discarded")),
+        _ => revert_file(repo, path),
+    }
+}
+
+fn apply_patch(repo: &Path, patch: &str, flags: &[&str]) -> Result<()> {
     git::require_repo(repo)?;
     if patch.trim().is_empty() {
         return Err(AppError::invalid("empty patch"));
@@ -890,7 +923,72 @@ pub fn revert_hunk(repo: &Path, patch: &str) -> Result<()> {
     if !input.ends_with('\n') {
         input.push('\n');
     }
-    git::run_with_stdin(repo, &["apply", "--reverse", "--unidiff-zero", "-"], input.as_bytes())?;
+    let mut args = vec!["apply"];
+    args.extend_from_slice(flags);
+    args.extend_from_slice(&["--unidiff-zero", "-"]);
+    git::run_with_stdin(repo, &args, input.as_bytes())?;
+    Ok(())
+}
+
+/// Reverse-applies a zero-context-tolerant patch to the working tree.
+pub fn revert_hunk(repo: &Path, patch: &str) -> Result<()> {
+    apply_patch(repo, patch, &["--reverse"])
+}
+
+/// Applies a patch to the index only (stages that part of the file).
+pub fn stage_hunk(repo: &Path, patch: &str) -> Result<()> {
+    apply_patch(repo, patch, &["--cached"])
+}
+
+/// Reverse-applies a patch to the index only (unstages that part of the file); the working tree is untouched.
+pub fn unstage_hunk(repo: &Path, patch: &str) -> Result<()> {
+    apply_patch(repo, patch, &["--cached", "--reverse"])
+}
+
+/// Paths git still knows about (on disk or in the index), so a rename's gone old side does not fail the command.
+fn known_paths<'a>(repo: &Path, paths: &[&'a str]) -> Result<Vec<&'a str>> {
+    let mut out = Vec::new();
+    for path in paths {
+        let full = target_path(repo, path)?;
+        if full.symlink_metadata().is_ok() || in_index(repo, path)? {
+            out.push(*path);
+        }
+    }
+    Ok(out)
+}
+
+/// Stages every change to `paths` (`git add -A`), including deletions.
+pub fn stage_file(repo: &Path, paths: &[&str]) -> Result<()> {
+    git::require_repo(repo)?;
+    if paths.is_empty() {
+        return Err(AppError::invalid("no paths to stage"));
+    }
+    let paths = known_paths(repo, paths)?;
+    if paths.is_empty() {
+        return Err(AppError::not_found("nothing to stage"));
+    }
+    let mut args = vec!["add", "-A", "--"];
+    args.extend(paths);
+    git::run(repo, &args)?;
+    Ok(())
+}
+
+/// Unstages every change to `paths`; the working tree is untouched.
+pub fn unstage_file(repo: &Path, paths: &[&str]) -> Result<()> {
+    git::require_repo(repo)?;
+    if paths.is_empty() {
+        return Err(AppError::invalid("no paths to unstage"));
+    }
+    for path in paths {
+        target_path(repo, path)?;
+    }
+    let mut args = if git::head_sha(repo)?.is_some() {
+        vec!["reset", "-q", "--"]
+    } else {
+        vec!["rm", "--cached", "-r", "-q", "--ignore-unmatch", "--"]
+    };
+    args.extend_from_slice(paths);
+    git::run(repo, &args)?;
     Ok(())
 }
 

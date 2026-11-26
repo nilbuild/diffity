@@ -6,6 +6,7 @@ import type { ExpandControls } from './hunk-header';
 import type { LineRenderProps } from '../comments/types';
 import { HunkBlock } from './hunk-block';
 import { HunkBlockSplit } from './hunk-block-split';
+import type { ChangeActionsConfig } from './change-actions';
 import { buildExpansionSyntaxMap, renderExpansionRows } from './render-expansion-rows';
 
 interface GapExpansion {
@@ -24,12 +25,12 @@ interface HunkWithGapProps extends LineRenderProps {
   gapExpansion?: GapExpansion;
   gapId?: string;
   highlightCode?: CodeHighlighter;
-  onRevertChange?: (hunk: DiffHunk, startIndex: number, endIndex: number) => void;
+  changeActions?: ChangeActionsConfig;
 }
 
 export function HunkWithGap(props: HunkWithGapProps) {
   const {
-    hunk, viewMode, syntaxMap, expandControls, topExpansionLines, gapExpansion, gapId, highlightCode, onRevertChange,
+    hunk, viewMode, syntaxMap, expandControls, topExpansionLines, gapExpansion, gapId, highlightCode, changeActions,
     ...commentProps
   } = props;
 
@@ -65,7 +66,7 @@ export function HunkWithGap(props: HunkWithGapProps) {
         topExpansionLines={topExpansionLines && topExpansionLines.length > 0 ? topExpansionLines : undefined}
         bottomExpansionLines={gapExpansion && gapExpansion.linesFromBottom.length > 0 ? gapExpansion.linesFromBottom : undefined}
         expansionSyntaxMap={expansionSyntaxMap}
-        onRevertChange={onRevertChange}
+        changeActions={changeActions}
       />
     </>
   );

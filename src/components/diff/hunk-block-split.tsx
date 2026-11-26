@@ -9,7 +9,7 @@ import { HunkHeader, type ExpandControls } from './hunk-header';
 import { CommentLineNumber } from '../comments/comment-line-number';
 import { CommentThread } from '../comments/comment-thread';
 import { CommentFormRow } from '../comments/comment-form-row';
-import { UndoIcon } from '../ui/icon';
+import { ChangeActionsRow, type ChangeActionsConfig } from './change-actions';
 import { GuideLineNotes } from '../../features/guide/guide-notes';
 
 interface HunkBlockSplitProps extends LineRenderProps {
@@ -19,12 +19,50 @@ interface HunkBlockSplitProps extends LineRenderProps {
   topExpansionLines?: DiffLineType[];
   bottomExpansionLines?: DiffLineType[];
   expansionSyntaxMap?: Map<string, SyntaxToken[]>;
-  onRevertChange?: (hunk: DiffHunk, startIndex: number, endIndex: number) => void;
+  changeActions?: ChangeActionsConfig;
 }
 
 interface SplitRow {
   left: DiffLineType | null;
   right: DiffLineType | null;
+}
+
+function zipRows(left: DiffLineType[], right: DiffLineType[]): SplitRow[] {
+  const rows: SplitRow[] = [];
+  const count = Math.max(left.length, right.length);
+  for (let j = 0; j < count; j++) {
+    rows.push({ left: left[j] ?? null, right: right[j] ?? null });
+  }
+  return rows;
+}
+
+/** Lines the parser paired for word highlights share one segments array; put each pair on one row. */
+function alignChangedLines(deleteLines: DiffLineType[], addLines: DiffLineType[]): SplitRow[] {
+  const addIndexBySegments = new Map<unknown, number>();
+  addLines.forEach((line, index) => {
+    if (line.wordDiff) {
+      addIndexBySegments.set(line.wordDiff, index);
+    }
+  });
+  if (addIndexBySegments.size === 0) {
+    return zipRows(deleteLines, addLines);
+  }
+
+  const rows: SplitRow[] = [];
+  let d = 0;
+  let a = 0;
+  for (let i = 0; i < deleteLines.length; i++) {
+    const pairIndex = deleteLines[i].wordDiff ? addIndexBySegments.get(deleteLines[i].wordDiff) : undefined;
+    if (pairIndex === undefined || pairIndex < a) {
+      continue;
+    }
+    rows.push(...zipRows(deleteLines.slice(d, i), addLines.slice(a, pairIndex)));
+    rows.push({ left: deleteLines[i], right: addLines[pairIndex] });
+    d = i + 1;
+    a = pairIndex + 1;
+  }
+  rows.push(...zipRows(deleteLines.slice(d), addLines.slice(a)));
+  return rows;
 }
 
 function buildSplitRows(lines: DiffLineType[]): SplitRow[] {
@@ -53,13 +91,7 @@ function buildSplitRows(lines: DiffLineType[]): SplitRow[] {
         i++;
       }
 
-      const maxLen = Math.max(deleteLines.length, addLines.length);
-      for (let j = 0; j < maxLen; j++) {
-        rows.push({
-          left: j < deleteLines.length ? deleteLines[j] : null,
-          right: j < addLines.length ? addLines[j] : null,
-        });
-      }
+      rows.push(...alignChangedLines(deleteLines, addLines));
       continue;
     }
 
@@ -268,17 +300,17 @@ export function renderSplitRows(
 
 export function HunkBlockSplit(props: HunkBlockSplitProps) {
   const {
-    hunk, syntaxMap, expandControls, topExpansionLines, bottomExpansionLines, expansionSyntaxMap, onRevertChange,
+    hunk, syntaxMap, expandControls, topExpansionLines, bottomExpansionLines, expansionSyntaxMap, changeActions,
   } = props;
 
   const commentProps: LineRenderProps = props;
 
   const changeGroups = useMemo(() => {
-    if (!onRevertChange) {
+    if (!changeActions) {
       return [];
     }
     return getChangeGroups(hunk.lines);
-  }, [hunk.lines, onRevertChange]);
+  }, [hunk.lines, changeActions]);
 
   const splitRows = useMemo(() => buildSplitRows(hunk.lines), [hunk.lines]);
 
@@ -326,24 +358,11 @@ export function HunkBlockSplit(props: HunkBlockSplitProps) {
     if (currentRows.length === 0) {
       return;
     }
-    if (isChangeGroup && onRevertChange) {
+    if (isChangeGroup && changeActions) {
       const group = changeGroups[groupIdx];
       sections.push(
         <tbody key={`change-${groupIdx}`} className="group/undo">
-          <tr className="relative z-10" aria-hidden={false}>
-            <td colSpan={4} className="relative h-0 p-0">
-              <div className="absolute right-2 top-0.5 z-10 opacity-0 group-hover/undo:opacity-100 focus-within:opacity-100 pointer-events-none group-hover/undo:pointer-events-auto">
-                <button
-                  onClick={() => onRevertChange(hunk, group.startIndex, group.endIndex)}
-                  className="flex items-center gap-1 h-5 px-1.5 text-[11px] rounded border border-control-border bg-raised text-text-secondary hover:text-deleted hover:border-deleted/40 transition-colors cursor-pointer"
-                  title="Discard this change (restores these lines from the base)"
-                >
-                  <UndoIcon className="w-3 h-3" />
-                  Discard change
-                </button>
-              </div>
-            </td>
-          </tr>
+          <ChangeActionsRow config={changeActions} hunk={hunk} startIndex={group.startIndex} endIndex={group.endIndex} />
           {currentRows}
         </tbody>
       );

@@ -77,9 +77,10 @@ pub async fn diff_fingerprint(
     blocking(move || diff::diff_fingerprint(Path::new(&repo_path), &r#ref, show_ignored.unwrap_or(false))).await
 }
 
+/// `ref` is the view the file was reverted from: Unstaged restores from the index, the others from HEAD.
 #[tauri::command]
-pub async fn revert_file(repo_path: String, path: String) -> Result<(), AppError> {
-    blocking(move || diff::revert_file(Path::new(&repo_path), &path)).await
+pub async fn revert_file(repo_path: String, path: String, r#ref: Option<String>) -> Result<(), AppError> {
+    blocking(move || diff::revert_file_for(Path::new(&repo_path), &path, r#ref.as_deref().unwrap_or("work"))).await
 }
 
 #[tauri::command]
@@ -97,4 +98,43 @@ pub async fn apply_suggestion(
 #[tauri::command]
 pub async fn revert_hunk(repo_path: String, patch: String) -> Result<(), AppError> {
     blocking(move || diff::revert_hunk(Path::new(&repo_path), &patch)).await
+}
+
+#[tauri::command]
+pub async fn stage_hunk(repo_path: String, patch: String) -> Result<(), AppError> {
+    blocking(move || diff::stage_hunk(Path::new(&repo_path), &patch)).await
+}
+
+#[tauri::command]
+pub async fn unstage_hunk(repo_path: String, patch: String) -> Result<(), AppError> {
+    blocking(move || diff::unstage_hunk(Path::new(&repo_path), &patch)).await
+}
+
+fn file_paths(path: &str, old_path: Option<&str>) -> Vec<String> {
+    let mut paths = vec![path.to_string()];
+    if let Some(old) = old_path.filter(|old| !old.is_empty() && *old != path) {
+        paths.push(old.to_string());
+    }
+    paths
+}
+
+/// Stages the whole file; `old_path` (a rename's source) is staged with it.
+#[tauri::command]
+pub async fn stage_file(repo_path: String, path: String, old_path: Option<String>) -> Result<(), AppError> {
+    blocking(move || {
+        let paths = file_paths(&path, old_path.as_deref());
+        let refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+        diff::stage_file(Path::new(&repo_path), &refs)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn unstage_file(repo_path: String, path: String, old_path: Option<String>) -> Result<(), AppError> {
+    blocking(move || {
+        let paths = file_paths(&path, old_path.as_deref());
+        let refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+        diff::unstage_file(Path::new(&repo_path), &refs)
+    })
+    .await
 }
