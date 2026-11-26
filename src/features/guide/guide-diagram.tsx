@@ -31,7 +31,7 @@ export function GuideDiagram(props: { guide: Guide }) {
       tabIndex={flow.length > 0 ? 0 : undefined}
       aria-label="How it flows"
       onKeyDown={flow.length > 0 ? stepper.onKeyDown : undefined}
-      className="mt-6 rounded-lg border border-border bg-bg outline-none focus-visible:ring-1 focus-visible:ring-accent"
+      className="mt-6 rounded-lg border border-border bg-bg outline-none"
     >
       <div className={cn('flex items-center gap-3 pl-4 text-xs text-text-secondary', flow.length > 0 ? 'pr-1.5 h-9 border-b border-border-muted' : 'pr-4 pt-3')}>
         <span className="font-medium text-text">How it flows</span>

@@ -93,7 +93,7 @@ function EffortBars(props: EffortBarsProps) {
               title={effort.name}
               onMouseEnter={() => setPreview(index)}
               onClick={() => onChange(on ? undefined : effort.value)}
-              className="flex flex-1 items-end h-full rounded-[2px] cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-text-muted"
+              className="flex flex-1 items-end h-full rounded-[2px] cursor-pointer"
             >
               <span
                 style={{ height: `${height}%` }}
