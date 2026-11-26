@@ -10,12 +10,11 @@ import { cn } from '../../lib/cn';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import { FetchIcon, PullIcon, PushIcon } from '../ui/icon';
+import { summarizeGitOp, type GitOp } from '../../lib/git-op-summary';
 
 dayjs.extend(relativeTime);
 
 const lastFetched = new Map<string, number>();
-
-type GitOp = 'fetch' | 'pull' | 'push';
 
 const OP_LABELS: Record<GitOp, { busy: string; done: string; failed: string }> = {
   fetch: { busy: 'Fetching from the remote…', done: 'Fetched', failed: 'Fetch failed' },
@@ -50,14 +49,14 @@ export function GitSyncActions() {
     const id = toast.loading(OP_LABELS[op].busy);
     try {
       const result = await RUNNERS[op](repoPath);
-      const output = result.output.trim();
+      const description = summarizeGitOp(op, result.ok, result.output);
       if (result.ok) {
-        toast.success(OP_LABELS[op].done, { id, description: output || undefined });
+        toast.success(OP_LABELS[op].done, { id, description });
         if (op !== 'push') {
           lastFetched.set(repoPath, Date.now());
         }
       } else {
-        toast.error(OP_LABELS[op].failed, { id, description: output || undefined });
+        toast.error(OP_LABELS[op].failed, { id, description });
       }
     } catch (error) {
       toast.error(OP_LABELS[op].failed, { id, description: tauri.errorMessage(error) });

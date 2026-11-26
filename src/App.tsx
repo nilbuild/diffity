@@ -150,7 +150,7 @@ export function App() {
             padding: '10px 12px',
           },
           classNames: {
-            description: '!text-text-secondary !text-xs',
+            description: '!text-text-secondary !text-xs whitespace-pre-line break-words max-h-32 overflow-y-auto',
             actionButton: '!bg-raised !text-text !border !border-control-border hover:!bg-control-hover !h-6 !px-2 !rounded-md !text-xs !font-medium',
             cancelButton: '!bg-transparent !text-text-secondary !border !border-transparent hover:!bg-control-hover !h-6 !px-2 !rounded-md !text-xs !font-medium',
           },

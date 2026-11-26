@@ -33,6 +33,7 @@ import {
 } from '../../components/ui/icon';
 import { checkForUpdatesAndTell } from '../updates/updater';
 import { openClaudeHistory, openClaudePanel } from '../claude/panel-store';
+import { summarizeGitOp, type GitOp } from '../../lib/git-op-summary';
 import {
   closePalette, fuzzyScore, recentActionIds, recentFiles, rememberAction, rememberFile, usePalette,
   type PaletteAction, type PaletteMode,
@@ -47,14 +48,15 @@ interface Item extends PaletteAction {
 
 const GROUP_ORDER = ['Recent', 'Files in this view', 'Actions', 'View', 'Go to', 'Projects', 'Pull requests', 'Recent commits', 'Comments', 'All files'];
 
-function runGit(label: string, run: () => Promise<{ ok: boolean; output: string }>) {
+function runGit(op: GitOp, label: string, run: () => Promise<{ ok: boolean; output: string }>) {
   const id = toast.loading(`${label}…`);
   run().then((result) => {
+    const description = summarizeGitOp(op, result.ok, result.output);
     if (result.ok) {
-      toast.success(`${label} done`, { id, description: result.output || undefined });
+      toast.success(`${label} done`, { id, description });
       return;
     }
-    toast.error(`${label} failed`, { id, description: result.output });
+    toast.error(`${label} failed`, { id, description });
   }, (error) => toast.error(`${label} failed`, { id, description: tauri.errorMessage(error) }));
 }
 
@@ -73,9 +75,9 @@ function useGlobalActions(): PaletteAction[] {
     { id: 'toggle-sidebar', title: 'Toggle sidebar', group: 'View', hint: shortcutHint('toggle-sidebar'), icon: <SidebarIcon size="sm" />, run: toggleSidebar },
     { id: 'toggle-theme', title: theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme', group: 'View', keywords: 'theme dark light appearance', icon: <MoonIcon size="sm" />, run: toggleTheme },
     { id: 'toggle-wrap', title: wrapLines ? 'Stop wrapping long lines' : 'Wrap long lines', group: 'View', keywords: 'wrap word wrap nowrap horizontal scroll lines', icon: <WrapIcon size="sm" />, run: () => setWrapLines(!wrapLines) },
-    { id: 'fetch', title: 'Fetch', group: 'Actions', keywords: 'git remote', icon: <FetchIcon size="sm" />, run: () => runGit('Fetch', () => tauri.gitFetch(nav.repoPath)) },
-    { id: 'pull', title: 'Pull', group: 'Actions', keywords: 'git', icon: <PullIcon size="sm" />, run: () => runGit('Pull', () => tauri.gitPull(nav.repoPath)) },
-    { id: 'push', title: 'Push', group: 'Actions', keywords: 'git publish', icon: <PushIcon size="sm" />, run: () => runGit('Push', () => tauri.gitPush(nav.repoPath)) },
+    { id: 'fetch', title: 'Fetch', group: 'Actions', keywords: 'git remote', icon: <FetchIcon size="sm" />, run: () => runGit('fetch', 'Fetch', () => tauri.gitFetch(nav.repoPath)) },
+    { id: 'pull', title: 'Pull', group: 'Actions', keywords: 'git', icon: <PullIcon size="sm" />, run: () => runGit('pull', 'Pull', () => tauri.gitPull(nav.repoPath)) },
+    { id: 'push', title: 'Push', group: 'Actions', keywords: 'git publish', icon: <PushIcon size="sm" />, run: () => runGit('push', 'Push', () => tauri.gitPush(nav.repoPath)) },
     { id: 'open-editor', title: 'Open repository in editor', group: 'Actions', icon: <EditorIcon size="sm" />, run: () => { openInEditor('').catch((error) => toast.error('Could not open the editor', { description: errorMessage(error) })); } },
     { id: 'reveal', title: `Reveal in ${fileManagerName}`, group: 'Actions', icon: <RevealIcon size="sm" />, run: () => { revealItemInDir(nav.repoPath).catch(() => undefined); } },
     { id: 'settings', title: 'Settings', group: 'Actions', hint: shortcutHint('settings'), icon: <SettingsIcon size="sm" />, run: openSettings },
