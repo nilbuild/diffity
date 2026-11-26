@@ -110,6 +110,26 @@ function useUncommittedState(): { paths: Set<string> | null; settled: boolean; s
   return { paths, settled: !!paths || filesQuery.isError, signature };
 }
 
+const NO_STATUSES = new Map<string, string>();
+
+/** Uncommitted files by path with their status (added, modified…), from the same query as the paths; empty when clean. */
+export function useUncommittedStatuses(): Map<string, string> {
+  const { data: status } = useGitStatus();
+  const dirty = !!status && status.staged + status.unstaged + status.untracked > 0;
+  const signature = status ? `${status.staged}/${status.unstaged}/${status.untracked}` : '';
+  const { data } = useQuery({
+    ...uncommittedFilesOptions(signature),
+    enabled: dirty,
+    placeholderData: (previous) => previous,
+  });
+  return useMemo(() => {
+    if (!dirty || !data) {
+      return NO_STATUSES;
+    }
+    return new Map(data.files.map((file) => [getFilePath(file), file.status]));
+  }, [dirty, data]);
+}
+
 /** Paths with uncommitted changes: empty when the tree is clean, null while still unknown. */
 export function useUncommittedPaths(): Set<string> | null {
   return useUncommittedState().paths;

@@ -76,8 +76,8 @@ export function GitSyncActions() {
   const fetchTitle = `Fetch new commits from the remote without changing your files. ${fetchedAt ? `Last fetched ${dayjs(fetchedAt).fromNow()}` : 'Not fetched since the app opened'}`;
   const nothingToPush = !!upstream && status.ahead === 0;
   const plural = (count: number) => `${count} commit${count === 1 ? '' : 's'}`;
-  const idle = running === null && !!upstream && status.ahead === 0 && status.behind === 0;
-  const hoverOnly = idle ? 'hidden group-hover/status:flex' : undefined;
+  // Pull and Push show only when there's something to move (or while they run); otherwise on status-bar hover.
+  const hoverOnly = (op: GitOp, hasWork: boolean) => (hasWork || running === op ? undefined : 'hidden group-hover/status:flex');
   const showPush = !!upstream || !details?.pr || ownPr;
 
   return (
@@ -88,7 +88,7 @@ export function GitSyncActions() {
       </button>
       {upstream && (
         <button
-          className={cn(itemClass, status.behind > 0 && 'bg-pull/10 text-pull hover:bg-pull/15 hover:text-pull', hoverOnly)}
+          className={cn(itemClass, status.behind > 0 && 'bg-pull/10 text-pull hover:bg-pull/15 hover:text-pull', hoverOnly('pull', status.behind > 0))}
           disabled={running !== null}
           onClick={() => run('pull')}
           title={status.behind > 0 ? `Pull ${plural(status.behind)} from ${upstream}` : `Nothing new on ${upstream} since the last fetch. Pull anyway`}
@@ -100,7 +100,7 @@ export function GitSyncActions() {
       )}
       {showPush && (
         <button
-          className={cn(itemClass, !nothingToPush && 'bg-push/10 text-push hover:bg-push/15 hover:text-push', hoverOnly)}
+          className={cn(itemClass, !nothingToPush && 'bg-push/10 text-push hover:bg-push/15 hover:text-push', hoverOnly('push', !nothingToPush))}
           disabled={running !== null}
           aria-disabled={nothingToPush}
           onClick={() => {

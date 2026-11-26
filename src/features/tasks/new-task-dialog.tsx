@@ -122,7 +122,7 @@ function NewTaskForm(props: { repoPath: string }) {
       >
         <div className="flex items-baseline gap-2">
           <h3 id="new-task-title" className="text-[15px] font-semibold text-text">New task</h3>
-          <span className="text-xs text-text-muted truncate">Runs on its own branch, so your checkout stays as it is</span>
+          <span className="text-xs text-text-muted truncate">Runs on its own branch, so your copy stays as it is</span>
         </div>
         <textarea
           id="new-task-prompt"
@@ -175,11 +175,11 @@ function NewTaskForm(props: { repoPath: string }) {
             <button type="button" onClick={() => setBase(yourBranch)} className="text-text-secondary hover:text-text hover:underline underline-offset-2 cursor-pointer">
               Start from {yourBranch}
             </button>
-            , the branch your checkout is on
+            , the branch your copy is on
           </p>
         )}
         {leavesChangesBehind && (
-          <p className="-mt-1.5 text-xs text-text-muted">Starts from the last commit: your uncommitted changes stay in your checkout.</p>
+          <p className="-mt-1.5 text-xs text-text-muted">Starts from the last commit: your uncommitted changes stay in your copy.</p>
         )}
         {!setupReady && (
           <div aria-busy className="flex items-center gap-2 h-6">

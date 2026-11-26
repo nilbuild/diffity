@@ -4,7 +4,7 @@ import { cn } from '../../lib/cn';
 import { modKey } from '../../lib/platform';
 import type { Task } from '../../lib/types';
 import { buttonOutline } from '../../components/ui/button-styles';
-import { ChevronDownIcon, GitBranchIcon, HomeIcon, PlusIcon, TrashIcon } from '../../components/ui/icon';
+import { ChevronDownIcon, FolderSimpleIcon, GitBranchIcon, HomeIcon, PlusIcon, TrashIcon } from '../../components/ui/icon';
 import { MenuItem, MenuLabel, MenuSeparator, Popover, useMenu } from '../../components/ui/popover';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog';
 import { repoBase } from '../../hooks/use-repo';
@@ -12,7 +12,7 @@ import { lastLocationFor } from '../../lib/repo-locations';
 import { toast } from 'sonner';
 import * as tauri from '../../lib/tauri';
 import { queryClient } from '../../lib/query-client';
-import { guessBaseBranch, useBranches, useGitStatus, useWorktrees } from '../../hooks/use-repo-state';
+import { guessBaseBranch, useBranches, useWorktrees } from '../../hooks/use-repo-state';
 import { shortPath } from '../welcome/recent-repos';
 import { openNewTask } from './new-task-store';
 import { TaskStatusIcon } from './task-status';
@@ -58,15 +58,15 @@ function TaskRow(props: { task: Task; status: TaskStatus; current: boolean; onOp
     >
       <span className="flex w-4 justify-center shrink-0"><TaskStatusIcon status={status} /></span>
       <span className="flex flex-col min-w-0 flex-1">
-        <span className="truncate text-[13px] leading-[18px] text-text">{task.title}</span>
-        <span className="truncate text-xs leading-4 text-text-muted font-mono">{task.branch}</span>
+        <span className="truncate text-[13px] leading-[18px] text-text" title={task.title}>{task.title}</span>
+        <span className="truncate text-xs leading-4 text-text-muted font-mono" title={task.branch}>{task.branch}</span>
       </span>
       <span className="shrink-0 text-xs text-text-muted">{task.rounds > 0 && status === 'idle' ? `${task.rounds} round${task.rounds === 1 ? '' : 's'}` : statusLabel(task, status)}</span>
     </button>
   );
 }
 
-/** The task crumb: which task (or your own checkout) you're looking at, and a switcher between them. */
+/** The workspace crumb: which task (or your own copy of the repo) you're looking at, and a switcher between them. Never the branch. */
 export function TaskMenu(props: { repoPath: string; task: Task | null }) {
   const { repoPath, task } = props;
   const navigate = useNavigate();
@@ -95,8 +95,7 @@ export function TaskMenu(props: { repoPath: string; task: Task | null }) {
   };
   const parentName = parentPath.split('/').filter(Boolean).pop() ?? parentPath;
   const archiveCommand = useArchiveCommand(parentPath);
-  const { data: checkoutStatus } = useGitStatus();
-  const crumbNote = task && currentStatus ? crumbStatus(task, currentStatus) : checkoutStatus?.branch ?? null;
+  const crumbNote = task && currentStatus ? crumbStatus(task, currentStatus) : null;
 
   if (!task && tasks.length === 0) {
     return null;
@@ -114,15 +113,15 @@ export function TaskMenu(props: { repoPath: string; task: Task | null }) {
         onClick={menu.toggle}
         aria-haspopup="menu"
         aria-expanded={menu.open}
-        title={task ? `${task.title}\n${task.branch}` : 'Your checkout · switch to a task'}
+        title={task ? `${task.title}\n${task.branch}` : `Your copy · ${shortPath(parentPath)}\nSwitch to a task`}
         className={cn(
           buttonOutline,
           'shrink min-w-[88px] max-w-[440px] @max-4xl/titlebar:max-w-[300px] @max-3xl/titlebar:max-w-[220px] pl-2.5 pr-2 gap-1.5',
           menu.open && 'bg-control-hover',
         )}
       >
-        {currentStatus ? <TaskStatusIcon status={currentStatus} /> : <GitBranchIcon size="sm" className="shrink-0 text-text-secondary" />}
-        <span className="truncate font-medium">{task ? task.title : 'Your checkout'}</span>
+        {currentStatus ? <TaskStatusIcon status={currentStatus} /> : <FolderSimpleIcon size="sm" className="shrink-0 text-text-secondary" />}
+        <span className="truncate font-medium">{task ? task.title : 'Your copy'}</span>
         {crumbNote && <span className="shrink-0 text-xs text-text-muted @max-4xl/titlebar:hidden">{crumbNote}</span>}
         <ChevronDownIcon size="xs" className="shrink-0 text-text-secondary" />
       </button>
@@ -142,7 +141,7 @@ export function TaskMenu(props: { repoPath: string; task: Task | null }) {
             })}
           />
         ))}
-        <MenuLabel>Your checkout</MenuLabel>
+        <MenuLabel>Your copy</MenuLabel>
         <button
           role="menuitem"
           onClick={run(() => {
@@ -153,12 +152,13 @@ export function TaskMenu(props: { repoPath: string; task: Task | null }) {
           aria-current={!task ? 'true' : undefined}
           className={cn('flex items-center gap-2.5 w-full min-h-10 px-2.5 py-1 rounded-md text-left hover:bg-hover transition-colors cursor-pointer', !task && 'bg-selected')}
         >
-          <span className="flex w-4 justify-center shrink-0 text-text-secondary"><GitBranchIcon size="sm" /></span>
+          <span className="flex w-4 justify-center shrink-0 text-text-secondary"><FolderSimpleIcon size="sm" /></span>
           <span className="flex flex-col min-w-0 flex-1">
-            <span className="truncate text-[13px] leading-[18px] text-text">{parentName}</span>
-            <span className="truncate text-xs leading-4 text-text-muted">{shortPath(parentPath)}</span>
+            <span className="truncate text-[13px] leading-[18px] text-text" title={parentName}>{parentName}</span>
+            <span className="truncate text-xs leading-4 text-text-muted" title={parentPath}>{shortPath(parentPath)}</span>
           </span>
         </button>
+        <p className="px-2.5 pt-1 pb-1.5 text-xs leading-4 text-text-muted">Tasks run in their own copy of the repo, so your files stay as they are.</p>
         {others.length > 0 && <MenuLabel>Other worktrees</MenuLabel>}
         {others.map((tree) => (
           <div key={tree.path} className="flex items-center gap-2.5 w-full min-h-10 px-2.5 py-1 rounded-md">

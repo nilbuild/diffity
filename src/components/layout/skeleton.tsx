@@ -134,12 +134,8 @@ function OpeningTitleBar(props: { repoName: string; view: OpeningView }) {
       </div>
       <div data-tauri-drag-region className="flex-1 min-w-2 self-stretch" />
       <div className="flex items-center gap-2 shrink-0">
-        {view === 'diff' && (
-          <>
-            <CommentsButton />
-            <Skeleton className="w-[102px] @max-3xl/titlebar:w-[38px] h-7 rounded-md" />
-          </>
-        )}
+        <CommentsButton />
+        {view !== 'home' && <Skeleton className="w-[102px] @max-3xl/titlebar:w-[38px] h-7 rounded-md" />}
         <OptionsMenu theme={theme} onToggleTheme={toggleTheme} />
       </div>
     </TitleBar>

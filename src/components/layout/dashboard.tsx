@@ -167,7 +167,7 @@ function Hero(props: { item: Candidate; agentName: string; working: { label: str
         ) : (
           <button ref={askRef} onClick={() => setAsking(!asking)} className={buttonClaude} aria-expanded={asking}>
             <SparkleIcon size="sm" />
-            Ask {agentName} to review
+            Review changes with {agentName}
           </button>
         )}
         <button onClick={() => (item.run ? item.run() : onReview(item.ref))} className={buttonPrimary}>
@@ -444,7 +444,7 @@ export function Dashboard(props: DashboardProps) {
       key="checkout"
       icon={hero.icon}
       title={hero.title}
-      meta={<span className="truncate">{['Your checkout', hero.key === 'comments' ? null : hero.eyebrow, heroComments > 0 && hero.key !== 'comments' ? `${heroComments} open comment${heroComments === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ')}</span>}
+      meta={<span className="truncate">{['Your copy', hero.key === 'comments' ? null : hero.eyebrow, heroComments > 0 && hero.key !== 'comments' ? `${heroComments} open comment${heroComments === 1 ? '' : 's'}` : null].filter(Boolean).join(' · ')}</span>}
       stats={
         <span className="flex items-center gap-3">
           {hero.summary && <StatCell additions={hero.summary.additions} deletions={hero.summary.deletions} bar={<DiffStatBar additions={hero.summary.additions} deletions={hero.summary.deletions} />} />}
@@ -465,7 +465,7 @@ export function Dashboard(props: DashboardProps) {
       }
       onClick={() => (hero.run ? hero.run() : onNavigate(hero.ref))}
       tooltip={hero.action}
-      actions={[{ label: `Ask ${reviewAgent} to review`, icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => askClaudeFor(hero.ref) }]}
+      actions={[{ label: `Review changes with ${reviewAgent}`, icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => askClaudeFor(hero.ref) }]}
     />
   ) : null;
 
@@ -547,7 +547,7 @@ export function Dashboard(props: DashboardProps) {
                           tooltip={item.action}
                           actions={[
                             { label: item.action, icon: item.icon, onSelect: () => (item.run ? item.run() : onNavigate(item.ref)) },
-                            { label: `Ask ${reviewAgent} to review`, icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => askClaudeFor(item.ref) },
+                            { label: `Review changes with ${reviewAgent}`, icon: <SparkleIcon size="sm" className="text-claude" />, onSelect: () => askClaudeFor(item.ref) },
                           ]}
                         />
                       ))}

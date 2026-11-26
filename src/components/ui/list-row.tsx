@@ -21,7 +21,7 @@ interface ListRowProps {
   tooltip?: string;
 }
 
-/** One row layout for every list on Home: the whole row opens the item; secondary actions live behind ⋯ / right-click. */
+/** One row layout for every list on Home: the whole row opens the item (›); secondary actions live behind ⋯ / right-click. */
 export function ListRow(props: ListRowProps) {
   const { icon, title, meta, stats, onClick, actions = [], tooltip } = props;
   const menu = useMenu();
@@ -67,9 +67,8 @@ export function ListRow(props: ListRowProps) {
           {meta && <span className="flex items-center gap-1.5 min-w-0 text-xs leading-5 text-text-muted">{meta}</span>}
         </span>
         <span className="flex justify-end">{stats}</span>
-        <span className="relative flex items-center justify-center w-7 h-7">
-          <ChevronRightIcon size="sm" className={`text-text-muted group-hover:text-text-secondary transition-colors ${hasActions ? 'group-hover:opacity-0' : ''}`} />
-          {hasActions && (
+        <span className="flex items-center justify-center w-7 h-7">
+          {hasActions ? (
             <button
               ref={menu.anchorRef}
               onClick={(event) => {
@@ -77,12 +76,16 @@ export function ListRow(props: ListRowProps) {
                 menu.toggle();
               }}
               onKeyDown={(event) => event.stopPropagation()}
-              className="absolute inset-0 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-active opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer"
+              className={`inline-flex items-center justify-center w-7 h-7 rounded-md hover:text-text hover:bg-active transition-colors cursor-pointer ${menu.open ? 'text-text bg-active' : 'text-text-muted group-hover:text-text-secondary'}`}
               title="More actions"
               aria-label="More actions"
+              aria-haspopup="menu"
+              aria-expanded={menu.open}
             >
               <EllipsisIcon size="md" />
             </button>
+          ) : (
+            <ChevronRightIcon size="sm" className="text-text-muted group-hover:text-text-secondary transition-colors" />
           )}
         </span>
       </div>
