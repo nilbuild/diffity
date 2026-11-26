@@ -85,6 +85,16 @@ pub async fn git_commit_paths(
 }
 
 #[tauri::command]
+pub async fn github_diffity_starred(state: State<'_, AppState>) -> Result<Option<bool>, AppError> {
+    state.github.diffity_starred().await
+}
+
+#[tauri::command]
+pub async fn github_star_diffity(state: State<'_, AppState>) -> Result<(), AppError> {
+    state.github.star_diffity().await
+}
+
+#[tauri::command]
 pub async fn github_post_comment(app: AppHandle, state: State<'_, AppState>, comment_id: String) -> Result<Thread, AppError> {
     let thread = state.github.post_comment_to_github(&comment_id).await?;
     emit_threads_changed(&app, &thread.session_id);

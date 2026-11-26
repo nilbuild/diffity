@@ -740,6 +740,8 @@ const handlers: Record<string, (args: Args) => unknown> = {
   git_fetch: () => ({ ok: true, output: 'Fetched' }),
   git_pull: () => ({ ok: true, output: 'Already up to date.' }),
   git_push: () => ({ ok: true, output: 'Pushed' }),
+  github_diffity_starred: () => null,
+  github_star_diffity: () => null,
   git_commit_all: () => ({ ok: true, output: 'Committed' }),
   git_commit_paths: (args) => ({ ok: true, output: `Committed ${(args.paths as string[]).length} files` }),
   find_pr: () => null,

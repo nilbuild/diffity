@@ -20,6 +20,8 @@ struct FullThread {
     comments: Vec<RemoteComment>,
 }
 
+const DIFFITY_REPO: &str = "nilbuild/diffity";
+
 pub struct GithubService {
     store: Arc<Store>,
     http: Http,
@@ -1116,6 +1118,20 @@ impl GithubService {
         }
         let out = gitcli::run(repo_path, &["commit", "-m", message]).await?;
         Ok(GitOpResult { ok: out.ok, output: out.output })
+    }
+
+    /// Whether the user starred Diffity, or `None` when not signed in to GitHub.
+    pub async fn diffity_starred(&self) -> Result<Option<bool>> {
+        let Some(token) = self.token().await? else {
+            return Ok(None);
+        };
+        self.http.is_starred(&token, DIFFITY_REPO).await.map(Some)
+    }
+
+    /// Stars Diffity's repository with the user's GitHub sign-in.
+    pub async fn star_diffity(&self) -> Result<()> {
+        let token = self.require_token().await?;
+        self.http.star(&token, DIFFITY_REPO).await
     }
 
     /// Commits only the picked files (no amend, no hooks bypass); other staged changes stay staged.

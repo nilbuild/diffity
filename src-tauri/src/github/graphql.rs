@@ -84,6 +84,44 @@ impl Http {
     }
 }
 
+impl Http {
+    /// Whether the signed-in user has starred `owner/repo` (204 starred, 404 not).
+    pub async fn is_starred(&self, token: &str, repo: &str) -> Result<bool> {
+        let resp = self
+            .client
+            .get(format!("{API_URL}/user/starred/{repo}"))
+            .bearer_auth(token)
+            .header("Accept", "application/vnd.github+json")
+            .send()
+            .await
+            .map_err(|e| AppError::new("network", e.to_string()))?;
+        match resp.status() {
+            StatusCode::NO_CONTENT => Ok(true),
+            StatusCode::NOT_FOUND => Ok(false),
+            StatusCode::UNAUTHORIZED => Err(AppError::new("unauthorized", "GitHub rejected the token")),
+            status => Err(AppError::new("github", format!("GitHub returned {status}"))),
+        }
+    }
+
+    /// Stars `owner/repo` for the signed-in user.
+    pub async fn star(&self, token: &str, repo: &str) -> Result<()> {
+        let resp = self
+            .client
+            .put(format!("{API_URL}/user/starred/{repo}"))
+            .bearer_auth(token)
+            .header("Accept", "application/vnd.github+json")
+            .header("Content-Length", "0")
+            .send()
+            .await
+            .map_err(|e| AppError::new("network", e.to_string()))?;
+        match resp.status() {
+            status if status.is_success() => Ok(()),
+            StatusCode::UNAUTHORIZED => Err(AppError::new("unauthorized", "GitHub rejected the token")),
+            status => Err(AppError::new("github", format!("GitHub returned {status}"))),
+        }
+    }
+}
+
 impl Default for Http {
     fn default() -> Self {
         Self::new()

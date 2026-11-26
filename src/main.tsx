@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { isTauri, shouldUseMockApi } from './lib/platform';
 import { blockNativeContextMenu } from './lib/native-context-menu';
+import { countLaunch } from './features/feedback/star';
 import '@fontsource-variable/inter';
 import './styles/app.css';
 import './lib/diff-palette';
@@ -15,6 +16,9 @@ async function bootstrap() {
   }
   if (isTauri) {
     blockNativeContextMenu();
+  }
+  if (!isTauri || (await import('@tauri-apps/api/window')).getCurrentWindow().label === 'main') {
+    countLaunch();
   }
   if (import.meta.env.DEV && isTauri && !shouldUseMockApi) {
     const dev = await import('./lib/dev');
