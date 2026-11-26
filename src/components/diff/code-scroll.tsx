@@ -37,18 +37,24 @@ export function CodeScrollbar(props: { tableRef: RefObject<HTMLTableElement | nu
       return;
     }
 
+    const onScroll = () => {
+      table.style.setProperty('--code-x', `${bar.hidden ? 0 : bar.scrollLeft}px`);
+    };
+    // The widest line can unmount (lazy rows) and shrink the overflow; the bar clamps or hides without a scroll
+    // event, so sync the shift here or the text stays pushed left with nothing to scroll back.
     const measure = () => {
       const overflow = overflowOf(table);
       spacer.style.width = `calc(100% + ${overflow}px)`;
       bar.hidden = overflow === 0;
+      if (bar.hidden) {
+        bar.scrollLeft = 0;
+      }
+      onScroll();
     };
     let pending = 0;
     const measureSoon = () => {
       clearTimeout(pending);
       pending = window.setTimeout(measure, 50);
-    };
-    const onScroll = () => {
-      table.style.setProperty('--code-x', `${bar.scrollLeft}px`);
     };
     const onWheel = (event: WheelEvent) => {
       if (Math.abs(event.deltaX) <= Math.abs(event.deltaY) || bar.hidden) {
