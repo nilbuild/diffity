@@ -4,15 +4,16 @@ import { useCurrentViewRef } from '../../hooks/use-current-view';
 import { create } from 'zustand';
 import { useRepoNav, useRepoPath } from '../../hooks/use-repo';
 import { inView, useRepoThreads } from '../../hooks/use-repo-threads';
-import { closeComments, useUi } from '../../lib/ui-store';
+import { closeComments, openComments, useUi } from '../../lib/ui-store';
 import { threadPath } from '../../lib/thread-location';
 import { groupThreads, isCurrentGroup, type ViewGroup } from '../../lib/repo-thread-groups';
 import { TREE_REF, type RepoThread } from '../../lib/types';
 import { cn } from '../../lib/cn';
-import { ThreadBadge } from '../../components/ui/thread-badge';
+import { SeverityChip, ThreadBadge } from '../../components/ui/thread-badge';
 import { SegmentedToggle } from '../../components/ui/segmented-toggle';
 import { formatRelativeTime } from '../../components/comments/comment-bubble';
-import { GENERAL_THREAD_FILE_PATH, SEVERITY_LABELS } from '../../components/comments/types';
+import { GENERAL_THREAD_FILE_PATH } from '../../components/comments/types';
+import { threadLocation } from '../../lib/comment-navigation';
 import { InlineMarkdown } from '../../components/comments/inline-markdown';
 import { AddressedBadge } from '../../components/comments/addressed-badge';
 import { CheckIcon, ChevronIcon, CommentIcon, EllipsisIcon, FileIcon, GitCommitIcon, GitCompareIcon, PencilIcon, SparkleIcon, TrashIcon, UndoIcon, XIcon } from '../../components/ui/icon';
@@ -45,6 +46,13 @@ interface PanelFilters {
 }
 
 const useFilters = create<PanelFilters>(() => ({ status: 'open', author: 'all', others: false }));
+
+/** Opens the panel on one open thread (one the diff can't show): outlined, scrolled to, and not hidden by a filter. */
+export function openCommentsAt(threadId: string) {
+  useFilters.setState((filters) => ({ status: filters.status === 'resolved' ? 'open' : filters.status, author: 'all' }));
+  setCurrentThread(threadId);
+  openComments();
+}
 
 const AUTHOR_LABELS: Record<AuthorFilter, string> = { all: 'Everyone', user: 'You', github: 'Reviewers', agent: 'Agents' };
 
@@ -96,13 +104,6 @@ function fileLabel(filePath: string): string {
   return path === '__root__' ? 'Repository root' : `${path}/`;
 }
 
-function lineLabel(thread: RepoThread): string | null {
-  if (thread.filePath === GENERAL_THREAD_FILE_PATH || thread.startLine === 0) {
-    return null;
-  }
-  const range = thread.startLine === thread.endLine ? `L${thread.startLine}` : `L${thread.startLine}–${thread.endLine}`;
-  return thread.side === 'old' ? `${range} (old)` : range;
-}
 
 export function anchorNote(thread: RepoThread): string | null {
   switch (thread.anchor) {
@@ -177,7 +178,7 @@ interface ThreadRowProps {
 function ThreadRow(props: ThreadRowProps) {
   const { thread, onOpen, onOpenCommit } = props;
   const queryClient = useQueryClient();
-  const line = lineLabel(thread);
+  const line = threadLocation(thread);
   const note = thread.otherBranch ? 'On another branch' : anchorNote(thread);
   const outdated = !thread.unassigned && !thread.otherBranch && thread.anchor !== 'current' && thread.anchor !== 'unknown';
   // Its code is in its view: open it there. Otherwise (outdated, another branch) read it here.
@@ -202,6 +203,14 @@ function ThreadRow(props: ThreadRowProps) {
   };
   const addressedBy = isOpen && thread.addressedBy ? agentByName(thread.addressedBy)?.short ?? thread.addressedBy : null;
   const [keeping, setKeeping] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (current) {
+      rowRef.current?.scrollIntoView({ block: 'nearest' });
+    }
+  }, [current]);
+
   const keep = () => {
     setKeeping(true);
     keepThreadOnBranch(thread.id)
@@ -221,6 +230,7 @@ function ThreadRow(props: ThreadRowProps) {
 
   return (
     <div
+      ref={rowRef}
       role="button"
       tabIndex={openable ? 0 : -1}
       onClick={() => {
@@ -251,31 +261,27 @@ function ThreadRow(props: ThreadRowProps) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0">
           {line && <span className="font-mono text-[11px] text-text-secondary shrink-0">{line}</span>}
+          {thread.severity && <SeverityChip severity={thread.severity} />}
           <span className="text-xs text-text-secondary shrink-0">{thread.authorName}</span>
-          {thread.severity && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-bg-tertiary text-text-secondary shrink-0">
-              {SEVERITY_LABELS[thread.severity] ?? thread.severity}
-            </span>
-          )}
           {thread.pending && <ThreadBadge variant="pending" />}
           {addressedBy && <AddressedBadge agent={addressedBy} />}
           {thread.status !== 'open' && <ThreadBadge variant={thread.status} />}
           {outdated && <ThreadBadge variant="outdated" />}
-          <span className="ml-auto text-xs text-text-muted shrink-0">{formatRelativeTime(thread.updatedAt)}</span>
+          <span className="ml-auto text-xs text-text-muted shrink-0 group-hover:invisible group-focus-within:invisible">{formatRelativeTime(thread.updatedAt)}</span>
         </div>
-        {/* Floats over the card's corner, so it never pushes the badges or the author out of the row. */}
-        <div className="absolute -top-3 right-2 z-10 hidden group-hover:flex group-focus-within:flex items-center gap-0.5 p-0.5 rounded-md border border-control-border bg-raised shadow-sm">
+        {/* Takes the timestamp's place on hover, icon-only so it never covers the badges or the author. */}
+        <div className="absolute top-2 right-2 z-10 hidden group-hover:flex group-focus-within:flex items-center gap-0.5 p-0.5 rounded-md border border-control-border bg-raised">
           {canAskClaude && (
             <button
               onClick={(event) => {
                 event.stopPropagation();
                 enqueueClaude({ kind: 'thread', threadId: thread.id }, { repoPath, sessionId: thread.sessionId, ref: thread.ref, pick: fixPick });
               }}
-              className="inline-flex items-center gap-1 h-6 px-1.5 rounded text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer"
-              title={`${repoAgent.short} answers a question or makes the change asked for`}
+              className="inline-flex items-center justify-center w-6 h-6 rounded text-text-secondary hover:text-text hover:bg-hover cursor-pointer"
+              title={`Send to ${repoAgent.short}: it answers this comment or makes the change it asks for`}
+              aria-label={`Send to ${repoAgent.short}`}
             >
               <SparkleIcon className="w-3 h-3 text-claude" />
-              Answer or fix
             </button>
           )}
           <button
@@ -283,10 +289,11 @@ function ThreadRow(props: ThreadRowProps) {
               event.stopPropagation();
               toggleStatus();
             }}
-            className="inline-flex items-center gap-1 h-6 px-1.5 rounded text-xs text-text-secondary hover:text-text hover:bg-hover cursor-pointer"
+            className="inline-flex items-center justify-center w-6 h-6 rounded text-text-secondary hover:text-text hover:bg-hover cursor-pointer"
+            title={isOpen ? 'Resolve' : 'Reopen'}
+            aria-label={isOpen ? 'Resolve' : 'Reopen'}
           >
             {isOpen ? <CheckIcon size="xs" /> : <UndoIcon size="xs" />}
-            {isOpen ? 'Resolve' : 'Reopen'}
           </button>
           <button
             onClick={(event) => {
@@ -506,6 +513,24 @@ function CommentsPanelBody() {
     setGroupState(next);
     writeGroupState(next);
   };
+
+  // The thread stepped to with ] (one the diff can't show) unfolds its group so it can be seen.
+  const currentThreadId = useCurrentThread((state) => state.id);
+  const currentGroupKey = [...here, ...elsewhere].find((group) => group.files.some((file) => file.threads.some((thread) => thread.id === currentThreadId)))?.key ?? null;
+  useEffect(() => {
+    if (!currentGroupKey) {
+      return;
+    }
+    setGroupState((state) => {
+      const key = `${repoPath}\n${currentGroupKey}`;
+      if (state[key] !== false) {
+        return state;
+      }
+      const next = { ...state, [key]: true };
+      writeGroupState(next);
+      return next;
+    });
+  }, [currentGroupKey, currentThreadId, repoPath]);
 
   const groupAction = (group: ViewGroup) => {
     if (group.otherBranch) {

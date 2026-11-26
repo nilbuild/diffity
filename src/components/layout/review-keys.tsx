@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { isThreadResolved, type CommentThread } from '../comments/types';
+import type { DiffFile } from '../../lib/diff-parser/types';
 import { useThreadNavigation } from '../../hooks/use-thread-navigation';
 import { useRepoPath } from '../../hooks/use-repo';
 import { useCurrentThread } from '../../lib/current-thread';
@@ -14,6 +15,8 @@ interface ReviewKeysProps {
   threads: CommentThread[];
   onScrollToThread: (threadId: string, filePath: string) => void;
   onResolve: (threadId: string) => void;
+  /** The view's diff, so { } reach outdated threads too (in the Comments panel). */
+  files?: DiffFile[];
 }
 
 function isTyping(target: EventTarget | null): boolean {
@@ -51,10 +54,10 @@ function openReply(threadId: string) {
 
 /** Review-loop keys on the current thread (see `lib/current-thread`): ⇧R reply, E resolve, A ask the agent, { } step, ⇧⌘↵ review. */
 export function ReviewKeys(props: ReviewKeysProps) {
-  const { threads, onScrollToThread, onResolve } = props;
+  const { threads, onScrollToThread, onResolve, files } = props;
   const repoPath = useRepoPath();
   const review = useReviewState();
-  const { goToNext, goToPrevious } = useThreadNavigation(threads, onScrollToThread);
+  const { goToNext, goToPrevious } = useThreadNavigation(threads, onScrollToThread, files);
   const latest = useRef({ threads, onResolve, goToNext, goToPrevious, review, repoPath });
   latest.current = { threads, onResolve, goToNext, goToPrevious, review, repoPath };
 

@@ -8,12 +8,26 @@ import { buttonOutline } from '../../components/ui/button-styles';
 import { CommentIcon } from '../../components/ui/icon';
 import { clearFreshComments, useCommentSync } from '../pr/pr-checkout';
 
+/** The tooltip's count: the same number as the drawer's Open tab, and where the rest are when it isn't all of them. */
+export function openSummary(count: number, total: number, inAView: boolean): string {
+  if (!inAView) {
+    return total > 0 ? ` · ${total} open in all views` : '';
+  }
+  const others = total - count;
+  const here = count > 0 ? ` · ${count} open in this view` : '';
+  if (others <= 0) {
+    return here;
+  }
+  return `${here} · ${others} open in other ${others === 1 ? 'view' : 'views'}`;
+}
+
 /** This view's open comments; only the icon when just other views have some, and hidden when the project has none. */
 export function CommentsButton() {
   const { data, isPending, isError } = useRepoThreads();
   const viewRef = useCurrentViewRef();
   const threads = data ?? [];
   const count = threads.filter((thread) => isOpenThread(thread) && inView(thread, viewRef)).length;
+  const total = threads.filter(isOpenThread).length;
   const loading = isPending && !isError;
   const open = useUi((state) => state.commentsOpen);
   const fresh = useCommentSync((state) => state.fresh);
@@ -31,7 +45,7 @@ export function CommentsButton() {
     <button
       onClick={toggleComments}
       className={cn(buttonOutline, 'relative px-2.5', open && 'bg-selected hover:bg-selected')}
-      title={`Comments (C)${count > 0 ? ` · ${count} open here` : ''}${fresh > 0 ? ` · ${fresh} new from GitHub` : ''}`}
+      title={`Comments (C)${openSummary(count, total, viewRef !== null)}${fresh > 0 ? ` · ${fresh} new from GitHub` : ''}`}
       aria-pressed={open}
     >
       <CommentIcon size="md" className="text-text-secondary" />

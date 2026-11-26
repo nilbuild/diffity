@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useCopy } from '../../hooks/use-copy';
 import { useThreadNavigation } from '../../hooks/use-thread-navigation';
 import type { CommentThread } from './types';
+import type { DiffFile } from '../../lib/diff-parser/types';
 import { ConfirmDialog } from '../ui/confirm-dialog';
 import { buttonGroup } from '../ui/button-styles';
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon, CopyIcon, TrashIcon } from '../ui/icon';
@@ -15,6 +16,8 @@ interface CommentToolbarActionsProps {
   extras?: boolean;
   /** `]` and `[` step through the open comments (off where they mean something else, like the guide's chapters). */
   keys?: boolean;
+  /** The view's diff: threads it can't show (outdated ones) are still counted and open in the Comments panel. */
+  files?: DiffFile[];
 }
 
 function isTyping(target: EventTarget | null): boolean {
@@ -30,11 +33,12 @@ export function CommentToolbarActions(props: CommentToolbarActionsProps) {
     formatForCopy,
     extras = true,
     keys = false,
+    files,
   } = props;
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { copied, copy } = useCopy();
-  const { currentIndex, count: unresolvedCount, goToPrevious, goToNext } = useThreadNavigation(threads, onScrollToThread);
+  const { currentIndex, count: unresolvedCount, goToPrevious, goToNext } = useThreadNavigation(threads, onScrollToThread, files);
   const stepRef = useRef({ goToPrevious, goToNext });
   stepRef.current = { goToPrevious, goToNext };
 

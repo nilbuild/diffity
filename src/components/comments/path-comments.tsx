@@ -110,7 +110,7 @@ export function PathComments(props: PathCommentsProps) {
             )}
             {threads.length > 0 ? (
               <div className="p-3 space-y-3">
-                {threads.map((thread, index) => (
+                {threads.map((thread) => (
                   <ThreadCard
                     key={thread.id}
                     thread={thread}
@@ -121,12 +121,8 @@ export function PathComments(props: PathCommentsProps) {
                     onDeleteComment={(commentId) => commentActions.deleteComment(thread.id, commentId)}
                     onDeleteThread={() => commentActions.deleteThread(thread.id)}
                     className="bg-bg-secondary"
-                    headerLeft={
-                      <>
-                        <span className="text-[11px] text-text-muted font-mono">Thread #{index + 1}</span>
-                        {isThreadResolved(thread) && <ThreadBadge variant="resolved" />}
-                      </>
-                    }
+                    location={label}
+                    headerLeft={isThreadResolved(thread) && <ThreadBadge variant="resolved" />}
                   />
                 ))}
               </div>

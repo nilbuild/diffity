@@ -1,4 +1,5 @@
 import { cn } from '../../lib/cn';
+import { SEVERITY_LABELS } from '../comments/types';
 
 type ThreadBadgeVariant = 'resolved' | 'dismissed' | 'outdated' | 'pending';
 
@@ -32,6 +33,17 @@ export function ThreadBadge(props: ThreadBadgeProps) {
       variantStyles[variant],
     )}>
       {children ?? defaultLabels[variant]}
+    </span>
+  );
+}
+
+/** The reviewer's tag on a thread (Must fix, Question, Suggestion, Nit), in the diff and in the Comments panel. */
+export function SeverityChip(props: { severity: string }) {
+  const { severity } = props;
+
+  return (
+    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-bg-tertiary text-text-secondary shrink-0">
+      {SEVERITY_LABELS[severity] ?? severity}
     </span>
   );
 }

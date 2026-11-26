@@ -167,22 +167,22 @@ export const SidebarFilter = forwardRef<HTMLInputElement, SidebarFilterProps>(fu
   );
 });
 
-export function CommentedOnlyToggle(props: { active: boolean; count: number; onToggle: () => void }) {
-  const { active, count, onToggle } = props;
-  const label = count > 99 ? '99+' : String(count);
+/** Icon-only toggle: the tree's own badges carry the counts, so this shows none. */
+export function CommentedOnlyToggle(props: { active: boolean; onToggle: () => void }) {
+  const { active, onToggle } = props;
 
   return (
     <button
       className={cn(
-        'inline-flex items-center gap-1.5 shrink-0 h-7 px-2 rounded-md border text-xs font-medium tabular-nums transition-colors cursor-pointer',
+        'inline-flex items-center justify-center shrink-0 w-7 h-7 rounded-md border transition-colors cursor-pointer',
         active ? 'bg-selected text-text border-transparent' : 'bg-raised border-control-border text-text-secondary hover:bg-control-hover hover:text-text',
       )}
       onClick={onToggle}
-      title={active ? 'Show all files' : 'Show only files with open comments'}
+      title="Show only files with comments"
+      aria-label="Show only files with comments"
       aria-pressed={active}
     >
       <CommentIcon size="sm" />
-      {label}
     </button>
   );
 }

@@ -58,7 +58,7 @@ describe('stepIndex', () => {
 describe('withAgent', () => {
   it('names the picked agent in the shortcut rows', () => {
     const rows = withAgent(SHORTCUT_SECTIONS, { short: 'Codex', handle: 'codex' }).flatMap((section) => section.shortcuts);
-    expect(rows.some((row) => row.label === 'Ask Codex in a comment' && row.keys[0] === '@codex')).toBe(true);
+    expect(rows.some((row) => row.label === 'Send a comment to Codex by mentioning it' && row.keys[0] === '@codex')).toBe(true);
     expect(rows.some((row) => /\{agent\}|\{handle\}|Claude/.test(`${row.label} ${row.keys.join(' ')}`))).toBe(false);
   });
 });

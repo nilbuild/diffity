@@ -7,6 +7,7 @@ import { ThreadCard, ThreadMenu } from './thread-card';
 import { CheckCircleIcon, CommentIcon, FoldIcon, UnfoldIcon } from '../ui/icon';
 import { cn } from '../../lib/cn';
 import { commentPreview } from './comment-preview';
+import { threadLocation } from '../../lib/comment-navigation';
 import { AuthorAvatar } from './comment-bubble';
 import { useViewState } from '../../lib/view-state';
 import { appliedSuggestion } from '../../features/suggestions/suggestion';
@@ -144,11 +145,6 @@ export function CommentThread(props: CommentThreadProps) {
     return <tr ref={rowRef} data-thread-id={thread.id}>{collapsedContent}</tr>;
   }
 
-  const lineLabel =
-    thread.startLine === thread.endLine
-      ? `Line ${thread.startLine}`
-      : `Lines ${thread.startLine}–${thread.endLine}`;
-
   const threadContent = (
     <td colSpan={colSpan} className="px-4 py-3 font-sans">
       <ThreadCard
@@ -163,11 +159,9 @@ export function CommentThread(props: CommentThreadProps) {
         onDeleteComment={(commentId) => onDeleteComment(thread.id, commentId)}
         onDeleteThread={() => onDeleteThread(thread.id)}
         className="thread-card max-w-[720px] bg-bg"
+        location={threadLocation(thread)}
         headerLeft={
           <>
-            <span className='text-[11px] text-text-muted font-mono'>
-              {lineLabel}
-            </span>
             <StatusBadge status={thread.status} />
             {isOutdated && <ThreadBadge variant='outdated' />}
           </>

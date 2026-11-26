@@ -24,6 +24,7 @@ import { useUncommittedPaths } from '../layout/diff-context-bar';
 import { uncommittedTwin } from '../layout/ref-menu';
 import { useReviewThreads } from '../../hooks/use-review-threads';
 import { AddressedBadge } from './addressed-badge';
+import { SeverityChip } from '../ui/thread-badge';
 
 interface ThreadCardProps {
   thread: CommentThreadType;
@@ -33,6 +34,8 @@ interface ThreadCardProps {
   onReply?: (body: string, options: SubmitOptions) => void;
   onResolve?: () => void;
   onUnresolve?: () => void;
+  /** Where the thread is ("General", "Lines 26–27"); the header reads location · tag · origin · status. */
+  location?: string | null;
   headerLeft?: React.ReactNode;
   headerRight?: React.ReactNode;
   /** Extra ⋯ entries shown first (e.g. Collapse). */
@@ -154,6 +157,7 @@ export function ThreadCard(props: ThreadCardProps) {
     onReply,
     onResolve,
     onUnresolve,
+    location,
     headerLeft,
     headerRight,
     menuItems = [],
@@ -200,8 +204,10 @@ export function ThreadCard(props: ThreadCardProps) {
     <div className={cn('rounded-lg overflow-hidden border border-border', className)} data-thread-id={thread.id}>
       <div className="flex items-center gap-2 h-9 px-3 bg-bg-secondary border-b border-border-muted whitespace-nowrap">
         <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-          {headerLeft}
+          {location && <span className="text-[11px] text-text-muted font-mono truncate" title={location}>{location}</span>}
+          {thread.severity && <SeverityChip severity={thread.severity} />}
           <OriginBadge thread={thread} prMode={review.prMode} prUrl={details?.pr?.url ?? null} />
+          {headerLeft}
           {addressedBy && <AddressedBadge agent={addressedBy} />}
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -242,7 +248,7 @@ export function ThreadCard(props: ThreadCardProps) {
               ...menuItems,
               ...(compact && onResolve && onUnresolve && !resolved ? [{ label: 'Resolve', onSelect: onResolve }] : []),
               ...(compact && onUnresolve && resolved ? [{ label: 'Reopen', onSelect: onUnresolve }] : []),
-              ...(canAskClaude && (compact || !showAskClaude || canPromote) ? [{ label: `Ask ${askAgent.short}`, onSelect: askClaude }] : []),
+              ...(canAskClaude && (compact || !showAskClaude || canPromote) ? [{ label: `Send to ${askAgent.short}`, onSelect: askClaude }] : []),
               ...(compact && canPromote && !review.promoteBlocked ? [{ label: 'Add to my review', onSelect: startPromote }] : []),
               { label: 'Delete thread', onSelect: onDeleteThread, danger: true },
             ]}
@@ -291,7 +297,7 @@ export function ThreadCard(props: ThreadCardProps) {
                 setShowReply(false);
               }}
               onCancel={() => setShowReply(false)}
-              placeholder={lastAgentName && review.enabled ? `Reply to ${lastAgentName}…` : 'Reply…'}
+              placeholder="Reply…"
               submitLabel="Reply"
               reviewable={!claudeThread}
               isReply
@@ -308,7 +314,7 @@ export function ThreadCard(props: ThreadCardProps) {
               onClick={() => setShowReply(true)}
               className="flex items-center w-full h-8 px-2.5 rounded-md border border-control-border bg-raised text-left text-[13px] text-text-muted hover:border-focus hover:text-text-secondary transition-colors cursor-text"
             >
-              {lastAgentName && review.enabled ? `Reply to ${lastAgentName}…` : 'Reply…'}
+              Reply…
             </button>
           </div>
         )

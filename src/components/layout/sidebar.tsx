@@ -52,7 +52,7 @@ export function Sidebar(props: SidebarProps) {
   const commentedFileCount = commentCountsByFile.size;
   const countLabel = useMemo(() => {
     if (commentedFilesOnly) {
-      return `${commentedFileCount} of ${files.length} files`;
+      return `${commentedFileCount} of ${files.length} file${files.length === 1 ? '' : 's'}`;
     }
     if (reviewedFiles.size > 0) {
       return `${reviewedFiles.size} of ${files.length} viewed`;

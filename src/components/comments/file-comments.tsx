@@ -40,12 +40,8 @@ export function FileComments(props: FileCommentsProps) {
           onDeleteComment={(commentId) => commentActions.deleteComment(thread.id, commentId)}
           onDeleteThread={() => commentActions.deleteThread(thread.id)}
           className="bg-bg max-w-[760px]"
-          headerLeft={
-            <>
-              <span className="text-[11px] text-text-muted">Whole file</span>
-              {isThreadResolved(thread) && <ThreadBadge variant="resolved" />}
-            </>
-          }
+          location="Whole file"
+          headerLeft={isThreadResolved(thread) && <ThreadBadge variant="resolved" />}
         />
       ))}
       {showForm && (
