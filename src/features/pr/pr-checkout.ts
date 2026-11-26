@@ -8,6 +8,7 @@ import { openSettingsAt } from '../../lib/ui-store';
 import type { GitStatus, PullRequest, PullResult, StashResult } from '../../lib/types';
 import { prBaseFor, prRefFor } from '../../lib/pr-ref';
 import { openRepoAt, shortPath } from '../welcome/recent-repos';
+import { runsOnCheckout } from '../claude/claude-runner';
 
 export interface ReturnPoint {
   branch: string | null;
@@ -21,7 +22,8 @@ export interface ReturnPoint {
 export type CheckoutGuard =
   | { kind: 'checkout'; repoPath: string; input: string; label: string; status: GitStatus }
   | { kind: 'back'; repoPath: string; point: ReturnPoint; status: GitStatus }
-  | { kind: 'branch'; repoPath: string; branch: string; status: GitStatus };
+  | { kind: 'branch'; repoPath: string; branch: string; status: GitStatus }
+  | { kind: 'agents'; repoPath: string; target: string; count: number; proceed: () => void };
 
 /** What opening a pull request is doing, shown in place of the diff of the repository it runs in. */
 export interface CheckoutProgress {
@@ -40,6 +42,16 @@ export const useCheckoutState = create<CheckoutState>(() => ({ guard: null, busy
 
 export function dismissGuard() {
   useCheckoutState.setState({ guard: null });
+}
+
+/** Agents read the checkout's files, so switching under them puts their comments on another branch's lines: ask first. */
+function agentsInTheWay(repoPath: string, target: string, proceed: () => void): boolean {
+  const count = runsOnCheckout(repoPath).length;
+  if (count === 0) {
+    return false;
+  }
+  useCheckoutState.setState({ guard: { kind: 'agents', repoPath, target, count, proceed } });
+  return true;
 }
 
 type ToDiff = (ref: string) => void;
@@ -214,6 +226,9 @@ export async function autoSyncPrComments(repoPath: string, pr: Pick<PullRequest,
 /** Checks out a PR in `repoPath`, or opens the worktree that already has its branch checked out. */
 export async function checkoutPullRequest(repoPath: string, input: string, nav: { toDiff: ToDiff; navigate: NavigateFunction }) {
   const label = labelFor(input);
+  if (agentsInTheWay(repoPath, `pull request ${label}`, () => void checkoutPullRequest(repoPath, input, nav))) {
+    return;
+  }
   const auth = await tauri.githubAuthStatus().catch(() => null);
   if (!auth?.authenticated) {
     toast.info('Sign in to GitHub to check out pull requests', {
@@ -285,6 +300,9 @@ export async function returnFromPullRequest(repoPath: string, nav: SwitchNav) {
     return;
   }
   const label = returnLabel(point);
+  if (agentsInTheWay(repoPath, label, () => void returnFromPullRequest(repoPath, nav))) {
+    return;
+  }
   if (point.branch && !(await branchExists(repoPath, point.branch))) {
     await saveReturnPoint(repoPath, null);
     const stashNote = describeStash(point.stash);
@@ -330,6 +348,9 @@ export function localNameFor(branch: string, isRemote: boolean): string {
 export async function switchBranch(repoPath: string, branch: string, nav: SwitchNav) {
   const status = await tauri.gitStatus(repoPath);
   if (status.branch === branch) {
+    return;
+  }
+  if (agentsInTheWay(repoPath, branch, () => void switchBranch(repoPath, branch, nav))) {
     return;
   }
   if (hasTrackedChanges(status)) {

@@ -423,6 +423,33 @@ export async function stopRun(runId: string) {
   await cancelRunning(run);
 }
 
+/** Runs working in `repoPath`'s own checkout, running or waiting their turn. */
+export function runsOnCheckout(repoPath: string): ClaudeRun[] {
+  return useClaude.getState().runs.filter((run) => run.context.repoPath === repoPath && run.onCheckout);
+}
+
+/** Stops every run on `repoPath`'s checkout and waits for them to end, at most 10 seconds. */
+export async function stopRunsOnCheckout(repoPath: string) {
+  await Promise.all(runsOnCheckout(repoPath).map((run) => stopRun(run.id)));
+  await new Promise<void>((resolve) => {
+    let unsubscribe = () => {};
+    const finish = () => {
+      clearTimeout(timer);
+      unsubscribe();
+      resolve();
+    };
+    const timer = setTimeout(finish, 10_000);
+    unsubscribe = useClaude.subscribe(() => {
+      if (runsOnCheckout(repoPath).length === 0) {
+        finish();
+      }
+    });
+    if (runsOnCheckout(repoPath).length === 0) {
+      finish();
+    }
+  });
+}
+
 /** Stops a run so a newer message can go next: no "was stopped" toast, and the queue stays. */
 export async function interruptRun(runId: string) {
   const run = useClaude.getState().runs.find((item) => item.id === runId && item.state === 'running');
