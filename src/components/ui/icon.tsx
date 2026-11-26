@@ -524,6 +524,30 @@ export const InfoIcon = softGlyph((id) => (
   </>
 ));
 
+export const HelpIcon = softGlyph((id) => (
+  <>
+    <Knockout id={`${id}-m`}>
+      <path d="M9.4 9.35a2.7 2.7 0 0 1 5.25.9c0 1.85-2.65 2.3-2.65 3.95" fill="none" stroke="#000" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="17.1" r="1.3" fill="#000" />
+    </Knockout>
+    <circle mask={`url(#${id}-m)`} cx="12" cy="12" r="9.5" />
+  </>
+));
+
+export const StarIcon = softGlyph(() => (
+  <path d="M12 2.9a1.1 1.1 0 0 1 1 .62l2.37 4.8 5.3.77a1.1 1.1 0 0 1 .61 1.88l-3.84 3.74.9 5.28a1.1 1.1 0 0 1-1.6 1.16L12 18.66l-4.74 2.5a1.1 1.1 0 0 1-1.6-1.17l.9-5.27-3.83-3.74a1.1 1.1 0 0 1 .61-1.88l5.3-.77 2.37-4.8A1.1 1.1 0 0 1 12 2.9z" />
+));
+
+export const BugIcon = softGlyph((id) => (
+  <>
+    <Knockout id={`${id}-m`}>
+      <path d="M12 10.5v8" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" />
+    </Knockout>
+    <path mask={`url(#${id}-m)`} d="M12 6.5c3.3 0 5.5 2.4 5.5 6.25S15.3 20.5 12 20.5s-5.5-3.9-5.5-7.75S8.7 6.5 12 6.5z" />
+    <path d="M9 7.2 7.6 4.6M15 7.2l1.4-2.6M3.5 12.5h3M17.5 12.5h3M4.5 18l2.6-1.4M19.5 18l-2.6-1.4M4.5 7.5l2.6 1.4M19.5 7.5l-2.6 1.4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </>
+));
+
 export const ApproveIcon = softGlyph((id) => (
   <>
     <Knockout id={`${id}-m`}>

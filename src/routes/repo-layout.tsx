@@ -21,6 +21,8 @@ import { taskLocation } from '../features/tasks/task-menu';
 import { toggleComments } from '../lib/ui-store';
 import { PullRequestsDialog } from '../features/pr/pull-requests-dialog';
 import { CheckoutGuardDialog } from '../features/pr/checkout-guard-dialog';
+import { FeedbackDialog } from '../features/feedback/feedback-dialog';
+import { StarPrompt } from '../features/feedback/star-prompt';
 import { CommitDialog } from '../features/pr/commit-dialog';
 import { CommandPalette } from '../features/palette/command-palette';
 import { openPalette } from '../features/palette/palette-store';
@@ -256,6 +258,8 @@ export function RepoLayout() {
       <PullRequestsDialog />
       <CheckoutGuardDialog />
       <CommitDialog />
+      <FeedbackDialog />
+      <StarPrompt />
       <CommandPalette />
       <NewTaskDialog />
     </>

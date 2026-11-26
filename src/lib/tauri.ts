@@ -125,6 +125,9 @@ export const repoOverview = (repoPath: string) => invoke<OverviewFile[]>('repo_o
 export const openInEditor = (repoPath: string, path: string, line?: number | null, editor?: string | null) =>
   invoke<void>('open_in_editor', { repoPath, path, line: line ?? null, editor: editor ?? null });
 export const reportIssue = () => invoke<void>('report_issue');
+export const githubDiffityStarred = () => invoke<boolean | null>('github_diffity_starred');
+export const githubStarDiffity = () => invoke<void>('github_star_diffity');
+export const sendFeedback = (kind: 'idea' | 'bug', text: string) => invoke<void>('send_feedback', { kind, text });
 export const takeOpenRequests = () => invoke<OpenRequest[]>('take_open_requests');
 export const projectData = () => invoke<ProjectData[]>('project_data');
 export const clearProjectData = (repoPath: string) => invoke<void>('clear_project_data', { repoPath });

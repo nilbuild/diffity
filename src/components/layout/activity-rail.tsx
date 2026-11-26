@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { cn } from '../../lib/cn';
 import { repoBase, useRepoNav } from '../../hooks/use-repo';
-import { openSettings } from '../../lib/ui-store';
+import { openSettings, openShortcuts, openWhatsNew } from '../../lib/ui-store';
 import { clickModKey, fileManagerName, modKey } from '../../lib/platform';
 import { openRepoAt, shortPath, useRecentRepos } from '../../features/welcome/recent-repos';
 import { repoInitials, useProjectInitials } from '../../features/welcome/repo-badge';
@@ -17,8 +17,10 @@ import { useBusyRepoPaths, useClaude } from '../../features/claude/claude-runner
 import { parentPathOf, useAllTasks } from '../../features/tasks/tasks';
 import { useOpening } from '../../lib/opening';
 import { switchToProject } from '../../features/welcome/resume';
-import { ArrowDownIcon, ArrowUpIcon, CopyIcon, EditorIcon, ExternalLinkIcon, FoldIcon, FolderOpenIcon, LinkIcon, PencilIcon, PlusIcon, RevealIcon, SettingsIcon, TerminalIcon, UnfoldIcon, XIcon } from '../ui/icon';
-import { ContextMenu, MenuItem, MenuLabel, MenuSeparator } from '../ui/popover';
+import { ArrowDownIcon, ArrowUpIcon, CopyIcon, EditorIcon, ExternalLinkIcon, FoldIcon, FolderOpenIcon, LinkIcon, PencilIcon, PlusIcon, RevealIcon, SettingsIcon, TerminalIcon, HelpIcon, CommentIcon, BugIcon, StarIcon, InfoIcon, KeyboardIcon, UnfoldIcon, XIcon } from '../ui/icon';
+import { ContextMenu, MenuItem, MenuLabel, MenuSeparator, Popover, useMenu } from '../ui/popover';
+import { openFeedback } from '../../features/feedback/feedback-dialog';
+import { starDiffity } from '../../features/feedback/star-prompt';
 import { openPath, revealItemInDir } from '@tauri-apps/plugin-opener';
 import * as tauri from '../../lib/tauri';
 import { useEditorName } from '../../hooks/use-editor-name';
@@ -60,6 +62,43 @@ function writeOrder(order: string[]) {
 
 function repoName(path: string) {
   return path.split('/').filter(Boolean).pop() ?? 'repo';
+}
+
+/** Feedback, bug reports, What's new, shortcuts and the GitHub star, in one place above Settings. */
+function HelpButton() {
+  const menu = useMenu();
+  const run = (action: () => void) => () => {
+    menu.close();
+    action();
+  };
+
+  return (
+    <div className="group relative w-full flex justify-center mb-1">
+      <button
+        ref={menu.anchorRef}
+        onClick={menu.toggle}
+        aria-label="Help and feedback"
+        aria-haspopup="menu"
+        aria-expanded={menu.open}
+        className={cn(
+          'w-9 h-9 rounded-[10px] flex items-center justify-center text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer',
+          menu.open && 'bg-hover text-text',
+        )}
+      >
+        <HelpIcon size="xl" />
+      </button>
+      {!menu.open && <RailTooltip title="Help and feedback" />}
+      <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} width={240}>
+        <MenuItem icon={<CommentIcon size="sm" />} label="Send feedback…" onSelect={run(() => openFeedback('idea'))} />
+        <MenuItem icon={<BugIcon size="sm" />} label="Report a bug…" onSelect={run(() => openFeedback('bug'))} />
+        <MenuSeparator />
+        <MenuItem icon={<InfoIcon size="sm" />} label="What’s new" onSelect={run(openWhatsNew)} />
+        <MenuItem icon={<KeyboardIcon size="sm" />} label="Keyboard shortcuts" hint="?" onSelect={run(openShortcuts)} />
+        <MenuSeparator />
+        <MenuItem icon={<StarIcon size="sm" className="text-modified" />} label="Star on GitHub" onSelect={run(() => void starDiffity())} />
+      </Popover>
+    </div>
+  );
 }
 
 function RailTooltip(props: { title: string; detail?: string; shortcut?: string | null }) {
@@ -708,6 +747,7 @@ function ActivityRail() {
         </div>
       )}
       <div data-tauri-drag-region className="flex-1 w-full" />
+      <HelpButton />
       <div className="group relative w-full flex justify-center pb-3">
         <button
           onClick={openSettings}

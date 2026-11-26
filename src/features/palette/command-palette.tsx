@@ -9,7 +9,8 @@ import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import { cn } from '../../lib/cn';
 import * as tauri from '../../lib/tauri';
 import { commitRef, errorMessage, openInEditor } from '../../lib/api';
-import { reportIssue } from '../../lib/report-issue';
+import { openFeedback } from '../feedback/feedback-dialog';
+import { starDiffity } from '../feedback/star-prompt';
 import { fileManagerName, modKey } from '../../lib/platform';
 import { shortcutHint } from '../../lib/shortcuts';
 import { setWrapLines, useTypography } from '../../lib/typography';
@@ -28,7 +29,7 @@ import { checkoutPullRequest } from '../pr/pr-checkout';
 import { prDiffRef } from '../../components/layout/ref-menu';
 import {
   AlertCircleIcon, ChangesIcon, CommentIcon, EditorIcon, FetchIcon, FileIcon, FilesIcon, GitCommitIcon, GitPullRequestIcon,
-  HistoryIcon, HomeIcon, KeyboardIcon, MoonIcon, WrapIcon, SparkleIcon, PullIcon, PushIcon, RefreshIcon, RevealIcon, SearchIcon, SettingsIcon, SidebarIcon,
+  HistoryIcon, HomeIcon, KeyboardIcon, MoonIcon, WrapIcon, SparkleIcon, PullIcon, PushIcon, RefreshIcon, RevealIcon, SearchIcon, SettingsIcon, SidebarIcon, StarIcon,
 } from '../../components/ui/icon';
 import { checkForUpdatesAndTell } from '../updates/updater';
 import { openClaudeHistory, openClaudePanel } from '../claude/panel-store';
@@ -79,7 +80,9 @@ function useGlobalActions(): PaletteAction[] {
     { id: 'reveal', title: `Reveal in ${fileManagerName}`, group: 'Actions', icon: <RevealIcon size="sm" />, run: () => { revealItemInDir(nav.repoPath).catch(() => undefined); } },
     { id: 'settings', title: 'Settings', group: 'Actions', hint: shortcutHint('settings'), icon: <SettingsIcon size="sm" />, run: openSettings },
     { id: 'shortcuts', title: 'Keyboard shortcuts', group: 'Actions', hint: shortcutHint('shortcuts'), icon: <KeyboardIcon size="sm" />, run: openShortcuts },
-    { id: 'report-issue', title: 'Report an issue…', group: 'Actions', keywords: 'bug feedback github idea feature request help', icon: <AlertCircleIcon size="sm" />, run: reportIssue },
+    { id: 'send-feedback', title: 'Send feedback…', group: 'Actions', keywords: 'idea feature request suggestion github help', icon: <CommentIcon size="sm" />, run: () => openFeedback('idea') },
+    { id: 'report-issue', title: 'Report a bug…', group: 'Actions', keywords: 'bug issue problem crash github help', icon: <AlertCircleIcon size="sm" />, run: () => openFeedback('bug') },
+    { id: 'star', title: 'Star Diffity on GitHub', group: 'Actions', keywords: 'star github support open source', icon: <StarIcon size="sm" />, run: () => { void starDiffity(); } },
     { id: 'check-updates', title: 'Check for updates…', group: 'Actions', keywords: 'update upgrade new version release', icon: <RefreshIcon size="sm" />, run: () => { void checkForUpdatesAndTell(); } },
     { id: 'whats-new', title: 'What’s new in Diffity', group: 'Actions', keywords: 'release notes changelog updates new features version', icon: <SparkleIcon size="sm" />, run: openWhatsNew },
   ], [nav, theme, toggleTheme, wrapLines]);
