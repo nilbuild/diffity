@@ -413,10 +413,12 @@ export function DiffPage(props: DiffPageProps) {
 
   const handleRevert = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['diff'] });
+    queryClient.invalidateQueries({ queryKey: ['binary-versions'] });
   }, [queryClient]);
 
   const handleRefreshDiff = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['diff'] });
+    queryClient.invalidateQueries({ queryKey: ['binary-versions'] });
     resetStaleness();
   }, [queryClient, resetStaleness]);
 

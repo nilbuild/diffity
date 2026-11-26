@@ -182,6 +182,15 @@ fn binary_files_are_flagged() {
     assert!(file(&res, "untracked.bin").binary);
     let v = diff::get_file_versions(&repo.path, "work", "img.bin", None).unwrap();
     assert!(v.old_contents.is_none() && v.new_contents.is_none());
+
+    let b = diff::get_binary_versions(&repo.path, "work", "img.bin", None, true).unwrap();
+    let old = b.old.unwrap();
+    let new = b.new.unwrap();
+    assert_eq!((old.size, new.size), (6, 4));
+    assert_eq!(new.base64.as_deref(), Some("AAkJCQ=="));
+    let sizes_only = diff::get_binary_versions(&repo.path, "work", "untracked.bin", None, false).unwrap();
+    assert!(sizes_only.old.is_none());
+    assert!(sizes_only.new.unwrap().base64.is_none());
 }
 
 #[test]

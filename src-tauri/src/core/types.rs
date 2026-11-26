@@ -146,6 +146,21 @@ pub struct FileVersions {
     pub new_contents: Option<String>,
 }
 
+/// One side of a binary file: its size, and its bytes as base64 when they were asked for and small enough.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BinarySide {
+    pub size: u64,
+    pub base64: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct BinaryVersions {
+    pub old: Option<BinarySide>,
+    pub new: Option<BinarySide>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Commit {

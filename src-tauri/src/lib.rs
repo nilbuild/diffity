@@ -328,6 +328,7 @@ pub fn run() {
             commands::diff::get_diff,
             commands::diff::get_file_patch,
             commands::diff::get_file_versions,
+            commands::diff::get_binary_versions,
             commands::diff::diff_fingerprint,
             commands::diff::revert_file,
             commands::diff::revert_hunk,

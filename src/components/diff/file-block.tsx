@@ -24,6 +24,7 @@ import { openComments } from '../../lib/ui-store';
 import { toast } from 'sonner';
 import { isRenderableFile } from '../../lib/file-types';
 import { RichDiffViewer } from './rich-diff-viewer';
+import { BinaryDiffViewer } from './binary-diff-viewer';
 import { ConfirmDialog } from '../ui/confirm-dialog';
 import { computeGaps, createContextLines, getExpandRange, type ExpandableGap } from '../../lib/context-expansion';
 import { fileContentOptions } from '../../queries/file';
@@ -883,7 +884,7 @@ function FileCard(props: FileCardProps) {
               Loading diff…
             </div>
           ) : file.isBinary ? (
-            <div className="p-4 text-center text-text-muted italic">Binary file not shown</div>
+            <BinaryDiffViewer filePath={filePath} oldPath={file.oldPath} baseRef={baseRef} />
           ) : file.hunks.length === 0 ? (
             <div className="p-4 text-center text-text-muted italic">
               {file.oldMode && file.newMode

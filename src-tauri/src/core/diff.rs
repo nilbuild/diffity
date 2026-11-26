@@ -2,13 +2,14 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::Path;
 use std::time::UNIX_EPOCH;
 
+use base64::Engine;
 use sha2::{Digest, Sha256};
 
 use crate::core::diffignore::DiffIgnore;
 use crate::core::error::{AppError, Result};
 use crate::core::git::{self, EMPTY_TREE_SHA};
-use crate::core::tree::{is_binary, resolve_in_repo};
-use crate::core::types::{DiffFileSummary, DiffResult, FileStatus, FileVersions, ResolvedRef, Side};
+use crate::core::tree::{is_binary, resolve_in_repo, MAX_BASE64_BYTES};
+use crate::core::types::{BinarySide, BinaryVersions, DiffFileSummary, DiffResult, FileStatus, FileVersions, ResolvedRef, Side};
 
 pub const WORKING_TREE_REFS: [&str; 4] = ["work", ".", "staged", "unstaged"];
 
@@ -843,6 +844,24 @@ pub fn get_file_versions(repo: &Path, r: &str, path: &str, old_path: Option<&str
     Ok(FileVersions {
         old_contents: to_text(old),
         new_contents: to_text(new),
+    })
+}
+
+fn to_binary_side(data: Option<Vec<u8>>, with_data: bool) -> Option<BinarySide> {
+    let data = data?;
+    let size = data.len() as u64;
+    let base64 = (with_data && size <= MAX_BASE64_BYTES).then(|| base64::engine::general_purpose::STANDARD.encode(&data));
+    Some(BinarySide { size, base64 })
+}
+
+/// Size of each side of a binary file, with the bytes as base64 when `with_data` is set (image previews).
+pub fn get_binary_versions(repo: &Path, r: &str, path: &str, old_path: Option<&str>, with_data: bool) -> Result<BinaryVersions> {
+    let plan = plan(repo, r)?;
+    let old = read_source(repo, &plan.old, old_path.unwrap_or(path))?;
+    let new = read_source(repo, &plan.new, path)?;
+    Ok(BinaryVersions {
+        old: to_binary_side(old, with_data),
+        new: to_binary_side(new, with_data),
     })
 }
 

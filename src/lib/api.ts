@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import type { CommentThread, CommentAuthor, CommentSide, Comment, SubmitOptions } from '../components/comments/types';
 import * as tauri from './tauri';
-import type { DiffFileSummary, PullRequest, Thread, ThreadSnapshot, Comment as BackendComment, TreeEntry } from './types';
+import type { BinarySide, DiffFileSummary, PullRequest, Thread, ThreadSnapshot, Comment as BackendComment, TreeEntry } from './types';
 import { TREE_REF } from './types';
 
 dayjs.extend(relativeTime);
@@ -411,6 +411,23 @@ export async function fetchFileVersions(filePath: string, oldPath?: string, ref?
     oldLines: versions.oldContents === null ? null : splitLines(versions.oldContents),
     newLines: versions.newContents === null ? null : splitLines(versions.newContents),
   };
+}
+
+export interface BinaryFileSide {
+  size: number;
+  url: string | null;
+}
+
+/** Size of each side of a binary file, with a data URL for each side of an image. */
+export async function fetchBinaryVersions(filePath: string, oldPath: string | undefined, ref: string | undefined, withData: boolean): Promise<{ old: BinaryFileSide | null; new: BinaryFileSide | null }> {
+  const versions = await tauri.getBinaryVersions(getRepoPath(), ref || 'work', filePath, oldPath ?? null, withData);
+  const toSide = (side: BinarySide | null, path: string): BinaryFileSide | null => {
+    if (!side) {
+      return null;
+    }
+    return { size: side.size, url: side.base64 === null ? null : `data:${mimeTypeFor(path)};base64,${side.base64}` };
+  };
+  return { old: toSide(versions.old, oldPath || filePath), new: toSide(versions.new, filePath) };
 }
 
 export interface PushCommentsResult {

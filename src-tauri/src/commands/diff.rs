@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::core::suggestion::{self, AppliedSuggestion};
 use crate::core::{diff, diffignore};
-use crate::core::types::{DiffResult, FileVersions, ResolvedRef};
+use crate::core::types::{BinaryVersions, DiffResult, FileVersions, ResolvedRef};
 use crate::core::AppError;
 
 use super::repo::blocking;
@@ -61,6 +61,17 @@ pub async fn get_file_versions(
     old_path: Option<String>,
 ) -> Result<FileVersions, AppError> {
     blocking(move || diff::get_file_versions(Path::new(&repo_path), &r#ref, &path, old_path.as_deref())).await
+}
+
+#[tauri::command]
+pub async fn get_binary_versions(
+    repo_path: String,
+    r#ref: String,
+    path: String,
+    old_path: Option<String>,
+    with_data: bool,
+) -> Result<BinaryVersions, AppError> {
+    blocking(move || diff::get_binary_versions(Path::new(&repo_path), &r#ref, &path, old_path.as_deref(), with_data)).await
 }
 
 #[tauri::command]

@@ -68,6 +68,16 @@ export interface FileVersions {
   newContents: string | null;
 }
 
+export interface BinarySide {
+  size: number;
+  base64: string | null;
+}
+
+export interface BinaryVersions {
+  old: BinarySide | null;
+  new: BinarySide | null;
+}
+
 export interface Commit {
   sha: string;
   shortSha: string;

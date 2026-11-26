@@ -462,6 +462,7 @@ const handlers: Record<string, (args: Args) => unknown> = {
   get_diff: (args) => (largeFixture ? largeFixture.then((fixture) => fixture.diff) : diffFor(String(args.ref))),
   get_file_patch: (args) => (largeFixture ? largeFixture.then((fixture) => fixture.patches?.[String(args.path)] ?? '') : ''),
   diff_fingerprint: (args) => (largeFixture ? largeFixture.then((fixture) => fixture.diff.fingerprint) : diffFor(String(args.ref)).fingerprint),
+  get_binary_versions: (args) => ({ old: null, new: { size: 98, base64: args.withData ? PNG_1PX : null } }),
   get_file_versions: (args) => FIXTURE_VERSIONS[String(args.path)] ?? { oldContents: null, newContents: null },
   list_commits: (args) => {
     const search = typeof args.search === 'string' ? args.search.toLowerCase() : '';
