@@ -77,6 +77,49 @@ export function useViewState<T>(key: string, initial: T | (() => T)): [T, Dispat
   return [current.value, set];
 }
 
+function storageKey(key: string): string {
+  return `diffity-view:${getRepoPathOrNull() ?? ''}:${key}`;
+}
+
+function readStored<T>(stored: string): T | undefined {
+  try {
+    const raw = localStorage.getItem(stored);
+    return raw === null ? undefined : (JSON.parse(raw) as T);
+  } catch {
+    return undefined;
+  }
+}
+
+function writeStored(stored: string, value: unknown) {
+  try {
+    localStorage.setItem(stored, JSON.stringify(value));
+  } catch {
+    // Still remembered for this session.
+  }
+}
+
+/** `useViewState` that also survives a restart, per repository. Only for small preferences (JSON in localStorage). */
+export function usePersistedViewState<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
+  const full = scoped(key);
+  const stored = storageKey(key);
+  if (!memory.has(full)) {
+    const saved = readStored<T>(stored);
+    if (saved !== undefined) {
+      writeScoped(full, saved);
+    }
+  }
+  const [value, setValue] = useViewState<T>(key, initial);
+  const set = useCallback<Dispatch<SetStateAction<T>>>((next) => {
+    setValue((prev) => {
+      const resolved = typeof next === 'function' ? (next as (value: T) => T)(prev) : next;
+      writeStored(stored, resolved);
+      return resolved;
+    });
+  }, [setValue, stored]);
+
+  return [value, set];
+}
+
 /**
  * Keeps a scroll container's offset under `key`: restored before the first paint, and again while content that
  * loads late (images, diagrams, a skeleton being replaced) grows the container, until the user scrolls.

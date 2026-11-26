@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '../../lib/cn';
 import { useTheme, type ThemePreference } from '../../hooks/use-theme';
@@ -20,6 +20,8 @@ import {
 import { PreferencesGroup, PreferencesPane, PreferencesRow, SegmentedControl, Stepper } from './preferences';
 import { DiffIgnoreRow } from './diff-ignore-row';
 import { isMac } from '../../lib/platform';
+import { setDiffViewMode, useDiffLayout } from '../../lib/diff-layout';
+import type { ViewMode } from '../../lib/diff-utils';
 
 const PALETTES = {
   light: { bg: '#ffffff', panel: '#f6f8fa', line: '#d0d7de', text: '#8b949e', add: '#abf2bc', del: '#ffc1bf', accent: '#0969da' },
@@ -177,20 +179,8 @@ function DiffColoursPicker() {
   );
 }
 
-type ViewMode = 'split' | 'unified';
-
-const VIEW_MODE_KEY = 'diffity-view-mode';
-
-function readViewMode(): ViewMode {
-  try {
-    return localStorage.getItem(VIEW_MODE_KEY) === 'unified' ? 'unified' : 'split';
-  } catch {
-    return 'split';
-  }
-}
-
 function DiffLayoutRow() {
-  const [mode, setMode] = useState<ViewMode>(readViewMode);
+  const mode = useDiffLayout((state) => state.diff);
 
   return (
     <PreferencesRow label="Diff layout" hint="How diffs open. Switch any time with Unified | Split above the diff (U, S).">
@@ -201,14 +191,7 @@ function DiffLayoutRow() {
           { value: 'split', label: 'Split' },
           { value: 'unified', label: 'Unified' },
         ]}
-        onChange={(next) => {
-          setMode(next);
-          try {
-            localStorage.setItem(VIEW_MODE_KEY, next);
-          } catch {
-            return;
-          }
-        }}
+        onChange={setDiffViewMode}
       />
     </PreferencesRow>
   );

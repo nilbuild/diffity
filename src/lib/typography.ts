@@ -8,7 +8,7 @@ export const TAB_SIZES = [2, 4, 8] as const;
 export type TabSize = (typeof TAB_SIZES)[number];
 
 export const DEFAULT_CODE_SIZE = 13;
-export const DEFAULT_TAB_SIZE: TabSize = 8;
+export const DEFAULT_TAB_SIZE: TabSize = 4;
 
 const UI_FONT_KEY = 'diffity-ui-font';
 const CODE_FONT_KEY = 'diffity-code-font';
@@ -108,8 +108,9 @@ export function setCodeSize(codeSize: number) {
   update({ codeSize });
 }
 
+/** Always stored, so a later change of the default never moves a width someone picked. */
 export function setTabSize(tabSize: TabSize) {
-  write(TAB_SIZE_KEY, tabSize === DEFAULT_TAB_SIZE ? null : String(tabSize));
+  write(TAB_SIZE_KEY, String(tabSize));
   update({ tabSize });
 }
 
