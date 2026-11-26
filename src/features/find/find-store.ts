@@ -22,6 +22,10 @@ interface FindState {
   focusTick: number;
   query: string;
   caseSensitive: boolean;
+  wholeWord: boolean;
+  regex: boolean;
+  /** Why the regular expression can't be used, or null. */
+  error: string | null;
   matches: FindMatch[];
   truncated: boolean;
   current: number;
@@ -35,6 +39,9 @@ export const useFind = create<FindState>(() => ({
   focusTick: 0,
   query: '',
   caseSensitive: false,
+  wholeWord: false,
+  regex: false,
+  error: null,
   matches: [],
   truncated: false,
   current: -1,

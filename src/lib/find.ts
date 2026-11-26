@@ -20,6 +20,14 @@ export interface FindMatch {
 export interface FindResult {
   matches: FindMatch[];
   truncated: boolean;
+  /** Why a regular expression can't be used ("Unterminated group"). */
+  error?: string;
+}
+
+export interface FindOptions {
+  caseSensitive: boolean;
+  wholeWord?: boolean;
+  regex?: boolean;
 }
 
 export const FIND_MATCH_LIMIT = 5000;
@@ -62,12 +70,47 @@ function lowerText(line: FindLine): string {
   return lower;
 }
 
-/** Plain-text search over `lines`, case-insensitive unless asked, stopping at `limit` matches. */
-export function searchLines(lines: FindLine[], query: string, caseSensitive: boolean, limit = FIND_MATCH_LIMIT): FindResult {
+function patternError(error: unknown): string {
+  const message = String((error as Error)?.message ?? error).replace(/^Invalid regular expression: \/.*\/[a-z]*: /, '');
+  return message.charAt(0).toUpperCase() + message.slice(1);
+}
+
+/** Regex or whole-word search: the query as a pattern (escaped unless `regex`), skipping empty matches. */
+function searchPattern(lines: FindLine[], query: string, options: FindOptions, limit: number): FindResult {
+  const matches: FindMatch[] = [];
+  const source = options.regex ? query : escapeRegExp(query);
+  let pattern: RegExp;
+  try {
+    pattern = new RegExp(options.wholeWord ? `(?<!\\w)(?:${source})(?!\\w)` : source, options.caseSensitive ? 'g' : 'gi');
+  } catch (error) {
+    return { matches, truncated: false, error: patternError(error) };
+  }
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    pattern.lastIndex = 0;
+    for (const found of line.text.matchAll(pattern)) {
+      if (found[0].length === 0) {
+        continue;
+      }
+      matches.push({ line: index, scope: line.scope, key: line.key, start: found.index, end: found.index + found[0].length });
+      if (matches.length >= limit) {
+        return { matches, truncated: true };
+      }
+    }
+  }
+  return { matches, truncated: false };
+}
+
+/** Searches `lines` for the query (plain text unless `regex`), case-insensitive unless asked, stopping at `limit` matches. */
+export function searchLines(lines: FindLine[], query: string, options: FindOptions, limit = FIND_MATCH_LIMIT): FindResult {
   const matches: FindMatch[] = [];
   if (!query) {
     return { matches, truncated: false };
   }
+  if (options.regex || options.wholeWord) {
+    return searchPattern(lines, query, options, limit);
+  }
+  const { caseSensitive } = options;
   const needle = caseSensitive ? query : query.toLowerCase();
   const pattern = caseSensitive ? null : new RegExp(escapeRegExp(query), 'gi');
 

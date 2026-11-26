@@ -9,15 +9,19 @@ import { errorMessage } from '../../lib/tauri';
 import type { SearchFile, SearchMatch } from '../../lib/types';
 import { useViewState } from '../../lib/view-state';
 import { useRepoPath } from '../../hooks/use-repo';
+import { useCurrentViewRef } from '../../hooks/use-current-view';
 import { CommentedOnlyToggle, SidebarFilter, SidebarMenu, SidebarSummary } from '../../components/layout/sidebar-frame';
 import { statusLetter } from '../../components/tree/file-tree-item';
 import { MenuItem, MenuLabel, MenuSeparator, Popover, useMenu } from '../../components/ui/popover';
 import { ChevronDownIcon, CodeIcon, CollapseAllIcon, ExpandAllIcon, FileIcon, FileTextIcon, HistoryIcon, SearchIcon } from '../../components/ui/icon';
 import { Spinner } from '../../components/icons/spinner';
+import { OptionToggle } from '../../components/ui/option-toggle';
 import {
   clearSearchFocusRequest,
+  diskSearchNote,
   isSearchCancelled,
   rememberSearch,
+  tooLargeNote,
   updateCodeSearch,
   useCodeSearchPrefs,
   useCodeSearchResults,
@@ -140,25 +144,6 @@ function ModeItems(props: { mode: SidebarSearchMode; onChange: (mode: SidebarSea
       <MenuItem icon={<FileTextIcon size="sm" />} label="File names" hint="/" checked={mode === 'files'} onSelect={() => onChange('files')} />
       <MenuItem icon={<CodeIcon size="sm" />} label="Code" hint={FIND_SHORTCUT} checked={mode === 'code'} onSelect={() => onChange('code')} />
     </>
-  );
-}
-
-function OptionToggle(props: { label: ReactNode; title: string; active: boolean; onToggle: () => void }) {
-  const { label, title, active, onToggle } = props;
-
-  return (
-    <button
-      title={title}
-      aria-label={title}
-      aria-pressed={active}
-      onClick={onToggle}
-      className={cn(
-        'w-7 h-[22px] inline-flex items-center justify-center rounded-[5px] border font-mono text-[11px] cursor-pointer transition-colors',
-        active ? 'bg-accent/12 border-accent/40 text-accent' : 'border-transparent text-text-muted hover:bg-hover hover:text-text',
-      )}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -434,6 +419,8 @@ export function SidebarSearch(props: SidebarSearchProps) {
   const focusRequested = useSearchFocusRequest(repoPath);
   const [active, setActive] = useViewState<{ path: string; line: number } | null>('code-search:active', null);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const viewRef = useCurrentViewRef();
+  const diskNote = view === 'diff' ? diskSearchNote(viewRef) : null;
 
   const update = useCallback((patch: Partial<CodeSearchPrefs>) => updateCodeSearch(repoPath, patch), [repoPath]);
 
@@ -609,6 +596,7 @@ export function SidebarSearch(props: SidebarSearchProps) {
         <div className="flex flex-col items-center gap-2 px-4 pt-6 text-center text-xs text-text-muted">
           <span className="text-[13px] text-text">No results</span>
           <span>Ignored, binary and very large files aren’t searched.</span>
+          {tooLargeNote(data.tooLarge) && <span>{tooLargeNote(data.tooLarge)}.</span>}
           {fix && (
             <button className="h-6 px-2.5 rounded-md border border-control-border bg-raised text-text hover:bg-control-hover cursor-pointer" onClick={() => update(fix.patch)}>
               {fix.label}
@@ -628,10 +616,17 @@ export function SidebarSearch(props: SidebarSearchProps) {
         dimmed={busy && !!data}
         onOpen={openMatch}
         onExit={() => inputRef.current?.focus()}
-        footer={data?.truncated && (
-          <p className="mx-1 mt-2 px-2.5 py-2 rounded-md bg-fill text-xs leading-[17px] text-text-secondary">
-            Showing the first {data.total.toLocaleString()} results. Make the search more specific to see the rest.
-          </p>
+        footer={(data?.truncated || tooLargeNote(data?.tooLarge)) && (
+          <>
+            {data?.truncated && (
+              <p className="mx-1 mt-2 px-2.5 py-2 rounded-md bg-fill text-xs leading-[17px] text-text-secondary">
+                Showing the first {data.total.toLocaleString()} results. Make the search more specific to see the rest.
+              </p>
+            )}
+            {tooLargeNote(data?.tooLarge) && (
+              <p className="mx-1 mt-2 px-2.5 text-xs leading-[17px] text-text-muted">{tooLargeNote(data?.tooLarge)}.</p>
+            )}
+          </>
         )}
       />
     );
@@ -651,7 +646,7 @@ export function SidebarSearch(props: SidebarSearchProps) {
         trailing={
           <>
             {!code && commentedToggle && commentedToggle.count > 0 && (
-              <CommentedOnlyToggle active={commentedToggle.active} count={commentedToggle.count} onToggle={commentedToggle.onToggle} />
+              <CommentedOnlyToggle active={commentedToggle.active} onToggle={commentedToggle.onToggle} />
             )}
             <SidebarMenu title={code ? 'Search options' : 'File list options'}>
               {(close) => (
@@ -683,6 +678,11 @@ export function SidebarSearch(props: SidebarSearchProps) {
             </div>
           </div>
           {invalid && <div className="px-4 -mt-1 pb-2 text-xs leading-4 text-deleted">{errorMessage(searchError)}</div>}
+          {diskNote && (
+            <div className="px-4 -mt-1 pb-2 text-xs leading-4 text-text-muted truncate" title={`${diskNote}. Results come from the files in your working copy, which may differ from this view.`}>
+              {diskNote}
+            </div>
+          )}
           <SidebarSummary>{summary()}</SidebarSummary>
           {body()}
         </>

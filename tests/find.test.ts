@@ -38,7 +38,7 @@ describe('diffFindLines', () => {
 
   it('includes files a reader has collapsed or not loaded yet: it searches the data', () => {
     const collapsedOrHeldBack = file('yarn.lock', [line('add', 'foo@1.0.0', null, 1)]);
-    expect(searchLines(diffFindLines([collapsedOrHeldBack]), 'foo', false).matches).toHaveLength(1);
+    expect(searchLines(diffFindLines([collapsedOrHeldBack]), 'foo', { caseSensitive: false }).matches).toHaveLength(1);
   });
 });
 
@@ -46,7 +46,7 @@ describe('searchLines', () => {
   const lines = diffFindLines(files);
 
   it('is case-insensitive by default and finds every occurrence on a line', () => {
-    const { matches, truncated } = searchLines(lines, 'foo', false);
+    const { matches, truncated } = searchLines(lines, 'foo', { caseSensitive: false });
     expect(truncated).toBe(false);
     expect(matches.map((m) => [m.scope, m.key, m.start, m.end])).toEqual([
       ['a.ts', 'context-1', 6, 9],
@@ -58,35 +58,52 @@ describe('searchLines', () => {
   });
 
   it('matches case when asked', () => {
-    expect(searchLines(lines, 'FOO', true).matches.map((m) => m.scope)).toEqual(['b.ts']);
+    expect(searchLines(lines, 'FOO', { caseSensitive: true }).matches.map((m) => m.scope)).toEqual(['b.ts']);
   });
 
   it('treats the query as plain text', () => {
-    expect(searchLines(lines, 'foo(', false).matches).toHaveLength(1);
-    expect(searchLines(lines, '.*', false).matches).toHaveLength(0);
+    expect(searchLines(lines, 'foo(', { caseSensitive: false }).matches).toHaveLength(1);
+    expect(searchLines(lines, '.*', { caseSensitive: false }).matches).toHaveLength(0);
   });
 
   it('returns nothing for an empty query', () => {
-    expect(searchLines(lines, '', false).matches).toEqual([]);
+    expect(searchLines(lines, '', { caseSensitive: false }).matches).toEqual([]);
   });
 
   it('caps the matches and says so', () => {
     const many = fileFindLines('big.txt', Array.from({ length: 100 }, () => 'aaaa'));
-    const result = searchLines(many, 'a', false, 50);
+    const result = searchLines(many, 'a', { caseSensitive: false }, 50);
     expect(result.matches).toHaveLength(50);
     expect(result.truncated).toBe(true);
   });
 
+  it('matches whole words only when asked', () => {
+    const words = fileFindLines('w.ts', ['foo foobar barfoo foo_x (foo)']);
+    const found = searchLines(words, 'foo', { caseSensitive: false, wholeWord: true }).matches;
+    expect(found.map((m) => words[0].text.slice(m.start, m.end))).toEqual(['foo', 'foo']);
+    expect(found.map((m) => m.start)).toEqual([0, 25]);
+  });
+
+  it('searches with a regular expression and reports a bad one', () => {
+    const code = fileFindLines('r.ts', ['let a1 = 1; let b22 = 2;']);
+    const found = searchLines(code, '[a-z]\\d+', { caseSensitive: false, regex: true }).matches;
+    expect(found.map((m) => code[0].text.slice(m.start, m.end))).toEqual(['a1', 'b22']);
+    expect(searchLines(code, '^', { caseSensitive: false, regex: true }).matches).toEqual([]);
+    const bad = searchLines(code, 'foo(', { caseSensitive: false, regex: true });
+    expect(bad.matches).toEqual([]);
+    expect(bad.error).toMatch(/group/i);
+  });
+
   it('keeps offsets right when lowercasing changes a line’s length', () => {
     const tricky = fileFindLines('x', ['İstanbul foo']);
-    const [match] = searchLines(tricky, 'FOO', false).matches;
+    const [match] = searchLines(tricky, 'FOO', { caseSensitive: false }).matches;
     expect(tricky[0].text.slice(match.start, match.end)).toBe('foo');
   });
 });
 
 describe('position helpers', () => {
   const lines = diffFindLines(files);
-  const { matches } = searchLines(lines, 'foo', false);
+  const { matches } = searchLines(lines, 'foo', { caseSensitive: false });
 
   it('starts from the file being read', () => {
     expect(firstMatchFrom(lines, matches, 'b.ts')).toBe(3);
@@ -95,7 +112,7 @@ describe('position helpers', () => {
   });
 
   it('keeps the current match across a refreshed result', () => {
-    const refreshed = searchLines(diffFindLines(files.slice(1)), 'foo', false).matches;
+    const refreshed = searchLines(diffFindLines(files.slice(1)), 'foo', { caseSensitive: false }).matches;
     expect(carryCurrent(matches[3], refreshed)).toBe(0);
     expect(carryCurrent(matches[0], refreshed)).toBe(-1);
   });

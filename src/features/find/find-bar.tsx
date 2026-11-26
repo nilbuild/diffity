@@ -4,6 +4,7 @@ import { chord, shortcutHint } from '../../lib/shortcuts';
 import { carryCurrent, FIND_MATCH_LIMIT, firstMatchFrom, rangeFor, searchLines, textSegments, type FindMatch } from '../../lib/find';
 import { usePageActions, type PaletteAction } from '../palette/palette-store';
 import { ChevronDownIcon, ChevronUpIcon, SearchIcon, XIcon } from '../../components/ui/icon';
+import { OptionToggle } from '../../components/ui/option-toggle';
 import { closeFind, openFind, stepFind, useFind } from './find-store';
 
 const SEARCH_DEBOUNCE_MS = 120;
@@ -142,6 +143,8 @@ export function FindHost() {
   const open = useFind((state) => state.open);
   const query = useFind((state) => state.query);
   const caseSensitive = useFind((state) => state.caseSensitive);
+  const wholeWord = useFind((state) => state.wholeWord);
+  const regex = useFind((state) => state.regex);
   const matches = useFind((state) => state.matches);
   const current = useFind((state) => state.current);
   const revealTick = useFind((state) => state.revealTick);
@@ -190,9 +193,9 @@ export function FindHost() {
       searchedRef.current = null;
       return;
     }
-    const signature = `${caseSensitive ? 1 : 0}${query}`;
+    const signature = `${caseSensitive ? 1 : 0}${wholeWord ? 1 : 0}${regex ? 1 : 0}${query}`;
     const run = () => {
-      const result = searchLines(source.lines, query, caseSensitive);
+      const result = searchLines(source.lines, query, { caseSensitive, wholeWord, regex });
       const state = useFind.getState();
       const previous = state.matches[state.current] ?? null;
       const fresh = searchedRef.current !== signature;
@@ -206,13 +209,14 @@ export function FindHost() {
       useFind.setState({
         matches: result.matches,
         truncated: result.truncated,
+        error: result.error ?? null,
         current: next,
         revealTick: reveal && next >= 0 ? state.revealTick + 1 : state.revealTick,
       });
     };
     const timer = window.setTimeout(run, searchedRef.current === null || !query ? 0 : SEARCH_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [open, source, query, caseSensitive]);
+  }, [open, source, query, caseSensitive, wholeWord, regex]);
 
   useEffect(() => {
     if (revealTick === 0) {
@@ -269,9 +273,12 @@ export function FindHost() {
   return null;
 }
 
-function status(query: string, count: number, current: number, truncated: boolean, busy: boolean): string {
+function status(query: string, count: number, current: number, truncated: boolean, busy: boolean, invalid: boolean): string {
   if (!query) {
     return '';
+  }
+  if (invalid) {
+    return 'Invalid';
   }
   if (busy && count === 0) {
     return 'Searching…';
@@ -289,6 +296,9 @@ export function FindBar(props: { className?: string }) {
   const source = useFind((state) => state.source);
   const query = useFind((state) => state.query);
   const caseSensitive = useFind((state) => state.caseSensitive);
+  const wholeWord = useFind((state) => state.wholeWord);
+  const regex = useFind((state) => state.regex);
+  const error = useFind((state) => state.error);
   const count = useFind((state) => state.matches.length);
   const current = useFind((state) => state.current);
   const truncated = useFind((state) => state.truncated);
@@ -311,13 +321,14 @@ export function FindBar(props: { className?: string }) {
   }
 
   const busy = (source.pending ?? 0) > 0;
-  const label = status(query, count, current, truncated, busy);
+  const invalid = !!error && !!query;
+  const label = status(query, count, current, truncated, busy, invalid);
 
   return (
     <div
       role="search"
       className={cn(
-        'absolute right-6 z-30 flex flex-col rounded-lg border border-overlay-border bg-overlay shadow-overlay',
+        'absolute right-6 z-30 flex max-w-[calc(100%-48px)] flex-col rounded-lg border border-overlay-border bg-overlay shadow-overlay',
         className,
       )}
     >
@@ -343,23 +354,17 @@ export function FindBar(props: { className?: string }) {
           aria-label={source.label === 'file' ? 'Find in file' : 'Find in changes'}
           spellCheck={false}
           autoComplete="off"
-          className="h-7 w-56 min-w-0 bg-transparent px-1 text-[13px] text-text placeholder:text-text-muted focus:outline-none"
+          aria-invalid={invalid}
+          className={cn('h-7 w-56 min-w-16 shrink bg-transparent px-1 text-[13px] text-text placeholder:text-text-muted focus:outline-none', regex && 'font-mono text-xs')}
         />
-        <span className="min-w-[72px] shrink-0 text-right text-xs tabular-nums text-text-muted" aria-live="polite">
+        <span className={cn('min-w-[72px] shrink-0 whitespace-nowrap text-right text-xs tabular-nums', invalid ? 'text-deleted' : 'text-text-muted')} aria-live="polite">
           {label}
         </span>
-        <button
-          type="button"
-          aria-pressed={caseSensitive}
-          onClick={() => useFind.setState({ caseSensitive: !caseSensitive })}
-          title={caseSensitive ? 'Match case: on' : 'Match case: off'}
-          className={cn(
-            'ml-1 h-6 w-7 shrink-0 cursor-pointer rounded-md font-mono text-[11px] font-semibold transition-colors',
-            caseSensitive ? 'bg-selected text-text ring-1 ring-control-border' : 'text-text-muted hover:bg-hover hover:text-text',
-          )}
-        >
-          Aa
-        </button>
+        <span className="ml-1 flex items-center gap-0.5">
+          <OptionToggle label="Aa" title="Match case" active={caseSensitive} onToggle={() => useFind.setState({ caseSensitive: !caseSensitive })} />
+          <OptionToggle label={<span className="underline underline-offset-2">ab</span>} title="Match whole word" active={wholeWord} onToggle={() => useFind.setState({ wholeWord: !wholeWord })} />
+          <OptionToggle label=".*" title="Use regular expression" active={regex} onToggle={() => useFind.setState({ regex: !regex })} />
+        </span>
         <button
           type="button"
           onClick={() => stepFind(-1)}
@@ -390,7 +395,10 @@ export function FindBar(props: { className?: string }) {
           <XIcon size="sm" />
         </button>
       </div>
-      {(truncated || (busy && query)) && (
+      {invalid && (
+        <p className="border-t border-border-muted px-3 py-1.5 text-[11.5px] text-deleted">{error}</p>
+      )}
+      {!invalid && (truncated || (busy && query)) && (
         <p className="border-t border-border-muted px-3 py-1.5 text-[11.5px] text-text-muted">
           {truncated ? `Showing the first ${FIND_MATCH_LIMIT.toLocaleString()} matches. Type more to narrow it down.` : `Loading ${source.pending} large file${source.pending === 1 ? '' : 's'} to search…`}
         </p>

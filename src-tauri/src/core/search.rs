@@ -71,6 +71,16 @@ pub struct SearchResult {
     pub truncated: bool,
     /// A newer search of the same repository started before this one finished.
     pub cancelled: bool,
+    /// Files skipped for being over [`MAX_FILE_BYTES`].
+    pub too_large: usize,
+}
+
+/// What searching one file found.
+enum FileSearch {
+    Matches(Vec<SearchMatch>),
+    /// Unreadable or binary.
+    Skipped,
+    TooLarge,
 }
 
 fn generations() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
@@ -177,22 +187,28 @@ fn preview(line: &str, ranges: &[(usize, usize)]) -> (String, Vec<[u32; 2]>) {
     (text, out)
 }
 
-/// The file's matching lines, or `None` when it is unreadable, binary or too large.
-fn search_file(full: &Path, re: &Regex) -> Option<Vec<SearchMatch>> {
+/// The file's matching lines, unless it is unreadable, binary or too large.
+fn search_file(full: &Path, re: &Regex) -> FileSearch {
     use std::io::Read;
-    let mut file = std::fs::File::open(full).ok()?;
-    let meta = file.metadata().ok()?;
-    if !meta.is_file() || meta.len() > MAX_FILE_BYTES {
-        return None;
+    let Ok(mut file) = std::fs::File::open(full) else {
+        return FileSearch::Skipped;
+    };
+    let Ok(meta) = file.metadata() else {
+        return FileSearch::Skipped;
+    };
+    if !meta.is_file() {
+        return FileSearch::Skipped;
+    }
+    if meta.len() > MAX_FILE_BYTES {
+        return FileSearch::TooLarge;
     }
     let mut data = Vec::with_capacity(meta.len() as usize);
-    file.read_to_end(&mut data).ok()?;
-    if tree::is_binary(&data[..data.len().min(SNIFF_BYTES)]) {
-        return None;
+    if file.read_to_end(&mut data).is_err() || tree::is_binary(&data[..data.len().min(SNIFF_BYTES)]) {
+        return FileSearch::Skipped;
     }
     let text = String::from_utf8_lossy(&data);
     if !re.is_match(&text) {
-        return Some(Vec::new());
+        return FileSearch::Matches(Vec::new());
     }
     let mut matches = Vec::new();
     for (index, raw) in text.split('\n').enumerate() {
@@ -213,7 +229,7 @@ fn search_file(full: &Path, re: &Regex) -> Option<Vec<SearchMatch>> {
             ranges,
         });
     }
-    Some(matches)
+    FileSearch::Matches(matches)
 }
 
 /// Searches the files the Files view lists, in path order, returning up to [`MAX_RESULTS`] matching lines.
@@ -283,6 +299,7 @@ fn search_files(repo: &Path, files: &[&str], re: &Regex, cancelled: &AtomicBool)
     let slots: Vec<Mutex<Option<Vec<SearchMatch>>>> = files.iter().map(|_| Mutex::new(None)).collect();
     let next = AtomicUsize::new(0);
     let found = AtomicUsize::new(0);
+    let too_large = AtomicUsize::new(0);
     let workers = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4)
@@ -299,8 +316,13 @@ fn search_files(repo: &Path, files: &[&str], re: &Regex, cancelled: &AtomicBool)
                 let Some(path) = files.get(index) else {
                     return;
                 };
-                let Some(matches) = search_file(&repo.join(path), re) else {
-                    continue;
+                let matches = match search_file(&repo.join(path), re) {
+                    FileSearch::Matches(matches) => matches,
+                    FileSearch::TooLarge => {
+                        too_large.fetch_add(1, Ordering::Relaxed);
+                        continue;
+                    }
+                    FileSearch::Skipped => continue,
                 };
                 if matches.is_empty() {
                     continue;
@@ -322,6 +344,7 @@ fn search_files(repo: &Path, files: &[&str], re: &Regex, cancelled: &AtomicBool)
     let claimed = next.load(Ordering::Relaxed).min(files.len());
     let mut result = SearchResult {
         truncated: claimed < files.len(),
+        too_large: too_large.load(Ordering::Relaxed),
         ..SearchResult::default()
     };
     for (slot, path) in slots.into_iter().zip(files).take(claimed) {
@@ -383,6 +406,20 @@ mod tests {
         let error = build_regex(&opts).unwrap_err();
         assert_eq!(error.code, "invalid");
         assert_eq!(error.message, "Unclosed group");
+    }
+
+    #[test]
+    fn counts_files_too_large_to_search() {
+        let dir = std::env::temp_dir().join(format!("diffity-search-large-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("small.txt"), "needle\n").unwrap();
+        std::fs::write(dir.join("big.txt"), format!("needle\n{}", "x".repeat(MAX_FILE_BYTES as usize))).unwrap();
+        let re = build_regex(&options("needle")).unwrap();
+        let result = search_files(&dir, &["big.txt", "small.txt"], &re, &AtomicBool::new(false));
+        std::fs::remove_dir_all(&dir).ok();
+        assert_eq!(result.too_large, 1);
+        assert_eq!(result.files.len(), 1);
+        assert_eq!(result.files[0].path, "small.txt");
     }
 
     #[test]

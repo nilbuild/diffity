@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import * as tauri from '../../lib/tauri';
 import { toggleSidebar, useUi } from '../../lib/ui-store';
 import type { SearchResult } from '../../lib/types';
+import { parseCommitRef } from '../../lib/api';
 
 /** What the sidebar's search field does: filter the tree by file name, or search inside files. */
 export type SidebarSearchMode = 'files' | 'code';
@@ -31,6 +32,38 @@ const DEFAULT_PREFS: CodeSearchPrefs = {
 };
 
 const MAX_RECENT = 5;
+
+function shortRef(ref: string): string {
+  const name = ref.replace(/^(origin|upstream)\//, '');
+  return /^[0-9a-f]{8,40}$/i.test(name) ? name.slice(0, 7) : name;
+}
+
+/**
+ * Code search reads the files on disk. When the view shows another version of them (a commit, or a range that ends
+ * somewhere other than HEAD), this says so; null when the view is what's on disk.
+ */
+export function diskSearchNote(viewRef: string | null): string | null {
+  if (!viewRef || !viewRef.includes('..')) {
+    return null;
+  }
+  const commit = parseCommitRef(viewRef);
+  if (commit) {
+    return `Searching files on disk, not ${commit.slice(0, 7)}`;
+  }
+  const head = viewRef.split(/\.{2,3}/)[1] ?? '';
+  if (!head || head === 'HEAD') {
+    return null;
+  }
+  return `Searching files on disk, not ${shortRef(head)}`;
+}
+
+/** "1 file over 1 MB was skipped", or null. */
+export function tooLargeNote(count: number | undefined): string | null {
+  if (!count) {
+    return null;
+  }
+  return count === 1 ? '1 file over 1 MB was skipped' : `${count.toLocaleString()} files over 1 MB were skipped`;
+}
 const DEBOUNCE_MS = 150;
 
 interface CodeSearchState {
