@@ -42,7 +42,7 @@ function IgnoredFilesChip(props: { hiddenCount: number; showing: boolean; onShow
     return (
       <button
         onClick={() => onShowingChange(false)}
-        className="inline-flex items-center gap-1.5 h-6 pl-2 pr-1.5 rounded-full bg-selected text-xs text-text cursor-pointer hover:bg-fill-hover transition-colors"
+        className="inline-flex items-center gap-1.5 h-6 pl-2 pr-1.5 shrink-0 whitespace-nowrap rounded-full bg-selected text-xs text-text cursor-pointer hover:bg-fill-hover transition-colors"
         title="Files hidden by .diffityignore are shown for now. Click to hide them again"
       >
         <EyeIcon size="xs" className="text-text-secondary" />
@@ -57,11 +57,12 @@ function IgnoredFilesChip(props: { hiddenCount: number; showing: boolean; onShow
   return (
     <button
       onClick={() => onShowingChange(true)}
-      className="inline-flex items-center gap-1.5 h-6 px-2 rounded-full text-xs text-text-secondary cursor-pointer hover:bg-hover hover:text-text transition-colors"
-      title="Matched by .diffityignore or this repo's ignore list in Settings. Click to show them for now"
+      className="inline-flex items-center gap-1.5 h-6 px-2 shrink-0 whitespace-nowrap rounded-full text-xs text-text-secondary cursor-pointer hover:bg-hover hover:text-text transition-colors"
+      title={`${hiddenFilesLabel(hiddenCount)}: matched by .diffityignore or this repo's ignore list in Settings. Click to show them for now`}
     >
       <EyeOffIcon size="xs" />
-      {hiddenFilesLabel(hiddenCount)}
+      <span className="@max-[720px]/diffbar:hidden">{hiddenFilesLabel(hiddenCount)}</span>
+      <span className="@min-[720px]/diffbar:hidden">{hiddenCount} hidden</span>
       <span className="text-accent">Show</span>
     </button>
   );
@@ -86,7 +87,7 @@ export function DiffBar(props: DiffBarProps) {
       {hideWhitespace && (
         <button
           onClick={() => onHideWhitespaceChange(false)}
-          className="inline-flex items-center gap-1.5 h-6 pl-2 pr-1.5 rounded-full bg-selected text-xs text-text cursor-pointer hover:bg-fill-hover transition-colors"
+          className="inline-flex items-center gap-1.5 h-6 pl-2 pr-1.5 shrink-0 whitespace-nowrap rounded-full bg-selected text-xs text-text cursor-pointer hover:bg-fill-hover transition-colors"
           title="Whitespace-only changes are hidden. Click to show them"
         >
           <EyeOffIcon size="xs" className="text-text-secondary" />
