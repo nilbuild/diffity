@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::core::scan::Importer;
-use crate::core::store::now;
+use crate::core::store::{current_scope, now};
 use crate::core::types::{
     AuthorType, DiffResult, Guide, GuideAttention, GuideChapter, GuideContent, GuideFlowStep, GuideImpact, GuideNote,
     NewThread, Severity, Side,
@@ -762,12 +762,39 @@ async fn set_guide(backend: &dyn ReviewBackend, b: &Binding, a: GuideArgs) -> Re
     Ok(json!({ "saved": true, "chapters": chapters, "filesAddedToEverythingElse": leftover }))
 }
 
+/// Tools that read the diff or anchor to it see whatever is checked out, so they stop once the user leaves the branch
+/// the session belongs to: otherwise comments are checked against, and land on, another branch's lines.
+async fn ensure_on_session_branch(backend: &dyn ReviewBackend, b: &Binding) -> Result<()> {
+    let session = backend.session(&b.session_id).await?;
+    if session.scope.is_empty() {
+        return Ok(());
+    }
+    let repo = b.repo_path.clone();
+    let current = tokio::task::spawn_blocking(move || current_scope(&repo))
+        .await
+        .map_err(|e| AppError::internal(format!("task failed: {e}")))?;
+    if current == session.scope {
+        return Ok(());
+    }
+    Err(AppError::new(
+        "branch_changed",
+        format!(
+            "the user switched from `{}` to `{current}` while you were working, so the diff and the files on disk now belong to another branch. \
+             Stop: don't retry or add more comments. Tell the user what you found so far, file and line for each, and ask them to switch back to `{}` and ask again.",
+            session.scope, session.scope
+        ),
+    ))
+}
+
 pub async fn call(
     backend: &dyn ReviewBackend,
     b: &Binding,
     tool: &str,
     raw: Value,
 ) -> Result<Value> {
+    if matches!(tool, "get_diff" | "add_comment" | "add_general_comment" | "set_guide") {
+        ensure_on_session_branch(backend, b).await?;
+    }
     match tool {
         "get_diff" => {
             let a: DiffArgs = args(raw)?;
@@ -1254,6 +1281,18 @@ mod tests {
             view_ref: None,
             promoted_from: None,
         }
+    }
+
+    #[tokio::test]
+    async fn diff_tools_stop_once_the_user_leaves_the_branch() {
+        let (store, backend, mut b) = setup();
+        b.session_id = store.get_or_create_scoped_session("/repo", "main...HEAD", "feature").unwrap().id;
+        b.r#ref = "main...HEAD".into();
+        let args = json!({ "file": "a.rs", "start_line": 1, "body": "x" });
+        let err = call(&backend, &b, "add_comment", args).await.unwrap_err();
+        assert_eq!(err.code, "branch_changed");
+        assert!(err.message.contains("switch back to `feature`"));
+        assert!(call(&backend, &b, "list_threads", json!({})).await.is_ok());
     }
 
     #[tokio::test]
