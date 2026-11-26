@@ -2,6 +2,8 @@ import type { DiffFile } from '@/lib/diff-parser';
 import { toast } from 'sonner';
 import * as tauri from './tauri';
 import { getRepoPath, parseCommitRef } from './api';
+import { queryClient } from './query-client';
+import { filePatchOptions } from '../queries/diff';
 
 const LARGE_BYTES = 1024 * 1024;
 const WORKING_REFS = new Set(['work', 'staged', 'unstaged', '.', '__tree__']);
@@ -82,24 +84,54 @@ export async function copyFileContents(path: string, ref?: string | null, confir
 export function filePatch(file: DiffFile): string {
   const oldName = file.status === 'added' ? '/dev/null' : `a/${file.oldPath}`;
   const newName = file.status === 'deleted' ? '/dev/null' : `b/${file.newPath}`;
-  const out = [`diff --git a/${file.oldPath} b/${file.newPath}`, `--- ${oldName}`, `+++ ${newName}`];
+  const oldPath = file.status === 'added' ? file.newPath : file.oldPath;
+  const newPath = file.status === 'deleted' ? file.oldPath : file.newPath;
+  const out = [`diff --git a/${oldPath} b/${newPath}`];
+  if (file.status === 'added' && file.newMode) {
+    out.push(`new file mode ${file.newMode}`);
+  }
+  if (file.status === 'deleted' && file.oldMode) {
+    out.push(`deleted file mode ${file.oldMode}`);
+  }
+  if (file.status !== 'added' && file.status !== 'deleted' && file.oldMode && file.newMode && file.oldMode !== file.newMode) {
+    out.push(`old mode ${file.oldMode}`, `new mode ${file.newMode}`);
+  }
+  if ((file.status === 'renamed' || file.status === 'copied') && file.oldPath !== file.newPath) {
+    const verb = file.status === 'renamed' ? 'rename' : 'copy';
+    if (file.similarityIndex !== undefined) {
+      out.push(`similarity index ${file.similarityIndex}%`);
+    }
+    out.push(`${verb} from ${file.oldPath}`, `${verb} to ${file.newPath}`);
+  }
+  if (file.hunks.length > 0) {
+    out.push(`--- ${oldName}`, `+++ ${newName}`);
+  }
   for (const hunk of file.hunks) {
     out.push(hunk.header.startsWith('@@') ? hunk.header : `@@ -${hunk.oldStart},${hunk.oldCount} +${hunk.newStart},${hunk.newCount} @@${hunk.context ? ` ${hunk.context}` : ''}`);
     for (const line of hunk.lines) {
       const prefix = line.type === 'add' ? '+' : line.type === 'delete' ? '-' : ' ';
       out.push(`${prefix}${line.content}`);
+      if (line.noNewline) {
+        out.push('\\ No newline at end of file');
+      }
     }
   }
   return `${out.join('\n')}\n`;
 }
 
-export function copyFileDiff(file: DiffFile) {
+/** Copies a file's patch; a file sent without its hunks (`patchOmitted`) is fetched in full first. */
+export async function copyFileDiff(file: DiffFile, hideWhitespace = false, ref?: string) {
   if (file.isBinary) {
     toast.error('Binary file', { description: 'There is no text diff to copy.' });
     return;
   }
-  const lines = file.hunks.reduce((sum, hunk) => sum + hunk.lines.length, 0);
-  void writeClipboard(filePatch(file), `diff (${lines} line${lines === 1 ? '' : 's'})`);
+  try {
+    const full = file.patchOmitted ? await queryClient.ensureQueryData(filePatchOptions(file, hideWhitespace, ref)) : file;
+    const lines = full.hunks.reduce((sum, hunk) => sum + hunk.lines.length, 0);
+    await writeClipboard(filePatch(full), `diff (${lines} line${lines === 1 ? '' : 's'})`);
+  } catch (error) {
+    toast.error('Could not copy the diff', { description: tauri.errorMessage(error) });
+  }
 }
 
 /** ⌥⌘C copies the focused file's path, ⇧⌥⌘C its contents. */

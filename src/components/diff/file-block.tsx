@@ -8,7 +8,10 @@ import { getLang, type CodeHighlighter } from '../../hooks/use-highlighter';
 import { highlightInWorker } from '../../lib/highlight-client';
 import type { CommentAuthor, CommentSide, LineSelection, SubmitOptions } from '../comments/types';
 import { type ViewMode, getFilePath, buildChangeGroupPatch, extractLinesFromDiff, extractLinesFromExpandedLines, deferReason, getRowCount, sliceHunk, sliceRowCount, SLICE_ROW_THRESHOLD } from '../../lib/diff-utils';
-import { revertHunk as apiRevertHunk, revertFile as apiRevertFile, openInEditor, errorMessage, fetchFileVersions } from '../../lib/api';
+import { revertHunk as apiRevertHunk, revertFile as apiRevertFile, stageHunk, unstageHunk, stageFile, unstageFile, openInEditor, errorMessage, fetchFileVersions } from '../../lib/api';
+import { changeActionsDisabledReason, changeActionToast, discardChangeCopy, fileName, revertFileCopy, revertFileMenuLabel, workingView, type ChangeAction, type WorkingView } from '../../lib/change-actions';
+import type { ChangeActionsConfig } from './change-actions';
+import { useRepoNav } from '../../hooks/use-repo';
 import { filePatchOptions } from '../../queries/diff';
 import { buildSyntaxMap, HIGHLIGHT_MAX_ROWS, planSyntaxSources, runInSteps, tokenizeSources, type SideTokens } from '../../lib/syntax-lines';
 import { loadHeldBackFile, useHeldBackLoaded } from '../../lib/large-diff';
@@ -38,11 +41,12 @@ import { HunkWithGap } from './hunk-with-gap';
 import { ThreadBadge } from '../ui/thread-badge';
 import { buildExpansionSyntaxMap, renderExpansionRows } from './render-expansion-rows';
 import { ExpandRow } from './expand-row';
+import { isWholeFileHunk } from './hunk-header';
 import { useViewState } from '../../lib/view-state';
 import { FileComments, fileDraftKey } from '../comments/file-comments';
 import { hasDraft } from '../comments/comment-form';
 import { useReviewState } from '../../features/review/review-state';
-import { ChevronIcon, CodeIcon, CommentIcon, CopyIcon, EditorIcon, EllipsisIcon, FileIcon, FileTextIcon, GitCompareIcon, UndoIcon } from '../ui/icon';
+import { ChevronIcon, CodeIcon, CommentIcon, CopyIcon, EditorIcon, EllipsisIcon, ExpandBothIcon, FileIcon, FileTextIcon, GitCompareIcon, MinusIcon, PlusIcon, UndoIcon } from '../ui/icon';
 import { MenuItem, MenuSeparator, Popover, useMenu } from '../ui/popover';
 import { contentsLabel, copyAbsolutePath, copyFileContents, copyFileDiff, copyRelativePath } from '../../lib/file-copy';
 import { useEditorName } from '../../hooks/use-editor-name';
@@ -55,6 +59,22 @@ import { chord } from '../../lib/shortcuts';
 
 /** Cards that scroll straight past are never highlighted: work starts once a card has stayed mounted this long. */
 const HIGHLIGHT_DELAY_MS = 120;
+let lastScrollAt = 0;
+if (typeof document !== 'undefined') {
+  document.addEventListener('scroll', () => {
+    lastScrollAt = performance.now();
+  }, { capture: true, passive: true });
+}
+
+/** A card on screen while nothing scrolls is being read, not scrolled past: highlight it without the delay. */
+function highlightDelay(element: HTMLElement | null): number {
+  if (!element || performance.now() - lastScrollAt < HIGHLIGHT_DELAY_MS) {
+    return HIGHLIGHT_DELAY_MS;
+  }
+  const rect = element.getBoundingClientRect();
+  return rect.bottom > 0 && rect.top < window.innerHeight ? 0 : HIGHLIGHT_DELAY_MS;
+}
+
 /** How often lines the worker finished are handed to the view while it is still going. */
 const HIGHLIGHT_PROGRESS_MS = 400;
 
@@ -94,6 +114,16 @@ interface GapExpansion {
   linesFromBottom: DiffLineType[];
 }
 
+function similarityTitle(file: DiffFile): string | undefined {
+  if ((file.status !== 'renamed' && file.status !== 'copied') || file.similarityIndex === undefined) {
+    return undefined;
+  }
+  if (file.similarityIndex === 100) {
+    return `${file.status === 'renamed' ? 'Renamed' : 'Copied'} without changes`;
+  }
+  return `${file.similarityIndex}% similar to ${file.oldPath}`;
+}
+
 const syntaxCache = new Map<string, Map<string, SyntaxToken[]>>();
 
 /** Identifies the diff's lines by content: an edit that keeps the line count must not reuse the old tokens. */
@@ -124,10 +154,14 @@ interface FileCardMenuProps {
   editorName: string;
   onOpenInEditor: (() => void) | null;
   onRevert: (() => void) | null;
+  onShowFullFile: (() => void) | null;
+  hideWhitespace: boolean;
+  /** Set for working-tree views: offers Stage file / Unstage file and words Revert for the view. */
+  staging: { view: WorkingView; onStage: () => void; onUnstage: () => void } | null;
 }
 
 function FileCardMenu(props: FileCardMenuProps) {
-  const { file, path, viewRef, editorName, onOpenInEditor, onRevert } = props;
+  const { file, path, viewRef, editorName, onOpenInEditor, onRevert, onShowFullFile, hideWhitespace, staging } = props;
   const menu = useMenu();
   const deleted = file.status === 'deleted';
   const run = (action: () => void) => () => {
@@ -141,7 +175,7 @@ function FileCardMenu(props: FileCardMenuProps) {
         ref={menu.anchorRef}
         onClick={menu.toggle}
         className="w-6 h-6 inline-flex items-center justify-center rounded-md text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer"
-        title="More file actions: open in editor, copy, revert"
+        title={staging ? 'More file actions: open in editor, copy, stage, revert' : 'More file actions: open in editor, copy'}
         aria-label="More file actions"
         aria-expanded={menu.open}
       >
@@ -151,6 +185,12 @@ function FileCardMenu(props: FileCardMenuProps) {
         {onOpenInEditor && (
           <>
             <MenuItem icon={<EditorIcon size="sm" />} label={`Open in ${editorName}`} onSelect={run(onOpenInEditor)} />
+            <MenuSeparator />
+          </>
+        )}
+        {onShowFullFile && (
+          <>
+            <MenuItem icon={<ExpandBothIcon size="sm" />} label="Show full file" onSelect={run(onShowFullFile)} />
             <MenuSeparator />
           </>
         )}
@@ -164,11 +204,18 @@ function FileCardMenu(props: FileCardMenuProps) {
           disabled={file.isBinary || deleted}
           onSelect={run(() => void copyFileContents(path, viewRef))}
         />
-        <MenuItem icon={<GitCompareIcon size="sm" />} label={file.isBinary ? 'Copy diff (binary file)' : 'Copy diff'} disabled={file.isBinary} onSelect={run(() => copyFileDiff(file))} />
+        <MenuItem icon={<GitCompareIcon size="sm" />} label={file.isBinary ? 'Copy diff (binary file)' : 'Copy diff'} disabled={file.isBinary} onSelect={run(() => void copyFileDiff(file, hideWhitespace, viewRef))} />
+        {staging && <MenuSeparator />}
+        {staging && staging.view !== 'staged' && (
+          <MenuItem icon={<PlusIcon size="sm" />} label="Stage file" onSelect={run(staging.onStage)} />
+        )}
+        {staging && staging.view !== 'unstaged' && (
+          <MenuItem icon={<MinusIcon size="sm" />} label="Unstage file" onSelect={run(staging.onUnstage)} />
+        )}
         {onRevert && (
           <>
-            <MenuSeparator />
-            <MenuItem icon={<UndoIcon size="sm" />} label="Revert file…" onSelect={run(onRevert)} />
+            {!staging && <MenuSeparator />}
+            <MenuItem icon={<UndoIcon size="sm" />} label={revertFileMenuLabel(staging?.view ?? 'all')} onSelect={run(onRevert)} />
           </>
         )}
       </Popover>
@@ -207,10 +254,12 @@ function FileCard(props: FileCardProps) {
   const {
     file, viewMode, collapsed, onToggleCollapse, reviewed, onReviewedChange, highlightCode, baseRef, canRevert, onRevert,
     threads: allThreads, commentsEnabled, commentActions, onAddThread: rawAddThread, pendingSelection, onPendingSelectionChange,
-    highlighted, onHighlightEnd, heldBack, loadingPatch, sinceViewed,
+    highlighted, onHighlightEnd, heldBack, loadingPatch, sinceViewed, hideWhitespace = false,
   } = props;
+  const fileViewMode: ViewMode = file.status === 'added' || file.status === 'deleted' ? 'unified' : viewMode;
   const [showSinceViewed, setShowSinceViewed] = useState(false);
   const tableRef = useRef<HTMLTableElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const wrapLines = useTypography((state) => state.wrapLines);
 
   const rendersLines = !collapsed && !heldBack && !loadingPatch && !file.isBinary && file.hunks.length > 0;
@@ -230,19 +279,35 @@ function FileCard(props: FileCardProps) {
   const [confirmRevertChange, setConfirmRevertChange] = useState<{ hunk: DiffHunk; startIndex: number; endIndex: number } | null>(null);
   const [confirmRevertFile, setConfirmRevertFile] = useState(false);
   const renderable = !file.isBinary && isRenderableFile(filePath);
-  const [richView, setRichView] = useState(false);
+  const [richView, setRichView] = useViewState(`diff:rich:${filePath}`, false);
+
+  const view = workingView(baseRef);
+  const nav = useRepoNav();
+  const busyRef = useRef(false);
 
   const handleRevertFile = useCallback(async () => {
     setConfirmRevertFile(false);
-    const id = toast.loading(`Reverting ${filePath}…`);
+    const copy = revertFileCopy(view, filePath, file.status);
+    const id = toast.loading(`${copy.confirmLabel === 'Delete' ? 'Deleting' : 'Reverting'} ${fileName(filePath)}…`);
     try {
-      await apiRevertFile(filePath);
-      toast.success(`Reverted ${filePath}`, { id });
+      await apiRevertFile(filePath, baseRef ?? 'work');
+      toast.success(copy.confirmLabel === 'Delete' ? `Deleted ${fileName(filePath)}` : view === 'unstaged' ? `Discarded unstaged changes to ${fileName(filePath)}` : `Reverted ${fileName(filePath)}`, { id });
       onRevert?.();
     } catch (error) {
       toast.error('Could not revert the file', { id, description: errorMessage(error) });
     }
-  }, [filePath, onRevert]);
+  }, [filePath, file.status, view, baseRef, onRevert]);
+
+  const handleStageFile = useCallback(async (stage: boolean) => {
+    const oldPath = file.status === 'renamed' && file.oldPath !== file.newPath ? file.oldPath : null;
+    try {
+      await (stage ? stageFile(filePath, oldPath) : unstageFile(filePath, oldPath));
+      toast.success(`${stage ? 'Staged' : 'Unstaged'} ${fileName(filePath)}`);
+      onRevert?.();
+    } catch (error) {
+      toast.error(stage ? 'Could not stage the file' : 'Could not unstage the file', { description: errorMessage(error) });
+    }
+  }, [file, filePath, onRevert]);
 
   const editorName = useEditorName();
   const handleOpenInEditor = useCallback(() => {
@@ -252,18 +317,53 @@ function FileCard(props: FileCardProps) {
     });
   }, [file, filePath]);
 
-  const handleRevertChange = useCallback(async (info: { hunk: DiffHunk; startIndex: number; endIndex: number }) => {
-    setConfirmRevertChange(null);
+  const runChangeAction = useCallback(async (action: ChangeAction, info: { hunk: DiffHunk; startIndex: number; endIndex: number }) => {
+    if (busyRef.current) {
+      return;
+    }
+    busyRef.current = true;
     const patch = buildChangeGroupPatch(file, info.hunk, info.startIndex, info.endIndex);
-    const id = toast.loading('Undoing change…');
+    const run = action === 'stage' ? stageHunk : action === 'unstage' ? unstageHunk : apiRevertHunk;
     try {
-      await apiRevertHunk(patch);
-      toast.success('Change undone', { id });
+      await run(patch);
+      toast.success(changeActionToast(action, filePath));
       onRevert?.();
     } catch (error) {
-      toast.error('Could not undo the change', { id, description: errorMessage(error) });
+      if (action === 'stage' && view === 'all') {
+        toast.error('Could not stage this change', {
+          description: 'This file already has staged changes. Open Unstaged to stage part of it.',
+          action: { label: 'Open Unstaged', onClick: () => nav.toDiff('unstaged') },
+        });
+        return;
+      }
+      const verb = action === 'stage' ? 'stage' : action === 'unstage' ? 'unstage' : 'discard';
+      toast.error(`Could not ${verb} this change`, { description: errorMessage(error) });
+    } finally {
+      busyRef.current = false;
     }
-  }, [file, onRevert]);
+  }, [file, filePath, view, nav, onRevert]);
+
+  const handleRevertChange = useCallback((info: { hunk: DiffHunk; startIndex: number; endIndex: number }) => {
+    setConfirmRevertChange(null);
+    void runChangeAction('discard', info);
+  }, [runChangeAction]);
+
+  const changeActions = useMemo<ChangeActionsConfig | undefined>(() => {
+    if (!canRevert) {
+      return undefined;
+    }
+    return {
+      view,
+      disabledReason: changeActionsDisabledReason(view, hideWhitespace),
+      onAction: (action, hunk, startIndex, endIndex) => {
+        if (action === 'discard') {
+          setConfirmRevertChange({ hunk, startIndex, endIndex });
+          return;
+        }
+        void runChangeAction(action, { hunk, startIndex, endIndex });
+      },
+    };
+  }, [canRevert, view, hideWhitespace, runChangeAction]);
 
 
   const { addReply, resolveThread, unresolveThread, editComment, deleteComment, deleteThread } = commentActions;
@@ -421,8 +521,9 @@ function FileCard(props: FileCardProps) {
     };
     const highlightInline = (delayMs: number) => runInSteps(tokenizeSources(plan.sources, highlightCode, tokens), delayMs, showProgress, finish);
     const lang = getLang(filePath);
+    const delay = highlightDelay(cardRef.current);
     if (!lang) {
-      return highlightInline(HIGHLIGHT_DELAY_MS);
+      return highlightInline(delay);
     }
     // The worker keeps tokenizing off the main thread, so scrolling never waits on it; inline is the fallback.
     let cancel = () => {};
@@ -442,7 +543,7 @@ function FileCard(props: FileCardProps) {
         cancel = highlightInline(0);
       });
       cancel = cancelWorker ?? highlightInline(0);
-    }, HIGHLIGHT_DELAY_MS);
+    }, delay);
     return () => {
       window.clearTimeout(timer);
       cancel();
@@ -487,7 +588,7 @@ function FileCard(props: FileCardProps) {
         next.set(gap.id, {
           fromTop: gap.oldEnd - gap.oldStart + 1,
           fromBottom: 0,
-          linesFromTop: contextLines,
+          linesFromTop: [...existing.linesFromTop, ...contextLines, ...existing.linesFromBottom],
           linesFromBottom: [],
         });
       } else if (direction === 'down') {
@@ -511,6 +612,38 @@ function FileCard(props: FileCardProps) {
 
     setLoadingGap(null);
   }, [fileContentPath, queryClient, baseRef, setExpansions]);
+
+  const handleShowFullFile = useCallback(async () => {
+    if (collapsed) {
+      onToggleCollapse(filePath);
+    }
+    setLoadingGap({ id: 'all', direction: 'all' });
+    try {
+      const lines = await queryClient.ensureQueryData(fileContentOptions(fileContentPath, true, baseRef));
+      setExpansions(prev => {
+        const next = new Map(prev);
+        for (const gap of gaps) {
+          const existing = next.get(gap.id) || { fromTop: 0, fromBottom: 0, linesFromTop: [], linesFromBottom: [] };
+          const range = getExpandRange(gap, 'all', existing);
+          if (!range) {
+            continue;
+          }
+          const contextLines = createContextLines(lines, range.oldStart, range.oldEnd, gap.newStart - gap.oldStart);
+          next.set(gap.id, {
+            fromTop: gap.oldEnd - gap.oldStart + 1,
+            fromBottom: 0,
+            linesFromTop: [...existing.linesFromTop, ...contextLines, ...existing.linesFromBottom],
+            linesFromBottom: [],
+          });
+        }
+        return next;
+      });
+    } catch (error) {
+      toast.error('Could not load the file', { description: errorMessage(error) });
+    } finally {
+      setLoadingGap(null);
+    }
+  }, [collapsed, onToggleCollapse, filePath, queryClient, fileContentPath, baseRef, setExpansions, gaps]);
 
   const getGapRemaining = useCallback((gap: ExpandableGap): { total: number; up: number; down: number } => {
     const expansion = expansions.get(gap.id);
@@ -580,6 +713,7 @@ function FileCard(props: FileCardProps) {
   const delBlocks = total > 0 ? Math.min(5, total) - addBlocks : 0;
   const neutralBlocks = 5 - addBlocks - delBlocks;
 
+  const hasHiddenLines = gaps.some((gap) => getGapRemaining(gap).total > 0);
   const bottomGap = gapMap.get('bottom');
   const bottomRemaining = bottomGap ? getGapRemaining(bottomGap).total : 0;
 
@@ -587,6 +721,7 @@ function FileCard(props: FileCardProps) {
 
   return (
     <div
+      ref={cardRef}
       className={`border rounded-lg overflow-clip scroll-mt-4 ${highlighted ? 'animate-flash-highlight-border' : 'border-border'}`}
       id={`file-${encodeURIComponent(filePath)}`}
       data-find-scope={filePath}
@@ -616,7 +751,7 @@ function FileCard(props: FileCardProps) {
             <PathLabel path={filePath} nameClassName="font-medium" />
           )}
         </button>
-        {file.status !== 'modified' && <StatusBadge status={file.status} />}
+        {file.status !== 'modified' && <StatusBadge status={file.status} title={similarityTitle(file)} />}
         {file.isBinary && <Badge className="bg-bg-tertiary text-text-muted">Binary</Badge>}
         {sinceViewed && (
           <SinceViewedBadge
@@ -638,7 +773,10 @@ function FileCard(props: FileCardProps) {
               viewRef={baseRef ?? 'work'}
               editorName={editorName}
               onOpenInEditor={file.status !== 'deleted' ? handleOpenInEditor : null}
-              onRevert={canRevert ? () => setConfirmRevertFile(true) : null}
+              onRevert={canRevert && view !== 'staged' ? () => setConfirmRevertFile(true) : null}
+              staging={canRevert ? { view, onStage: () => void handleStageFile(true), onUnstage: () => void handleStageFile(false) } : null}
+              onShowFullFile={!heldBack && !loadingPatch && hasHiddenLines ? () => void handleShowFullFile() : null}
+              hideWhitespace={hideWhitespace}
             />
           </div>
           {renderable && (
@@ -753,7 +891,7 @@ function FileCard(props: FileCardProps) {
           ) : (
             <>
             <table ref={tableRef} className="w-full border-collapse table-fixed">
-              {viewMode === 'split' ? (
+              {fileViewMode === 'split' ? (
                 <colgroup>
                   <col className="w-(--gutter-w)" />
                   <col className="w-[calc(50%-var(--gutter-w))]" />
@@ -777,7 +915,7 @@ function FileCard(props: FileCardProps) {
                   <HunkWithGap
                     key={unit.key}
                     hunk={unit.hunk}
-                    viewMode={viewMode}
+                    viewMode={fileViewMode}
                     syntaxMap={syntaxMap}
                     expandControls={unit.first ? getExpandControlsForHunk(i) : undefined}
                     topExpansionLines={unit.first && i === 0 ? [...(topExpansion?.linesFromTop ?? []), ...(topExpansion?.linesFromBottom ?? [])] : undefined}
@@ -800,7 +938,7 @@ function FileCard(props: FileCardProps) {
                     onDeleteThread={deleteThread}
                     onCancelPending={handleCancelPending}
                     filePath={filePath}
-                    onRevertChange={canRevert ? (h: DiffHunk, startIndex: number, endIndex: number) => setConfirmRevertChange({ hunk: h, startIndex, endIndex }) : undefined}
+                    changeActions={changeActions}
                     getOriginalCode={getOriginalCode}
                   />
                 );
@@ -808,7 +946,7 @@ function FileCard(props: FileCardProps) {
                   return block;
                 }
                 return (
-                  <LazySlice key={unit.key} rows={sliceRowCount(unit.hunk.lines, viewMode === 'split') + (unit.first ? 1 : 0)} pinned={isPinnedSlice(unit.hunk)}>
+                  <LazySlice key={unit.key} rows={sliceRowCount(unit.hunk.lines, fileViewMode === 'split') + (unit.first && !isWholeFileHunk(unit.hunk) ? 1 : 0)} pinned={isPinnedSlice(unit.hunk)}>
                     {block}
                   </LazySlice>
                 );
@@ -831,7 +969,7 @@ function FileCard(props: FileCardProps) {
                 return (
                   <tbody>
                     {bottomExpansion?.linesFromTop && bottomExpansion.linesFromTop.length > 0 &&
-                      renderExpansionRows(bottomExpansion.linesFromTop, viewMode, 'bottom-top', bottomSyntaxMap, bottomCommentProps)}
+                      renderExpansionRows(bottomExpansion.linesFromTop, fileViewMode, 'bottom-top', bottomSyntaxMap, bottomCommentProps)}
                     <ExpandRow
                       position="bottom"
                       remainingLines={bottomRemaining}
@@ -839,7 +977,7 @@ function FileCard(props: FileCardProps) {
                       onExpand={(dir) => handleExpand(bottomGap, dir)}
                     />
                     {bottomExpansion?.linesFromBottom && bottomExpansion.linesFromBottom.length > 0 &&
-                      renderExpansionRows(bottomExpansion.linesFromBottom, viewMode, 'bottom-bot', bottomSyntaxMap, bottomCommentProps)}
+                      renderExpansionRows(bottomExpansion.linesFromBottom, fileViewMode, 'bottom-bot', bottomSyntaxMap, bottomCommentProps)}
                   </tbody>
                 );
               })()}
@@ -851,17 +989,14 @@ function FileCard(props: FileCardProps) {
       )}
       {confirmRevertFile && (
         <ConfirmDialog
-          title="Revert file"
-          message={`This will discard all changes to ${filePath}. This cannot be undone.`}
-          confirmLabel="Revert"
+          {...revertFileCopy(view, filePath, file.status)}
           onConfirm={handleRevertFile}
           onCancel={() => setConfirmRevertFile(false)}
         />
       )}
       {confirmRevertChange && (
         <ConfirmDialog
-          title="Undo change"
-          message="This will undo the selected change. This cannot be undone."
+          {...discardChangeCopy(view, filePath, file.status)}
           onConfirm={() => handleRevertChange(confirmRevertChange)}
           onCancel={() => setConfirmRevertChange(null)}
         />

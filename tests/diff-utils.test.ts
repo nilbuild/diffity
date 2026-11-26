@@ -14,6 +14,11 @@ function makeFile(path: string, status: DiffFile['status'] = 'modified'): DiffFi
   };
 }
 
+function withRows(file: DiffFile, rows: number): DiffFile {
+  const lines: DiffLine[] = Array.from({ length: rows }, (_, i) => ({ type: 'add', content: `line ${i}`, oldLineNumber: null, newLineNumber: i + 1 }));
+  return { ...file, additions: rows, hunks: [{ header: `@@ -0,0 +1,${rows} @@`, oldStart: 0, oldCount: 0, newStart: 1, newCount: rows, lines }] };
+}
+
 function heldBack(files: DiffFile[]): Set<string> {
   const paths = getAutoCollapsedPaths(files);
   for (const file of files) {
@@ -92,11 +97,28 @@ describe('collapsed or held back files', () => {
   });
 
   describe('generated files', () => {
-    it('collapses .d.ts files', () => {
-      const files = [makeFile('types/index.d.ts')];
-      const collapsed = heldBack(files);
+    it('keeps short .d.ts and .snap diffs', () => {
+      const files = [makeFile('types/index.d.ts'), makeFile('tests/__snapshots__/app.test.snap')];
+      expect(heldBack(files).size).toBe(0);
+    });
 
-      expect(collapsed.has('types/index.d.ts')).toBe(true);
+    it('holds back long .d.ts and .snap diffs as generated', () => {
+      expect(deferReason(withRows(makeFile('types/index.d.ts'), 250))).toBe('Generated file');
+      expect(deferReason(withRows(makeFile('tests/__snapshots__/app.test.snap'), 250))).toBe('Generated file');
+    });
+
+    it('matches build folders only as whole path segments', () => {
+      expect(deferReason(makeFile('rebuild/x.ts'))).toBeNull();
+      expect(deferReason(makeFile('src/prebuild/x.ts'))).toBeNull();
+      expect(deferReason(makeFile('redist/x.ts'))).toBeNull();
+      expect(deferReason(makeFile('src/codegenerated/x.ts'))).toBeNull();
+      expect(deferReason(makeFile('packages/app/dist/index.js'))).toBe('Generated file');
+      expect(deferReason(makeFile('src/generated/api.ts'))).toBe('Generated file');
+      expect(deferReason(makeFile('src/__generated__/schema.ts'))).toBe('Generated file');
+    });
+
+    it('does not treat pnpm-workspace.yaml as a lock file', () => {
+      expect(deferReason(makeFile('pnpm-workspace.yaml'))).toBeNull();
     });
 
     it('collapses .map files', () => {
@@ -104,13 +126,6 @@ describe('collapsed or held back files', () => {
       const collapsed = heldBack(files);
 
       expect(collapsed.has('dist/app.js.map')).toBe(true);
-    });
-
-    it('collapses .snap files', () => {
-      const files = [makeFile('tests/__snapshots__/app.test.snap')];
-      const collapsed = heldBack(files);
-
-      expect(collapsed.has('tests/__snapshots__/app.test.snap')).toBe(true);
     });
 
     it('collapses files in dist/', () => {

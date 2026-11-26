@@ -10,7 +10,10 @@ import { toast } from 'sonner';
 import { setWrapLines, useTypography } from '../../lib/typography';
 
 interface DiffBarProps {
+  /** The layout on screen: unified while split doesn't fit, whatever was chosen. */
   viewMode: ViewMode;
+  /** The column is too narrow for split; it is shown again once there is room. */
+  splitUnavailable?: boolean;
   onViewModeChange: (mode: ViewMode) => void;
   hideWhitespace: boolean;
   onHideWhitespaceChange: (hide: boolean) => void;
@@ -24,6 +27,9 @@ interface DiffBarProps {
   /** Copy / delete-all for the comments in this view, shown in ⋯ when there are any. */
   comments?: { count: number; formatForCopy: () => string; onDeleteAll: () => void };
 }
+
+export const SPLIT_NO_ROOM = 'Not enough room for split';
+export const SPLIT_NO_ROOM_HINT = 'Widen the window or close the side panel. Split comes back when there is room.';
 
 export function hiddenFilesLabel(count: number) {
   return `${count} file${count === 1 ? '' : 's'} hidden by .diffityignore`;
@@ -62,7 +68,7 @@ function IgnoredFilesChip(props: { hiddenCount: number; showing: boolean; onShow
 }
 
 export function DiffBar(props: DiffBarProps) {
-  const { viewMode, onViewModeChange, hideWhitespace, onHideWhitespaceChange, ignored, onExpandAll, onCollapseAll, commentNav, leading, comments } = props;
+  const { viewMode, splitUnavailable = false, onViewModeChange, hideWhitespace, onHideWhitespaceChange, ignored, onExpandAll, onCollapseAll, commentNav, leading, comments } = props;
   const menu = useMenu();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const wrapLines = useTypography((state) => state.wrapLines);
@@ -94,7 +100,13 @@ export function DiffBar(props: DiffBarProps) {
         labelClassName="@max-[560px]/diffbar:sr-only"
         options={[
           { value: 'unified', label: 'Unified', title: 'Unified: one column (U)', icon: <UnifiedViewIcon size="sm" /> },
-          { value: 'split', label: 'Split', title: 'Split: before and after side by side (S)', icon: <SplitViewIcon size="sm" /> },
+          {
+            value: 'split',
+            label: 'Split',
+            title: splitUnavailable ? `${SPLIT_NO_ROOM}. ${SPLIT_NO_ROOM_HINT}` : 'Split: before and after side by side (S)',
+            icon: <SplitViewIcon size="sm" />,
+            dimmed: splitUnavailable,
+          },
         ]}
       />
       <button
@@ -106,7 +118,7 @@ export function DiffBar(props: DiffBarProps) {
       >
         <EllipsisIcon size="md" />
       </button>
-      <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} align="end" width={250}>
+      <Popover open={menu.open} onClose={menu.close} anchorRef={menu.anchorRef} align="end" width={260}>
         <MenuItem icon={<EyeOffIcon size="sm" />} label="Hide whitespace changes" checked={hideWhitespace} onSelect={run(() => onHideWhitespaceChange(!hideWhitespace))} />
         <MenuItem icon={<WrapIcon size="sm" />} label="Wrap long lines" checked={wrapLines} onSelect={run(() => setWrapLines(!wrapLines))} />
         <MenuSeparator />
@@ -115,7 +127,7 @@ export function DiffBar(props: DiffBarProps) {
         {comments && comments.count > 0 && (
           <>
             <MenuSeparator />
-            <MenuItem icon={<CopyIcon size="sm" />} label="Copy open comments as Markdown" onSelect={run(() => {
+            <MenuItem icon={<CopyIcon size="sm" />} label="Copy comments as Markdown" onSelect={run(() => {
               const text = comments.formatForCopy();
               if (!text) {
                 toast.info('No open comments to copy');

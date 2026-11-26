@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback, useImperativeHandle, useEffect, useLayoutEffect } from 'react';
+import { useMemo, useRef, useState, useCallback, useImperativeHandle, useEffect, useLayoutEffect, type ReactNode } from 'react';
 import { useVirtualizer, type VirtualItem } from '@tanstack/react-virtual';
 import { useViewStateSlot } from '../../lib/view-state';
 import type { ParsedDiff } from '@/lib/diff-parser';
@@ -77,6 +77,8 @@ interface DiffViewProps {
   hideWhitespace?: boolean;
   /** Where the measured file heights are kept, so the restored scroll offset lands on the same line. */
   memoryKey?: string;
+  /** Shown after the last file, inside the scrolling area. */
+  footer?: ReactNode;
 }
 
 function estimateFileHeight(file: DiffFile, collapsed: boolean, heldBack: boolean): number {
@@ -129,7 +131,7 @@ export function DiffView(props: DiffViewProps) {
     handle, baseRef, canRevert, onRevert,
     threads, otherViewThreads, twin, commentsEnabled, commentActions, onAddThread,
     pendingSelection, onPendingSelectionChange, initialScrollTop = 0, onScrollTopChange, hideWhitespace = false,
-    memoryKey = 'diff',
+    memoryKey = 'diff', footer,
   } = props;
   const measurements = useViewStateSlot<VirtualItem[]>(`${memoryKey}:measurements`);
   const [initialMeasurements] = useState(() => measurements.read([]));
@@ -347,50 +349,72 @@ export function DiffView(props: DiffViewProps) {
     );
   }, [pendingThreadScroll, settleScrollToElement]);
 
-  const getTopVisibleFile = useCallback((): string | null => {
+  /** The file card filling most of the viewport: what you're reading, whatever crossed the top last. */
+  const getCurrentFile = useCallback((): string | null => {
     const visibleItems = virtualizer.getVirtualItems();
-    if (visibleItems.length === 0) {
-      return null;
-    }
-
     const scrollEl = scrollElementRef.current;
-    if (!scrollEl) {
+    if (visibleItems.length === 0 || !scrollEl) {
       return null;
     }
-
-    const scrollTop = scrollEl.scrollTop;
+    const top = scrollEl.scrollTop;
+    const bottom = top + scrollEl.clientHeight;
+    let best: VirtualItem | null = null;
+    let bestShown = 0;
     for (const item of visibleItems) {
-      // A focused file sits scroll-mt-4 below the top, leaving the previous file's bottom padding in view
-      if (item.end - FILE_BLOCK_PADDING > scrollTop + 1) {
-        return getFilePath(diff.files[item.index]);
+      const shown = Math.min(item.end - FILE_BLOCK_PADDING, bottom) - Math.max(item.start, top);
+      if (shown > bestShown + 1) {
+        best = item;
+        bestShown = shown;
       }
     }
-
-    return getFilePath(diff.files[visibleItems[0].index]);
+    return getFilePath(diff.files[(best ?? visibleItems[0]).index]);
   }, [virtualizer, diff.files]);
 
   const handleScroll = useCallback(() => {
     if (scrollElementRef.current) {
       onScrollTopChange?.(scrollElementRef.current.scrollTop);
     }
-    if (!onActiveFileChange) {
+    // A file scrolled to on purpose (tree click, J/K, a comment) stays current until you scroll yourself.
+    if (!onActiveFileChange || scrollTargetRef.current) {
       return;
     }
+    const current = getCurrentFile();
+    if (current) {
+      onActiveFileChange(current);
+    }
+  }, [getCurrentFile, onActiveFileChange, onScrollTopChange]);
 
-    const topFile = getTopVisibleFile();
-    if (!topFile) {
+  useEffect(() => {
+    const el = scrollElementRef.current;
+    if (!el) {
       return;
     }
-
-    if (scrollTargetRef.current) {
-      if (topFile === scrollTargetRef.current) {
-        scrollTargetRef.current = null;
+    const release = () => {
+      scrollTargetRef.current = null;
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) {
+        release();
       }
-      return;
-    }
+    };
+    el.addEventListener('wheel', release, { passive: true });
+    el.addEventListener('touchmove', release, { passive: true });
+    el.addEventListener('pointerdown', release);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      el.removeEventListener('wheel', release);
+      el.removeEventListener('touchmove', release);
+      el.removeEventListener('pointerdown', release);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
 
-    onActiveFileChange(topFile);
-  }, [getTopVisibleFile, onActiveFileChange, onScrollTopChange]);
+  // Unified ⇄ split, expanding or collapsing files and resizing move the cards without a scroll event.
+  const totalSize = virtualizer.getTotalSize();
+  useEffect(() => {
+    const frame = requestAnimationFrame(handleScroll);
+    return () => cancelAnimationFrame(frame);
+  }, [viewMode, totalSize, handleScroll]);
 
   const items = virtualizer.getVirtualItems();
   const scrollRestored = useRef(initialScrollTop <= 0);
@@ -474,6 +498,7 @@ export function DiffView(props: DiffViewProps) {
           );
         })}
       </div>
+      {footer && <div className="px-5">{footer}</div>}
       </div>
     </main>
   );

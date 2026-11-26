@@ -1,5 +1,6 @@
 import { Spinner } from '../icons/spinner';
 import { ExpandDownIcon, ExpandUpIcon } from '../ui/icon';
+import { expandLabel } from './hunk-header';
 
 interface ExpandRowProps {
   position: 'top' | 'bottom';
@@ -32,14 +33,26 @@ export function ExpandRow(props: ExpandRowProps) {
           <button
             className={expandBtn}
             onClick={() => onExpand('down')}
-            title={`Expand ${Math.min(remainingLines, 20)} lines`}
+            title={expandLabel(remainingLines)}
           >
             {position === 'bottom' ? <ExpandDownIcon /> : <ExpandUpIcon />}
           </button>
         </td>
       )}
       <td colSpan={3} className="px-3 py-0.5 text-[11px] text-diff-hunk-text/80 select-none">
-        {Number.isFinite(remainingLines) && `${remainingLines} unmodified line${remainingLines === 1 ? '' : 's'}`}
+        {Number.isFinite(remainingLines) && (
+          <span className="inline-flex items-center gap-2">
+            {`${remainingLines} unmodified line${remainingLines === 1 ? '' : 's'}`}
+            {remainingLines > 20 && !loading && (
+              <button
+                className="underline underline-offset-2 decoration-diff-hunk-text/40 hover:text-diff-hunk-text cursor-pointer"
+                onClick={() => onExpand('all')}
+              >
+                Expand all
+              </button>
+            )}
+          </span>
+        )}
       </td>
     </tr>
   );

@@ -25,6 +25,19 @@ export function formatHunkHeader(hunk: DiffHunk): string {
   return range;
 }
 
+/** The single hunk of an added or deleted file: its `@@ -0,0 +1,N @@` header says nothing the card doesn't. */
+export function isWholeFileHunk(hunk: DiffHunk): boolean {
+  return (hunk.oldStart === 0 && hunk.oldCount === 0) || (hunk.newStart === 0 && hunk.newCount === 0);
+}
+
+export function expandLabel(lines: number, all = false): string {
+  const count = Math.min(lines, all ? lines : 20);
+  if (count === 1) {
+    return 'Expand 1 line';
+  }
+  return `Expand ${all ? 'all ' : ''}${count} lines`;
+}
+
 const SMALL_GAP_THRESHOLD = 40;
 
 const gutterCell = 'w-[25px] min-w-[25px] bg-diff-hunk-bg border-r border-border-muted p-0';
@@ -44,7 +57,7 @@ function SpinnerCell() {
 export function HunkHeader(props: HunkHeaderProps) {
   const { hunk, expandControls } = props;
 
-  if (!expandControls && !hunk.header) {
+  if (!expandControls && (!hunk.header || isWholeFileHunk(hunk))) {
     return null;
   }
   if (!expandControls) {
@@ -81,7 +94,7 @@ export function HunkHeader(props: HunkHeaderProps) {
       <tr className="bg-diff-hunk-bg group/hunk">
         {loadingDirection ? <SpinnerCell /> : (
           <td className={gutterCell}>
-            <button className={expandBtn} onClick={() => onExpand('up')} title={`Expand ${Math.min(remainingLines, 20)} lines`}>
+            <button className={expandBtn} onClick={() => onExpand('up')} title={expandLabel(remainingLines)}>
               <ExpandUpIcon />
             </button>
           </td>
@@ -101,7 +114,7 @@ export function HunkHeader(props: HunkHeaderProps) {
             <button
               className={expandBtn}
               onClick={() => onExpand(isSmallGap ? 'all' : showUp ? 'up' : 'down')}
-              title={isSmallGap ? `Expand all ${remainingLines} lines` : `Expand ${Math.min(remainingLines, 20)} lines`}
+              title={expandLabel(remainingLines, isSmallGap)}
             >
               {isSmallGap ? <ExpandBothIcon /> : showUp ? <ExpandUpIcon /> : <ExpandDownIcon />}
             </button>

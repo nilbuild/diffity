@@ -35,42 +35,167 @@ function stripPrefix(path: string): string {
 /** Word diffs are skipped for longer lines (minified code): tokenising and LCS on them costs seconds. */
 export const WORD_DIFF_MAX_LINE_LENGTH = 1000;
 
+/** Pairs below this share of common tokens are different lines, not edits of each other. */
+export const WORD_DIFF_MIN_SIMILARITY = 0.4;
+
+/** Blocks with more delete × add combinations than this fall back to pairing by position. */
+const MAX_PAIRING_CELLS = 40_000;
+
+const SIMILARITY_TOKEN_RE = /\w+|[^\s\w]/g;
+
+function tokenCounts(content: string): Map<string, number> | null {
+  if (content.length > WORD_DIFF_MAX_LINE_LENGTH) {
+    return null;
+  }
+  const tokens = content.match(SIMILARITY_TOKEN_RE);
+  if (!tokens) {
+    return null;
+  }
+  const counts = new Map<string, number>();
+  for (const token of tokens) {
+    counts.set(token, (counts.get(token) ?? 0) + token.length);
+  }
+  return counts;
+}
+
+function countTotal(counts: Map<string, number>): number {
+  let total = 0;
+  for (const count of counts.values()) {
+    total += count;
+  }
+  return total;
+}
+
+/** Dice coefficient over the two lines' tokens, weighted by length: 1 for the same tokens, 0 for none in common. */
+export function lineSimilarity(a: string, b: string): number {
+  const countsA = tokenCounts(a);
+  const countsB = tokenCounts(b);
+  if (!countsA || !countsB) {
+    return 0;
+  }
+  return bagSimilarity(countsA, countTotal(countsA), countsB, countTotal(countsB));
+}
+
+function bagSimilarity(a: Map<string, number>, totalA: number, b: Map<string, number>, totalB: number): number {
+  let shared = 0;
+  const [small, large] = a.size <= b.size ? [a, b] : [b, a];
+  for (const [token, count] of small) {
+    const other = large.get(token);
+    if (other) {
+      shared += Math.min(count, other);
+    }
+  }
+  return (2 * shared) / (totalA + totalB);
+}
+
+/**
+ * Pairs removed lines with added lines by similarity, keeping both in order (a pair never crosses another).
+ * Maximises the summed similarity; pairs below WORD_DIFF_MIN_SIMILARITY are never made.
+ * Returns [deleteIndex, addIndex] pairs.
+ */
+export function pairChangedLines(deleted: string[], added: string[]): Array<[number, number]> {
+  const m = deleted.length;
+  const n = added.length;
+  if (m === 0 || n === 0) {
+    return [];
+  }
+
+  const delBags = deleted.map(tokenCounts);
+  const addBags = added.map(tokenCounts);
+  const delTotals = delBags.map(bag => (bag ? countTotal(bag) : 0));
+  const addTotals = addBags.map(bag => (bag ? countTotal(bag) : 0));
+  const score = (i: number, j: number): number => {
+    const a = delBags[i];
+    const b = addBags[j];
+    if (!a || !b) {
+      return 0;
+    }
+    return bagSimilarity(a, delTotals[i], b, addTotals[j]);
+  };
+
+  if (m * n > MAX_PAIRING_CELLS) {
+    const pairs: Array<[number, number]> = [];
+    for (let p = 0; p < Math.min(m, n); p++) {
+      if (score(p, p) >= WORD_DIFF_MIN_SIMILARITY) {
+        pairs.push([p, p]);
+      }
+    }
+    return pairs;
+  }
+
+  const sim: Float64Array[] = [];
+  for (let i = 0; i < m; i++) {
+    const row = new Float64Array(n);
+    for (let j = 0; j < n; j++) {
+      row[j] = score(i, j);
+    }
+    sim.push(row);
+  }
+
+  const best: Float64Array[] = Array.from({ length: m + 1 }, () => new Float64Array(n + 1));
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      let value = Math.max(best[i - 1][j], best[i][j - 1]);
+      const s = sim[i - 1][j - 1];
+      if (s >= WORD_DIFF_MIN_SIMILARITY) {
+        value = Math.max(value, best[i - 1][j - 1] + s);
+      }
+      best[i][j] = value;
+    }
+  }
+
+  const pairs: Array<[number, number]> = [];
+  let i = m;
+  let j = n;
+  while (i > 0 && j > 0) {
+    const s = sim[i - 1][j - 1];
+    if (s >= WORD_DIFF_MIN_SIMILARITY && best[i][j] === best[i - 1][j - 1] + s) {
+      pairs.push([i - 1, j - 1]);
+      i--;
+      j--;
+      continue;
+    }
+    if (best[i][j] === best[i - 1][j]) {
+      i--;
+      continue;
+    }
+    j--;
+  }
+  return pairs.reverse();
+}
+
 function attachWordDiffs(hunk: DiffHunk): void {
   const lines = hunk.lines;
   let i = 0;
 
   while (i < lines.length) {
-    if (lines[i].type === 'delete') {
-      const deleteStart = i;
-      while (i < lines.length && lines[i].type === 'delete') {
-        i++;
-      }
-      const deleteEnd = i;
-
-      const addStart = i;
-      while (i < lines.length && lines[i].type === 'add') {
-        i++;
-      }
-      const addEnd = i;
-
-      const deleteCount = deleteEnd - deleteStart;
-      const addCount = addEnd - addStart;
-
-      if (deleteCount > 0 && addCount > 0) {
-        const pairCount = Math.min(deleteCount, addCount);
-        for (let p = 0; p < pairCount; p++) {
-          const delLine = lines[deleteStart + p];
-          const addLine = lines[addStart + p];
-          if (delLine.content.length > WORD_DIFF_MAX_LINE_LENGTH || addLine.content.length > WORD_DIFF_MAX_LINE_LENGTH) {
-            continue;
-          }
-          const segments = computeWordDiff(delLine.content, addLine.content);
-          delLine.wordDiff = segments;
-          addLine.wordDiff = segments;
-        }
-      }
-    } else {
+    if (lines[i].type !== 'delete') {
       i++;
+      continue;
+    }
+    const deleteStart = i;
+    while (i < lines.length && lines[i].type === 'delete') {
+      i++;
+    }
+    const deleteEnd = i;
+
+    const addStart = i;
+    while (i < lines.length && lines[i].type === 'add') {
+      i++;
+    }
+    const addEnd = i;
+
+    if (addEnd === addStart) {
+      continue;
+    }
+
+    const deleted = lines.slice(deleteStart, deleteEnd);
+    const added = lines.slice(addStart, addEnd);
+    const pairs = pairChangedLines(deleted.map(l => l.content), added.map(l => l.content));
+    for (const [d, a] of pairs) {
+      const segments = computeWordDiff(deleted[d].content, added[a].content);
+      deleted[d].wordDiff = segments;
+      added[a].wordDiff = segments;
     }
   }
 }

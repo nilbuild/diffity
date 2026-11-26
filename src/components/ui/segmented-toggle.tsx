@@ -7,6 +7,8 @@ interface SegmentedToggleOption<T extends string> {
   label: string;
   icon?: ReactNode;
   title?: string;
+  /** Shown as unavailable but still clickable, so a click can explain why. */
+  dimmed?: boolean;
 }
 
 interface SegmentedToggleProps<T extends string> {
@@ -34,7 +36,8 @@ export function SegmentedToggle<T extends string>(props: SegmentedToggleProps<T>
               iconOnly ? 'w-6' : 'px-2.5',
               isActive
                 ? segmentActive
-                : segmentInactive
+                : segmentInactive,
+              option.dimmed && 'opacity-50',
             )}
             onClick={() => onChange(option.value)}
           >

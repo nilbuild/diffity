@@ -4,6 +4,7 @@ import { useQueries, useQueryClient } from '@tanstack/react-query';
 import type { DiffFile } from '@/lib/diff-parser';
 import { useLocation, useNavigate, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
+import { useSplitRoom } from '../../hooks/use-split-room';
 import { useDiff } from '../../hooks/use-diff';
 import { useInfo } from '../../hooks/use-info';
 import { useTheme } from '../../hooks/use-theme';
@@ -38,14 +39,15 @@ import { OtherViewThreads, OutsideThreads, threadsOutside } from '../comments/ou
 import { splitThreadsByView } from '../../lib/thread-views';
 import { useUncommittedPaths, useUncommittedPathsReady } from '../layout/diff-context-bar';
 import type { CommentThread, LineSelection } from '../comments/types';
-import { DiffBar, hiddenFilesLabel } from './view-options';
+import { DiffBar, hiddenFilesLabel, SPLIT_NO_ROOM, SPLIT_NO_ROOM_HINT } from './view-options';
 import { ViewBar, ViewPicker } from '../layout/view-picker';
 import { TaskRunBar } from '../../features/tasks/task-run-bar';
 import { repoBase } from '../../hooks/use-repo';
 import { errorMessage, getRepoPath, parseCommitRef } from '../../lib/api';
 import { enterLargeDiffScope } from '../../lib/large-diff';
 import { readViewMemory, writeViewMemory } from '../../lib/view-memory';
-import { readViewState, useViewState, writeViewState } from '../../lib/view-state';
+import { readViewState, usePersistedViewState, useViewState, writeViewState } from '../../lib/view-state';
+import { setDiffViewMode, setGuideViewMode, useDiffLayout } from '../../lib/diff-layout';
 import { MovedComposer, selectionInDiff } from '../comments/moved-composer';
 import { Workspace } from '../layout/title-bar';
 import { ReviewStateProvider } from '../../features/review/review-state';
@@ -54,7 +56,7 @@ import type { SinceViewedInfo } from './since-viewed';
 import { useGitHubPr, useOwnPr } from '../../hooks/use-repo-state';
 import { prDiffRef, uncommittedTwin } from '../layout/ref-menu';
 import { openCommitDialog } from '../../features/pr/commit-dialog';
-import { BookIcon, ChangesIcon, ChevronDownIcon, ChevronUpIcon, CollapseAllIcon, CopyIcon, ExpandAllIcon, EyeOffIcon, GitHubIcon, GitPullRequestIcon, PushIcon, RefreshIcon, SendIcon, SparkleIcon, SplitViewIcon, UnifiedViewIcon } from '../ui/icon';
+import { BookIcon, ChangesIcon, ChevronDownIcon, ChevronUpIcon, CollapseAllIcon, CopyIcon, ExpandAllIcon, EyeOffIcon, GitCommitIcon, GitHubIcon, GitPullRequestIcon, PushIcon, RefreshIcon, SendIcon, SparkleIcon, SplitViewIcon, UnifiedViewIcon } from '../ui/icon';
 import { shortcutHint } from '../../lib/shortcuts';
 import { FindBar } from '../../features/find/find-bar';
 import { useFind, useFindSource, type FindSource } from '../../features/find/find-store';
@@ -74,6 +76,7 @@ import { useRunPick } from '../../features/claude/model-setting';
 import { GENERAL_THREAD_FILE_PATH } from '../comments/types';
 import { ReviewKeys } from '../layout/review-keys';
 import { requestSearchFocus } from '../../features/code-search/code-search';
+import { TaskRoundFooter } from '../../features/tasks/round-footer';
 import type { SearchTarget } from '../../features/code-search/sidebar-search';
 
 const NO_THREADS: CommentThread[] = [];
@@ -89,8 +92,8 @@ interface DiffPageProps {
 export function DiffPage(props: DiffPageProps) {
   const { diffRef: refParam } = props;
 
-  const [viewMode, setViewMode] = useState<ViewMode>(() => (localStorage.getItem('diffity-view-mode') as ViewMode | null) ?? 'split');
-  const [hideWhitespace, storeHideWhitespace] = useViewState(`diff:${refParam}:hideWhitespace`, false);
+  const viewMode = useDiffLayout((state) => state.diff);
+  const [hideWhitespace, storeHideWhitespace] = usePersistedViewState('diff:hideWhitespace', false);
   const { theme, toggleTheme } = useTheme();
   const [showIgnored, storeShowIgnored] = useViewState(`diff:${refParam}:showIgnored`, false);
   // These refetch the diff; in a transition the current one stays up instead of the page suspending to a skeleton.
@@ -163,10 +166,17 @@ export function DiffPage(props: DiffPageProps) {
   const chapters = useMemo(() => (guide && diff ? readingChapters(guide, diff.files) : []), [guide, diff]);
   const guideStale = !!guide && isGuideStale(guide, showIgnored ? undefined : rawDiff?.fingerprint, chapters);
   const guideMode = mode === 'guide' && reviewsEnabled;
-  // The guide sits beside a story column, so it keeps its own unified/split choice, unified by default.
-  const [guideViewMode, setGuideViewMode] = useViewState<ViewMode>('guide:viewMode', 'unified');
+  const guideViewMode = useDiffLayout((state) => state.guide);
   const shownViewMode = guideMode ? guideViewMode : viewMode;
-  const setShownViewMode = guideMode ? setGuideViewMode : setViewMode;
+  const setPreferredViewMode = guideMode ? setGuideViewMode : setDiffViewMode;
+  const splitRoom = useSplitRoom();
+  const renderedViewMode: ViewMode = shownViewMode === 'split' && !splitRoom.fits ? 'unified' : shownViewMode;
+  const setShownViewMode = useCallback((next: ViewMode) => {
+    if (next === 'split' && !splitRoom.fits) {
+      toast(SPLIT_NO_ROOM, { id: 'split-room', description: SPLIT_NO_ROOM_HINT });
+    }
+    setPreferredViewMode(next);
+  }, [splitRoom.fits, setPreferredViewMode]);
   const guideOpen = guideMode && !!guide && chapters.length > 0;
   const step = chapters.some((chapter) => chapter.key === guideStep) ? guideStep : OVERVIEW_STEP;
   const guidePr = githubDetails && refParam === prDiffRef(githubDetails) ? { title: githubDetails.pr.title, body: githubDetails.pr.body } : null;
@@ -225,10 +235,6 @@ export function DiffPage(props: DiffPageProps) {
   }, [guideMode, repoPath, refParam]);
 
   useHotkeys('g', () => setMode(guideMode ? 'files' : 'guide'), { preventDefault: true, enabled: reviewsEnabled }, [guideMode]);
-
-  useEffect(() => {
-    localStorage.setItem('diffity-view-mode', viewMode);
-  }, [viewMode]);
 
   useEffect(() => {
     hideStaticSplash();
@@ -565,7 +571,7 @@ export function DiffPage(props: DiffPageProps) {
       { id: 'view-expand', title: 'Expand all files', group: 'View', icon: <ExpandAllIcon size="sm" />, run: () => setCollapsedFiles(new Set()) },
       { id: 'file-next', title: 'Next file', group: 'View', hint: shortcutHint('file-next'), keywords: 'down', icon: <ChevronDownIcon size="sm" />, run: () => navigateFile(1) },
       { id: 'file-prev', title: 'Previous file', group: 'View', hint: shortcutHint('file-prev'), keywords: 'up', icon: <ChevronUpIcon size="sm" />, run: () => navigateFile(-1) },
-      { id: 'claude-review', title: 'Ask Claude to review…', group: 'Actions', keywords: 'ai review', icon: <SparkleIcon size="sm" className="text-claude" />, run: () => requestAskClaude(refParam) },
+      { id: 'claude-review', title: 'Review changes with Claude…', group: 'Actions', keywords: 'ai review', icon: <SparkleIcon size="sm" className="text-claude" />, run: () => requestAskClaude(refParam) },
       ...(reviewsEnabled ? [{
         id: 'guide',
         title: guideMode ? 'Show the diff' : guide ? 'Open the guide' : 'Write a guide…',
@@ -585,7 +591,7 @@ export function DiffPage(props: DiffPageProps) {
         { id: 'copy-contents', title: `${contentsLabel(refParam)} of ${activeFile.split('/').pop()}`, group: 'Actions', hint: shortcutHint('copy-contents'), icon: <CopyIcon size="sm" />, run: () => void copyFileContents(activeFile, refParam) },
       );
       if (file) {
-        list.push({ id: 'copy-diff', title: `Copy diff of ${activeFile.split('/').pop()}`, group: 'Actions', icon: <CopyIcon size="sm" />, run: () => copyFileDiff(file) });
+        list.push({ id: 'copy-diff', title: `Copy diff of ${activeFile.split('/').pop()}`, group: 'Actions', icon: <CopyIcon size="sm" />, run: () => void copyFileDiff(file, hideWhitespace, refParam) });
       }
     }
     if (githubDetails && refParam === prDiffRef(githubDetails)) {
@@ -598,9 +604,11 @@ export function DiffPage(props: DiffPageProps) {
     }
     if (ownPr && githubDetails) {
       list.push({ id: 'commit-push', title: `Commit & push to PR #${githubDetails.prNumber}`, group: 'Actions', icon: <PushIcon size="sm" />, run: () => openCommitDialog(githubDetails.prNumber) });
+    } else if (canRevert && (diff?.files.length ?? 0) > 0) {
+      list.push({ id: 'commit', title: 'Commit changes…', group: 'Actions', keywords: 'git commit stage', icon: <GitCommitIcon size="sm" />, run: () => openCommitDialog(null) });
     }
     return list;
-  }, [hideWhitespace, diff, navigateFile, refParam, ownPr, githubDetails, activeFile, reviewsEnabled, guideMode, guide, setMode, setShownViewMode]);
+  }, [hideWhitespace, diff, navigateFile, refParam, ownPr, githubDetails, activeFile, reviewsEnabled, guideMode, guide, setMode, setShownViewMode, canRevert]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -708,7 +716,7 @@ export function DiffPage(props: DiffPageProps) {
       promoteBlocked={promoteBlocked}
     >
     <SuggestionTargetContext.Provider value={suggestionTarget}>
-    <ReviewKeys threads={threads} onScrollToThread={handleScrollToThread} onResolve={commentActions.resolveThread} />
+    <ReviewKeys threads={threads} onScrollToThread={handleScrollToThread} onResolve={commentActions.resolveThread} files={diff.files} />
     <div className="relative flex flex-col h-screen bg-frame text-text font-sans">
       <PendingLine pending={optionsPending} />
       <Toolbar
@@ -799,13 +807,14 @@ export function DiffPage(props: DiffPageProps) {
             )}
           </div>
         ) : (
-          <div className="relative flex flex-1 min-w-0 flex-col">
+          <div ref={splitRoom.ref} className="relative flex flex-1 min-w-0 flex-col">
             <FindBar className="top-12" />
             <TaskRunBar />
             {guideMode && !guideOpen && <ViewBar diffRef={refParam} branch={info?.branch || null} />}
             {(!guideMode || guideOpen) && (
               <DiffBar
-                viewMode={shownViewMode}
+                viewMode={renderedViewMode}
+                splitUnavailable={!splitRoom.fits}
                 onViewModeChange={setShownViewMode}
                 hideWhitespace={hideWhitespace}
                 onHideWhitespaceChange={setHideWhitespace}
@@ -827,6 +836,7 @@ export function DiffPage(props: DiffPageProps) {
                     formatForCopy={() => formatThreadsForCopy(threads, diff, refParam)}
                     extras={false}
                     keys={!guideOpen}
+                    files={diff.files}
                   />
                 }
                 comments={{
@@ -848,7 +858,7 @@ export function DiffPage(props: DiffPageProps) {
                 chapters={chapters}
                 step={step}
                 onStep={setGuideStep}
-                viewMode={shownViewMode}
+                viewMode={renderedViewMode}
                 collapsedFiles={collapsedFiles}
                 onToggleCollapse={handleToggleCollapse}
                 reviewedFiles={reviewedFiles}
@@ -873,7 +883,7 @@ export function DiffPage(props: DiffPageProps) {
             {!guideMode && (
             <DiffView
               diff={diff}
-              viewMode={viewMode}
+              viewMode={renderedViewMode}
               theme={theme}
               collapsedFiles={collapsedFiles}
               onToggleCollapse={handleToggleCollapse}
@@ -900,6 +910,7 @@ export function DiffPage(props: DiffPageProps) {
               onScrollTopChange={handleScrollTop}
               hideWhitespace={hideWhitespace}
               memoryKey={`diff:${refParam}:${hideWhitespace}`}
+              footer={<TaskRoundFooter diffRef={refParam} />}
             />
             )}
           </div>

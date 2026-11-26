@@ -38,6 +38,7 @@
   --color-diff-expanded-gutter: #f3f6fa;
   --color-diff-comment-bg: #fff8d6;
   --color-diff-comment-gutter: #ecd364;
+  --color-diff-comment-mark: #d4a72c;
 
   --color-accent: #0969da;
   --color-claude: #c96442;
@@ -128,6 +129,7 @@
   --color-diff-expanded-gutter: #1f2024;
   --color-diff-comment-bg: rgba(234, 179, 8, 0.1);
   --color-diff-comment-gutter: rgba(234, 179, 8, 0.3);
+  --color-diff-comment-mark: #d29922;
 
   --color-accent: #3b82f6;
   --color-claude: #e08a6d;
@@ -195,7 +197,7 @@
 :root {
   --code-size: 13px;
   --code-line: 22px;
-  --tab-size: 8;
+  --tab-size: 4;
   --gutter-w: max(48px, calc(var(--code-size) * 3.8));
 }
 
@@ -213,6 +215,12 @@ body {
 body {
   font-size: 13px;
   line-height: 20px;
+}
+
+/* No focus outlines or rings anywhere: text fields show focus with their border instead. */
+*:focus,
+*:focus-visible {
+  outline: none;
 }
 
 code,
@@ -273,6 +281,20 @@ td.diff-gutter.bg-diff-add-bg {
 tr.bg-diff-del-bg > td.diff-gutter:first-child,
 td.diff-gutter.bg-diff-del-bg {
   box-shadow: inset 2px 0 0 var(--color-diff-deleted);
+}
+
+td.diff-gutter.diff-gutter-marked {
+  box-shadow: inset -3px 0 0 var(--color-diff-comment-mark);
+}
+
+tr.bg-diff-add-bg > td.diff-gutter.diff-gutter-marked:first-child,
+td.diff-gutter.diff-gutter-marked.bg-diff-add-bg {
+  box-shadow: inset 2px 0 0 var(--color-diff-added), inset -3px 0 0 var(--color-diff-comment-mark);
+}
+
+tr.bg-diff-del-bg > td.diff-gutter.diff-gutter-marked:first-child,
+td.diff-gutter.diff-gutter-marked.bg-diff-del-bg {
+  box-shadow: inset 2px 0 0 var(--color-diff-deleted), inset -3px 0 0 var(--color-diff-comment-mark);
 }
 
 * {

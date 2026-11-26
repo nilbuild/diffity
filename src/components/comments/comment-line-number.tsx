@@ -22,7 +22,7 @@ export function CommentLineNumber(props: CommentLineNumberProps) {
       className={cn(
         baseClass,
         className,
-        isSelected && 'bg-diff-comment-gutter',
+        isSelected && 'diff-gutter-marked',
       )}
       onMouseDown={(e) => {
         if (onMouseDown && lineNumber !== null) {

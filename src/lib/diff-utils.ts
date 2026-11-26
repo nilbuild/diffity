@@ -46,7 +46,6 @@ const LOCK_FILES = new Set([
   'packages.lock.json',
   'project.assets.json',
   'paket.lock',
-  'pnpm-workspace.yaml',
   'shrinkwrap.yaml',
 ]);
 
@@ -68,15 +67,17 @@ const GENERATED_EXTENSIONS = [
 ];
 
 const GENERATED_PATTERNS = [
-  /\.d\.ts$/,
   /\.map$/,
-  /\.snap$/,
-  /dist\//,
-  /build\//,
-  /generated\//,
-  /__generated__\//,
+  /(^|\/)dist\//,
+  /(^|\/)build\//,
+  /(^|\/)generated\//,
+  /(^|\/)__generated__\//,
   /\.lock$/,
 ];
+
+/** Often generated, sometimes hand-written: held back only when the diff is long. */
+const MAYBE_GENERATED_PATTERNS = [/\.d\.ts$/, /\.snap$/];
+const MAYBE_GENERATED_ROW_THRESHOLD = 200;
 
 /** Files with more diff rows than this are not rendered until "Load diff". */
 export const DEFER_ROW_THRESHOLD = 1000;
@@ -133,14 +134,28 @@ export function deferReason(file: DiffFile): string | null {
   if (isGeneratedPath(path)) {
     return 'Generated file';
   }
+  if (rows >= MAYBE_GENERATED_ROW_THRESHOLD && MAYBE_GENERATED_PATTERNS.some((pattern) => pattern.test(path))) {
+    return 'Generated file';
+  }
   if (file.patchOmitted || rows >= DEFER_ROW_THRESHOLD) {
     return 'Large diff';
   }
   return null;
 }
 
+/** A rename with no content change: nothing to read, so it starts collapsed. */
+export function isPureRename(file: DiffFile): boolean {
+  if (file.status !== 'renamed') {
+    return false;
+  }
+  if (file.similarityIndex !== undefined) {
+    return file.similarityIndex === 100;
+  }
+  return !file.isBinary && file.hunks.length === 0 && file.additions === 0 && file.deletions === 0;
+}
+
 function isAutoCollapsible(file: DiffFile): boolean {
-  return file.status === 'deleted' || file.status === 'renamed';
+  return file.status === 'deleted' || isPureRename(file);
 }
 
 export function getAutoCollapsedPaths(files: DiffFile[]): Set<string> {

@@ -5,6 +5,7 @@ import { Badge } from './badge';
 interface StatusBadgeProps {
   status: string;
   compact?: boolean;
+  title?: string;
 }
 
 function getCompactLabel(status: string): string {
@@ -38,7 +39,7 @@ function getFullLabel(status: string): string {
 }
 
 export function StatusBadge(props: StatusBadgeProps) {
-  const { status, compact } = props;
+  const { status, compact, title } = props;
 
   if (compact) {
     return (
@@ -53,5 +54,5 @@ export function StatusBadge(props: StatusBadgeProps) {
     return null;
   }
 
-  return <Badge className={getStatusColor(status)}>{label}</Badge>;
+  return <Badge className={getStatusColor(status)} title={title}>{label}</Badge>;
 }

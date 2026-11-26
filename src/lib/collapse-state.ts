@@ -1,7 +1,7 @@
 import type { DiffFile } from '@/lib/diff-parser';
 import { getAutoCollapsedPaths, getFilePath } from './diff-utils';
 
-/** Collapsed unless toggled: viewed files, plus deleted and renamed files that have no comments. */
+/** Collapsed unless toggled: viewed files, plus deleted files and pure renames that have no comments. */
 export function defaultCollapsed(files: DiffFile[], commented: Set<string>, viewed: Set<string>): Set<string> {
   const paths = getAutoCollapsedPaths(files);
   for (const path of commented) {
