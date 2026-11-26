@@ -11,7 +11,7 @@ import type { Task } from '../../lib/types';
 import { buttonGhost, buttonOutline, buttonPrimary } from '../../components/ui/button-styles';
 import { ListRow, type RowAction } from '../../components/ui/list-row';
 import { Panel } from '../../components/ui/panel';
-import { AlertCircleIcon, ExternalLinkIcon, SparkleIcon, PlayIcon, PlusIcon, TrashIcon, UndoIcon } from '../../components/ui/icon';
+import { AlertCircleIcon, ExternalLinkIcon, GitPullRequestIcon, SparkleIcon, PlayIcon, PlusIcon, TrashIcon, UndoIcon } from '../../components/ui/icon';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog';
 import { formatRelativeTime } from '../../components/comments/comment-bubble';
 import { shortPath } from '../welcome/recent-repos';
@@ -19,12 +19,14 @@ import { latestActivity, useRunActivity } from '../claude/run-activity';
 import { openNewTask } from './new-task-store';
 import { TaskStatusIcon } from './task-status';
 import { openTask } from './task-menu';
+import { requestShipMenu } from './ship-menu';
 import { latestStep } from './task-run-bar';
 import {
   archiveMessage,
   archiveTask,
   cleanUpMerged,
   isBusy,
+  isReadyToShip,
   restoreTask,
   runTask,
   sortTasks,
@@ -167,7 +169,8 @@ export function TaskSections(props: { repoPath: string; checkoutRow?: ReactNode 
   const sorted = sortTasks(tasks, statuses);
   const needs = sorted.filter((task) => NEEDS_YOU.includes(statusOf(task)));
   const running = sorted.filter((task) => RUNNING.includes(statusOf(task)));
-  const done = sorted.filter((task) => !NEEDS_YOU.includes(statusOf(task)) && !RUNNING.includes(statusOf(task)));
+  const toShip = sorted.filter((task) => isReadyToShip(task, statusOf(task)));
+  const done = sorted.filter((task) => !NEEDS_YOU.includes(statusOf(task)) && !RUNNING.includes(statusOf(task)) && !toShip.includes(task));
   const merged = done.filter((task) => task.mergedAt);
   const prOpen = done.filter((task) => task.prNumber && !task.mergedAt).length;
   const reviewed = done.length - merged.length - prOpen;
@@ -178,7 +181,7 @@ export function TaskSections(props: { repoPath: string; checkoutRow?: ReactNode 
     archived.length > 0 ? `${archived.length} archived` : null,
   ].filter(Boolean).join(' · ');
   const foldCount = done.length + archived.length;
-  const hasAbove = needs.length > 0 || !!checkoutRow || running.length > 0;
+  const hasAbove = needs.length > 0 || !!checkoutRow || running.length > 0 || toShip.length > 0;
 
   const menuFor = (task: Task, status: TaskStatus): RowAction[] => {
     if (isBusy(status)) {
@@ -195,6 +198,10 @@ export function TaskSections(props: { repoPath: string; checkoutRow?: ReactNode 
     return actions;
   };
   const open = (task: Task) => void openTask(task, navigate);
+  const ship = (task: Task) => {
+    requestShipMenu(task.id);
+    open(task);
+  };
   const needsButton = (task: Task, status: TaskStatus) => {
     if (status === 'failed') {
       return <RowButton label={<><PlayIcon size="xs" />Run again</>} onClick={() => void runTask(task)} />;
@@ -257,6 +264,24 @@ export function TaskSections(props: { repoPath: string; checkoutRow?: ReactNode 
                 />
               );
             })}
+          </ul>
+        </Panel>
+      )}
+      {toShip.length > 0 && (
+        <Panel title="Ready to ship" icon={<GitPullRequestIcon size="sm" />} count={toShip.length}>
+          <ul>
+            {toShip.map((task) => (
+              <ListRow
+                key={task.id}
+                icon={<TaskStatusIcon status="idle" />}
+                title={task.title}
+                meta={<span className="truncate">{`Reviewed · ${rounds(task.rounds)}`}</span>}
+                stats={<span className="flex items-center gap-3">{time(task)}<RowButton label="Ship…" onClick={() => ship(task)} /></span>}
+                tooltip={`${task.title}\n${shortPath(task.path)}`}
+                onClick={() => open(task)}
+                actions={menuFor(task, 'idle')}
+              />
+            ))}
           </ul>
         </Panel>
       )}

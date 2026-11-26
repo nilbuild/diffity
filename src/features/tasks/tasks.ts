@@ -19,6 +19,7 @@ import {
   type RunStart,
 } from '../claude/claude-runner';
 import { getRunPick, type RunPick } from '../claude/model-setting';
+import { plural } from '../review/review-candidates';
 
 export const TASKS_KEY = ['tasks'];
 export const LIMIT_SETTING = 'tasks.parallel';
@@ -117,7 +118,15 @@ export function statusOf(task: Task, runs: ClaudeRun[], permissions: ClaudePermi
   if (task.prNumber) {
     return 'shipped';
   }
+  if (task.rounds > task.reviewedRound) {
+    return 'ready';
+  }
   return 'idle';
+}
+
+/** Every round is reviewed and nothing is shipped yet: what's left is a pull request or a merge. */
+export function isReadyToShip(task: Task, status: TaskStatus): boolean {
+  return status === 'idle' && task.rounds > 0 && !task.prNumber && !task.mergedAt;
 }
 
 export function useTaskStatuses(tasks: Task[]): Map<string, TaskStatus> {
@@ -221,6 +230,45 @@ export function markTaskSeen(task: Task) {
     return;
   }
   tauri.setTaskState(task.id, 'idle').catch(() => undefined);
+}
+
+/** The views that show a task's rounds: everything since its base, or what changed since your last review. */
+export function isRoundView(task: Task, diffRef: string): boolean {
+  return diffRef === task.baseRef || (!!task.reviewedSha && diffRef === task.reviewedSha);
+}
+
+/** What the round footer offers: approve the round, or send comments for the next one; once reviewed, ship it. */
+export function roundFooterCopy(task: Task, comments: number, agent: string): { title: string; detail: string } {
+  const next = task.rounds + 1;
+  if (task.reviewedRound >= task.rounds) {
+    return {
+      title: `Round ${task.rounds} reviewed`,
+      detail: task.prNumber ? `Push it to pull request #${task.prNumber}, or add comments for round ${next}.` : `Ship it as a pull request or merge it into ${task.baseRef}.`,
+    };
+  }
+  if (comments > 0) {
+    return {
+      title: `Done with round ${task.rounds}?`,
+      detail: `Send your ${plural(comments, 'comment')} to ${agent} to start round ${next}, or mark this round reviewed.`,
+    };
+  }
+  return {
+    title: `Done with round ${task.rounds}?`,
+    detail: `Mark it reviewed, or add comments on lines and send them to ${agent} to start round ${next}.`,
+  };
+}
+
+/** "Looks good" at the end of a round: every round so far is reviewed, and the task waits to be shipped. */
+export async function approveRound(task: Task) {
+  try {
+    await tauri.markTaskReviewed(task.id);
+    if (task.state === 'ready') {
+      await tauri.setTaskState(task.id, 'idle');
+    }
+  } catch (error) {
+    toast.error('Could not mark the round reviewed', { description: tauri.errorMessage(error) });
+  }
+  invalidateTasks();
 }
 
 /** The repository's archive command from .diffity/workspace.json, which archiving runs in the task folder first. */

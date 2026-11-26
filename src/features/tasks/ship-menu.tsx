@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
+import { create } from 'zustand';
 import { cn } from '../../lib/cn';
 import * as tauri from '../../lib/tauri';
 import type { Task } from '../../lib/types';
@@ -137,7 +138,7 @@ function MergeDialog(props: { task: Task; onClose: () => void; onMerged: () => v
   return (
     <DialogShell
       title={`Merge into ${task.baseRef}`}
-      detail={`Squash-merges ${task.branch} into ${task.baseRef} in ${shortPath(task.repoPath)} as one commit. Your checkout must be on ${task.baseRef} with nothing uncommitted.`}
+      detail={`Squash-merges ${task.branch} into ${task.baseRef} in ${shortPath(task.repoPath)} as one commit. Your copy must be on ${task.baseRef} with nothing uncommitted.`}
       onClose={onClose}
       onSubmit={() => void submit()}
       footer={
@@ -160,6 +161,18 @@ function MergeDialog(props: { task: Task; onClose: () => void; onMerged: () => v
   );
 }
 
+const SHIP_REQUEST_MS = 5000;
+
+const useShipRequest = create<{ taskId: string | null; at: number }>(() => ({ taskId: null, at: 0 }));
+
+/**
+ * Opens the task's Ship menu once its title bar shows (now, or after navigating to the task). The request lives until
+ * the menu is closed or a few seconds pass, so a title bar that remounts while the page loads still opens it.
+ */
+export function requestShipMenu(taskId: string) {
+  useShipRequest.setState({ taskId, at: Date.now() });
+}
+
 /** Title bar menu for getting a task's work out: a pull request, a local merge, catching up with the base. */
 export function ShipMenu() {
   const repoPath = useRepoPath();
@@ -170,6 +183,31 @@ export function ShipMenu() {
   const menu = useMenu();
   const [dialog, setDialog] = useState<'pr' | 'merge' | 'archive' | null>(null);
   const archiveCommand = useArchiveCommand(task?.repoPath ?? null);
+  const shipRequest = useShipRequest((state) => state.taskId);
+  const { open: menuOpen, toggle: toggleMenu } = menu;
+  const taskId = task?.id ?? null;
+  const wasOpen = useRef(false);
+  const handledAt = useRef(0);
+
+  useEffect(() => {
+    const { at } = useShipRequest.getState();
+    if (!taskId || shipRequest !== taskId || menuOpen || handledAt.current === at) {
+      return;
+    }
+    handledAt.current = at;
+    if (Date.now() - at > SHIP_REQUEST_MS) {
+      useShipRequest.setState({ taskId: null });
+      return;
+    }
+    toggleMenu();
+  }, [shipRequest, taskId, menuOpen, toggleMenu]);
+
+  useEffect(() => {
+    if (wasOpen.current && !menuOpen) {
+      useShipRequest.setState({ taskId: null });
+    }
+    wasOpen.current = menuOpen;
+  }, [menuOpen]);
 
   const busy = isBusy(status);
   if (!task || (busy && !menu.open && dialog === null)) {

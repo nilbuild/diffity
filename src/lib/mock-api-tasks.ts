@@ -113,6 +113,7 @@ export function createTaskMockHandlers(repoPath: string, now: () => string, newI
       const task = find(args.taskId);
       task.reviewedRound = task.rounds;
       task.reviewedSha = task.lastRoundSha;
+      changed(task.repoPath);
       return null;
     },
     notify_task: (args) => {

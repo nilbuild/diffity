@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { branchFromTitle, isBusy, sortTasks, statusLabel, statusOf, titleFromPrompt } from '../src/features/tasks/tasks';
+import { branchFromTitle, isBusy, isReadyToShip, isRoundView, roundFooterCopy, sortTasks, statusLabel, statusOf, titleFromPrompt } from '../src/features/tasks/tasks';
 import type { ClaudePermission, ClaudeRun } from '../src/features/claude/claude-runner';
 import type { Task } from '../src/lib/types';
 
@@ -45,8 +45,14 @@ describe('statusOf', () => {
     expect(statusOf(task({ prNumber: 4 }), [], [])).toBe('shipped');
     expect(statusOf(task({ prNumber: 4, mergedAt: 'x' }), [], [])).toBe('merged');
     expect(statusOf(task({ prNumber: 4, state: 'ready' }), [], [])).toBe('ready');
-    expect(statusOf(task({ state: 'working' }), [], [])).toBe('idle');
+    expect(statusOf(task({ state: 'working', reviewedRound: 1 }), [], [])).toBe('idle');
     expect(statusOf(task({ state: 'settingUp' }), [], [])).toBe('settingUp');
+  });
+
+  it('keeps a round you only looked at in review until you mark it reviewed', () => {
+    expect(statusOf(task({ rounds: 2, reviewedRound: 1 }), [], [])).toBe('ready');
+    expect(statusOf(task({ rounds: 2, reviewedRound: 2 }), [], [])).toBe('idle');
+    expect(statusOf(task({ rounds: 0, reviewedRound: 0 }), [], [])).toBe('idle');
   });
 
   it('flags a deleted folder before anything else', () => {
@@ -81,5 +87,34 @@ describe('titles and branches', () => {
   it('makes a diffity/ branch from the title', () => {
     expect(branchFromTitle('Add a reset() to the vanilla store please')).toBe('diffity/add-a-reset-to-the-vanilla');
     expect(branchFromTitle('!!!')).toBe('diffity/task');
+  });
+});
+
+describe('round footer', () => {
+  it('shows on the task views that hold its rounds', () => {
+    const t = task({ reviewedSha: 'r1' });
+    expect(isRoundView(t, 'main')).toBe(true);
+    expect(isRoundView(t, 'r1')).toBe(true);
+    expect(isRoundView(t, 'work')).toBe(false);
+    expect(isRoundView(task({ reviewedSha: null }), 'r1')).toBe(false);
+  });
+
+  it('offers the next round or shipping', () => {
+    const open = task({ rounds: 2, reviewedRound: 1 });
+    expect(roundFooterCopy(open, 0, 'Claude')).toEqual({
+      title: 'Done with round 2?',
+      detail: 'Mark it reviewed, or add comments on lines and send them to Claude to start round 3.',
+    });
+    expect(roundFooterCopy(open, 1, 'Claude').detail).toBe('Send your 1 comment to Claude to start round 3, or mark this round reviewed.');
+    expect(roundFooterCopy(open, 3, 'Codex').detail).toBe('Send your 3 comments to Codex to start round 3, or mark this round reviewed.');
+    const reviewed = task({ rounds: 2, reviewedRound: 2 });
+    expect(roundFooterCopy(reviewed, 0, 'Claude')).toEqual({ title: 'Round 2 reviewed', detail: 'Ship it as a pull request or merge it into main.' });
+  });
+
+  it('is ready to ship once reviewed and not yet shipped', () => {
+    expect(isReadyToShip(task({ reviewedRound: 1 }), 'idle')).toBe(true);
+    expect(isReadyToShip(task({ reviewedRound: 1, prNumber: 3 }), 'shipped')).toBe(false);
+    expect(isReadyToShip(task({ rounds: 0 }), 'idle')).toBe(false);
+    expect(isReadyToShip(task(), 'ready')).toBe(false);
   });
 });
