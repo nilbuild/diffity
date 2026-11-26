@@ -21,6 +21,8 @@ interface FileTreeItemProps {
   /** The parent folder is already marked ignored. */
   parentIgnored?: boolean;
   commentCountsByFile: Map<string, number>;
+  /** Uncommitted status by path, for trees of plain paths (the Files tab), so changed files carry their letter. */
+  statuses?: Map<string, string>;
   expandedDirs: Set<string>;
   onToggleDir: (path: string) => void;
   onCollapseDir?: (path: string) => void;
@@ -163,6 +165,8 @@ interface FileTreeRowProps {
   /** Spells out "ignored in diffs"; off under a folder that already says so. */
   diffIgnoredHint?: boolean;
   threadCount: number;
+  /** A status letter for rows without diff data (`node.file`). */
+  status?: string;
   expanded: boolean;
   onToggleDir: (path: string) => void;
   onCollapseDir?: (path: string) => void;
@@ -172,7 +176,8 @@ interface FileTreeRowProps {
 
 /** One row of the tree (a folder or a file), without its children; the context menu mounts only while open. */
 export function FileTreeRow(props: FileTreeRowProps) {
-  const { node, depth, active, reviewed, changedSinceViewed = false, diffIgnored = false, diffIgnoredHint = true, threadCount, expanded, onToggleDir, onCollapseDir, onExpandOnly, onFileClick } = props;
+  const { node, depth, active, reviewed, changedSinceViewed = false, diffIgnored = false, diffIgnoredHint = true, threadCount, status, expanded, onToggleDir, onCollapseDir, onExpandOnly, onFileClick } = props;
+  const fileStatus = (node.type === 'file' ? node.file?.status : undefined) ?? status;
   const paddingLeft = BASE_PADDING + depth * INDENT;
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const openMenu = (event: React.MouseEvent) => {
@@ -240,7 +245,7 @@ export function FileTreeRow(props: FileTreeRowProps) {
         <CommentCount count={threadCount} />
         {changedSinceViewed && <ChangedSinceViewedDot />}
         {reviewed && <span className="text-added text-[11px] shrink-0" title="Viewed">&#10003;</span>}
-        {node.file && <StatusLetter status={node.file.status} />}
+        {fileStatus && <StatusLetter status={fileStatus} />}
       </button>
       {menu && (
         <TreeItemMenu
@@ -268,6 +273,7 @@ export function FileTreeItem(props: FileTreeItemProps) {
     dimmedFiles,
     parentIgnored = false,
     commentCountsByFile,
+    statuses,
     expandedDirs,
     onToggleDir,
     onCollapseDir,
@@ -287,6 +293,7 @@ export function FileTreeItem(props: FileTreeItemProps) {
         diffIgnored={ignored}
         diffIgnoredHint={!parentIgnored}
         threadCount={commentCountsByFile.get(node.path) ?? 0}
+        status={statuses?.get(node.path)}
         expanded={expanded}
         onToggleDir={onToggleDir}
         onCollapseDir={onCollapseDir}
@@ -303,6 +310,7 @@ export function FileTreeItem(props: FileTreeItemProps) {
           dimmedFiles={dimmedFiles}
           parentIgnored={ignored}
           commentCountsByFile={commentCountsByFile}
+          statuses={statuses}
           expandedDirs={expandedDirs}
           onToggleDir={onToggleDir}
           onCollapseDir={onCollapseDir}

@@ -25,9 +25,11 @@ import { MarkdownPreview } from './markdown-preview';
 import { SvgPreview } from './svg-preview';
 import { PathComments } from '../comments/path-comments';
 import { CommentToolbarActions } from '../comments/comment-toolbar-actions';
+import { CommentsButton } from '../../features/comments/comments-button';
 import { OptionsMenu } from '../layout/options-menu';
 import { Breadcrumb, CurrentCrumb, TitleBar, Workspace } from '../layout/title-bar';
 import { StatusBar } from '../layout/status-bar';
+import { useUncommittedStatuses } from '../layout/diff-context-bar';
 import { useTreeStaleness } from '../../hooks/use-tree-staleness';
 import { isRenderableFile, isMarkdownFile, isImageFile } from '../../lib/file-types';
 import { SegmentedToggle } from '../ui/segmented-toggle';
@@ -189,6 +191,7 @@ export function TreePage() {
     return map;
   }, [threads]);
 
+  const statuses = useUncommittedStatuses();
   const paths = treeData?.paths ?? [];
   const diffIgnored = useMemo(() => new Set(treeData?.diffIgnored ?? []), [treeData]);
 
@@ -454,6 +457,7 @@ export function TreePage() {
         </div>
         <div data-tauri-drag-region className='flex-1 min-w-2 self-stretch' />
         <div className='flex items-center gap-2 shrink-0'>
+          <CommentsButton />
           <CommentToolbarActions
             threads={threads}
             onScrollToThread={handleScrollToThread}
@@ -547,7 +551,7 @@ export function TreePage() {
           ) : entriesPlaceholder ? (
             <DelayedFileSkeleton lines={6} />
           ) : entries.length > 0 ? (
-            <FolderViewer entries={entries} onNavigate={handleNavigate} />
+            <FolderViewer entries={entries} onNavigate={handleNavigate} statuses={statuses} />
           ) : entriesFetching ? (
             <DelayedFileSkeleton lines={6} />
           ) : (

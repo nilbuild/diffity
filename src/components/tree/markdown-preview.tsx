@@ -12,6 +12,8 @@ import { tokensToHtml } from '../../lib/syntax-token';
 interface MarkdownPreviewProps {
   content: string[];
   filePath?: string;
+  /** No box and no inner padding: the page's own padding frames it (a folder's README). */
+  bare?: boolean;
 }
 
 function resolveImageSrc(src: string | undefined, filePath: string | undefined): string | undefined {
@@ -170,7 +172,7 @@ function CodeBlock(props: CodeBlockProps) {
 }
 
 export const MarkdownPreview = memo(function MarkdownPreview(props: MarkdownPreviewProps) {
-  const { content, filePath } = props;
+  const { content, filePath, bare } = props;
   const { highlight } = useHighlighter();
   const theme = useThemeStore((state) => state.theme);
   const raw = content.join('\n');
@@ -213,11 +215,11 @@ export const MarkdownPreview = memo(function MarkdownPreview(props: MarkdownPrev
   }), [highlight, theme, resolveSrc]);
 
   return (
-    <div className="border border-border rounded-md overflow-hidden">
+    <div className={bare ? undefined : 'border border-border rounded-md overflow-hidden'}>
       {frontmatterEntries.length > 0 && (
         <FrontmatterTable entries={frontmatterEntries} />
       )}
-      <div className="gh-md-body">
+      <div className={bare ? 'gh-md-body !p-0' : 'gh-md-body'}>
         <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>
           {markdown}
         </ReactMarkdown>

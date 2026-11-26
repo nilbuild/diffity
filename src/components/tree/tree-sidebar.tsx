@@ -13,6 +13,7 @@ import { SidebarSearch, type SearchTarget } from '../../features/code-search/sid
 import { MenuItem } from '../ui/popover';
 import { CollapseAllIcon, ExpandAllIcon } from '../ui/icon';
 import { useRestoredScroll, useViewState } from '../../lib/view-state';
+import { useUncommittedStatuses } from '../layout/diff-context-bar';
 
 interface TreeSidebarProps {
   paths: string[];
@@ -123,6 +124,7 @@ export function TreeSidebar(props: TreeSidebarProps) {
   }, [setExpandedDirs]);
 
   const emptyReviewedFiles = useMemo(() => new Set<string>(), []);
+  const statuses = useUncommittedStatuses();
 
   return (
     <SidebarFrame view="tree">
@@ -170,6 +172,7 @@ export function TreeSidebar(props: TreeSidebarProps) {
               reviewedFiles={emptyReviewedFiles}
               dimmedFiles={diffIgnored}
               commentCountsByFile={commentCountsByFile}
+              statuses={statuses}
               expandedDirs={effectiveExpanded}
               onToggleDir={handleExpandDir}
               onCollapseDir={handleCollapseDir}
