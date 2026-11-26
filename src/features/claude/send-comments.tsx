@@ -266,7 +266,7 @@ export function SendCommentsPanel(props: SendCommentsPanelProps) {
       }}
     >
       <div className="px-4 pt-3.5 pb-2">
-        <h3 className="text-[13px] font-medium leading-5 text-text">{sendCount > 0 ? `Answer or fix ${plural(sendCount, 'comment')}` : 'Answer or fix comments'}</h3>
+        <h3 className="text-[13px] font-medium leading-5 text-text">{sendCount > 0 ? `Send ${plural(sendCount, 'comment')} to ${agent.short}` : `Send comments to ${agent.short}`}</h3>
         <p className="mt-0.5 text-xs leading-4 text-text-muted">{agent.short} answers questions, makes the changes asked for, and replies on each one you tick.</p>
       </div>
       <div className="max-h-[320px] overflow-y-auto px-2 pb-2">

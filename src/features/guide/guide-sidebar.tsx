@@ -172,24 +172,44 @@ function ChapterList(props: { chapters: ReadingChapter[]; reviewedFiles: Set<str
 }
 
 const PLACEHOLDER_WIDTHS = ['w-4/5', 'w-3/5', 'w-2/3', 'w-1/2'];
+const EXAMPLE_CHAPTERS = ['The core change', 'What it touches', 'Tests and cleanup'];
 
-/** The Guide tab's sidebar before a guide exists: the shape of the chapter list to come, not the diff's file tree. */
 export function GuideSidebarEmpty(props: { writing: boolean }) {
   const { writing } = props;
 
+  if (writing) {
+    return (
+      <SidebarFrame view="guide">
+        <div className="px-4 pt-2">
+          <div className="text-xs text-text-muted">Writing the chapters…</div>
+          <ol className="mt-2 -mx-2 flex flex-col gap-0.5" aria-hidden>
+            {PLACEHOLDER_WIDTHS.map((width, index) => (
+              <li key={width} className="flex items-center gap-2.5 px-2 py-1.5">
+                <span className="w-5 shrink-0 font-mono text-[11px] text-text-muted/60 tabular-nums">{index + 1}</span>
+                <span className={cn('h-2.5 rounded-full bg-fill animate-pulse', width)} />
+              </li>
+            ))}
+          </ol>
+        </div>
+      </SidebarFrame>
+    );
+  }
   return (
     <SidebarFrame view="guide">
       <div className="px-4 pt-2">
-        <div className="text-xs text-text-muted">{writing ? 'Writing the chapters…' : 'Chapters'}</div>
-        <ol className="mt-2 -mx-2 flex flex-col gap-0.5" aria-hidden>
-          {PLACEHOLDER_WIDTHS.map((width, index) => (
-            <li key={width} className="flex items-center gap-2.5 px-2 py-1.5">
-              <span className="w-5 shrink-0 font-mono text-[11px] text-text-muted/60 tabular-nums">{index + 1}</span>
-              <span className={cn('h-2.5 rounded-full bg-fill', width, writing && 'animate-pulse')} />
-            </li>
-          ))}
-        </ol>
-        {!writing && <p className="mt-3 text-xs leading-5 text-text-muted">Write a guide and its chapters show here, the core change first.</p>}
+        <div className="text-xs text-text-muted">No guide yet</div>
+        <div className="mt-2 px-1 py-1.5 rounded-lg border border-dashed border-border">
+          <div className="px-2 pb-0.5 text-[11px] text-text-muted">For example</div>
+          <ol className="flex flex-col" aria-label="Example chapters">
+            {EXAMPLE_CHAPTERS.map((title, index) => (
+              <li key={title} className="flex items-center gap-2.5 h-7 px-2 text-[13px] text-text-muted">
+                <span className="w-5 shrink-0 font-mono text-[11px] tabular-nums">{index + 1}</span>
+                <span className="truncate">{title}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-text-muted">Write a guide and its chapters show here, the core change first.</p>
       </div>
     </SidebarFrame>
   );

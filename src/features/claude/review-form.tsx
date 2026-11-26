@@ -9,7 +9,7 @@ import { getFilePath } from '../../lib/diff-utils';
 import { modKey } from '../../lib/platform';
 import { Popover } from '../../components/ui/popover';
 import { buttonClaudeSolid, buttonGhost, inputField } from '../../components/ui/button-styles';
-import { SparkleIcon } from '../../components/ui/icon';
+import { ChevronDownIcon, SparkleIcon } from '../../components/ui/icon';
 import { toast } from 'sonner';
 import { enqueueClaude, useClaude, useRunInTheWay, waitLabel } from './claude-runner';
 import { useEditTarget } from './edit-target';
@@ -152,6 +152,7 @@ export function ReviewForm(props: ReviewFormProps) {
   const [focus, setFocus] = useState<string[]>(() => readFocus(repoPath));
   const customFocuses = focusesForRepo(useCustomFocuses().all, repoPath);
   const [scope, setScope] = useState<Scope>('all');
+  const [chosenFile, setChosenFile] = useState<string | null>(null);
   const [glob, setGlob] = useState('');
   const reviewPick = useRunPick('review', repoPath);
   const [picked, setPicked] = useState<RunPick | null>(null);
@@ -174,7 +175,9 @@ export function ReviewForm(props: ReviewFormProps) {
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  const paths = scope === 'file' && focusedFile ? [focusedFile] : scope === 'glob' ? globMatches : [];
+  const onScreen = focusedFile && files.includes(focusedFile) ? focusedFile : null;
+  const scopedFile = chosenFile ?? onScreen ?? files[0] ?? null;
+  const paths = scope === 'file' && scopedFile ? [scopedFile] : scope === 'glob' ? globMatches : [];
   const alreadyReviewing = useClaude((state) =>
     state.runs.some((run) => run.action.kind === 'review' && run.context.repoPath === repoPath && sameView(run.ref, diffRef)),
   );
@@ -250,7 +253,7 @@ export function ReviewForm(props: ReviewFormProps) {
       {!embedded && (
         <div className="flex items-center gap-2">
           <SparkleIcon size="md" className="text-claude" />
-          <h3 className="text-[13px] font-semibold text-text">Ask {agent.short} to review</h3>
+          <h3 className="text-[13px] font-semibold text-text">Review changes with {agent.short}</h3>
         </div>
       )}
       <ReviewTarget diffRef={diffRef} onClose={onClose} />
@@ -273,7 +276,7 @@ export function ReviewForm(props: ReviewFormProps) {
           <p className="mt-1.5 text-xs leading-5 text-text-secondary">
             A review only leaves comments.{' '}
             <button type="button" onClick={moveToChat} className="text-claude hover:underline cursor-pointer">
-              Ask {agent.short} in chat to do this instead
+              Chat with {agent.short} to do this instead
             </button>
           </p>
         )}
@@ -282,7 +285,23 @@ export function ReviewForm(props: ReviewFormProps) {
       <div className="flex flex-col gap-0.5">
         <span className="text-xs font-medium text-text-secondary mb-0.5">Scope</span>
         {scopeOption('all', `All changes in this view${files.length ? ` (${files.length} file${files.length === 1 ? '' : 's'})` : ''}`)}
-        {focusedFile && scopeOption('file', <>Only <code className="font-mono text-xs">{focusedFile}</code></>)}
+        {files.length > 1 && scopeOption('file', 'Only one file')}
+        {scope === 'file' && scopedFile && (
+          <div className="relative pl-6 pt-1">
+            <select
+              aria-label="File to review"
+              value={scopedFile}
+              onChange={(event) => setChosenFile(event.target.value)}
+              title={scopedFile}
+              className={cn(inputField, 'pr-7 font-mono text-xs truncate appearance-none cursor-pointer')}
+            >
+              {files.map((file) => (
+                <option key={file} value={file}>{file === onScreen ? `${file} (on screen)` : file}</option>
+              ))}
+            </select>
+            <ChevronDownIcon size="xs" className="pointer-events-none absolute right-2.5 top-[calc(50%+2px)] -translate-y-1/2 text-text-muted" />
+          </div>
+        )}
         {scopeOption('glob', 'Only files matching…')}
         {scope === 'glob' && (
           <div className="pl-6 pt-1">

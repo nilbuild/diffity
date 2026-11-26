@@ -9,8 +9,8 @@ import { AGENTS, getAgents, useAgents, usableAgents } from './agents';
 export type ModelPurpose = 'review' | 'fix';
 
 export const MODEL_PURPOSES: { value: ModelPurpose; label: string; hint: string }[] = [
-  { value: 'review', label: 'Reviews', hint: 'Ask to review' },
-  { value: 'fix', label: 'Fixes, replies and @mentions', hint: 'Send comments, Ask on a thread, @mentions' },
+  { value: 'review', label: 'Reviews', hint: 'Review changes' },
+  { value: 'fix', label: 'Fixes, replies and @mentions', hint: 'Send to Claude, chat, @mentions' },
 ];
 
 const STALE_MS = 24 * 60 * 60 * 1000;

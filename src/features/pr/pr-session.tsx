@@ -320,7 +320,7 @@ function PrDetailsDialog(props: DetailsDialogProps) {
             )}
             <button onClick={askClaude} className={cn(buttonClaude, 'self-start')}>
               <SparkleIcon size="sm" />
-              Ask {reviewAgent.short} to review
+              Review changes with {reviewAgent.short}
             </button>
           </SideSection>
         </aside>

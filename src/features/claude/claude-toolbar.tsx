@@ -156,10 +156,10 @@ function NoComments(props: { agent: string; onReview?: () => void }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3.5">
       <p className="min-w-0 flex-1 text-xs text-text-secondary">
-        <span className="text-text">No comments to fix.</span> Add one on a line{onReview ? ', or' : '.'}
+        <span className="text-text">No comments to send to {agent}.</span> Add one on a line{onReview ? ', or' : '.'}
       </p>
       {onReview && (
-        <button type="button" onClick={onReview} className={cn(buttonOutline, 'shrink-0 h-6 px-2 text-xs')}>Review with {agent}</button>
+        <button type="button" onClick={onReview} className={cn(buttonOutline, 'shrink-0 h-6 px-2 text-xs')}>Review changes</button>
       )}
     </div>
   );
@@ -243,7 +243,7 @@ export function ClaudeToolbar(props: ClaudeToolbarProps) {
 
   const about = diffRef === TREE_REF ? 'this code' : prMode ? 'this pull request' : 'these changes';
   const title = count > 0
-    ? `Chat with ${agent.short} about ${about}, or have it answer or fix ${plural(count, 'open comment')} (${modKey}L)`
+    ? `Chat with ${agent.short} about ${about}, or send it ${plural(count, 'open comment')} (${modKey}L)`
     : `Chat with ${agent.short} about ${about} (${modKey}L)`;
 
   if (busy) {

@@ -10,7 +10,7 @@ import { agentMeta } from './agents';
 
 const itemClass = 'inline-flex items-center h-6 rounded-md text-xs text-text-secondary hover:text-text hover:bg-hover transition-colors cursor-pointer';
 
-/** "Ask Claude" on one thread; the chevron picks the model (and so the agent) for just this run. */
+/** "Send to Claude" on one thread; the chevron picks the model (and so the agent) for just this run. */
 export function AskClaudeThreadButton(props: { threadId: string; sessionId: string | null }) {
   const { threadId, sessionId } = props;
   const { open, close, toggle, anchorRef } = useMenu();
@@ -26,9 +26,9 @@ export function AskClaudeThreadButton(props: { threadId: string; sessionId: stri
 
   return (
     <span className="inline-flex items-center">
-      <button onClick={ask} className={cn(itemClass, 'gap-1 px-2')} title={`${agent.short} answers or makes the change for this comment`}>
+      <button onClick={ask} className={cn(itemClass, 'gap-1 px-2')} title={`${agent.short} answers this comment or makes the change it asks for`}>
         <SparkleIcon className="w-3 h-3 text-claude" />
-        Ask {agent.short}
+        Send to {agent.short}
       </button>
       <button
         ref={anchorRef}
@@ -44,7 +44,7 @@ export function AskClaudeThreadButton(props: { threadId: string; sessionId: stri
         <MenuLabel>This run only</MenuLabel>
         <ModelMenu value={pick} onChange={setPicked} />
         <MenuSeparator />
-        <MenuItem icon={<SparkleIcon size="sm" className="text-claude" />} label={`Ask ${agent.short}`} onSelect={ask} />
+        <MenuItem icon={<SparkleIcon size="sm" className="text-claude" />} label={`Send to ${agent.short}`} onSelect={ask} />
       </Popover>
     </span>
   );

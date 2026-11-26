@@ -455,7 +455,7 @@ function PullRequestReview(props: { pr: GitHubDetails; threads: CommentThread[];
           <Section
             checked={sendClaude}
             onToggle={() => setSendClaude(!sendClaude)}
-            title={<><SparkleIcon size="sm" className="text-claude" />{pendingCount > 0 ? `Ask ${defaultAgent.short} to fix ${pendingCount > 1 ? `all ${pendingCount} comments` : 'the comment'}` : `Send the summary to ${defaultAgent.short}`}</>}
+            title={<><SparkleIcon size="sm" className="text-claude" />{pendingCount > 0 ? `Send ${pendingCount > 1 ? `${pendingCount} comments` : 'the comment'} to ${defaultAgent.short}` : `Send the summary to ${defaultAgent.short}`}</>}
             hint="Edits your local checkout of this branch."
           />
           {mentions > 0 && !sendClaude && (

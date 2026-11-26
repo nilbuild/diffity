@@ -217,7 +217,7 @@ export function CommentForm(props: CommentFormProps) {
           className={primaryClass}
           title={`Kept out of your review: ${askedAgent} replies right away`}
         >
-          Ask {askedAgent}
+          Send to {askedAgent}
         </button>
       );
     }

@@ -143,7 +143,7 @@ export function ChatComposer(props: { repoPath: string; viewRef: string }) {
     <div className="flex flex-col gap-2 shrink-0 px-3 pb-3 pt-1">
       <div ref={setCardSlot} className={cn(!card && 'hidden', 'max-h-[60vh] overflow-y-auto rounded-xl border border-control-border bg-bg-secondary shadow-lg shadow-black/25')} />
       <ApprovalBar repoPath={repoPath} agent={agent.short} />
-      <QuickActions viewRef={viewRef} card={card} />
+      <QuickActions viewRef={viewRef} card={card} agent={agent.short} />
       {!card && (
         <div className="flex flex-col">
           {!editing && <Notices repoPath={repoPath} viewRef={viewRef} agent={agent.short} target={target} waitsFor={waitsFor} steerable={steerable} typing={text.trim().length > 0} />}
@@ -320,17 +320,18 @@ function Notices(props: NoticesProps) {
   );
 }
 
-function QuickActions(props: { viewRef: string; card: ClaudeCard | null }) {
-  const { viewRef, card } = props;
+function QuickActions(props: { viewRef: string; card: ClaudeCard | null; agent: string }) {
+  const { viewRef, card, agent } = props;
   const actions = usePanel((state) => (state.actions?.ref === viewRef ? state.actions : null));
 
   if (!actions || (!actions.reviewable && actions.fixCount === 0)) {
     return null;
   }
-  const chip = (value: ClaudeCard, label: string, pending = false) => (
+  const chip = (value: ClaudeCard, label: string, title: string, pending = false) => (
     <button
       type="button"
       onClick={() => toggleClaudeCard(value)}
+      title={title}
       aria-pressed={card === value}
       className={cn(
         'flex items-center gap-1.5 h-6 px-2.5 rounded-full border text-xs cursor-pointer transition-colors',
@@ -346,8 +347,8 @@ function QuickActions(props: { viewRef: string; card: ClaudeCard | null }) {
   // Open comments are work waiting on you, so their chip stands out from the plain actions.
   return (
     <div className="flex flex-wrap gap-1.5">
-      {actions.fixCount > 0 && chip('fix', `Answer or fix ${plural(actions.fixCount, 'comment')}`, true)}
-      {actions.reviewable && chip('review', 'Review changes')}
+      {actions.fixCount > 0 && chip('fix', `Send ${actions.fixCount} unanswered to ${agent}`, `The ${plural(actions.fixCount, 'open comment')} ${agent} hasn’t replied to yet. ${agent} answers each one or makes the change it asks for.`, true)}
+      {actions.reviewable && chip('review', 'Review changes', `${agent} reviews these changes and leaves comments`)}
     </div>
   );
 }

@@ -399,7 +399,7 @@ function SuggestionContent(props: { item: Suggestion }) {
       <>
         <SparkleIcon className="w-3.5 h-3.5 text-claude" />
         <span className="font-semibold">@{item.agent.handle}</span>
-        <span className="text-text-muted truncate">Ask {item.agent.name}</span>
+        <span className="text-text-muted truncate">Send to {item.agent.name}</span>
       </>
     );
   }
