@@ -252,6 +252,9 @@ pre,
 
 [data-nowrap] .code-cell > [data-find-line] {
   display: inline-block;
+}
+
+[data-nowrap] [data-code-shifted] .code-cell > [data-find-line] {
   translate: calc(var(--code-x, 0px) * -1) 0;
 }
 

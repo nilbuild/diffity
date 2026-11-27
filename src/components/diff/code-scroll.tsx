@@ -6,14 +6,17 @@ const REVEAL_MARGIN = 48;
 /** How far the widest mounted line runs past its cell, i.e. how far the code can scroll sideways. */
 function overflowOf(table: HTMLElement): number {
   let widest = 0;
+  let padding: number | null = null;
   for (const line of table.querySelectorAll<HTMLElement>('[data-code-cell] > [data-find-line]')) {
     const cell = line.parentElement;
     if (!cell) {
       continue;
     }
-    const style = getComputedStyle(cell);
-    const room = cell.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-    widest = Math.max(widest, line.offsetWidth - room);
+    if (padding === null) {
+      const style = getComputedStyle(cell);
+      padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    }
+    widest = Math.max(widest, line.offsetWidth - (cell.clientWidth - padding));
   }
   return Math.max(0, Math.ceil(widest));
 }
@@ -38,7 +41,9 @@ export function CodeScrollbar(props: { tableRef: RefObject<HTMLTableElement | nu
     }
 
     const onScroll = () => {
-      table.style.setProperty('--code-x', `${bar.hidden ? 0 : bar.scrollLeft}px`);
+      const x = bar.hidden ? 0 : bar.scrollLeft;
+      table.style.setProperty('--code-x', `${x}px`);
+      table.toggleAttribute('data-code-shifted', x > 0);
     };
     // The widest line can unmount (lazy rows) and shrink the overflow; the bar clamps or hides without a scroll
     // event, so sync the shift here or the text stays pushed left with nothing to scroll back.
@@ -95,6 +100,7 @@ export function CodeScrollbar(props: { tableRef: RefObject<HTMLTableElement | nu
       table.removeEventListener('wheel', onWheel);
       table.removeEventListener('diffity:reveal-range', onReveal);
       table.style.removeProperty('--code-x');
+      table.removeAttribute('data-code-shifted');
     };
   }, [tableRef, enabled]);
 

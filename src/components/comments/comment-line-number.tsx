@@ -12,7 +12,7 @@ interface CommentLineNumberProps {
   forceShowButton?: boolean;
 }
 
-const baseClass = 'diff-gutter w-(--gutter-w) min-w-(--gutter-w) pl-2 pr-2.5 text-right text-text-muted select-none cursor-pointer align-top relative group/line';
+const baseClass = 'diff-gutter w-(--gutter-w) min-w-(--gutter-w) pl-2 pr-2.5 text-right text-text-muted select-none cursor-pointer align-top group/line';
 
 export function CommentLineNumber(props: CommentLineNumberProps) {
   const { lineNumber, className, isSelected, onMouseDown, onMouseEnter, onCommentClick, showCommentButton, forceShowButton } = props;
@@ -23,6 +23,7 @@ export function CommentLineNumber(props: CommentLineNumberProps) {
         baseClass,
         className,
         isSelected && 'diff-gutter-marked',
+        showCommentButton && lineNumber !== null && (forceShowButton ? 'relative' : 'hover:relative group-hover/row:relative'),
       )}
       onMouseDown={(e) => {
         if (onMouseDown && lineNumber !== null) {
@@ -39,8 +40,8 @@ export function CommentLineNumber(props: CommentLineNumberProps) {
       {showCommentButton && lineNumber !== null && (
         <button
           className={cn(
-            'absolute right-[-3px] top-0.5 w-4 h-4 flex items-center justify-center rounded bg-accent text-white cursor-pointer z-10 hover:bg-accent-hover',
-            forceShowButton ? 'opacity-100' : 'opacity-0 group-hover/row:opacity-100 group-hover/line:opacity-100',
+            'absolute right-[-3px] top-0.5 w-4 h-4 items-center justify-center rounded bg-accent text-white cursor-pointer z-10 hover:bg-accent-hover',
+            forceShowButton ? 'flex' : 'hidden group-hover/row:flex group-hover/line:flex',
           )}
           onClick={(e) => {
             e.stopPropagation();
